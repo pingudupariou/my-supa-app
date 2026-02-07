@@ -32,13 +32,15 @@ interface SectionCardProps {
   children: ReactNode;
   id?: string;
   className?: string;
+  action?: ReactNode;
 }
 
-export function SectionCard({ title, children, id, className }: SectionCardProps) {
+export function SectionCard({ title, children, id, className, action }: SectionCardProps) {
   return (
     <Card className={cn('', className)} id={id}>
-      <CardHeader className="pb-3">
+      <CardHeader className="pb-3 flex flex-row items-center justify-between">
         <CardTitle className="text-lg">{title}</CardTitle>
+        {action}
       </CardHeader>
       <CardContent>{children}</CardContent>
     </Card>

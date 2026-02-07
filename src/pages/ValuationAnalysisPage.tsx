@@ -545,7 +545,7 @@ export function ValuationAnalysisPage() {
         <TabsContent value="dilution" className="space-y-6">
           <DilutionSimulator
             config={dilutionConfig}
-            onConfigChange={setDilutionConfig}
+            onChange={setDilutionConfig}
           />
         </TabsContent>
 
