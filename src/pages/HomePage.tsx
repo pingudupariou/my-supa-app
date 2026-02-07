@@ -14,10 +14,10 @@ import {
   Wrench,
   Award
 } from 'lucide-react';
-import heroHome from '@/assets/hero-home.jpg';
-import productTransmission from '@/assets/product-transmission.jpg';
-import visionNovaride from '@/assets/vision-novaride.jpg';
-import productCcdEvo from '@/assets/product-ccd-evo.png';
+const heroHome = '/placeholder.svg';
+const productTransmission = '/placeholder.svg';
+const visionNovaride = '/placeholder.svg';
+const productCcdEvo = '/placeholder.svg';
 
 export function HomePage() {
   const kpis = [
