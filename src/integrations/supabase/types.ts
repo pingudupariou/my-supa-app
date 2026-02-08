@@ -14,6 +14,197 @@ export type Database = {
   }
   public: {
     Tables: {
+      costflow_bom: {
+        Row: {
+          created_at: string
+          id: string
+          product_id: string
+          quantity: number
+          reference_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          product_id: string
+          quantity?: number
+          reference_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          product_id?: string
+          quantity?: number
+          reference_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "costflow_bom_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "costflow_products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "costflow_bom_reference_id_fkey"
+            columns: ["reference_id"]
+            isOneToOne: false
+            referencedRelation: "costflow_references"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      costflow_products: {
+        Row: {
+          coefficient: number | null
+          comments: string | null
+          created_at: string
+          default_volume: number | null
+          family: string | null
+          id: string
+          main_supplier: string | null
+          name: string
+          price_ttc: number | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          coefficient?: number | null
+          comments?: string | null
+          created_at?: string
+          default_volume?: number | null
+          family?: string | null
+          id?: string
+          main_supplier?: string | null
+          name: string
+          price_ttc?: number | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          coefficient?: number | null
+          comments?: string | null
+          created_at?: string
+          default_volume?: number | null
+          family?: string | null
+          id?: string
+          main_supplier?: string | null
+          name?: string
+          price_ttc?: number | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      costflow_reference_files: {
+        Row: {
+          file_name: string
+          file_path: string
+          file_size: number | null
+          id: string
+          reference_id: string
+          uploaded_at: string
+          user_id: string
+          version: number | null
+        }
+        Insert: {
+          file_name: string
+          file_path: string
+          file_size?: number | null
+          id?: string
+          reference_id: string
+          uploaded_at?: string
+          user_id: string
+          version?: number | null
+        }
+        Update: {
+          file_name?: string
+          file_path?: string
+          file_size?: number | null
+          id?: string
+          reference_id?: string
+          uploaded_at?: string
+          user_id?: string
+          version?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "costflow_reference_files_reference_id_fkey"
+            columns: ["reference_id"]
+            isOneToOne: false
+            referencedRelation: "costflow_references"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      costflow_references: {
+        Row: {
+          category: string | null
+          code: string
+          comments: string | null
+          created_at: string
+          currency: string | null
+          id: string
+          name: string
+          price_vol_100: number | null
+          price_vol_1000: number | null
+          price_vol_10000: number | null
+          price_vol_200: number | null
+          price_vol_2000: number | null
+          price_vol_50: number | null
+          price_vol_500: number | null
+          price_vol_5000: number | null
+          revision: string | null
+          supplier: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          category?: string | null
+          code: string
+          comments?: string | null
+          created_at?: string
+          currency?: string | null
+          id?: string
+          name: string
+          price_vol_100?: number | null
+          price_vol_1000?: number | null
+          price_vol_10000?: number | null
+          price_vol_200?: number | null
+          price_vol_2000?: number | null
+          price_vol_50?: number | null
+          price_vol_500?: number | null
+          price_vol_5000?: number | null
+          revision?: string | null
+          supplier?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          category?: string | null
+          code?: string
+          comments?: string | null
+          created_at?: string
+          currency?: string | null
+          id?: string
+          name?: string
+          price_vol_100?: number | null
+          price_vol_1000?: number | null
+          price_vol_10000?: number | null
+          price_vol_200?: number | null
+          price_vol_2000?: number | null
+          price_vol_50?: number | null
+          price_vol_500?: number | null
+          price_vol_5000?: number | null
+          revision?: string | null
+          supplier?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       customer_orders: {
         Row: {
           created_at: string
