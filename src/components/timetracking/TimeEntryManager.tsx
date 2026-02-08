@@ -206,10 +206,10 @@ export function TimeEntryManager({ entries, categories, onCreateEntry, onUpdateE
             </div>
             <div>
               <Label>Catégorie</Label>
-              <Select value={form.category_id} onValueChange={v => setForm({ ...form, category_id: v })}>
+              <Select value={form.category_id || 'none'} onValueChange={v => setForm({ ...form, category_id: v === 'none' ? '' : v })}>
                 <SelectTrigger><SelectValue placeholder="Sélectionner..." /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Aucune</SelectItem>
+                  <SelectItem value="none">Aucune</SelectItem>
                   {categories.map(c => (
                     <SelectItem key={c.id} value={c.id}>
                       <div className="flex items-center gap-2">
