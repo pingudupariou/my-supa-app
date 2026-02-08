@@ -51,6 +51,7 @@ export function CostFlowPage() {
               onCreateReference={data.createReference}
               onUpdateReference={data.updateReference}
               onDeleteReference={data.deleteReference}
+              onBulkImport={data.bulkCreateReferences}
               onSelectReference={setSelectedRef}
             />
           )}

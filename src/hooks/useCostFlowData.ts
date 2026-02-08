@@ -167,6 +167,26 @@ export function useCostFlowData() {
     else { toast.success('Référence supprimée'); fetchAll(); }
   };
 
+  const bulkCreateReferences = async (refs: Partial<CostFlowReference>[]) => {
+    if (!user || refs.length === 0) return;
+    const rows = refs.map(ref => {
+      const prices = ref.prices || {};
+      return {
+        user_id: user.id, code: ref.code, name: ref.name,
+        category: ref.category || 'Mécanique', revision: ref.revision || 'A',
+        supplier: ref.supplier || '', currency: ref.currency || 'EUR',
+        comments: ref.comments || '',
+        price_vol_50: prices[50] || 0, price_vol_100: prices[100] || 0,
+        price_vol_200: prices[200] || 0, price_vol_500: prices[500] || 0,
+        price_vol_1000: prices[1000] || 0, price_vol_2000: prices[2000] || 0,
+        price_vol_5000: prices[5000] || 0, price_vol_10000: prices[10000] || 0,
+      };
+    });
+    const { error } = await supabase.from('costflow_references' as any).insert(rows as any);
+    if (error) { toast.error(`Erreur import : ${error.message}`); console.error(error); }
+    else { toast.success(`${refs.length} référence(s) importée(s)`); fetchAll(); }
+  };
+
   // === PRODUCTS CRUD ===
   const createProduct = async (prod: Partial<CostFlowProduct>) => {
     if (!user) return;
@@ -282,7 +302,7 @@ export function useCostFlowData() {
 
   return {
     references, products, bom, referenceFiles, loading,
-    createReference, updateReference, deleteReference,
+    createReference, updateReference, deleteReference, bulkCreateReferences,
     createProduct, updateProduct, deleteProduct,
     addBomEntry, updateBomEntry, removeBomEntry,
     uploadFile, deleteFile, getFileUrl, getSignedUrl,

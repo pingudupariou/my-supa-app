@@ -8,6 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Plus, Trash2, Edit, Search, Upload } from 'lucide-react';
+import { ReferenceImportDialog } from './ReferenceImportDialog';
 import type { CostFlowReference } from '@/hooks/useCostFlowData';
 
 const CATEGORIES = ['Mécanique', 'Électronique', 'Plastique', 'Composite', 'Caoutchouc', 'Visserie', 'Câblage', 'Autre'];
@@ -20,11 +21,13 @@ interface Props {
   onCreateReference: (ref: Partial<CostFlowReference>) => Promise<void>;
   onUpdateReference: (id: string, ref: Partial<CostFlowReference>) => Promise<void>;
   onDeleteReference: (id: string) => Promise<void>;
+  onBulkImport: (refs: Partial<CostFlowReference>[]) => Promise<void>;
   onSelectReference: (ref: CostFlowReference) => void;
 }
 
-export function ReferenceManager({ references, onCreateReference, onUpdateReference, onDeleteReference, onSelectReference }: Props) {
+export function ReferenceManager({ references, onCreateReference, onUpdateReference, onDeleteReference, onBulkImport, onSelectReference }: Props) {
   const [search, setSearch] = useState('');
+  const [importOpen, setImportOpen] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingRef, setEditingRef] = useState<CostFlowReference | null>(null);
   const [form, setForm] = useState({
@@ -68,10 +71,12 @@ export function ReferenceManager({ references, onCreateReference, onUpdateRefere
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input placeholder="Rechercher code, nom, fournisseur..." value={search} onChange={e => setSearch(e.target.value)} className="pl-9" />
         </div>
-        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-          <DialogTrigger asChild>
-            <Button onClick={openCreate}><Plus className="h-4 w-4 mr-1" /> Nouvelle référence</Button>
-          </DialogTrigger>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => setImportOpen(true)}><Upload className="h-4 w-4 mr-1" /> Importer</Button>
+          <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+            <DialogTrigger asChild>
+              <Button onClick={openCreate}><Plus className="h-4 w-4 mr-1" /> Nouvelle référence</Button>
+            </DialogTrigger>
           <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>{editingRef ? 'Modifier la référence' : 'Nouvelle référence'}</DialogTitle>
@@ -131,6 +136,7 @@ export function ReferenceManager({ references, onCreateReference, onUpdateRefere
             </div>
           </DialogContent>
         </Dialog>
+        </div>
       </div>
 
       <div className="border rounded overflow-auto">
@@ -174,6 +180,12 @@ export function ReferenceManager({ references, onCreateReference, onUpdateRefere
         </Table>
       </div>
       <p className="text-xs text-muted-foreground">{filtered.length} référence(s) • Cliquez sur une ligne pour voir les détails et plans techniques</p>
+      <ReferenceImportDialog
+        open={importOpen}
+        onOpenChange={setImportOpen}
+        onImport={onBulkImport}
+        existingCodes={references.map(r => r.code)}
+      />
     </div>
   );
 }
