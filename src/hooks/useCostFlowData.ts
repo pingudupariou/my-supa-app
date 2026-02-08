@@ -337,10 +337,32 @@ export function useCostFlowData() {
     return costs;
   };
 
+  const createProductWithBom = async (prod: Partial<CostFlowProduct>, bomEntries: { referenceId: string; quantity: number }[]) => {
+    if (!user) return;
+    const { data, error } = await supabase.from('costflow_products' as any).insert({
+      user_id: user.id, name: prod.name, family: prod.family || 'Standard',
+      main_supplier: prod.main_supplier || '', coefficient: prod.coefficient || 1.3,
+      price_ttc: prod.price_ttc || 0, default_volume: prod.default_volume || 500,
+      comments: prod.comments || '',
+    } as any).select('id').single();
+    if (error || !data) { toast.error('Erreur création produit'); console.error(error); return; }
+
+    const productId = (data as any).id;
+    if (bomEntries.length > 0) {
+      const bomRows = bomEntries.map(e => ({
+        user_id: user.id, product_id: productId, reference_id: e.referenceId, quantity: e.quantity,
+      }));
+      const { error: bomError } = await supabase.from('costflow_bom' as any).insert(bomRows as any);
+      if (bomError) { toast.error('Erreur ajout nomenclature'); console.error(bomError); }
+    }
+    toast.success(`Produit "${prod.name}" créé avec ${bomEntries.length} référence(s)`);
+    fetchAll();
+  };
+
   return {
     references, products, bom, referenceFiles, loading,
     createReference, updateReference, deleteReference, bulkCreateReferences,
-    createProduct, updateProduct, deleteProduct,
+    createProduct, updateProduct, deleteProduct, createProductWithBom,
     addBomEntry, updateBomEntry, removeBomEntry,
     uploadFile, deleteFile, getFileUrl, getSignedUrl,
     calculateProductCost, calculateProductCosts,
