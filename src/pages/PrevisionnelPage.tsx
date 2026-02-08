@@ -23,6 +23,8 @@ import {
   EyeOff,
   CalendarDays,
   BarChart3,
+  Landmark,
+  Package,
 } from 'lucide-react';
 import {
   Table,
@@ -59,6 +61,10 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover';
 import { MonthlyTreasuryPlan } from '@/components/treasury/MonthlyTreasuryPlan';
+import { LoanManager } from '@/components/treasury/LoanManager';
+import { CapexScheduler } from '@/components/treasury/CapexScheduler';
+import { TreasuryDetailChart } from '@/components/treasury/TreasuryDetailChart';
+import { DetailedTreasuryBreakdown } from '@/components/treasury/DetailedTreasuryBreakdown';
 import { aggregateByYear } from '@/engine/monthlyTreasuryEngine';
 
 // Définition des indicateurs SIG disponibles
@@ -262,7 +268,7 @@ const CATEGORY_LABELS = {
 };
 
 export function PrevisionnelPage() {
-  const { state, computed, saveAll, setExcludeFundingFromTreasury } = useFinancial();
+  const { state, computed, saveAll, setExcludeFundingFromTreasury, updateMonthlyTreasuryConfig } = useFinancial();
   
   // État pour les indicateurs visibles (personnalisation)
   const [visibleIndicators, setVisibleIndicators] = useState<Set<string>>(() => {
@@ -274,7 +280,7 @@ export function PrevisionnelPage() {
   });
   
   // État pour l'onglet actif (annuel vs mensuel)
-  const [activeView, setActiveView] = useState<'annual' | 'monthly'>('annual');
+  const [activeView, setActiveView] = useState<'annual' | 'monthly' | 'params'>('annual');
   
   const { startYear, durationYears } = state.scenarioSettings;
   const years = Array.from({ length: durationYears }, (_, i) => startYear + i);
@@ -392,7 +398,7 @@ export function PrevisionnelPage() {
         <div className="flex flex-wrap items-center justify-between gap-4 p-4 bg-muted/30 rounded-lg border">
           <div className="flex items-center gap-6">
             {/* Sélecteur de vue */}
-            <Tabs value={activeView} onValueChange={(v) => setActiveView(v as 'annual' | 'monthly')}>
+            <Tabs value={activeView} onValueChange={(v) => setActiveView(v as 'annual' | 'monthly' | 'params')}>
               <TabsList>
                 <TabsTrigger value="annual" className="flex items-center gap-2">
                   <BarChart3 className="h-4 w-4" />
@@ -401,6 +407,10 @@ export function PrevisionnelPage() {
                 <TabsTrigger value="monthly" className="flex items-center gap-2">
                   <CalendarDays className="h-4 w-4" />
                   Plan de Trésorerie
+                </TabsTrigger>
+                <TabsTrigger value="params" className="flex items-center gap-2">
+                  <Settings2 className="h-4 w-4" />
+                  Prêts & CAPEX
                 </TabsTrigger>
               </TabsList>
             </Tabs>
@@ -444,8 +454,36 @@ export function PrevisionnelPage() {
         </div>
 
         {/* Contenu conditionnel selon la vue */}
-        {activeView === 'monthly' ? (
-          <MonthlyTreasuryPlan />
+        {activeView === 'params' ? (
+          <div className="space-y-6">
+            <LoanManager
+              loans={state.monthlyTreasuryConfig.loans}
+              onChange={(loans) => updateMonthlyTreasuryConfig({ ...state.monthlyTreasuryConfig, loans })}
+              startYear={startYear}
+              durationYears={durationYears}
+            />
+            <CapexScheduler
+              capexPayments={state.monthlyTreasuryConfig.capexPayments}
+              onChange={(capexPayments) => updateMonthlyTreasuryConfig({ ...state.monthlyTreasuryConfig, capexPayments })}
+              products={state.products}
+              startYear={startYear}
+              durationYears={durationYears}
+            />
+          </div>
+        ) : activeView === 'monthly' ? (
+          <div className="space-y-6">
+            <TreasuryDetailChart
+              projection={monthlyTreasuryProjection}
+              startYear={startYear}
+              durationYears={durationYears}
+            />
+            <DetailedTreasuryBreakdown
+              projection={monthlyTreasuryProjection}
+              startYear={startYear}
+              durationYears={durationYears}
+            />
+            <MonthlyTreasuryPlan />
+          </div>
         ) : (
           <>
             {/* KPIs principaux */}

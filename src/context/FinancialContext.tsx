@@ -83,6 +83,7 @@ interface FinancialContextType {
   updateSimpleOpexConfig: (config: Partial<SimpleOpexConfig>) => void;
   setExcludeFundingFromTreasury: (exclude: boolean) => void;
   updateHistoricalData: (data: HistoricalYearData[]) => void;
+  updateMonthlyTreasuryConfig: (config: MonthlyTreasuryConfig) => void;
   saveAll: () => void;
 }
 
@@ -180,6 +181,7 @@ export function FinancialProvider({ children }: { children: ReactNode }) {
   const updateSimpleOpexConfig = useCallback((config: Partial<SimpleOpexConfig>) => { setState(prev => ({ ...prev, simpleOpexConfig: { ...prev.simpleOpexConfig, ...config }, hasUnsavedChanges: true })); }, []);
   const setExcludeFundingFromTreasury = useCallback((excludeFundingFromTreasury: boolean) => { setState(prev => ({ ...prev, excludeFundingFromTreasury, hasUnsavedChanges: true })); }, []);
   const updateHistoricalData = useCallback((historicalData: HistoricalYearData[]) => { setState(prev => ({ ...prev, historicalData, hasUnsavedChanges: true })); }, []);
+  const updateMonthlyTreasuryConfig = useCallback((monthlyTreasuryConfig: MonthlyTreasuryConfig) => { setState(prev => ({ ...prev, monthlyTreasuryConfig, hasUnsavedChanges: true })); }, []);
 
   const saveAll = useCallback(async () => {
     try {
@@ -293,6 +295,7 @@ export function FinancialProvider({ children }: { children: ReactNode }) {
       setRevenueMode, updateGlobalRevenueConfig,
       setOpexMode, updateSimpleOpexConfig,
       setExcludeFundingFromTreasury, updateHistoricalData,
+      updateMonthlyTreasuryConfig,
       saveAll,
     }}>
       {children}
