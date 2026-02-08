@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useMemo, ReactNode, useCallback } from 'react';
+import { createContext, useContext, useState, useMemo, ReactNode, useCallback, useEffect, useRef } from 'react';
 import { Product, Role, Expense, FundingRound } from '@/engine/types';
 import { defaultProducts, defaultRoles, defaultExpenses, defaultFundingRounds } from '@/engine/defaults';
 import { calculateTotalRevenue, calculateCOGS, calculatePayroll, calculateHeadcount, calculateTotalOpex, calculateTotalVolumes, calculateDepreciation } from '@/engine/calculations';
@@ -8,6 +8,8 @@ import { calculateCapexByYear } from '@/engine/fundingNeedsCalculator';
 import { GlobalRevenueConfig } from '@/components/product/GlobalRevenueEditor';
 import { HistoricalYearData } from '@/components/valuation/EditableHistoricalFinancials';
 import { toast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/context/AuthContext';
 
 export type RevenueMode = 'by-product' | 'by-channel-global';
 
@@ -125,7 +127,33 @@ function getDefaultState(): FinancialState {
 const FinancialContext = createContext<FinancialContextType | undefined>(undefined);
 
 export function FinancialProvider({ children }: { children: ReactNode }) {
+  const { user } = useAuth();
   const [state, setState] = useState<FinancialState>(loadState);
+  const [cloudLoaded, setCloudLoaded] = useState(false);
+  const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Load from Supabase on login
+  useEffect(() => {
+    if (!user || cloudLoaded) return;
+    (async () => {
+      try {
+        const { data } = await supabase
+          .from('financial_scenarios')
+          .select('state_data')
+          .eq('user_id', user.id)
+          .maybeSingle();
+        if (data?.state_data) {
+          const cloudState = data.state_data as unknown as FinancialState;
+          setState({ ...cloudState, hasUnsavedChanges: false });
+          localStorage.setItem(STATE_KEY, JSON.stringify(cloudState));
+        }
+      } catch (e) {
+        console.warn('Failed to load from cloud:', e);
+      } finally {
+        setCloudLoaded(true);
+      }
+    })();
+  }, [user, cloudLoaded]);
 
   const markChanged = useCallback(() => {
     setState(prev => ({ ...prev, hasUnsavedChanges: true }));
@@ -153,16 +181,25 @@ export function FinancialProvider({ children }: { children: ReactNode }) {
   const setExcludeFundingFromTreasury = useCallback((excludeFundingFromTreasury: boolean) => { setState(prev => ({ ...prev, excludeFundingFromTreasury, hasUnsavedChanges: true })); }, []);
   const updateHistoricalData = useCallback((historicalData: HistoricalYearData[]) => { setState(prev => ({ ...prev, historicalData, hasUnsavedChanges: true })); }, []);
 
-  const saveAll = useCallback(() => {
+  const saveAll = useCallback(async () => {
     try {
       const toSave = { ...state, hasUnsavedChanges: false, lastSaved: new Date().toISOString() };
       localStorage.setItem(STATE_KEY, JSON.stringify(toSave));
       setState(toSave);
-      toast({ title: 'Données sauvegardées' });
+
+      // Save to Supabase if logged in
+      if (user) {
+        const { hasUnsavedChanges: _, ...stateForCloud } = toSave;
+        await supabase
+          .from('financial_scenarios')
+          .upsert({ user_id: user.id, state_data: stateForCloud as any }, { onConflict: 'user_id' });
+      }
+
+      toast({ title: 'Données sauvegardées', description: user ? 'Sauvegardé en local et dans le cloud.' : 'Sauvegardé en local.' });
     } catch {
       toast({ title: 'Erreur de sauvegarde', variant: 'destructive' });
     }
-  }, [state]);
+  }, [state, user]);
 
   const computed = useMemo<ComputedValues>(() => {
     const { products, roles, expenses, fundingRounds, scenarioSettings, scenarioConfigs, activeScenarioId, opexMode, simpleOpexConfig, excludeFundingFromTreasury, monthlyTreasuryConfig } = state;
