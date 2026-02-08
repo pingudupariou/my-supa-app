@@ -167,24 +167,61 @@ export function useCostFlowData() {
     else { toast.success('Référence supprimée'); fetchAll(); }
   };
 
-  const bulkCreateReferences = async (refs: Partial<CostFlowReference>[]) => {
-    if (!user || refs.length === 0) return;
-    const rows = refs.map(ref => {
-      const prices = ref.prices || {};
-      return {
-        user_id: user.id, code: ref.code, name: ref.name,
-        category: ref.category || 'Mécanique', revision: ref.revision || 'A',
-        supplier: ref.supplier || '', currency: ref.currency || 'EUR',
-        comments: ref.comments || '',
-        price_vol_50: prices[50] || 0, price_vol_100: prices[100] || 0,
-        price_vol_200: prices[200] || 0, price_vol_500: prices[500] || 0,
-        price_vol_1000: prices[1000] || 0, price_vol_2000: prices[2000] || 0,
-        price_vol_5000: prices[5000] || 0, price_vol_10000: prices[10000] || 0,
-      };
-    });
-    const { error } = await supabase.from('costflow_references' as any).insert(rows as any);
-    if (error) { toast.error(`Erreur import : ${error.message}`); console.error(error); }
-    else { toast.success(`${refs.length} référence(s) importée(s)`); fetchAll(); }
+  const bulkCreateReferences = async (refs: Partial<CostFlowReference>[], duplicateAction: 'skip' | 'overwrite' = 'skip') => {
+    if (!user || refs.length === 0) return { imported: 0, skipped: 0, updated: 0, errors: [] as string[] };
+
+    const result = { imported: 0, skipped: 0, updated: 0, errors: [] as string[] };
+    const existingCodes = references.map(r => r.code);
+
+    const newRefs = refs.filter(r => !existingCodes.includes(r.code || ''));
+    const dupeRefs = refs.filter(r => existingCodes.includes(r.code || ''));
+
+    // Insert new references
+    if (newRefs.length > 0) {
+      const rows = newRefs.map(ref => {
+        const prices = ref.prices || {};
+        return {
+          user_id: user.id, code: ref.code, name: ref.name || ref.code,
+          category: ref.category || 'Mécanique', revision: ref.revision || 'A',
+          supplier: ref.supplier || '', currency: ref.currency || 'EUR',
+          comments: ref.comments || '',
+          price_vol_50: prices[50] || 0, price_vol_100: prices[100] || 0,
+          price_vol_200: prices[200] || 0, price_vol_500: prices[500] || 0,
+          price_vol_1000: prices[1000] || 0, price_vol_2000: prices[2000] || 0,
+          price_vol_5000: prices[5000] || 0, price_vol_10000: prices[10000] || 0,
+        };
+      });
+      const { error } = await supabase.from('costflow_references' as any).insert(rows as any);
+      if (error) { result.errors.push(`Erreur insertion : ${error.message}`); }
+      else { result.imported = newRefs.length; }
+    }
+
+    // Handle duplicates
+    if (dupeRefs.length > 0) {
+      if (duplicateAction === 'skip') {
+        result.skipped = dupeRefs.length;
+      } else {
+        // Overwrite: update each duplicate
+        for (const ref of dupeRefs) {
+          const existing = references.find(r => r.code === ref.code);
+          if (!existing) continue;
+          const prices = ref.prices || {};
+          const { error } = await supabase.from('costflow_references' as any).update({
+            name: ref.name || ref.code, supplier: ref.supplier || '',
+            currency: ref.currency || 'EUR', comments: ref.comments || '',
+            price_vol_50: prices[50] || 0, price_vol_100: prices[100] || 0,
+            price_vol_200: prices[200] || 0, price_vol_500: prices[500] || 0,
+            price_vol_1000: prices[1000] || 0, price_vol_2000: prices[2000] || 0,
+            price_vol_5000: prices[5000] || 0, price_vol_10000: prices[10000] || 0,
+          } as any).eq('id', existing.id);
+          if (error) result.errors.push(`Erreur mise à jour ${ref.code}`);
+          else result.updated++;
+        }
+      }
+    }
+
+    fetchAll();
+    return result;
   };
 
   // === PRODUCTS CRUD ===
