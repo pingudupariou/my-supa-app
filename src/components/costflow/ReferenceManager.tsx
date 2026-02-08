@@ -64,10 +64,11 @@ export function ReferenceManager({ references, suppliers, onCreateReference, onU
 
   const handleSave = async () => {
     if (!form.code || !form.name) return;
+    const payload = { ...form, supplier: form.supplier === 'none' ? '' : form.supplier };
     if (editingRef) {
-      await onUpdateReference(editingRef.id, form);
+      await onUpdateReference(editingRef.id, payload);
     } else {
-      await onCreateReference(form);
+      await onCreateReference(payload);
     }
     setDialogOpen(false);
   };
@@ -117,7 +118,7 @@ export function ReferenceManager({ references, suppliers, onCreateReference, onU
                 <Select value={form.supplier} onValueChange={v => setForm({ ...form, supplier: v })}>
                   <SelectTrigger><SelectValue placeholder="Sélectionner..." /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">Aucun</SelectItem>
+                    <SelectItem value="none">Aucun</SelectItem>
                     {suppliers.map(s => <SelectItem key={s.id} value={s.name}>{s.name}</SelectItem>)}
                   </SelectContent>
                 </Select>
