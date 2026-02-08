@@ -17,7 +17,10 @@ export function CRMPage() {
     appointments,
     pricingTiers,
     isLoading,
-    refreshData 
+    refreshData,
+    createCustomer,
+    updateCustomer,
+    deleteCustomer,
   } = useCRMData();
   
   const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
@@ -104,6 +107,7 @@ export function CRMPage() {
                 selectedId={selectedCustomerId}
                 onSelect={setSelectedCustomerId}
                 onRefresh={refreshData}
+                onCreate={createCustomer}
               />
             </div>
             
