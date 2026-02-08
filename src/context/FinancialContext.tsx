@@ -5,7 +5,7 @@ import { calculateTotalRevenue, calculateCOGS, calculatePayroll, calculateHeadco
 import { calculateTreasuryProjection, TreasuryProjection } from '@/engine/treasuryEngine';
 import { calculateMonthlyTreasuryProjection, MonthlyTreasuryProjection, getDefaultMonthlyTreasuryConfig, MonthlyTreasuryConfig } from '@/engine/monthlyTreasuryEngine';
 import { calculateCapexByYear } from '@/engine/fundingNeedsCalculator';
-import { GlobalRevenueConfig } from '@/components/product/GlobalRevenueEditor';
+import { GlobalRevenueConfig, defaultGlobalRevenueConfig, calculateGlobalRevenue, calculateGlobalCogs } from '@/components/product/GlobalRevenueEditor';
 import { HistoricalYearData } from '@/components/valuation/EditableHistoricalFinancials';
 import { toast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
@@ -111,7 +111,7 @@ function getDefaultState(): FinancialState {
     },
     activeScenarioId: 'base',
     revenueMode: 'by-product',
-    globalRevenueConfig: { b2c: {}, b2b: {}, oem: {} },
+    globalRevenueConfig: defaultGlobalRevenueConfig,
     opexMode: 'detailed',
     simpleOpexConfig: { baseAmount: 200000, growthRate: 0.05 },
     hasUnsavedChanges: false,
@@ -212,6 +212,11 @@ export function FinancialProvider({ children }: { children: ReactNode }) {
     const totalDevCost = products.reduce((sum, p) => sum + p.devCost, 0);
 
     const revenueByYear = years.map(year => {
+      if (state.revenueMode === 'by-channel-global') {
+        const revenue = calculateGlobalRevenue(state.globalRevenueConfig, year);
+        const cogs = calculateGlobalCogs(state.globalRevenueConfig, year);
+        return { year, revenue, cogs };
+      }
       let revenue = 0, cogs = 0;
       products.forEach(p => {
         const vol = Math.round((p.volumesByYear[year] || 0) * (1 + config.volumeAdjustment));
