@@ -39,7 +39,7 @@ export interface LoanConfig {
   interestRate: number; // Taux annuel (ex: 0.05 = 5%)
   startDate: { year: number; month: MonthIndex };
   endDate: { year: number; month: MonthIndex };
-  frequency: 'monthly' | 'quarterly';
+  frequency: 'monthly' | 'annual';
   // Échéances modifiées manuellement (optionnel)
   manualPayments?: Record<string, number>; // key = "YYYY-MM"
 }
@@ -178,46 +178,95 @@ function normalizeSeasonality(seasonality: SeasonalityConfig): number[] {
 }
 
 /**
- * Récupère les échéances d'un prêt (mode manuel uniquement)
+ * Calcule les échéances d'un prêt (automatique ou manuel)
  */
 function getLoanPayments(loan: LoanConfig, startYear: number, durationYears: number): LoanPayment[] {
   const payments: LoanPayment[] = [];
-  
-  // Si pas d'échéances manuelles, retourner vide
-  if (!loan.manualPayments || Object.keys(loan.manualPayments).length === 0) {
+  const periodEnd = startYear + durationYears;
+
+  // Si des échéances manuelles existent, les utiliser
+  if (loan.manualPayments && Object.keys(loan.manualPayments).length > 0) {
+    Object.entries(loan.manualPayments).forEach(([key, amount]) => {
+      const parsed = parseMonthKey(key);
+      if (!parsed) return;
+      const { year, month } = parsed;
+      if (year >= startYear && year < periodEnd) {
+        payments.push({
+          loanId: loan.id, loanName: loan.name, year, month,
+          principal: amount, interest: 0, total: amount, isManuallyModified: true,
+        });
+      }
+    });
+    payments.sort((a, b) => a.year !== b.year ? a.year - b.year : a.month - b.month);
     return payments;
   }
+
+  // Calcul automatique des échéances
+  const startMonth = loan.startDate.year * 12 + loan.startDate.month;
+  const endMonth = loan.endDate.year * 12 + loan.endDate.month;
   
-  const periodEnd = startYear + durationYears;
-  
-  // Utiliser les échéances manuelles
-  Object.entries(loan.manualPayments).forEach(([key, amount]) => {
-    const parsed = parseMonthKey(key);
-    if (!parsed) return;
+  if (endMonth <= startMonth) return payments;
+
+  if (loan.frequency === 'monthly') {
+    const numPayments = endMonth - startMonth;
+    if (numPayments <= 0) return payments;
     
-    const { year, month } = parsed;
-    
-    // Vérifier si dans la période du scénario
-    if (year >= startYear && year < periodEnd) {
+    const monthlyRate = loan.interestRate / 12;
+    let monthlyPayment: number;
+    if (monthlyRate === 0) {
+      monthlyPayment = loan.principalAmount / numPayments;
+    } else {
+      monthlyPayment = loan.principalAmount * monthlyRate * Math.pow(1 + monthlyRate, numPayments) / (Math.pow(1 + monthlyRate, numPayments) - 1);
+    }
+
+    let remainingPrincipal = loan.principalAmount;
+    for (let i = 0; i < numPayments; i++) {
+      const absMonth = startMonth + i;
+      const year = Math.floor(absMonth / 12);
+      const month = (absMonth % 12) as MonthIndex;
+      
+      if (year < startYear || year >= periodEnd) continue;
+      
+      const interest = remainingPrincipal * monthlyRate;
+      const principal = monthlyPayment - interest;
+      remainingPrincipal -= principal;
+
       payments.push({
-        loanId: loan.id,
-        loanName: loan.name,
-        year,
-        month,
-        principal: amount, // Tout est considéré comme paiement
-        interest: 0,
-        total: amount,
-        isManuallyModified: true,
+        loanId: loan.id, loanName: loan.name, year, month,
+        principal: Math.max(0, principal), interest, total: monthlyPayment,
+        isManuallyModified: false,
       });
     }
-  });
-  
-  // Trier par date
-  payments.sort((a, b) => {
-    if (a.year !== b.year) return a.year - b.year;
-    return a.month - b.month;
-  });
-  
+  } else {
+    // Fréquence annuelle
+    const numYears = Math.max(1, Math.round((endMonth - startMonth) / 12));
+    const annualRate = loan.interestRate;
+    let annualPayment: number;
+    if (annualRate === 0) {
+      annualPayment = loan.principalAmount / numYears;
+    } else {
+      annualPayment = loan.principalAmount * annualRate * Math.pow(1 + annualRate, numYears) / (Math.pow(1 + annualRate, numYears) - 1);
+    }
+
+    let remainingPrincipal = loan.principalAmount;
+    for (let i = 0; i < numYears; i++) {
+      const year = loan.startDate.year + i;
+      const month = loan.startDate.month;
+      
+      if (year < startYear || year >= periodEnd) continue;
+      
+      const interest = remainingPrincipal * annualRate;
+      const principal = annualPayment - interest;
+      remainingPrincipal -= principal;
+
+      payments.push({
+        loanId: loan.id, loanName: loan.name, year, month,
+        principal: Math.max(0, principal), interest, total: annualPayment,
+        isManuallyModified: false,
+      });
+    }
+  }
+
   return payments;
 }
 
