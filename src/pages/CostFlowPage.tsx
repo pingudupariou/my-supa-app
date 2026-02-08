@@ -6,6 +6,7 @@ import { ReferenceDetail } from '@/components/costflow/ReferenceDetail';
 import { ProductManager } from '@/components/costflow/ProductManager';
 import { ProductDetail } from '@/components/costflow/ProductDetail';
 import { CostAnalysis } from '@/components/costflow/CostAnalysis';
+import { SupplierManager } from '@/components/costflow/SupplierManager';
 import { Loader2 } from 'lucide-react';
 
 export function CostFlowPage() {
@@ -32,6 +33,7 @@ export function CostFlowPage() {
         <TabsList>
           <TabsTrigger value="references">📦 Références</TabsTrigger>
           <TabsTrigger value="products">🎯 Produits</TabsTrigger>
+          <TabsTrigger value="suppliers">🏭 Fournisseurs</TabsTrigger>
           <TabsTrigger value="costs">💰 Coûts & Export</TabsTrigger>
         </TabsList>
 
@@ -48,6 +50,7 @@ export function CostFlowPage() {
           ) : (
             <ReferenceManager
               references={data.references}
+              suppliers={data.suppliers}
               onCreateReference={data.createReference}
               onUpdateReference={data.updateReference}
               onDeleteReference={data.deleteReference}
@@ -81,6 +84,15 @@ export function CostFlowPage() {
               calculateProductCosts={data.calculateProductCosts}
             />
           )}
+        </TabsContent>
+
+        <TabsContent value="suppliers">
+          <SupplierManager
+            suppliers={data.suppliers}
+            onCreateSupplier={data.createSupplier}
+            onUpdateSupplier={data.updateSupplier}
+            onDeleteSupplier={data.deleteSupplier}
+          />
         </TabsContent>
 
         <TabsContent value="costs">

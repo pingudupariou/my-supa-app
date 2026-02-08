@@ -48,6 +48,18 @@ export interface CostFlowBomEntry {
   reference?: CostFlowReference;
 }
 
+export interface CostFlowSupplier {
+  id: string;
+  name: string;
+  contact_name: string;
+  email: string;
+  phone: string;
+  country: string;
+  comments: string;
+  created_at: string;
+  updated_at: string;
+}
+
 const VOLUME_TIERS = [50, 100, 200, 500, 1000, 2000, 5000, 10000] as const;
 
 function rowToReference(row: any): CostFlowReference {
@@ -81,17 +93,19 @@ export function useCostFlowData() {
   const [products, setProducts] = useState<CostFlowProduct[]>([]);
   const [bom, setBom] = useState<CostFlowBomEntry[]>([]);
   const [referenceFiles, setReferenceFiles] = useState<CostFlowReferenceFile[]>([]);
+  const [suppliers, setSuppliers] = useState<CostFlowSupplier[]>([]);
   const [loading, setLoading] = useState(true);
 
   const fetchAll = useCallback(async () => {
     if (!user) return;
     setLoading(true);
     try {
-      const [refsRes, prodsRes, bomRes, filesRes] = await Promise.all([
+      const [refsRes, prodsRes, bomRes, filesRes, suppRes] = await Promise.all([
         supabase.from('costflow_references' as any).select('*').eq('user_id', user.id).order('code'),
         supabase.from('costflow_products' as any).select('*').eq('user_id', user.id).order('name'),
         supabase.from('costflow_bom' as any).select('*').eq('user_id', user.id),
         supabase.from('costflow_reference_files' as any).select('*').eq('user_id', user.id).order('uploaded_at', { ascending: false }),
+        supabase.from('costflow_suppliers' as any).select('*').eq('user_id', user.id).order('name'),
       ]);
       if (refsRes.data) setReferences((refsRes.data as any[]).map(rowToReference));
       if (prodsRes.data) setProducts((prodsRes.data as any[]).map((r: any) => ({
@@ -108,6 +122,11 @@ export function useCostFlowData() {
         id: r.id, reference_id: r.reference_id, file_name: r.file_name,
         file_path: r.file_path, file_size: r.file_size || 0,
         version: r.version || 1, uploaded_at: r.uploaded_at,
+      })));
+      if (suppRes.data) setSuppliers((suppRes.data as any[]).map((r: any) => ({
+        id: r.id, name: r.name, contact_name: r.contact_name || '',
+        email: r.email || '', phone: r.phone || '', country: r.country || 'France',
+        comments: r.comments || '', created_at: r.created_at, updated_at: r.updated_at,
       })));
     } catch (err) {
       console.error('CostFlow fetch error:', err);
@@ -359,12 +378,39 @@ export function useCostFlowData() {
     fetchAll();
   };
 
+  // === SUPPLIERS CRUD ===
+  const createSupplier = async (supplier: Partial<CostFlowSupplier>) => {
+    if (!user) return;
+    const { error } = await supabase.from('costflow_suppliers' as any).insert({
+      user_id: user.id, name: supplier.name,
+      contact_name: supplier.contact_name || '', email: supplier.email || '',
+      phone: supplier.phone || '', country: supplier.country || 'France',
+      comments: supplier.comments || '',
+    } as any);
+    if (error) { toast.error('Erreur création fournisseur'); console.error(error); }
+    else { toast.success('Fournisseur créé'); fetchAll(); }
+  };
+
+  const updateSupplier = async (id: string, supplier: Partial<CostFlowSupplier>) => {
+    if (!user) return;
+    const { error } = await supabase.from('costflow_suppliers' as any).update(supplier as any).eq('id', id);
+    if (error) { toast.error('Erreur mise à jour fournisseur'); console.error(error); }
+    else { toast.success('Fournisseur mis à jour'); fetchAll(); }
+  };
+
+  const deleteSupplier = async (id: string) => {
+    const { error } = await supabase.from('costflow_suppliers' as any).delete().eq('id', id);
+    if (error) { toast.error('Erreur suppression fournisseur'); console.error(error); }
+    else { toast.success('Fournisseur supprimé'); fetchAll(); }
+  };
+
   return {
-    references, products, bom, referenceFiles, loading,
+    references, products, bom, referenceFiles, suppliers, loading,
     createReference, updateReference, deleteReference, bulkCreateReferences,
     createProduct, updateProduct, deleteProduct, createProductWithBom,
     addBomEntry, updateBomEntry, removeBomEntry,
     uploadFile, deleteFile, getFileUrl, getSignedUrl,
+    createSupplier, updateSupplier, deleteSupplier,
     calculateProductCost, calculateProductCosts,
     VOLUME_TIERS,
     refresh: fetchAll,
