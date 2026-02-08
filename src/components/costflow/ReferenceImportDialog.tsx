@@ -5,11 +5,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Upload, X, Info, ClipboardPaste } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { Upload, X, Info, ClipboardPaste, CheckCircle2, AlertTriangle } from 'lucide-react';
 import type { CostFlowReference } from '@/hooks/useCostFlowData';
 
 const CURRENCIES = ['EUR', 'USD', 'GBP', 'CHF', 'CNY', 'JPY'];
 const VOLUME_TIERS = [50, 100, 200, 500, 1000, 2000, 5000, 10000];
+
+type DuplicateAction = 'skip' | 'overwrite';
 
 interface ImportRow {
   code: string;
@@ -20,36 +23,49 @@ interface ImportRow {
   unit: string;
   comments: string;
   valid: boolean;
+  isDuplicate: boolean;
 }
 
 function emptyRow(): ImportRow {
-  return { code: '', name: '', supplier: '', currency: 'EUR', prices: {}, unit: 'pièce', comments: '', valid: false };
+  return { code: '', name: '', supplier: '', currency: 'EUR', prices: {}, unit: 'pièce', comments: '', valid: false, isDuplicate: false };
 }
 
 function validateRow(row: ImportRow): boolean {
-  return row.code.trim().length > 0 && row.name.trim().length > 0;
+  // Only code is required, all other fields default to 0 or empty
+  return row.code.trim().length > 0;
+}
+
+interface ImportResult {
+  imported: number;
+  skipped: number;
+  updated: number;
+  errors: string[];
 }
 
 interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onImport: (refs: Partial<CostFlowReference>[]) => Promise<void>;
+  onImport: (refs: Partial<CostFlowReference>[], duplicateAction: DuplicateAction) => Promise<ImportResult>;
   existingCodes: string[];
 }
 
 export function ReferenceImportDialog({ open, onOpenChange, onImport, existingCodes }: Props) {
   const [rows, setRows] = useState<ImportRow[]>([emptyRow()]);
   const [importing, setImporting] = useState(false);
+  const [duplicateAction, setDuplicateAction] = useState<DuplicateAction>('skip');
+  const [result, setResult] = useState<ImportResult | null>(null);
   const tableRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const validCount = rows.filter(r => validateRow(r)).length;
+  const duplicateCount = rows.filter(r => r.code && existingCodes.includes(r.code)).length;
 
   const updateRow = (index: number, field: keyof ImportRow, value: any) => {
     setRows(prev => {
       const next = [...prev];
       next[index] = { ...next[index], [field]: value };
       next[index].valid = validateRow(next[index]);
+      next[index].isDuplicate = next[index].code ? existingCodes.includes(next[index].code) : false;
       return next;
     });
   };
@@ -96,8 +112,9 @@ export function ReferenceImportDialog({ open, onOpenChange, onImport, existingCo
       row.unit = (cols[12] || 'pièce').trim();
       row.comments = (cols[13] || '').trim();
       row.valid = validateRow(row);
+      row.isDuplicate = row.code ? existingCodes.includes(row.code) : false;
       return row;
-    }).filter(r => r.code || r.name); // filter completely empty
+    }).filter(r => r.code || r.name);
 
     if (parsed.length > 0) {
       setRows(prev => {
@@ -138,6 +155,7 @@ export function ReferenceImportDialog({ open, onOpenChange, onImport, existingCo
         row.unit = (cols[12] || 'pièce').trim();
         row.comments = (cols[13] || '').trim();
         row.valid = validateRow(row);
+        row.isDuplicate = row.code ? existingCodes.includes(row.code) : false;
         return row;
       }).filter(r => r.code || r.name);
 
@@ -153,20 +171,67 @@ export function ReferenceImportDialog({ open, onOpenChange, onImport, existingCo
 
     setImporting(true);
     const refs: Partial<CostFlowReference>[] = validRows.map(r => ({
-      code: r.code, name: r.name, supplier: r.supplier,
-      currency: r.currency, prices: r.prices, comments: r.comments,
+      code: r.code, name: r.name || r.code, supplier: r.supplier || '',
+      currency: r.currency || 'EUR', prices: r.prices || {}, comments: r.comments || '',
       category: 'Mécanique', revision: 'A',
     }));
-    await onImport(refs);
+    const importResult = await onImport(refs, duplicateAction);
+    setResult(importResult);
     setImporting(false);
+  };
+
+  const handleClose = () => {
     setRows([emptyRow()]);
+    setResult(null);
     onOpenChange(false);
   };
 
-  const duplicates = rows.filter(r => r.code && existingCodes.includes(r.code));
+  // Result screen
+  if (result) {
+    return (
+      <Dialog open={open} onOpenChange={handleClose}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <CheckCircle2 className="h-5 w-5 text-green-500" />
+              Import terminé
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 py-4">
+            {result.imported > 0 && (
+              <div className="flex items-center gap-2">
+                <Badge variant="default" className="bg-green-600">{result.imported}</Badge>
+                <span className="text-sm">référence(s) importée(s)</span>
+              </div>
+            )}
+            {result.updated > 0 && (
+              <div className="flex items-center gap-2">
+                <Badge variant="secondary">{result.updated}</Badge>
+                <span className="text-sm">référence(s) mise(s) à jour</span>
+              </div>
+            )}
+            {result.skipped > 0 && (
+              <div className="flex items-center gap-2">
+                <Badge variant="outline">{result.skipped}</Badge>
+                <span className="text-sm">doublon(s) ignoré(s)</span>
+              </div>
+            )}
+            {result.errors.length > 0 && (
+              <Alert variant="destructive">
+                <AlertDescription>
+                  {result.errors.map((err, i) => <div key={i} className="text-xs">{err}</div>)}
+                </AlertDescription>
+              </Alert>
+            )}
+          </div>
+          <Button onClick={handleClose} className="w-full">Fermer</Button>
+        </DialogContent>
+      </Dialog>
+    );
+  }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className="max-w-[95vw] max-h-[90vh] overflow-hidden flex flex-col">
         <DialogHeader>
           <DialogTitle>Importer des références</DialogTitle>
@@ -183,20 +248,23 @@ export function ReferenceImportDialog({ open, onOpenChange, onImport, existingCo
             <Alert>
               <Info className="h-4 w-4" />
               <AlertDescription>
-                <strong>Comment coller depuis Excel :</strong>
-                <ol className="list-decimal ml-4 mt-1 text-sm space-y-0.5">
-                  <li>Sélectionnez vos lignes dans Excel (avec ou sans en-têtes)</li>
-                  <li>Copiez (Ctrl+C)</li>
-                  <li>Cliquez dans la première cellule du tableau ci-dessous</li>
-                  <li>Collez (Ctrl+V) — les lignes s'ajouteront automatiquement</li>
-                </ol>
+                <strong>Comment coller depuis Excel :</strong> Sélectionnez vos lignes, copiez (Ctrl+C), cliquez dans le tableau et collez (Ctrl+V). Seul le <strong>code</strong> est obligatoire, les cases vides auront la valeur 0 par défaut.
               </AlertDescription>
             </Alert>
 
-            {duplicates.length > 0 && (
-              <Alert variant="destructive">
-                <AlertDescription>
-                  {duplicates.length} code(s) déjà existant(s) : {duplicates.map(d => d.code).join(', ')}
+            {duplicateCount > 0 && (
+              <Alert>
+                <AlertTriangle className="h-4 w-4" />
+                <AlertDescription className="flex items-center justify-between">
+                  <span>{duplicateCount} code(s) déjà existant(s)</span>
+                  <div className="flex gap-2 ml-4">
+                    <Button size="sm" variant={duplicateAction === 'skip' ? 'default' : 'outline'} onClick={() => setDuplicateAction('skip')}>
+                      Ignorer
+                    </Button>
+                    <Button size="sm" variant={duplicateAction === 'overwrite' ? 'default' : 'outline'} onClick={() => setDuplicateAction('overwrite')}>
+                      Écraser
+                    </Button>
+                  </div>
                 </AlertDescription>
               </Alert>
             )}
@@ -205,7 +273,7 @@ export function ReferenceImportDialog({ open, onOpenChange, onImport, existingCo
               <table className="w-full text-sm">
                 <thead className="bg-muted sticky top-0">
                   <tr>
-                    <th className="px-2 py-2 text-left text-xs font-medium w-24">Code</th>
+                    <th className="px-2 py-2 text-left text-xs font-medium w-24">Code *</th>
                     <th className="px-2 py-2 text-left text-xs font-medium w-28">Nom</th>
                     <th className="px-2 py-2 text-left text-xs font-medium w-28">Fournisseur</th>
                     <th className="px-2 py-2 text-left text-xs font-medium w-20">Devise</th>
@@ -214,14 +282,17 @@ export function ReferenceImportDialog({ open, onOpenChange, onImport, existingCo
                     ))}
                     <th className="px-2 py-2 text-left text-xs font-medium w-20">Unité</th>
                     <th className="px-2 py-2 text-left text-xs font-medium w-28">Commentaire</th>
-                    <th className="px-1 py-2 w-8">Action</th>
+                    <th className="px-1 py-2 w-8"></th>
                   </tr>
                 </thead>
                 <tbody>
                   {rows.map((row, i) => (
-                    <tr key={i} className="border-t">
+                    <tr key={i} className={`border-t ${row.isDuplicate ? 'bg-yellow-50 dark:bg-yellow-900/10' : ''}`}>
                       <td className="px-1 py-1">
-                        <Input className="h-8 text-xs" placeholder="NR..." value={row.code} onChange={e => updateRow(i, 'code', e.target.value)} />
+                        <div className="relative">
+                          <Input className={`h-8 text-xs ${row.isDuplicate ? 'border-yellow-400' : ''}`} placeholder="NR..." value={row.code} onChange={e => updateRow(i, 'code', e.target.value)} />
+                          {row.isDuplicate && <AlertTriangle className="absolute right-1 top-1.5 h-3 w-3 text-yellow-500" />}
+                        </div>
                       </td>
                       <td className="px-1 py-1">
                         <Input className="h-8 text-xs" placeholder="Nom..." value={row.name} onChange={e => updateRow(i, 'name', e.target.value)} />
@@ -237,7 +308,7 @@ export function ReferenceImportDialog({ open, onOpenChange, onImport, existingCo
                       </td>
                       {VOLUME_TIERS.map(vol => (
                         <td key={vol} className="px-1 py-1">
-                          <Input type="number" step="0.01" className="h-8 text-xs text-right font-mono-numbers" value={row.prices[vol] || ''} onChange={e => updatePrice(i, vol, parseFloat(e.target.value) || 0)} />
+                          <Input type="number" step="0.01" className="h-8 text-xs text-right font-mono-numbers" value={row.prices[vol] ?? ''} onChange={e => updatePrice(i, vol, parseFloat(e.target.value) || 0)} placeholder="0" />
                         </td>
                       ))}
                       <td className="px-1 py-1">
@@ -257,7 +328,10 @@ export function ReferenceImportDialog({ open, onOpenChange, onImport, existingCo
 
             <div className="flex items-center justify-between">
               <Button variant="outline" size="sm" onClick={addRow}>+ Ajouter une ligne</Button>
-              <span className="text-sm text-muted-foreground">{validCount} ligne(s) valide(s)</span>
+              <div className="flex items-center gap-3">
+                {duplicateCount > 0 && <span className="text-xs text-yellow-600">{duplicateCount} doublon(s)</span>}
+                <span className="text-sm text-muted-foreground">{validCount} ligne(s) valide(s)</span>
+              </div>
             </div>
           </TabsContent>
 
@@ -265,7 +339,7 @@ export function ReferenceImportDialog({ open, onOpenChange, onImport, existingCo
             <Alert>
               <Info className="h-4 w-4" />
               <AlertDescription>
-                Formats supportés : <strong>.xlsx, .xls, .csv</strong><br />
+                Formats supportés : <strong>.csv, .tsv</strong><br />
                 Colonnes attendues : Code, Nom, Fournisseur, Devise, 50, 100, 200, 500, 1000, 2000, 5000, 10000, Unité, Commentaire
               </AlertDescription>
             </Alert>
@@ -284,7 +358,7 @@ export function ReferenceImportDialog({ open, onOpenChange, onImport, existingCo
         </Tabs>
 
         <div className="flex justify-end gap-3 pt-4 border-t">
-          <Button variant="outline" onClick={() => onOpenChange(false)}><X className="h-4 w-4 mr-1" /> Annuler</Button>
+          <Button variant="outline" onClick={handleClose}><X className="h-4 w-4 mr-1" /> Annuler</Button>
           <Button onClick={handleImport} disabled={validCount === 0 || importing}>
             <Upload className="h-4 w-4 mr-1" /> Importer {validCount} référence(s)
           </Button>

@@ -16,12 +16,19 @@ const CURRENCIES = ['EUR', 'USD', 'GBP', 'CHF', 'CNY', 'JPY'];
 const REVISIONS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
 const VOLUME_TIERS = [50, 100, 200, 500, 1000, 2000, 5000, 10000];
 
+interface ImportResult {
+  imported: number;
+  skipped: number;
+  updated: number;
+  errors: string[];
+}
+
 interface Props {
   references: CostFlowReference[];
   onCreateReference: (ref: Partial<CostFlowReference>) => Promise<void>;
   onUpdateReference: (id: string, ref: Partial<CostFlowReference>) => Promise<void>;
   onDeleteReference: (id: string) => Promise<void>;
-  onBulkImport: (refs: Partial<CostFlowReference>[]) => Promise<void>;
+  onBulkImport: (refs: Partial<CostFlowReference>[], duplicateAction: 'skip' | 'overwrite') => Promise<ImportResult>;
   onSelectReference: (ref: CostFlowReference) => void;
 }
 
