@@ -7,7 +7,7 @@ import { toast } from '@/hooks/use-toast';
 import { Loader2 } from 'lucide-react';
 import { AppRole } from '@/context/AuthContext';
 
-const ROLES: AppRole[] = ['admin', 'finance', 'board', 'investisseur', 'lecteur'];
+const ROLES: AppRole[] = ['admin', 'finance', 'board', 'investisseur', 'lecteur', 'bureau_etude', 'production', 'marketing'];
 
 interface UserWithRole { id: string; email: string; role: AppRole; }
 
