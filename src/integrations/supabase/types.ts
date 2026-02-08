@@ -429,6 +429,74 @@ export type Database = {
         }
         Relationships: []
       }
+      timetracking_categories: {
+        Row: {
+          color: string | null
+          created_at: string
+          id: string
+          name: string
+          user_id: string
+        }
+        Insert: {
+          color?: string | null
+          created_at?: string
+          id?: string
+          name: string
+          user_id: string
+        }
+        Update: {
+          color?: string | null
+          created_at?: string
+          id?: string
+          name?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      timetracking_entries: {
+        Row: {
+          category_id: string | null
+          comments: string | null
+          created_at: string
+          date: string
+          duration_minutes: number
+          id: string
+          task_description: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          category_id?: string | null
+          comments?: string | null
+          created_at?: string
+          date?: string
+          duration_minutes?: number
+          id?: string
+          task_description: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          category_id?: string | null
+          comments?: string | null
+          created_at?: string
+          date?: string
+          duration_minutes?: number
+          id?: string
+          task_description?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "timetracking_entries_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "timetracking_categories"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_roles: {
         Row: {
           created_at: string
