@@ -21,6 +21,7 @@ import { AuthPage } from "@/pages/AuthPage";
 import { PermissionsPage } from "@/pages/PermissionsPage";
 import { CostFlowPage } from "@/pages/CostFlowPage";
 import { TimeTrackingPage } from "@/pages/TimeTrackingPage";
+import { SnapshotsPage } from "@/pages/SnapshotsPage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -129,6 +130,14 @@ const App = () => (
                 <ProtectedRoute tabKey="timetracking">
                   <DashboardLayout>
                     <TimeTrackingPage />
+                  </DashboardLayout>
+                </ProtectedRoute>
+              } />
+              
+              <Route path="/snapshots" element={
+                <ProtectedRoute tabKey="snapshots">
+                  <DashboardLayout>
+                    <SnapshotsPage />
                   </DashboardLayout>
                 </ProtectedRoute>
               } />
