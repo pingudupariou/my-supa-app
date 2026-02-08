@@ -6,20 +6,24 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
-import { Plus, Trash2, Edit, Search } from 'lucide-react';
-import type { CostFlowProduct } from '@/hooks/useCostFlowData';
+import { Plus, Trash2, Edit, Search, Upload } from 'lucide-react';
+import { ProductImportDialog } from './ProductImportDialog';
+import type { CostFlowProduct, CostFlowReference } from '@/hooks/useCostFlowData';
 
 interface Props {
   products: CostFlowProduct[];
+  references: CostFlowReference[];
   onCreateProduct: (prod: Partial<CostFlowProduct>) => Promise<void>;
   onUpdateProduct: (id: string, prod: Partial<CostFlowProduct>) => Promise<void>;
   onDeleteProduct: (id: string) => Promise<void>;
   onSelectProduct: (prod: CostFlowProduct) => void;
+  onImportProduct: (product: Partial<CostFlowProduct>, bomEntries: { referenceId: string; quantity: number }[]) => Promise<void>;
   calculateProductCosts: (productId: string) => Record<number, number>;
 }
 
-export function ProductManager({ products, onCreateProduct, onUpdateProduct, onDeleteProduct, onSelectProduct, calculateProductCosts }: Props) {
+export function ProductManager({ products, references, onCreateProduct, onUpdateProduct, onDeleteProduct, onSelectProduct, onImportProduct, calculateProductCosts }: Props) {
   const [search, setSearch] = useState('');
+  const [importOpen, setImportOpen] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingProd, setEditingProd] = useState<CostFlowProduct | null>(null);
   const [form, setForm] = useState({
@@ -61,10 +65,12 @@ export function ProductManager({ products, onCreateProduct, onUpdateProduct, onD
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input placeholder="Rechercher produit ou famille..." value={search} onChange={e => setSearch(e.target.value)} className="pl-9" />
         </div>
-        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-          <DialogTrigger asChild>
-            <Button onClick={openCreate}><Plus className="h-4 w-4 mr-1" /> Nouveau produit</Button>
-          </DialogTrigger>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => setImportOpen(true)}><Upload className="h-4 w-4 mr-1" /> Importer</Button>
+          <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+            <DialogTrigger asChild>
+              <Button onClick={openCreate}><Plus className="h-4 w-4 mr-1" /> Nouveau produit</Button>
+            </DialogTrigger>
           <DialogContent className="max-w-lg">
             <DialogHeader>
               <DialogTitle>{editingProd ? 'Modifier le produit' : 'Nouveau produit'}</DialogTitle>
@@ -104,6 +110,7 @@ export function ProductManager({ products, onCreateProduct, onUpdateProduct, onD
             </div>
           </DialogContent>
         </Dialog>
+        </div>
       </div>
 
       <div className="border rounded overflow-auto">
@@ -151,6 +158,13 @@ export function ProductManager({ products, onCreateProduct, onUpdateProduct, onD
           </TableBody>
         </Table>
       </div>
+      <ProductImportDialog
+        open={importOpen}
+        onOpenChange={setImportOpen}
+        existingReferences={references}
+        existingSuppliers={[...new Set(references.map(r => r.supplier).filter(Boolean))]}
+        onImportProduct={onImportProduct}
+      />
     </div>
   );
 }

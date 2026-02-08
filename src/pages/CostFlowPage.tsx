@@ -72,10 +72,12 @@ export function CostFlowPage() {
           ) : (
             <ProductManager
               products={data.products}
+              references={data.references}
               onCreateProduct={data.createProduct}
               onUpdateProduct={data.updateProduct}
               onDeleteProduct={data.deleteProduct}
               onSelectProduct={setSelectedProduct}
+              onImportProduct={data.createProductWithBom}
               calculateProductCosts={data.calculateProductCosts}
             />
           )}
