@@ -20,6 +20,7 @@ import { InvestmentSummaryPage } from "@/pages/InvestmentSummaryPage";
 import { AuthPage } from "@/pages/AuthPage";
 import { PermissionsPage } from "@/pages/PermissionsPage";
 import { CostFlowPage } from "@/pages/CostFlowPage";
+import { TimeTrackingPage } from "@/pages/TimeTrackingPage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -120,6 +121,14 @@ const App = () => (
                 <ProtectedRoute tabKey="costflow">
                   <DashboardLayout>
                     <CostFlowPage />
+                  </DashboardLayout>
+              </ProtectedRoute>
+              } />
+              
+              <Route path="/timetracking" element={
+                <ProtectedRoute tabKey="timetracking">
+                  <DashboardLayout>
+                    <TimeTrackingPage />
                   </DashboardLayout>
                 </ProtectedRoute>
               } />

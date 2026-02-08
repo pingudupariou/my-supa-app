@@ -20,6 +20,7 @@ import {
   X,
   MessageSquare,
   Cog,
+  Clock,
 } from 'lucide-react';
 
 const navItems = [
@@ -28,7 +29,8 @@ const navItems = [
   { to: '/organisation', label: 'Organisation', icon: Users, tabKey: 'organisation' },
   { to: '/charges', label: 'Charges', icon: Receipt, tabKey: 'charges' },
   { to: '/crm', label: 'CRM', icon: MessageSquare, tabKey: 'crm' },
-  { to: '/costflow', label: 'CostFlow', icon: Cog, tabKey: 'costflow' },
+  { to: '/costflow', label: 'Production et BE', icon: Cog, tabKey: 'costflow' },
+  { to: '/timetracking', label: "Suivi d'activité", icon: Clock, tabKey: 'timetracking' },
   { to: '/previsionnel', label: 'Prévisionnel', icon: LineChart, tabKey: 'previsionnel' },
   { to: '/funding', label: 'Financement', icon: Banknote, tabKey: 'funding' },
   { to: '/scenarios', label: 'Scénarios', icon: BarChart3, tabKey: 'scenarios' },
