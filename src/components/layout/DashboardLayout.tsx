@@ -21,6 +21,7 @@ import {
   MessageSquare,
   Cog,
   Clock,
+  Database,
 } from 'lucide-react';
 
 const navItems = [
@@ -36,6 +37,7 @@ const navItems = [
   { to: '/scenarios', label: 'Scénarios', icon: BarChart3, tabKey: 'scenarios' },
   { to: '/valuation', label: 'Valorisation', icon: TrendingUp, tabKey: 'valuation' },
   { to: '/investment-summary', label: 'Synthèse', icon: FileText, tabKey: 'investment-summary' },
+  { to: '/snapshots', label: 'Sauvegardes', icon: Database, tabKey: 'snapshots' },
 ];
 
 export function DashboardLayout({ children }: { children: ReactNode }) {

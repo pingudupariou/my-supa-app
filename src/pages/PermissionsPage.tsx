@@ -19,10 +19,15 @@ const TAB_ITEMS = [
   { key: 'product-plan', label: 'Plan Produit' },
   { key: 'organisation', label: 'Organisation' },
   { key: 'charges', label: 'Structure des Charges' },
+  { key: 'crm', label: 'CRM' },
+  { key: 'costflow', label: 'Production et BE' },
+  { key: 'timetracking', label: "Suivi d'activité" },
+  { key: 'previsionnel', label: 'Prévisionnel' },
   { key: 'funding', label: 'Besoin de Financement' },
   { key: 'scenarios', label: 'Scénarios' },
   { key: 'valuation', label: 'Valorisation & Analyse' },
   { key: 'investment-summary', label: 'Synthèse Investisseur' },
+  { key: 'snapshots', label: 'Sauvegardes' },
 ];
 
 const roleLabels: Record<AppRole, string> = { admin: 'Admin', finance: 'Finance', board: 'Board', investisseur: 'Investisseur', lecteur: 'Lecteur' };
