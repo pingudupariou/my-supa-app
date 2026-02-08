@@ -31,15 +31,23 @@ export interface VariableChargeConfig {
   description?: string;
 }
 
+// Mode de saisie du prêt
+export type LoanInputMode = 'calculated' | 'fixed';
+
 // Configuration d'un prêt
 export interface LoanConfig {
   id: string;
   name: string;
+  inputMode: LoanInputMode;
+  // Mode "calculated": on calcule l'échéance à partir du capital + taux
   principalAmount: number;
   interestRate: number; // Taux annuel (ex: 0.05 = 5%)
+  // Mode "fixed": on saisit directement le montant de l'échéance
+  fixedPaymentAmount?: number;
+  // Commun
   startDate: { year: number; month: MonthIndex };
   endDate: { year: number; month: MonthIndex };
-  frequency: 'monthly' | 'annual';
+  frequency: 'monthly' | 'quarterly' | 'annual';
   // Échéances modifiées manuellement (optionnel)
   manualPayments?: Record<string, number>; // key = "YYYY-MM"
 }
@@ -201,10 +209,50 @@ function getLoanPayments(loan: LoanConfig, startYear: number, durationYears: num
     return payments;
   }
 
-  // Calcul automatique des échéances
   const startMonth = loan.startDate.year * 12 + loan.startDate.month;
   const endMonth = loan.endDate.year * 12 + loan.endDate.month;
-  
+
+  // Mode "fixed": échéances fixes saisies par l'utilisateur
+  if (loan.inputMode === 'fixed') {
+    const fixedAmount = loan.fixedPaymentAmount || 0;
+    if (fixedAmount <= 0) return payments;
+
+    if (loan.frequency === 'monthly') {
+      for (let absMonth = startMonth; absMonth < endMonth; absMonth++) {
+        const year = Math.floor(absMonth / 12);
+        const month = (absMonth % 12) as MonthIndex;
+        if (year < startYear || year >= periodEnd) continue;
+        payments.push({
+          loanId: loan.id, loanName: loan.name, year, month,
+          principal: fixedAmount, interest: 0, total: fixedAmount, isManuallyModified: false,
+        });
+      }
+    } else if (loan.frequency === 'quarterly') {
+      for (let absMonth = startMonth; absMonth < endMonth; absMonth++) {
+        const year = Math.floor(absMonth / 12);
+        const month = (absMonth % 12) as MonthIndex;
+        if (year < startYear || year >= periodEnd) continue;
+        if ((absMonth - startMonth) % 3 !== 0) continue;
+        payments.push({
+          loanId: loan.id, loanName: loan.name, year, month,
+          principal: fixedAmount, interest: 0, total: fixedAmount, isManuallyModified: false,
+        });
+      }
+    } else {
+      // annual
+      for (let i = 0; i < Math.max(1, Math.round((endMonth - startMonth) / 12)); i++) {
+        const year = loan.startDate.year + i;
+        if (year < startYear || year >= periodEnd) continue;
+        payments.push({
+          loanId: loan.id, loanName: loan.name, year, month: loan.startDate.month,
+          principal: fixedAmount, interest: 0, total: fixedAmount, isManuallyModified: false,
+        });
+      }
+    }
+    return payments;
+  }
+
+  // Mode "calculated": calcul automatique des échéances
   if (endMonth <= startMonth) return payments;
 
   if (loan.frequency === 'monthly') {
@@ -234,6 +282,34 @@ function getLoanPayments(loan: LoanConfig, startYear: number, durationYears: num
       payments.push({
         loanId: loan.id, loanName: loan.name, year, month,
         principal: Math.max(0, principal), interest, total: monthlyPayment,
+        isManuallyModified: false,
+      });
+    }
+  } else if (loan.frequency === 'quarterly') {
+    const numQuarters = Math.max(1, Math.round((endMonth - startMonth) / 3));
+    const quarterlyRate = loan.interestRate / 4;
+    let quarterlyPayment: number;
+    if (quarterlyRate === 0) {
+      quarterlyPayment = loan.principalAmount / numQuarters;
+    } else {
+      quarterlyPayment = loan.principalAmount * quarterlyRate * Math.pow(1 + quarterlyRate, numQuarters) / (Math.pow(1 + quarterlyRate, numQuarters) - 1);
+    }
+
+    let remainingPrincipal = loan.principalAmount;
+    for (let i = 0; i < numQuarters; i++) {
+      const absMonth = startMonth + i * 3;
+      const year = Math.floor(absMonth / 12);
+      const month = (absMonth % 12) as MonthIndex;
+      
+      if (year < startYear || year >= periodEnd) continue;
+      
+      const interest = remainingPrincipal * quarterlyRate;
+      const principal = quarterlyPayment - interest;
+      remainingPrincipal -= principal;
+
+      payments.push({
+        loanId: loan.id, loanName: loan.name, year, month,
+        principal: Math.max(0, principal), interest, total: quarterlyPayment,
         isManuallyModified: false,
       });
     }
