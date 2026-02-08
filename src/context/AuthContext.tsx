@@ -2,7 +2,7 @@ import { createContext, useContext, useState, useEffect, ReactNode } from 'react
 import { supabase } from '@/integrations/supabase/client';
 import { User, AuthError } from '@supabase/supabase-js';
 
-export type AppRole = 'admin' | 'finance' | 'board' | 'investisseur' | 'lecteur';
+export type AppRole = 'admin' | 'finance' | 'board' | 'investisseur' | 'lecteur' | 'bureau_etude' | 'production' | 'marketing';
 export type TabPermission = 'hidden' | 'read' | 'write';
 
 interface AuthContextType {

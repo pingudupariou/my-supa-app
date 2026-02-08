@@ -11,7 +11,7 @@ import { toast } from '@/hooks/use-toast';
 import { Loader2, Shield, Eye, EyeOff, Pencil, Users, Settings } from 'lucide-react';
 import { UserRolesManager } from '@/components/admin/UserRolesManager';
 
-const ROLES: AppRole[] = ['admin', 'finance', 'board', 'investisseur', 'lecteur'];
+const ROLES: AppRole[] = ['admin', 'finance', 'board', 'investisseur', 'lecteur', 'bureau_etude', 'production', 'marketing'];
 const PERMISSIONS: TabPermission[] = ['hidden', 'read', 'write'];
 
 const TAB_ITEMS = [
@@ -30,7 +30,7 @@ const TAB_ITEMS = [
   { key: 'snapshots', label: 'Sauvegardes' },
 ];
 
-const roleLabels: Record<AppRole, string> = { admin: 'Admin', finance: 'Finance', board: 'Board', investisseur: 'Investisseur', lecteur: 'Lecteur' };
+const roleLabels: Record<AppRole, string> = { admin: 'Admin', finance: 'Finance', board: 'Board', investisseur: 'Investisseur', lecteur: 'Lecteur', bureau_etude: 'Bureau d\'étude', production: 'Production', marketing: 'Marketing' };
 const permissionLabels: Record<TabPermission, { label: string; icon: typeof Eye; color: string }> = {
   hidden: { label: 'Masqué', icon: EyeOff, color: 'bg-muted text-muted-foreground' },
   read: { label: 'Lecture', icon: Eye, color: 'bg-blue-100 text-blue-800' },
