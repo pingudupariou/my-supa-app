@@ -9,7 +9,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Plus, Trash2, Edit, Search, Upload } from 'lucide-react';
 import { ReferenceImportDialog } from './ReferenceImportDialog';
-import type { CostFlowReference } from '@/hooks/useCostFlowData';
+import type { CostFlowReference, CostFlowSupplier } from '@/hooks/useCostFlowData';
 
 const CATEGORIES = ['Mécanique', 'Électronique', 'Plastique', 'Composite', 'Caoutchouc', 'Visserie', 'Câblage', 'Autre'];
 const CURRENCIES = ['EUR', 'USD', 'GBP', 'CHF', 'CNY', 'JPY'];
@@ -25,6 +25,7 @@ interface ImportResult {
 
 interface Props {
   references: CostFlowReference[];
+  suppliers: CostFlowSupplier[];
   onCreateReference: (ref: Partial<CostFlowReference>) => Promise<void>;
   onUpdateReference: (id: string, ref: Partial<CostFlowReference>) => Promise<void>;
   onDeleteReference: (id: string) => Promise<void>;
@@ -32,7 +33,7 @@ interface Props {
   onSelectReference: (ref: CostFlowReference) => void;
 }
 
-export function ReferenceManager({ references, onCreateReference, onUpdateReference, onDeleteReference, onBulkImport, onSelectReference }: Props) {
+export function ReferenceManager({ references, suppliers, onCreateReference, onUpdateReference, onDeleteReference, onBulkImport, onSelectReference }: Props) {
   const [search, setSearch] = useState('');
   const [importOpen, setImportOpen] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -113,7 +114,13 @@ export function ReferenceManager({ references, onCreateReference, onUpdateRefere
               </div>
               <div>
                 <Label>Fournisseur</Label>
-                <Input value={form.supplier} onChange={e => setForm({ ...form, supplier: e.target.value })} placeholder="Nom du fournisseur" />
+                <Select value={form.supplier} onValueChange={v => setForm({ ...form, supplier: v })}>
+                  <SelectTrigger><SelectValue placeholder="Sélectionner..." /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">Aucun</SelectItem>
+                    {suppliers.map(s => <SelectItem key={s.id} value={s.name}>{s.name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
               </div>
               <div>
                 <Label>Devise</Label>
