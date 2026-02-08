@@ -7,9 +7,10 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Plus, Trash2, Edit2, Landmark } from 'lucide-react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Plus, Trash2, Edit2, Landmark, Calculator, PenLine } from 'lucide-react';
 import { formatCurrency } from '@/data/financialConfig';
-import { LoanConfig, MonthIndex, MONTHS } from '@/engine/monthlyTreasuryEngine';
+import { LoanConfig, LoanInputMode, MonthIndex, MONTHS } from '@/engine/monthlyTreasuryEngine';
 import { cn } from '@/lib/utils';
 
 interface LoanManagerProps {
@@ -21,11 +22,25 @@ interface LoanManagerProps {
 
 const EMPTY_LOAN: Omit<LoanConfig, 'id'> = {
   name: '',
+  inputMode: 'calculated',
   principalAmount: 50000,
   interestRate: 0.03,
+  fixedPaymentAmount: 0,
   startDate: { year: 2025, month: 0 as MonthIndex },
   endDate: { year: 2028, month: 0 as MonthIndex },
   frequency: 'monthly',
+};
+
+const FREQ_LABELS: Record<string, string> = {
+  monthly: 'Mensuel',
+  quarterly: 'Trimestriel',
+  annual: 'Annuel',
+};
+
+const FREQ_SHORT: Record<string, string> = {
+  monthly: '/mois',
+  quarterly: '/trim.',
+  annual: '/an',
 };
 
 export function LoanManager({ loans, onChange, startYear, durationYears }: LoanManagerProps) {
@@ -37,13 +52,18 @@ export function LoanManager({ loans, onChange, startYear, durationYears }: LoanM
 
   const openAdd = () => {
     setEditingId(null);
-    setForm({ ...EMPTY_LOAN, startDate: { year: startYear, month: 0 as MonthIndex }, endDate: { year: startYear + 3, month: 0 as MonthIndex } });
+    setForm({
+      ...EMPTY_LOAN,
+      startDate: { year: startYear, month: 0 as MonthIndex },
+      endDate: { year: startYear + 3, month: 0 as MonthIndex },
+    });
     setShowDialog(true);
   };
 
   const openEdit = (loan: LoanConfig) => {
     setEditingId(loan.id);
-    setForm({ name: loan.name, principalAmount: loan.principalAmount, interestRate: loan.interestRate, startDate: loan.startDate, endDate: loan.endDate, frequency: loan.frequency });
+    const { id, ...rest } = loan;
+    setForm({ ...EMPTY_LOAN, ...rest });
     setShowDialog(true);
   };
 
@@ -61,21 +81,41 @@ export function LoanManager({ loans, onChange, startYear, durationYears }: LoanM
     onChange(loans.filter(l => l.id !== id));
   };
 
-  // Calculate monthly payment for display
-  const calcMonthlyPayment = (loan: LoanConfig) => {
+  const calcDisplayPayment = (loan: LoanConfig): number => {
+    if (loan.inputMode === 'fixed') return loan.fixedPaymentAmount || 0;
+
     const startMonth = loan.startDate.year * 12 + loan.startDate.month;
     const endMonth = loan.endDate.year * 12 + loan.endDate.month;
     const n = endMonth - startMonth;
     if (n <= 0) return 0;
+
     if (loan.frequency === 'annual') {
       const numYears = Math.max(1, Math.round(n / 12));
       const r = loan.interestRate;
       if (r === 0) return loan.principalAmount / numYears;
       return loan.principalAmount * r * Math.pow(1 + r, numYears) / (Math.pow(1 + r, numYears) - 1);
     }
+    if (loan.frequency === 'quarterly') {
+      const numQ = Math.max(1, Math.round(n / 3));
+      const r = loan.interestRate / 4;
+      if (r === 0) return loan.principalAmount / numQ;
+      return loan.principalAmount * r * Math.pow(1 + r, numQ) / (Math.pow(1 + r, numQ) - 1);
+    }
+    // monthly
     const r = loan.interestRate / 12;
     if (r === 0) return loan.principalAmount / n;
     return loan.principalAmount * r * Math.pow(1 + r, n) / (Math.pow(1 + r, n) - 1);
+  };
+
+  const calcTotalCost = (loan: LoanConfig): number => {
+    const payment = calcDisplayPayment(loan);
+    const startMonth = loan.startDate.year * 12 + loan.startDate.month;
+    const endMonth = loan.endDate.year * 12 + loan.endDate.month;
+    const n = endMonth - startMonth;
+    if (n <= 0) return 0;
+    if (loan.frequency === 'annual') return payment * Math.max(1, Math.round(n / 12));
+    if (loan.frequency === 'quarterly') return payment * Math.max(1, Math.round(n / 3));
+    return payment * n;
   };
 
   return (
@@ -101,33 +141,54 @@ export function LoanManager({ loans, onChange, startYear, durationYears }: LoanM
               <TableHeader>
                 <TableRow>
                   <TableHead>Nom</TableHead>
-                  <TableHead className="text-right">Montant</TableHead>
+                  <TableHead>Mode</TableHead>
+                  <TableHead className="text-right">Capital</TableHead>
                   <TableHead className="text-right">Taux</TableHead>
                   <TableHead>Fréquence</TableHead>
-                  <TableHead>Début</TableHead>
-                  <TableHead>Fin</TableHead>
+                  <TableHead>Période</TableHead>
                   <TableHead className="text-right">Échéance</TableHead>
+                  <TableHead className="text-right">Coût Total</TableHead>
                   <TableHead></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {loans.map(loan => {
-                  const payment = calcMonthlyPayment(loan);
+                  const payment = calcDisplayPayment(loan);
+                  const totalCost = calcTotalCost(loan);
                   return (
                     <TableRow key={loan.id}>
                       <TableCell className="font-medium">{loan.name}</TableCell>
-                      <TableCell className="text-right font-mono-numbers">{formatCurrency(loan.principalAmount, true)}</TableCell>
-                      <TableCell className="text-right font-mono-numbers">{(loan.interestRate * 100).toFixed(1)}%</TableCell>
                       <TableCell>
                         <Badge variant="outline" className="text-xs">
-                          {loan.frequency === 'monthly' ? 'Mensuel' : 'Annuel'}
+                          {loan.inputMode === 'fixed' ? (
+                            <><PenLine className="h-3 w-3 mr-1" />Fixe</>
+                          ) : (
+                            <><Calculator className="h-3 w-3 mr-1" />Calculé</>
+                          )}
                         </Badge>
                       </TableCell>
-                      <TableCell className="text-xs">{MONTHS[loan.startDate.month].slice(0, 3)} {loan.startDate.year}</TableCell>
-                      <TableCell className="text-xs">{MONTHS[loan.endDate.month].slice(0, 3)} {loan.endDate.year}</TableCell>
+                      <TableCell className="text-right font-mono-numbers">
+                        {loan.inputMode === 'calculated' ? formatCurrency(loan.principalAmount, true) : '-'}
+                      </TableCell>
+                      <TableCell className="text-right font-mono-numbers">
+                        {loan.inputMode === 'calculated' ? `${(loan.interestRate * 100).toFixed(1)}%` : '-'}
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="secondary" className="text-xs">
+                          {FREQ_LABELS[loan.frequency]}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-xs">
+                        {MONTHS[loan.startDate.month].slice(0, 3)} {loan.startDate.year}
+                        {' → '}
+                        {MONTHS[loan.endDate.month].slice(0, 3)} {loan.endDate.year}
+                      </TableCell>
                       <TableCell className="text-right font-mono-numbers font-medium">
                         {formatCurrency(payment)}
-                        <span className="text-xs text-muted-foreground ml-1">/{loan.frequency === 'monthly' ? 'mois' : 'an'}</span>
+                        <span className="text-xs text-muted-foreground ml-1">{FREQ_SHORT[loan.frequency]}</span>
+                      </TableCell>
+                      <TableCell className="text-right font-mono-numbers text-muted-foreground">
+                        {formatCurrency(totalCost, true)}
                       </TableCell>
                       <TableCell>
                         <div className="flex gap-1">
@@ -149,7 +210,7 @@ export function LoanManager({ loans, onChange, startYear, durationYears }: LoanM
       </SectionCard>
 
       <Dialog open={showDialog} onOpenChange={setShowDialog}>
-        <DialogContent>
+        <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle>{editingId ? 'Modifier le Prêt' : 'Nouveau Prêt'}</DialogTitle>
           </DialogHeader>
@@ -158,26 +219,66 @@ export function LoanManager({ loans, onChange, startYear, durationYears }: LoanM
               <Label>Nom du prêt</Label>
               <Input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="Ex: BPI Innovation" />
             </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Montant emprunté (€)</Label>
-                <Input type="number" value={form.principalAmount} onChange={e => setForm(f => ({ ...f, principalAmount: Number(e.target.value) }))} />
-              </div>
-              <div className="space-y-2">
-                <Label>Taux d'intérêt annuel (%)</Label>
-                <Input type="number" step="0.1" value={(form.interestRate * 100).toFixed(1)} onChange={e => setForm(f => ({ ...f, interestRate: Number(e.target.value) / 100 }))} />
-              </div>
+
+            {/* Mode selector */}
+            <div className="space-y-2">
+              <Label>Mode de saisie</Label>
+              <Tabs value={form.inputMode} onValueChange={v => setForm(f => ({ ...f, inputMode: v as LoanInputMode }))}>
+                <TabsList className="w-full">
+                  <TabsTrigger value="calculated" className="flex-1">
+                    <Calculator className="h-4 w-4 mr-1" />
+                    Calculer l'échéance
+                  </TabsTrigger>
+                  <TabsTrigger value="fixed" className="flex-1">
+                    <PenLine className="h-4 w-4 mr-1" />
+                    Saisir l'échéance
+                  </TabsTrigger>
+                </TabsList>
+              </Tabs>
             </div>
+
+            {/* Mode calculated fields */}
+            {form.inputMode === 'calculated' && (
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Montant emprunté (€)</Label>
+                  <Input type="number" value={form.principalAmount} onChange={e => setForm(f => ({ ...f, principalAmount: Number(e.target.value) }))} />
+                </div>
+                <div className="space-y-2">
+                  <Label>Taux d'intérêt annuel (%)</Label>
+                  <Input type="number" step="0.1" value={(form.interestRate * 100).toFixed(1)} onChange={e => setForm(f => ({ ...f, interestRate: Number(e.target.value) / 100 }))} />
+                </div>
+              </div>
+            )}
+
+            {/* Mode fixed fields */}
+            {form.inputMode === 'fixed' && (
+              <div className="space-y-2">
+                <Label>Montant de l'échéance (€)</Label>
+                <Input
+                  type="number"
+                  value={form.fixedPaymentAmount || 0}
+                  onChange={e => setForm(f => ({ ...f, fixedPaymentAmount: Number(e.target.value) }))}
+                  placeholder="Montant fixe par période"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Ce montant sera appliqué à chaque échéance ({FREQ_LABELS[form.frequency].toLowerCase()}).
+                </p>
+              </div>
+            )}
+
             <div className="space-y-2">
               <Label>Fréquence des échéances</Label>
-              <Select value={form.frequency} onValueChange={v => setForm(f => ({ ...f, frequency: v as 'monthly' | 'annual' }))}>
+              <Select value={form.frequency} onValueChange={v => setForm(f => ({ ...f, frequency: v as LoanConfig['frequency'] }))}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="monthly">Mensuel</SelectItem>
+                  <SelectItem value="quarterly">Trimestriel</SelectItem>
                   <SelectItem value="annual">Annuel</SelectItem>
                 </SelectContent>
               </Select>
             </div>
+
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Date de début</Label>
@@ -214,6 +315,25 @@ export function LoanManager({ loans, onChange, startYear, durationYears }: LoanM
                 </div>
               </div>
             </div>
+
+            {/* Preview */}
+            {form.name.trim() && (
+              <div className="p-3 rounded-lg bg-muted/40 border text-sm space-y-1">
+                <div className="font-medium">Aperçu</div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Échéance {FREQ_LABELS[form.frequency].toLowerCase()} :</span>
+                  <span className="font-mono-numbers font-medium">
+                    {formatCurrency(calcDisplayPayment({ id: '', ...form }))}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Coût total :</span>
+                  <span className="font-mono-numbers">
+                    {formatCurrency(calcTotalCost({ id: '', ...form }), true)}
+                  </span>
+                </div>
+              </div>
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowDialog(false)}>Annuler</Button>
