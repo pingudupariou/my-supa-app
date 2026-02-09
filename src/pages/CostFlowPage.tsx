@@ -76,16 +76,11 @@ export function CostFlowPage() {
             <ProductManager
               products={data.products}
               references={data.references}
-              categories={data.productCategories}
               onCreateProduct={data.createProduct}
               onUpdateProduct={data.updateProduct}
               onDeleteProduct={data.deleteProduct}
               onSelectProduct={setSelectedProduct}
               onImportProduct={data.createProductWithBom}
-              onBulkImportProducts={data.bulkCreateProducts}
-              onCreateCategory={data.createProductCategory}
-              onUpdateCategory={data.updateProductCategory}
-              onDeleteCategory={data.deleteProductCategory}
               calculateProductCosts={data.calculateProductCosts}
             />
           )}

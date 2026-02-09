@@ -56,36 +56,8 @@ export type Database = {
           },
         ]
       }
-      costflow_product_categories: {
-        Row: {
-          color: string | null
-          created_at: string
-          description: string | null
-          id: string
-          name: string
-          user_id: string
-        }
-        Insert: {
-          color?: string | null
-          created_at?: string
-          description?: string | null
-          id?: string
-          name: string
-          user_id: string
-        }
-        Update: {
-          color?: string | null
-          created_at?: string
-          description?: string | null
-          id?: string
-          name?: string
-          user_id?: string
-        }
-        Relationships: []
-      }
       costflow_products: {
         Row: {
-          category_id: string | null
           coefficient: number | null
           comments: string | null
           created_at: string
@@ -99,7 +71,6 @@ export type Database = {
           user_id: string
         }
         Insert: {
-          category_id?: string | null
           coefficient?: number | null
           comments?: string | null
           created_at?: string
@@ -113,7 +84,6 @@ export type Database = {
           user_id: string
         }
         Update: {
-          category_id?: string | null
           coefficient?: number | null
           comments?: string | null
           created_at?: string
@@ -126,15 +96,7 @@ export type Database = {
           updated_at?: string
           user_id?: string
         }
-        Relationships: [
-          {
-            foreignKeyName: "costflow_products_category_id_fkey"
-            columns: ["category_id"]
-            isOneToOne: false
-            referencedRelation: "costflow_product_categories"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       costflow_reference_files: {
         Row: {
