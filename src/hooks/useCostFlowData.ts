@@ -106,9 +106,11 @@ export function useCostFlowData() {
   const [productCategories, setProductCategories] = useState<CostFlowProductCategory[]>([]);
   const [loading, setLoading] = useState(true);
 
+  const [initialLoaded, setInitialLoaded] = useState(false);
+  
   const fetchAll = useCallback(async () => {
     if (!user) return;
-    setLoading(true);
+    if (!initialLoaded) setLoading(true);
     try {
       const [refsRes, prodsRes, bomRes, filesRes, suppRes, catRes] = await Promise.all([
         supabase.from('costflow_references' as any).select('*').eq('user_id', user.id).order('code'),
@@ -148,8 +150,9 @@ export function useCostFlowData() {
       console.error('CostFlow fetch error:', err);
     } finally {
       setLoading(false);
+      setInitialLoaded(true);
     }
-  }, [user]);
+  }, [user, initialLoaded]);
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
 
