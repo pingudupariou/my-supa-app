@@ -29,24 +29,25 @@ export function ProductManager({ products, references, categories, onCreateProdu
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingProd, setEditingProd] = useState<CostFlowProduct | null>(null);
   const [form, setForm] = useState({
-    name: '', family: 'Standard', main_supplier: '', coefficient: 1.3,
+    name: '', main_supplier: '', coefficient: 1.3,
     price_ttc: 0, default_volume: 500, comments: '', category_id: '' as string | null,
   });
 
-  const filtered = products.filter(p =>
-    p.name.toLowerCase().includes(search.toLowerCase()) ||
-    p.family.toLowerCase().includes(search.toLowerCase())
-  );
+  const filtered = products.filter(p => {
+    const catName = categories.find(c => c.id === p.category_id)?.name || '';
+    return p.name.toLowerCase().includes(search.toLowerCase()) ||
+      catName.toLowerCase().includes(search.toLowerCase());
+  });
 
   const openCreate = () => {
     setEditingProd(null);
-    setForm({ name: '', family: 'Standard', main_supplier: '', coefficient: 1.3, price_ttc: 0, default_volume: 500, comments: '', category_id: null });
+    setForm({ name: '', main_supplier: '', coefficient: 1.3, price_ttc: 0, default_volume: 500, comments: '', category_id: null });
     setDialogOpen(true);
   };
 
   const openEdit = (prod: CostFlowProduct) => {
     setEditingProd(prod);
-    setForm({ name: prod.name, family: prod.family, main_supplier: prod.main_supplier, coefficient: prod.coefficient, price_ttc: prod.price_ttc, default_volume: prod.default_volume, comments: prod.comments, category_id: prod.category_id || null });
+    setForm({ name: prod.name, main_supplier: prod.main_supplier, coefficient: prod.coefficient, price_ttc: prod.price_ttc, default_volume: prod.default_volume, comments: prod.comments, category_id: prod.category_id || null });
     setDialogOpen(true);
   };
 
@@ -65,7 +66,7 @@ export function ProductManager({ products, references, categories, onCreateProdu
       <div className="flex items-center justify-between gap-4">
         <div className="relative flex-1 max-w-sm">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input placeholder="Rechercher produit ou famille..." value={search} onChange={e => setSearch(e.target.value)} className="pl-9" />
+          <Input placeholder="Rechercher produit ou catégorie..." value={search} onChange={e => setSearch(e.target.value)} className="pl-9" />
         </div>
         <div className="flex gap-2">
           <Button variant="outline" onClick={() => setImportOpen(true)}><Upload className="h-4 w-4 mr-1" /> Importer</Button>
@@ -98,10 +99,6 @@ export function ProductManager({ products, references, categories, onCreateProdu
                     ))}
                   </SelectContent>
                 </Select>
-              </div>
-              <div>
-                <Label>Famille</Label>
-                <Input value={form.family} onChange={e => setForm({ ...form, family: e.target.value })} placeholder="Standard" />
               </div>
               <div>
                 <Label>Fournisseur principal</Label>
@@ -138,7 +135,7 @@ export function ProductManager({ products, references, categories, onCreateProdu
             <TableRow>
               <TableHead>Produit</TableHead>
               <TableHead>Catégorie</TableHead>
-              <TableHead>Famille</TableHead>
+              <TableHead>Fournisseur</TableHead>
               <TableHead>Fournisseur</TableHead>
               <TableHead className="text-right">Coef.</TableHead>
               <TableHead className="text-right">Coût @500</TableHead>
@@ -149,7 +146,7 @@ export function ProductManager({ products, references, categories, onCreateProdu
           </TableHeader>
           <TableBody>
             {filtered.length === 0 && (
-              <TableRow><TableCell colSpan={9} className="text-center text-muted-foreground py-8">Aucun produit. Cliquez sur "Nouveau produit" pour commencer.</TableCell></TableRow>
+              <TableRow><TableCell colSpan={8} className="text-center text-muted-foreground py-8">Aucun produit. Cliquez sur "Nouveau produit" pour commencer.</TableCell></TableRow>
             )}
             {filtered.map(prod => {
               const costs = calculateProductCosts(prod.id);
@@ -169,7 +166,6 @@ export function ProductManager({ products, references, categories, onCreateProdu
                       ) : <span className="text-muted-foreground text-xs">—</span>;
                     })()}
                   </TableCell>
-                  <TableCell><Badge variant="secondary">{prod.family}</Badge></TableCell>
                   <TableCell>{prod.main_supplier || '-'}</TableCell>
                   <TableCell className="text-right font-mono-numbers">{prod.coefficient.toFixed(2)}</TableCell>
                   <TableCell className="text-right font-mono-numbers">{cost500 > 0 ? `${cost500.toFixed(2)} €` : '-'}</TableCell>
