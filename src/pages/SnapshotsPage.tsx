@@ -25,7 +25,7 @@ import { Save, Download, Trash2, Plus, Loader2, Database } from 'lucide-react';
 
 export function SnapshotsPage() {
   const { snapshots, isLoading, createSnapshot, restoreSnapshot, deleteSnapshot, formatDate } = useSnapshots();
-  const { getTabPermission } = useAuth();
+  const { getTabPermission, isAdmin } = useAuth();
   const [name, setName] = useState('');
   const [comment, setComment] = useState('');
   const [creating, setCreating] = useState(false);
@@ -121,7 +121,7 @@ export function SnapshotsPage() {
                           </AlertDialogContent>
                         </AlertDialog>
                       )}
-                      {canWrite && (
+                      {isAdmin && (
                         <AlertDialog>
                           <AlertDialogTrigger asChild>
                             <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive">
