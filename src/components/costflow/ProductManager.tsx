@@ -7,12 +7,14 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Plus, Trash2, Edit, Search, Upload } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ProductImportDialog } from './ProductImportDialog';
-import type { CostFlowProduct, CostFlowReference } from '@/hooks/useCostFlowData';
+import type { CostFlowProduct, CostFlowReference, CostFlowProductCategory } from '@/hooks/useCostFlowData';
 
 interface Props {
   products: CostFlowProduct[];
   references: CostFlowReference[];
+  categories: CostFlowProductCategory[];
   onCreateProduct: (prod: Partial<CostFlowProduct>) => Promise<void>;
   onUpdateProduct: (id: string, prod: Partial<CostFlowProduct>) => Promise<void>;
   onDeleteProduct: (id: string) => Promise<void>;
@@ -21,14 +23,14 @@ interface Props {
   calculateProductCosts: (productId: string) => Record<number, number>;
 }
 
-export function ProductManager({ products, references, onCreateProduct, onUpdateProduct, onDeleteProduct, onSelectProduct, onImportProduct, calculateProductCosts }: Props) {
+export function ProductManager({ products, references, categories, onCreateProduct, onUpdateProduct, onDeleteProduct, onSelectProduct, onImportProduct, calculateProductCosts }: Props) {
   const [search, setSearch] = useState('');
   const [importOpen, setImportOpen] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingProd, setEditingProd] = useState<CostFlowProduct | null>(null);
   const [form, setForm] = useState({
     name: '', family: 'Standard', main_supplier: '', coefficient: 1.3,
-    price_ttc: 0, default_volume: 500, comments: '',
+    price_ttc: 0, default_volume: 500, comments: '', category_id: '' as string | null,
   });
 
   const filtered = products.filter(p =>
@@ -38,13 +40,13 @@ export function ProductManager({ products, references, onCreateProduct, onUpdate
 
   const openCreate = () => {
     setEditingProd(null);
-    setForm({ name: '', family: 'Standard', main_supplier: '', coefficient: 1.3, price_ttc: 0, default_volume: 500, comments: '' });
+    setForm({ name: '', family: 'Standard', main_supplier: '', coefficient: 1.3, price_ttc: 0, default_volume: 500, comments: '', category_id: null });
     setDialogOpen(true);
   };
 
   const openEdit = (prod: CostFlowProduct) => {
     setEditingProd(prod);
-    setForm({ name: prod.name, family: prod.family, main_supplier: prod.main_supplier, coefficient: prod.coefficient, price_ttc: prod.price_ttc, default_volume: prod.default_volume, comments: prod.comments });
+    setForm({ name: prod.name, family: prod.family, main_supplier: prod.main_supplier, coefficient: prod.coefficient, price_ttc: prod.price_ttc, default_volume: prod.default_volume, comments: prod.comments, category_id: prod.category_id || null });
     setDialogOpen(true);
   };
 
@@ -79,6 +81,23 @@ export function ProductManager({ products, references, onCreateProduct, onUpdate
               <div className="col-span-2">
                 <Label>Nom *</Label>
                 <Input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder="Nom du produit" />
+              </div>
+              <div>
+                <Label>Catégorie</Label>
+                <Select value={form.category_id || 'none'} onValueChange={v => setForm({ ...form, category_id: v === 'none' ? null : v })}>
+                  <SelectTrigger><SelectValue placeholder="Aucune catégorie" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Aucune</SelectItem>
+                    {categories.map(c => (
+                      <SelectItem key={c.id} value={c.id}>
+                        <span className="flex items-center gap-2">
+                          <span className="inline-block h-3 w-3 rounded-full" style={{ backgroundColor: c.color }} />
+                          {c.name}
+                        </span>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               <div>
                 <Label>Famille</Label>
@@ -118,6 +137,7 @@ export function ProductManager({ products, references, onCreateProduct, onUpdate
           <TableHeader>
             <TableRow>
               <TableHead>Produit</TableHead>
+              <TableHead>Catégorie</TableHead>
               <TableHead>Famille</TableHead>
               <TableHead>Fournisseur</TableHead>
               <TableHead className="text-right">Coef.</TableHead>
@@ -129,7 +149,7 @@ export function ProductManager({ products, references, onCreateProduct, onUpdate
           </TableHeader>
           <TableBody>
             {filtered.length === 0 && (
-              <TableRow><TableCell colSpan={8} className="text-center text-muted-foreground py-8">Aucun produit. Cliquez sur "Nouveau produit" pour commencer.</TableCell></TableRow>
+              <TableRow><TableCell colSpan={9} className="text-center text-muted-foreground py-8">Aucun produit. Cliquez sur "Nouveau produit" pour commencer.</TableCell></TableRow>
             )}
             {filtered.map(prod => {
               const costs = calculateProductCosts(prod.id);
@@ -138,6 +158,17 @@ export function ProductManager({ products, references, onCreateProduct, onUpdate
               return (
                 <TableRow key={prod.id} className="cursor-pointer hover:bg-muted/50" onClick={() => onSelectProduct(prod)}>
                   <TableCell className="font-medium">{prod.name}</TableCell>
+                  <TableCell>
+                    {(() => {
+                      const cat = categories.find(c => c.id === prod.category_id);
+                      return cat ? (
+                        <Badge variant="outline" className="gap-1">
+                          <span className="inline-block h-2 w-2 rounded-full" style={{ backgroundColor: cat.color }} />
+                          {cat.name}
+                        </Badge>
+                      ) : <span className="text-muted-foreground text-xs">—</span>;
+                    })()}
+                  </TableCell>
                   <TableCell><Badge variant="secondary">{prod.family}</Badge></TableCell>
                   <TableCell>{prod.main_supplier || '-'}</TableCell>
                   <TableCell className="text-right font-mono-numbers">{prod.coefficient.toFixed(2)}</TableCell>

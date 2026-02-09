@@ -36,6 +36,7 @@ export interface CostFlowProduct {
   price_ttc: number;
   default_volume: number;
   comments: string;
+  category_id: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -58,6 +59,14 @@ export interface CostFlowSupplier {
   comments: string;
   created_at: string;
   updated_at: string;
+}
+
+export interface CostFlowProductCategory {
+  id: string;
+  name: string;
+  description: string;
+  color: string;
+  created_at: string;
 }
 
 const VOLUME_TIERS = [50, 100, 200, 500, 1000, 2000, 5000, 10000] as const;
@@ -94,25 +103,28 @@ export function useCostFlowData() {
   const [bom, setBom] = useState<CostFlowBomEntry[]>([]);
   const [referenceFiles, setReferenceFiles] = useState<CostFlowReferenceFile[]>([]);
   const [suppliers, setSuppliers] = useState<CostFlowSupplier[]>([]);
+  const [productCategories, setProductCategories] = useState<CostFlowProductCategory[]>([]);
   const [loading, setLoading] = useState(true);
 
   const fetchAll = useCallback(async () => {
     if (!user) return;
     setLoading(true);
     try {
-      const [refsRes, prodsRes, bomRes, filesRes, suppRes] = await Promise.all([
+      const [refsRes, prodsRes, bomRes, filesRes, suppRes, catRes] = await Promise.all([
         supabase.from('costflow_references' as any).select('*').eq('user_id', user.id).order('code'),
         supabase.from('costflow_products' as any).select('*').eq('user_id', user.id).order('name'),
         supabase.from('costflow_bom' as any).select('*').eq('user_id', user.id),
         supabase.from('costflow_reference_files' as any).select('*').eq('user_id', user.id).order('uploaded_at', { ascending: false }),
         supabase.from('costflow_suppliers' as any).select('*').eq('user_id', user.id).order('name'),
+        supabase.from('costflow_product_categories' as any).select('*').eq('user_id', user.id).order('name'),
       ]);
       if (refsRes.data) setReferences((refsRes.data as any[]).map(rowToReference));
       if (prodsRes.data) setProducts((prodsRes.data as any[]).map((r: any) => ({
         id: r.id, name: r.name, family: r.family || 'Standard',
         main_supplier: r.main_supplier || '', coefficient: Number(r.coefficient) || 1.3,
         price_ttc: Number(r.price_ttc) || 0, default_volume: r.default_volume || 500,
-        comments: r.comments || '', created_at: r.created_at, updated_at: r.updated_at,
+        comments: r.comments || '', category_id: r.category_id || null,
+        created_at: r.created_at, updated_at: r.updated_at,
       })));
       if (bomRes.data) setBom((bomRes.data as any[]).map((r: any) => ({
         id: r.id, product_id: r.product_id, reference_id: r.reference_id,
@@ -127,6 +139,10 @@ export function useCostFlowData() {
         id: r.id, name: r.name, contact_name: r.contact_name || '',
         email: r.email || '', phone: r.phone || '', country: r.country || 'France',
         comments: r.comments || '', created_at: r.created_at, updated_at: r.updated_at,
+      })));
+      if (catRes.data) setProductCategories((catRes.data as any[]).map((r: any) => ({
+        id: r.id, name: r.name, description: r.description || '',
+        color: r.color || '#6366f1', created_at: r.created_at,
       })));
     } catch (err) {
       console.error('CostFlow fetch error:', err);
@@ -378,6 +394,32 @@ export function useCostFlowData() {
     fetchAll();
   };
 
+  // === PRODUCT CATEGORIES CRUD ===
+  const createProductCategory = async (cat: Partial<CostFlowProductCategory>) => {
+    if (!user) return;
+    const { error } = await supabase.from('costflow_product_categories' as any).insert({
+      user_id: user.id, name: cat.name, description: cat.description || '',
+      color: cat.color || '#6366f1',
+    } as any);
+    if (error) { toast.error('Erreur création catégorie'); console.error(error); }
+    else { toast.success('Catégorie créée'); fetchAll(); }
+  };
+
+  const updateProductCategory = async (id: string, cat: Partial<CostFlowProductCategory>) => {
+    if (!user) return;
+    const { error } = await supabase.from('costflow_product_categories' as any).update(cat as any).eq('id', id);
+    if (error) { toast.error('Erreur mise à jour catégorie'); console.error(error); }
+    else { toast.success('Catégorie mise à jour'); fetchAll(); }
+  };
+
+  const deleteProductCategory = async (id: string) => {
+    // Unlink products from this category first
+    await supabase.from('costflow_products' as any).update({ category_id: null } as any).eq('category_id', id);
+    const { error } = await supabase.from('costflow_product_categories' as any).delete().eq('id', id);
+    if (error) { toast.error('Erreur suppression catégorie'); console.error(error); }
+    else { toast.success('Catégorie supprimée'); fetchAll(); }
+  };
+
   // === SUPPLIERS CRUD ===
   const createSupplier = async (supplier: Partial<CostFlowSupplier>) => {
     if (!user) return;
@@ -405,12 +447,13 @@ export function useCostFlowData() {
   };
 
   return {
-    references, products, bom, referenceFiles, suppliers, loading,
+    references, products, bom, referenceFiles, suppliers, productCategories, loading,
     createReference, updateReference, deleteReference, bulkCreateReferences,
     createProduct, updateProduct, deleteProduct, createProductWithBom,
     addBomEntry, updateBomEntry, removeBomEntry,
     uploadFile, deleteFile, getFileUrl, getSignedUrl,
     createSupplier, updateSupplier, deleteSupplier,
+    createProductCategory, updateProductCategory, deleteProductCategory,
     calculateProductCost, calculateProductCosts,
     VOLUME_TIERS,
     refresh: fetchAll,
