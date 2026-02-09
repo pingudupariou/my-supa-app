@@ -54,7 +54,6 @@ export function ProductDetail({ product, references, bom, onAddBomEntry, onUpdat
           <h3 className="text-lg font-semibold">{product.name}</h3>
           <div className="flex gap-2 mt-1">
             <Badge variant="outline">Coef. {product.coefficient}</Badge>
-            <Badge variant="outline">Coef. {product.coefficient}</Badge>
             <Badge variant="outline">Prix TTC {product.price_ttc.toFixed(2)} €</Badge>
           </div>
         </div>

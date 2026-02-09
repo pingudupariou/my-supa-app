@@ -14,6 +14,7 @@ export function CostFlowPage() {
   const data = useCostFlowData();
   const [selectedRef, setSelectedRef] = useState<CostFlowReference | null>(null);
   const [selectedProduct, setSelectedProduct] = useState<CostFlowProduct | null>(null);
+  const [activeTab, setActiveTab] = useState('references');
 
   if (data.loading) {
     return (
@@ -30,7 +31,7 @@ export function CostFlowPage() {
         <p className="text-sm text-muted-foreground">Gestion des références, nomenclatures et calcul des coûts de revient</p>
       </div>
 
-      <Tabs defaultValue="references" className="space-y-4">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
         <TabsList>
           <TabsTrigger value="references">📦 Références</TabsTrigger>
           <TabsTrigger value="products">🎯 Produits</TabsTrigger>
