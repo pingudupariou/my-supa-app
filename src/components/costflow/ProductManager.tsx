@@ -136,7 +136,6 @@ export function ProductManager({ products, references, categories, onCreateProdu
               <TableHead>Produit</TableHead>
               <TableHead>Catégorie</TableHead>
               <TableHead>Fournisseur</TableHead>
-              <TableHead>Fournisseur</TableHead>
               <TableHead className="text-right">Coef.</TableHead>
               <TableHead className="text-right">Coût @500</TableHead>
               <TableHead className="text-right">Prix TTC</TableHead>
