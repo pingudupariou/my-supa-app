@@ -2,114 +2,189 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
-import { Plus, Trash2, Edit, Search, Upload } from 'lucide-react';
+import { Plus, Trash2, Edit, Search, Upload, ClipboardPaste } from 'lucide-react';
 import { ProductImportDialog } from './ProductImportDialog';
-import type { CostFlowProduct, CostFlowReference } from '@/hooks/useCostFlowData';
+import { ProductBulkImportDialog } from './ProductBulkImportDialog';
+import { ProductCategoryManager } from './ProductCategoryManager';
+import type { CostFlowProduct, CostFlowReference, CostFlowProductCategory } from '@/hooks/useCostFlowData';
 
 interface Props {
   products: CostFlowProduct[];
   references: CostFlowReference[];
+  categories: CostFlowProductCategory[];
   onCreateProduct: (prod: Partial<CostFlowProduct>) => Promise<void>;
   onUpdateProduct: (id: string, prod: Partial<CostFlowProduct>) => Promise<void>;
   onDeleteProduct: (id: string) => Promise<void>;
   onSelectProduct: (prod: CostFlowProduct) => void;
   onImportProduct: (product: Partial<CostFlowProduct>, bomEntries: { referenceId: string; quantity: number }[]) => Promise<void>;
+  onBulkImportProducts: (prods: Partial<CostFlowProduct>[]) => Promise<{ imported: number; errors: string[] }>;
+  onCreateCategory: (cat: Partial<CostFlowProductCategory>) => Promise<void>;
+  onUpdateCategory: (id: string, cat: Partial<CostFlowProductCategory>) => Promise<void>;
+  onDeleteCategory: (id: string) => Promise<void>;
   calculateProductCosts: (productId: string) => Record<number, number>;
 }
 
-export function ProductManager({ products, references, onCreateProduct, onUpdateProduct, onDeleteProduct, onSelectProduct, onImportProduct, calculateProductCosts }: Props) {
+export function ProductManager({
+  products, references, categories,
+  onCreateProduct, onUpdateProduct, onDeleteProduct, onSelectProduct,
+  onImportProduct, onBulkImportProducts,
+  onCreateCategory, onUpdateCategory, onDeleteCategory,
+  calculateProductCosts,
+}: Props) {
   const [search, setSearch] = useState('');
+  const [filterCategoryId, setFilterCategoryId] = useState<string>('all');
   const [importOpen, setImportOpen] = useState(false);
+  const [bulkImportOpen, setBulkImportOpen] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingProd, setEditingProd] = useState<CostFlowProduct | null>(null);
   const [form, setForm] = useState({
-    name: '', family: 'Standard', main_supplier: '', coefficient: 1.3,
-    price_ttc: 0, default_volume: 500, comments: '',
+    name: '', family: 'Standard', category_id: '' as string | null, main_supplier: '',
+    coefficient: 1.3, price_ttc: 0, default_volume: 500, comments: '',
   });
 
-  const filtered = products.filter(p =>
-    p.name.toLowerCase().includes(search.toLowerCase()) ||
-    p.family.toLowerCase().includes(search.toLowerCase())
-  );
+  const filtered = products.filter(p => {
+    const matchesSearch = p.name.toLowerCase().includes(search.toLowerCase()) ||
+      p.family.toLowerCase().includes(search.toLowerCase());
+    const matchesCategory = filterCategoryId === 'all' ||
+      (filterCategoryId === 'uncategorized' ? !p.category_id : p.category_id === filterCategoryId);
+    return matchesSearch && matchesCategory;
+  });
 
   const openCreate = () => {
     setEditingProd(null);
-    setForm({ name: '', family: 'Standard', main_supplier: '', coefficient: 1.3, price_ttc: 0, default_volume: 500, comments: '' });
+    setForm({ name: '', family: 'Standard', category_id: null, main_supplier: '', coefficient: 1.3, price_ttc: 0, default_volume: 500, comments: '' });
     setDialogOpen(true);
   };
 
   const openEdit = (prod: CostFlowProduct) => {
     setEditingProd(prod);
-    setForm({ name: prod.name, family: prod.family, main_supplier: prod.main_supplier, coefficient: prod.coefficient, price_ttc: prod.price_ttc, default_volume: prod.default_volume, comments: prod.comments });
+    setForm({ name: prod.name, family: prod.family, category_id: prod.category_id, main_supplier: prod.main_supplier, coefficient: prod.coefficient, price_ttc: prod.price_ttc, default_volume: prod.default_volume, comments: prod.comments });
     setDialogOpen(true);
   };
 
   const handleSave = async () => {
     if (!form.name) return;
+    const data = { ...form, category_id: form.category_id || null };
     if (editingProd) {
-      await onUpdateProduct(editingProd.id, form);
+      await onUpdateProduct(editingProd.id, data);
     } else {
-      await onCreateProduct(form);
+      await onCreateProduct(data);
     }
     setDialogOpen(false);
   };
 
+  const getCategoryForProduct = (prod: CostFlowProduct) => {
+    return categories.find(c => c.id === prod.category_id);
+  };
+
   return (
     <div className="space-y-4">
+      {/* Category manager */}
+      <div className="p-4 border rounded-lg bg-muted/20">
+        <ProductCategoryManager
+          categories={categories}
+          onCreateCategory={onCreateCategory}
+          onUpdateCategory={onUpdateCategory}
+          onDeleteCategory={onDeleteCategory}
+        />
+      </div>
+
       <div className="flex items-center justify-between gap-4">
-        <div className="relative flex-1 max-w-sm">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input placeholder="Rechercher produit ou famille..." value={search} onChange={e => setSearch(e.target.value)} className="pl-9" />
+        <div className="flex items-center gap-2 flex-1">
+          <div className="relative flex-1 max-w-sm">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input placeholder="Rechercher produit..." value={search} onChange={e => setSearch(e.target.value)} className="pl-9" />
+          </div>
+          <Select value={filterCategoryId} onValueChange={setFilterCategoryId}>
+            <SelectTrigger className="w-48">
+              <SelectValue placeholder="Toutes catégories" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Toutes catégories</SelectItem>
+              <SelectItem value="uncategorized">Non classé</SelectItem>
+              {categories.map(c => (
+                <SelectItem key={c.id} value={c.id}>
+                  <div className="flex items-center gap-2">
+                    <span className="w-2.5 h-2.5 rounded-full inline-block" style={{ backgroundColor: c.color }} />
+                    {c.name}
+                  </div>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" onClick={() => setImportOpen(true)}><Upload className="h-4 w-4 mr-1" /> Importer</Button>
+          <Button variant="outline" onClick={() => setBulkImportOpen(true)}>
+            <ClipboardPaste className="h-4 w-4 mr-1" /> Import en masse
+          </Button>
+          <Button variant="outline" onClick={() => setImportOpen(true)}>
+            <Upload className="h-4 w-4 mr-1" /> Import + BOM
+          </Button>
           <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
             <DialogTrigger asChild>
               <Button onClick={openCreate}><Plus className="h-4 w-4 mr-1" /> Nouveau produit</Button>
             </DialogTrigger>
-          <DialogContent className="max-w-lg">
-            <DialogHeader>
-              <DialogTitle>{editingProd ? 'Modifier le produit' : 'Nouveau produit'}</DialogTitle>
-            </DialogHeader>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="col-span-2">
-                <Label>Nom *</Label>
-                <Input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder="Nom du produit" />
+            <DialogContent className="max-w-lg">
+              <DialogHeader>
+                <DialogTitle>{editingProd ? 'Modifier le produit' : 'Nouveau produit'}</DialogTitle>
+              </DialogHeader>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="col-span-2">
+                  <Label>Nom *</Label>
+                  <Input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder="Nom du produit" />
+                </div>
+                <div>
+                  <Label>Catégorie</Label>
+                  <Select value={form.category_id || 'none'} onValueChange={v => setForm({ ...form, category_id: v === 'none' ? null : v })}>
+                    <SelectTrigger><SelectValue placeholder="Aucune" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Aucune</SelectItem>
+                      {categories.map(c => (
+                        <SelectItem key={c.id} value={c.id}>
+                          <div className="flex items-center gap-2">
+                            <span className="w-2.5 h-2.5 rounded-full inline-block" style={{ backgroundColor: c.color }} />
+                            {c.name}
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label>Famille</Label>
+                  <Input value={form.family} onChange={e => setForm({ ...form, family: e.target.value })} placeholder="Standard" />
+                </div>
+                <div>
+                  <Label>Fournisseur principal</Label>
+                  <Input value={form.main_supplier} onChange={e => setForm({ ...form, main_supplier: e.target.value })} />
+                </div>
+                <div>
+                  <Label>Coefficient (MO + assemblage)</Label>
+                  <Input type="number" step="0.01" className="font-mono-numbers" value={form.coefficient} onChange={e => setForm({ ...form, coefficient: parseFloat(e.target.value) || 1 })} />
+                </div>
+                <div>
+                  <Label>Volume d'achat par défaut</Label>
+                  <Input type="number" className="font-mono-numbers" value={form.default_volume} onChange={e => setForm({ ...form, default_volume: parseInt(e.target.value) || 500 })} />
+                </div>
+                <div>
+                  <Label>Prix TTC public (€)</Label>
+                  <Input type="number" step="0.01" className="font-mono-numbers" value={form.price_ttc} onChange={e => setForm({ ...form, price_ttc: parseFloat(e.target.value) || 0 })} />
+                </div>
+                <div className="col-span-2">
+                  <Label>Commentaires</Label>
+                  <Textarea value={form.comments} onChange={e => setForm({ ...form, comments: e.target.value })} rows={2} />
+                </div>
               </div>
-              <div>
-                <Label>Famille</Label>
-                <Input value={form.family} onChange={e => setForm({ ...form, family: e.target.value })} placeholder="Standard" />
+              <div className="flex justify-end mt-4">
+                <Button onClick={handleSave}>{editingProd ? 'Mettre à jour' : 'Créer'}</Button>
               </div>
-              <div>
-                <Label>Fournisseur principal</Label>
-                <Input value={form.main_supplier} onChange={e => setForm({ ...form, main_supplier: e.target.value })} />
-              </div>
-              <div>
-                <Label>Coefficient (MO + assemblage)</Label>
-                <Input type="number" step="0.01" className="font-mono-numbers" value={form.coefficient} onChange={e => setForm({ ...form, coefficient: parseFloat(e.target.value) || 1 })} />
-              </div>
-              <div>
-                <Label>Volume d'achat par défaut</Label>
-                <Input type="number" className="font-mono-numbers" value={form.default_volume} onChange={e => setForm({ ...form, default_volume: parseInt(e.target.value) || 500 })} />
-              </div>
-              <div>
-                <Label>Prix TTC public (€)</Label>
-                <Input type="number" step="0.01" className="font-mono-numbers" value={form.price_ttc} onChange={e => setForm({ ...form, price_ttc: parseFloat(e.target.value) || 0 })} />
-              </div>
-              <div className="col-span-2">
-                <Label>Commentaires</Label>
-                <Textarea value={form.comments} onChange={e => setForm({ ...form, comments: e.target.value })} rows={2} />
-              </div>
-            </div>
-            <div className="flex justify-end mt-4">
-              <Button onClick={handleSave}>{editingProd ? 'Mettre à jour' : 'Créer'}</Button>
-            </div>
-          </DialogContent>
-        </Dialog>
+            </DialogContent>
+          </Dialog>
         </div>
       </div>
 
@@ -118,6 +193,7 @@ export function ProductManager({ products, references, onCreateProduct, onUpdate
           <TableHeader>
             <TableRow>
               <TableHead>Produit</TableHead>
+              <TableHead>Catégorie</TableHead>
               <TableHead>Famille</TableHead>
               <TableHead>Fournisseur</TableHead>
               <TableHead className="text-right">Coef.</TableHead>
@@ -129,15 +205,26 @@ export function ProductManager({ products, references, onCreateProduct, onUpdate
           </TableHeader>
           <TableBody>
             {filtered.length === 0 && (
-              <TableRow><TableCell colSpan={8} className="text-center text-muted-foreground py-8">Aucun produit. Cliquez sur "Nouveau produit" pour commencer.</TableCell></TableRow>
+              <TableRow><TableCell colSpan={9} className="text-center text-muted-foreground py-8">Aucun produit. Cliquez sur "Nouveau produit" pour commencer.</TableCell></TableRow>
             )}
             {filtered.map(prod => {
               const costs = calculateProductCosts(prod.id);
               const cost500 = costs[500] || 0;
               const margin = prod.price_ttc > 0 ? ((prod.price_ttc / 1.2 - cost500) / (prod.price_ttc / 1.2)) * 100 : 0;
+              const category = getCategoryForProduct(prod);
               return (
                 <TableRow key={prod.id} className="cursor-pointer hover:bg-muted/50" onClick={() => onSelectProduct(prod)}>
                   <TableCell className="font-medium">{prod.name}</TableCell>
+                  <TableCell>
+                    {category ? (
+                      <Badge variant="outline" className="text-xs gap-1">
+                        <span className="w-2 h-2 rounded-full inline-block" style={{ backgroundColor: category.color }} />
+                        {category.name}
+                      </Badge>
+                    ) : (
+                      <span className="text-xs text-muted-foreground">—</span>
+                    )}
+                  </TableCell>
                   <TableCell><Badge variant="secondary">{prod.family}</Badge></TableCell>
                   <TableCell>{prod.main_supplier || '-'}</TableCell>
                   <TableCell className="text-right font-mono-numbers">{prod.coefficient.toFixed(2)}</TableCell>
@@ -158,12 +245,21 @@ export function ProductManager({ products, references, onCreateProduct, onUpdate
           </TableBody>
         </Table>
       </div>
+
       <ProductImportDialog
         open={importOpen}
         onOpenChange={setImportOpen}
         existingReferences={references}
         existingSuppliers={[...new Set(references.map(r => r.supplier).filter(Boolean))]}
         onImportProduct={onImportProduct}
+      />
+
+      <ProductBulkImportDialog
+        open={bulkImportOpen}
+        onOpenChange={setBulkImportOpen}
+        categories={categories}
+        existingProducts={products}
+        onBulkImport={onBulkImportProducts}
       />
     </div>
   );
