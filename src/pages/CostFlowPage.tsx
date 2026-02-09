@@ -5,6 +5,7 @@ import { ReferenceManager } from '@/components/costflow/ReferenceManager';
 import { ReferenceDetail } from '@/components/costflow/ReferenceDetail';
 import { ProductManager } from '@/components/costflow/ProductManager';
 import { ProductDetail } from '@/components/costflow/ProductDetail';
+import { ProductCategoryManager } from '@/components/costflow/ProductCategoryManager';
 import { CostAnalysis } from '@/components/costflow/CostAnalysis';
 import { SupplierManager } from '@/components/costflow/SupplierManager';
 import { Loader2 } from 'lucide-react';
@@ -73,16 +74,25 @@ export function CostFlowPage() {
               onBack={() => setSelectedProduct(null)}
             />
           ) : (
-            <ProductManager
-              products={data.products}
-              references={data.references}
-              onCreateProduct={data.createProduct}
-              onUpdateProduct={data.updateProduct}
-              onDeleteProduct={data.deleteProduct}
-              onSelectProduct={setSelectedProduct}
-              onImportProduct={data.createProductWithBom}
-              calculateProductCosts={data.calculateProductCosts}
-            />
+            <div className="space-y-6">
+              <ProductManager
+                products={data.products}
+                references={data.references}
+                categories={data.productCategories}
+                onCreateProduct={data.createProduct}
+                onUpdateProduct={data.updateProduct}
+                onDeleteProduct={data.deleteProduct}
+                onSelectProduct={setSelectedProduct}
+                onImportProduct={data.createProductWithBom}
+                calculateProductCosts={data.calculateProductCosts}
+              />
+              <ProductCategoryManager
+                categories={data.productCategories}
+                onCreateCategory={data.createProductCategory}
+                onUpdateCategory={data.updateProductCategory}
+                onDeleteCategory={data.deleteProductCategory}
+              />
+            </div>
           )}
         </TabsContent>
 
