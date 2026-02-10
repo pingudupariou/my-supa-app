@@ -9,6 +9,7 @@ import { ProductCategoryManager } from '@/components/costflow/ProductCategoryMan
 import { CostAnalysis } from '@/components/costflow/CostAnalysis';
 import { SupplierManager } from '@/components/costflow/SupplierManager';
 import { MeetingManager } from '@/components/costflow/MeetingManager';
+import { ProductPlanningGantt } from '@/components/costflow/ProductPlanningGantt';
 import { ReadOnlyWrapper } from '@/components/auth/ReadOnlyWrapper';
 import { Loader2 } from 'lucide-react';
 
@@ -41,6 +42,7 @@ export function CostFlowPage() {
           <TabsTrigger value="suppliers">🏭 Fournisseurs</TabsTrigger>
           <TabsTrigger value="costs">💰 Coûts & Export</TabsTrigger>
           <TabsTrigger value="meetings">📋 Réunions BE</TabsTrigger>
+          <TabsTrigger value="planning">📅 Planning Dev</TabsTrigger>
         </TabsList>
 
         <TabsContent value="references">
@@ -121,6 +123,10 @@ export function CostFlowPage() {
 
         <TabsContent value="meetings">
           <MeetingManager />
+        </TabsContent>
+
+        <TabsContent value="planning">
+          <ProductPlanningGantt />
         </TabsContent>
       </Tabs>
     </div>
