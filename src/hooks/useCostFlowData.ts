@@ -113,12 +113,12 @@ export function useCostFlowData() {
     if (!initialLoaded) setLoading(true);
     try {
       const [refsRes, prodsRes, bomRes, filesRes, suppRes, catRes] = await Promise.all([
-        supabase.from('costflow_references' as any).select('*').eq('user_id', user.id).order('code'),
-        supabase.from('costflow_products' as any).select('*').eq('user_id', user.id).order('name'),
-        supabase.from('costflow_bom' as any).select('*').eq('user_id', user.id),
-        supabase.from('costflow_reference_files' as any).select('*').eq('user_id', user.id).order('uploaded_at', { ascending: false }),
-        supabase.from('costflow_suppliers' as any).select('*').eq('user_id', user.id).order('name'),
-        supabase.from('costflow_product_categories' as any).select('*').eq('user_id', user.id).order('name'),
+        supabase.from('costflow_references' as any).select('*').order('code'),
+        supabase.from('costflow_products' as any).select('*').order('name'),
+        supabase.from('costflow_bom' as any).select('*'),
+        supabase.from('costflow_reference_files' as any).select('*').order('uploaded_at', { ascending: false }),
+        supabase.from('costflow_suppliers' as any).select('*').order('name'),
+        supabase.from('costflow_product_categories' as any).select('*').order('name'),
       ]);
       if (refsRes.data) setReferences((refsRes.data as any[]).map(rowToReference));
       if (prodsRes.data) setProducts((prodsRes.data as any[]).map((r: any) => ({
