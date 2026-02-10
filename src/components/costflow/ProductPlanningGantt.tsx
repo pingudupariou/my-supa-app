@@ -37,6 +37,32 @@ export function ProductPlanningGantt() {
 
   const getColor = (color_id: string | null) => colors.find(c => c.id === color_id);
 
+  // Compute vertical lanes for overlapping blocks in a row
+  const getBlockLanes = (rowBlocks: PlanningBlock[]) => {
+    const sorted = [...rowBlocks].sort((a, b) => a.start_month - b.start_month);
+    const lanes: { blockId: string; lane: number }[] = [];
+    const laneEnds: number[] = []; // tracks end month of each lane
+
+    for (const block of sorted) {
+      const blockEnd = block.start_month + block.duration;
+      let placed = false;
+      for (let i = 0; i < laneEnds.length; i++) {
+        if (block.start_month >= laneEnds[i]) {
+          laneEnds[i] = blockEnd;
+          lanes.push({ blockId: block.id, lane: i });
+          placed = true;
+          break;
+        }
+      }
+      if (!placed) {
+        lanes.push({ blockId: block.id, lane: laneEnds.length });
+        laneEnds.push(blockEnd);
+      }
+    }
+    const maxLane = laneEnds.length;
+    return { lanes, maxLane };
+  };
+
   const handleAddRow = () => {
     if (!newRowLabel.trim()) return;
     createRow(newRowLabel.trim());
@@ -211,10 +237,12 @@ export function ProductPlanningGantt() {
             )}
             {rows.map(row => {
               const rowBlocks = blocks.filter(b => b.row_id === row.id);
+              const { lanes, maxLane } = getBlockLanes(rowBlocks);
+              const rowHeight = Math.max(44, maxLane * 32 + 12);
               return (
-                <div key={row.id} className="grid grid-cols-[200px_repeat(12,1fr)] border-b group/row hover:bg-muted/20">
+                <div key={row.id} className="grid grid-cols-[200px_repeat(12,1fr)] border-b group/row hover:bg-muted/20" style={{ minHeight: rowHeight }}>
                   {/* Row label */}
-                  <div className="px-3 py-2 text-sm border-r flex items-center gap-1 min-h-[44px]">
+                  <div className="px-3 py-2 text-sm border-r flex items-center gap-1" style={{ minHeight: rowHeight }}>
                     {editingRow === row.id ? (
                       <Input
                         value={editingRowLabel}
@@ -240,7 +268,7 @@ export function ProductPlanningGantt() {
                   </div>
 
                   {/* Gantt cells */}
-                  <div className="col-span-12 relative min-h-[44px]" ref={ganttRef}>
+                  <div className="col-span-12 relative" ref={ganttRef} style={{ minHeight: rowHeight }}>
                     {/* Grid lines */}
                     <div className="absolute inset-0 grid grid-cols-12">
                       {MONTHS.map((_, i) => (
@@ -258,11 +286,14 @@ export function ProductPlanningGantt() {
                       const bgColor = colorObj?.color || '#94a3b8';
                       const left = `${((block.start_month - 1) / 12) * 100}%`;
                       const width = `${(block.duration / 12) * 100}%`;
+                      const laneInfo = lanes.find(l => l.blockId === block.id);
+                      const lane = laneInfo?.lane || 0;
+                      const top = 4 + lane * 32;
                       return (
                         <div
                           key={block.id}
-                          className="absolute top-1 bottom-1 rounded-md flex items-center justify-center text-xs font-medium text-white shadow-sm select-none"
-                          style={{ left, width, backgroundColor: bgColor, cursor: dragging ? 'grabbing' : 'grab', zIndex: dragging?.blockId === block.id ? 10 : 1 }}
+                          className="absolute rounded-md flex items-center justify-center text-xs font-medium text-white shadow-sm select-none"
+                          style={{ left, width, backgroundColor: bgColor, top, height: 28, cursor: dragging ? 'grabbing' : 'grab', zIndex: dragging?.blockId === block.id ? 10 : 1 }}
                           onMouseDown={e => handleDragStart(e, block)}
                           onDoubleClick={() => openEditBlock(block)}
                           title="Double-clic pour modifier, glisser pour déplacer"
