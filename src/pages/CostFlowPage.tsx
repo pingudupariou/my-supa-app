@@ -8,6 +8,7 @@ import { ProductDetail } from '@/components/costflow/ProductDetail';
 import { ProductCategoryManager } from '@/components/costflow/ProductCategoryManager';
 import { CostAnalysis } from '@/components/costflow/CostAnalysis';
 import { SupplierManager } from '@/components/costflow/SupplierManager';
+import { ReadOnlyWrapper } from '@/components/auth/ReadOnlyWrapper';
 import { Loader2 } from 'lucide-react';
 
 export function CostFlowPage() {
@@ -25,6 +26,7 @@ export function CostFlowPage() {
   }
 
   return (
+    <ReadOnlyWrapper tabKey="costflow">
     <div className="space-y-6">
       <div>
         <h1 className="page-title">CostFlow — Production & Bureau d'études</h1>
@@ -116,5 +118,6 @@ export function CostFlowPage() {
         </TabsContent>
       </Tabs>
     </div>
+    </ReadOnlyWrapper>
   );
 }
