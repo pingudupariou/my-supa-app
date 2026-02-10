@@ -42,8 +42,9 @@ serve(async (req) => {
     return new Response(JSON.stringify(result), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
-  } catch (e) {
-    return new Response(JSON.stringify({ error: e.message }), {
+  } catch (e: unknown) {
+    const message = e instanceof Error ? e.message : 'Unknown error';
+    return new Response(JSON.stringify({ error: message }), {
       status: 400,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
