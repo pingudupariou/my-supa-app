@@ -56,6 +56,74 @@ export type Database = {
           },
         ]
       }
+      costflow_meeting_tasks: {
+        Row: {
+          created_at: string
+          description: string
+          id: string
+          is_completed: boolean
+          meeting_id: string
+          sort_order: number
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          description: string
+          id?: string
+          is_completed?: boolean
+          meeting_id: string
+          sort_order?: number
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          description?: string
+          id?: string
+          is_completed?: boolean
+          meeting_id?: string
+          sort_order?: number
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "costflow_meeting_tasks_meeting_id_fkey"
+            columns: ["meeting_id"]
+            isOneToOne: false
+            referencedRelation: "costflow_meetings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      costflow_meetings: {
+        Row: {
+          content: string
+          created_at: string
+          id: string
+          meeting_date: string
+          title: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          content?: string
+          created_at?: string
+          id?: string
+          meeting_date?: string
+          title?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          id?: string
+          meeting_date?: string
+          title?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       costflow_product_categories: {
         Row: {
           color: string | null

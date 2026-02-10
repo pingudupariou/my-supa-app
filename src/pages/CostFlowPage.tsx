@@ -8,6 +8,7 @@ import { ProductDetail } from '@/components/costflow/ProductDetail';
 import { ProductCategoryManager } from '@/components/costflow/ProductCategoryManager';
 import { CostAnalysis } from '@/components/costflow/CostAnalysis';
 import { SupplierManager } from '@/components/costflow/SupplierManager';
+import { MeetingManager } from '@/components/costflow/MeetingManager';
 import { ReadOnlyWrapper } from '@/components/auth/ReadOnlyWrapper';
 import { Loader2 } from 'lucide-react';
 
@@ -39,6 +40,7 @@ export function CostFlowPage() {
           <TabsTrigger value="products">🎯 Produits</TabsTrigger>
           <TabsTrigger value="suppliers">🏭 Fournisseurs</TabsTrigger>
           <TabsTrigger value="costs">💰 Coûts & Export</TabsTrigger>
+          <TabsTrigger value="meetings">📋 Réunions BE</TabsTrigger>
         </TabsList>
 
         <TabsContent value="references">
@@ -115,6 +117,10 @@ export function CostFlowPage() {
             bom={data.bom}
             calculateProductCosts={data.calculateProductCosts}
           />
+        </TabsContent>
+
+        <TabsContent value="meetings">
+          <MeetingManager />
         </TabsContent>
       </Tabs>
     </div>
