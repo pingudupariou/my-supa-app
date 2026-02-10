@@ -214,3 +214,51 @@
     animation: pulse-subtle 2s ease-in-out infinite;
   }
 }
+
+/* Read-only mode: disable all interactions except tab navigation and scrolling */
+.read-only-mode {
+  /* Allow tab navigation but block everything else */
+}
+
+.read-only-mode button,
+.read-only-mode input,
+.read-only-mode textarea,
+.read-only-mode select,
+.read-only-mode a[href],
+.read-only-mode [role="checkbox"],
+.read-only-mode [role="switch"],
+.read-only-mode [role="slider"],
+.read-only-mode [role="combobox"],
+.read-only-mode [role="listbox"],
+.read-only-mode [role="menuitem"],
+.read-only-mode [contenteditable] {
+  pointer-events: none !important;
+  opacity: 0.7;
+  cursor: default !important;
+  user-select: none;
+}
+
+/* Re-enable tab triggers for navigation */
+.read-only-mode [role="tablist"] button,
+.read-only-mode [role="tablist"] [role="tab"] {
+  pointer-events: auto !important;
+  opacity: 1 !important;
+  cursor: pointer !important;
+}
+
+/* Re-enable scroll areas */
+.read-only-mode [data-radix-scroll-area-viewport] {
+  pointer-events: auto !important;
+}
+
+/* Keep table rows readable but not clickable */
+.read-only-mode tr {
+  cursor: default !important;
+}
+
+/* Allow mode selector buttons (By Product / CA Global) to stay visible but disabled */
+.read-only-mode .read-only-allow {
+  pointer-events: auto !important;
+  opacity: 1 !important;
+  cursor: pointer !important;
+}
