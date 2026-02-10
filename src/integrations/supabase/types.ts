@@ -124,6 +124,105 @@ export type Database = {
         }
         Relationships: []
       }
+      costflow_planning_blocks: {
+        Row: {
+          color_id: string | null
+          created_at: string
+          duration: number
+          id: string
+          label: string
+          row_id: string
+          start_month: number
+          user_id: string
+        }
+        Insert: {
+          color_id?: string | null
+          created_at?: string
+          duration?: number
+          id?: string
+          label?: string
+          row_id: string
+          start_month?: number
+          user_id: string
+        }
+        Update: {
+          color_id?: string | null
+          created_at?: string
+          duration?: number
+          id?: string
+          label?: string
+          row_id?: string
+          start_month?: number
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "costflow_planning_blocks_color_id_fkey"
+            columns: ["color_id"]
+            isOneToOne: false
+            referencedRelation: "costflow_planning_colors"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "costflow_planning_blocks_row_id_fkey"
+            columns: ["row_id"]
+            isOneToOne: false
+            referencedRelation: "costflow_planning_rows"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      costflow_planning_colors: {
+        Row: {
+          color: string
+          created_at: string
+          id: string
+          name: string
+          sort_order: number
+          user_id: string
+        }
+        Insert: {
+          color?: string
+          created_at?: string
+          id?: string
+          name: string
+          sort_order?: number
+          user_id: string
+        }
+        Update: {
+          color?: string
+          created_at?: string
+          id?: string
+          name?: string
+          sort_order?: number
+          user_id?: string
+        }
+        Relationships: []
+      }
+      costflow_planning_rows: {
+        Row: {
+          created_at: string
+          id: string
+          label: string
+          sort_order: number
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          label: string
+          sort_order?: number
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          label?: string
+          sort_order?: number
+          user_id?: string
+        }
+        Relationships: []
+      }
       costflow_product_categories: {
         Row: {
           color: string | null
