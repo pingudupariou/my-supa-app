@@ -199,6 +199,41 @@ export type Database = {
         }
         Relationships: []
       }
+      costflow_planning_notes: {
+        Row: {
+          block_id: string
+          content: string
+          created_at: string
+          id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          block_id: string
+          content?: string
+          created_at?: string
+          id?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          block_id?: string
+          content?: string
+          created_at?: string
+          id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "costflow_planning_notes_block_id_fkey"
+            columns: ["block_id"]
+            isOneToOne: false
+            referencedRelation: "costflow_planning_blocks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       costflow_planning_rows: {
         Row: {
           created_at: string
