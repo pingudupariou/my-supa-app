@@ -1,10 +1,11 @@
 // ============================================
 // COMPTE DE RÉSULTAT COMPLET
-// Inclut les éléments ajustables manuellement
+// Utilise les données unifiées du FinancialContext
+// (mode CA global ou par produit + ajustements scénario)
 // ============================================
 
 import { Product, Role, Expense } from './types';
-import { calculateTotalRevenue, calculateCOGS, calculatePayroll, calculateTotalOpex, calculateTotalVolumes, calculateDepreciation } from './calculations';
+import { calculatePayroll, calculateTotalOpex, calculateTotalVolumes } from './calculations';
 
 // ==================
 // TYPES POUR LE COMPTE DE RÉSULTAT
@@ -85,6 +86,16 @@ export interface ProductDevAmortization {
 }
 
 // ==================
+// Données unifiées pré-calculées par le FinancialContext
+// ==================
+
+export interface UnifiedFinancialData {
+  revenueByYear: { year: number; revenue: number; cogs: number }[];
+  payrollByYear: { year: number; payroll: number }[];
+  opexByYear: { year: number; opex: number }[];
+}
+
+// ==================
 // VALEURS PAR DÉFAUT
 // ==================
 
@@ -152,36 +163,36 @@ export function getProductAmortizationForYear(
 }
 
 // ==================
-// GÉNÉRATION DU COMPTE DE RÉSULTAT
+// GÉNÉRATION DU COMPTE DE RÉSULTAT (UNIFIÉ)
+// Consomme les données pré-calculées du FinancialContext
+// qui respectent le mode CA (global/produit) et les ajustements scénario
 // ==================
 
 export function generateIncomeStatement(
   products: Product[],
-  roles: Role[],
-  expenses: Expense[],
   adjustments: ManualAdjustments,
-  startYear: number = 2025,
-  numberOfYears: number = 5
+  unifiedData: UnifiedFinancialData
 ): IncomeStatementYear[] {
   const statements: IncomeStatementYear[] = [];
   
-  for (let i = 0; i <= numberOfYears; i++) {
-    const year = startYear + i;
+  for (const yearData of unifiedData.revenueByYear) {
+    const year = yearData.year;
     
-    // Revenus
-    const revenue = calculateTotalRevenue(products, year);
+    // Revenus (depuis les données unifiées du FinancialContext)
+    const revenue = yearData.revenue;
     const otherOperatingIncome = 0;
     const totalOperatingIncome = revenue + otherOperatingIncome;
     
-    // COGS
-    const purchasesAndVariation = calculateCOGS(products, year);
+    // COGS (depuis les données unifiées)
+    const purchasesAndVariation = yearData.cogs;
     
-    // Masse salariale
-    const personnelExpenses = calculatePayroll(roles, year);
+    // Masse salariale (depuis les données unifiées)
+    const payrollData = unifiedData.payrollByYear.find(p => p.year === year);
+    const personnelExpenses = payrollData?.payroll || 0;
     
-    // OPEX
-    const volumes = calculateTotalVolumes(products, year);
-    const externalServices = calculateTotalOpex(expenses, year, revenue, volumes);
+    // OPEX (depuis les données unifiées)
+    const opexData = unifiedData.opexByYear.find(o => o.year === year);
+    const externalServices = opexData?.opex || 0;
     
     const otherOperatingExpenses = 0;
     const totalOperatingExpenses = purchasesAndVariation + externalServices + personnelExpenses + otherOperatingExpenses;
@@ -192,7 +203,7 @@ export function generateIncomeStatement(
     
     // Amortissements
     const depreciationProductDev = getProductAmortizationForYear(products, year);
-    const depreciationOther = revenue * 0.02; // 2% du CA pour autres immobilisations
+    const depreciationOther = revenue * 0.02;
     const provisions = 0;
     const totalDepreciationProvisions = depreciationProductDev + depreciationOther + provisions;
     
@@ -213,7 +224,7 @@ export function generateIncomeStatement(
     const exceptionalExpense = adjustments.exceptionalExpense[year] || 0;
     const exceptionalResult = exceptionalIncome - exceptionalExpense;
     
-    // Participation (si bénéfice > seuil)
+    // Participation
     const participation = currentResultBeforeTax > 100000 ? currentResultBeforeTax * 0.05 : 0;
     
     // Impôts
