@@ -5,72 +5,52 @@ import { NovarideLogo } from '@/components/ui/NovarideLogo';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { Home, Package, Users, Receipt, LineChart, Banknote, BarChart3, TrendingUp, FileText, Shield, LogOut, Menu, X, MessageSquare, Cog, Clock, Database } from 'lucide-react';
-const navItems = [{
-  to: '/home',
-  label: 'Accueil',
-  icon: Home,
-  tabKey: 'home'
-}, {
-  to: '/',
-  label: 'Plan Produit',
-  icon: Package,
-  tabKey: 'product-plan'
-}, {
-  to: '/organisation',
-  label: 'Organisation',
-  icon: Users,
-  tabKey: 'organisation'
-}, {
-  to: '/charges',
-  label: 'Charges',
-  icon: Receipt,
-  tabKey: 'charges'
-}, {
-  to: '/crm',
-  label: 'CRM',
-  icon: MessageSquare,
-  tabKey: 'crm'
-}, {
-  to: '/costflow',
-  label: 'Production et BE',
-  icon: Cog,
-  tabKey: 'costflow'
-}, {
-  to: '/timetracking',
-  label: "Suivi d'activité",
-  icon: Clock,
-  tabKey: 'timetracking'
-}, {
-  to: '/previsionnel',
-  label: 'Prévisionnel',
-  icon: LineChart,
-  tabKey: 'previsionnel'
-}, {
-  to: '/funding',
-  label: 'Financement',
-  icon: Banknote,
-  tabKey: 'funding'
-}, {
-  to: '/scenarios',
-  label: 'Scénarios',
-  icon: BarChart3,
-  tabKey: 'scenarios'
-}, {
-  to: '/valuation',
-  label: 'Valorisation',
-  icon: TrendingUp,
-  tabKey: 'valuation'
-}, {
-  to: '/investment-summary',
-  label: 'Synthèse',
-  icon: FileText,
-  tabKey: 'investment-summary'
-}, {
-  to: '/snapshots',
-  label: 'Sauvegardes',
-  icon: Database,
-  tabKey: 'snapshots'
-}];
+
+interface NavItem {
+  to: string;
+  label: string;
+  icon: typeof Home;
+  tabKey: string;
+}
+
+interface NavGroup {
+  label?: string;
+  items: NavItem[];
+}
+
+const navGroups: NavGroup[] = [
+  {
+    items: [
+      { to: '/home', label: 'Accueil', icon: Home, tabKey: 'home' },
+    ],
+  },
+  {
+    label: 'Prévisionnel',
+    items: [
+      { to: '/', label: 'Plan Produit', icon: Package, tabKey: 'product-plan' },
+      { to: '/organisation', label: 'Organisation', icon: Users, tabKey: 'organisation' },
+      { to: '/charges', label: 'Charges', icon: Receipt, tabKey: 'charges' },
+      { to: '/scenarios', label: 'Scénarios', icon: BarChart3, tabKey: 'scenarios' },
+      { to: '/previsionnel', label: 'Prévisionnel', icon: LineChart, tabKey: 'previsionnel' },
+    ],
+  },
+  {
+    label: 'Investisseur',
+    items: [
+      { to: '/funding', label: 'Financement', icon: Banknote, tabKey: 'funding' },
+      { to: '/valuation', label: 'Valorisation', icon: TrendingUp, tabKey: 'valuation' },
+      { to: '/investment-summary', label: 'Synthèse', icon: FileText, tabKey: 'investment-summary' },
+    ],
+  },
+  {
+    items: [
+      { to: '/crm', label: 'CRM', icon: MessageSquare, tabKey: 'crm' },
+      { to: '/costflow', label: 'Production et BE', icon: Cog, tabKey: 'costflow' },
+      { to: '/timetracking', label: "Suivi d'activité", icon: Clock, tabKey: 'timetracking' },
+      { to: '/snapshots', label: 'Sauvegardes', icon: Database, tabKey: 'snapshots' },
+    ],
+  },
+];
 export function DashboardLayout({
   children
 }: {
@@ -87,10 +67,11 @@ export function DashboardLayout({
     await signOut();
     navigate('/auth');
   };
-  const visibleItems = navItems.filter(item => {
-    const perm = getTabPermission(item.tabKey);
-    return perm !== 'hidden';
-  });
+  const visibleGroups = navGroups.map(group => ({
+    ...group,
+    items: group.items.filter(item => getTabPermission(item.tabKey) !== 'hidden'),
+  })).filter(group => group.items.length > 0);
+
   return <div className="flex min-h-screen">
       {/* Mobile toggle */}
       <button className="fixed top-4 left-4 z-50 lg:hidden p-2 bg-sidebar text-white rounded" onClick={() => setSidebarOpen(!sidebarOpen)}>
@@ -105,15 +86,24 @@ export function DashboardLayout({
         </div>
 
         <nav className="flex-1 py-4 overflow-y-auto">
-          {visibleItems.map(item => {
-          const Icon = item.icon;
-          return <NavLink key={item.to} to={item.to} end={item.to === '/'} onClick={() => setSidebarOpen(false)} className={({
-            isActive
-          }) => cn('flex items-center gap-3 px-4 py-2.5 text-sm transition-colors', isActive ? 'bg-sidebar-accent text-sidebar-accent-foreground' : 'text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent/10')}>
-                <Icon className="h-4 w-4" />
-                {item.label}
-              </NavLink>;
-        })}
+          {visibleGroups.map((group, gi) => (
+            <div key={gi} className={cn(gi > 0 && 'mt-3 pt-3 border-t border-sidebar-border')}>
+              {group.label && (
+                <div className="px-4 py-1 text-[10px] font-semibold uppercase tracking-wider text-sidebar-foreground/40">
+                  {group.label}
+                </div>
+              )}
+              {group.items.map(item => {
+                const Icon = item.icon;
+                return <NavLink key={item.to} to={item.to} end={item.to === '/'} onClick={() => setSidebarOpen(false)} className={({
+                  isActive
+                }) => cn('flex items-center gap-3 px-4 py-2.5 text-sm transition-colors', isActive ? 'bg-sidebar-accent text-sidebar-accent-foreground' : 'text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent/10')}>
+                    <Icon className="h-4 w-4" />
+                    {item.label}
+                  </NavLink>;
+              })}
+            </div>
+          ))}
 
           {isAdmin && <NavLink to="/permissions" onClick={() => setSidebarOpen(false)} className={({
           isActive
