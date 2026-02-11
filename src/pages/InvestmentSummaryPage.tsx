@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { useFinancial } from '@/context/FinancialContext';
 import { HeroBanner } from '@/components/ui/HeroBanner';
 import { SectionCard, KPICard } from '@/components/ui/KPICard';
@@ -5,6 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { formatCurrency, formatPercent } from '@/data/financialConfig';
 import { cn } from '@/lib/utils';
 import { ExportPDFDialog } from '@/components/summary/ExportPDFDialog';
+import { aggregateByYear } from '@/engine/monthlyTreasuryEngine';
 import {
   ComposedChart,
   Bar,
@@ -38,44 +40,69 @@ const scenarioLabels = {
 export function InvestmentSummaryPage() {
   const { state, computed } = useFinancial();
 
-  // ======== SOURCE UNIQUE: treasuryProjection ========
-  const { treasuryProjection } = computed;
+  // ======== SOURCE UNIQUE: monthlyTreasuryProjection (moteur mensuel unifié) ========
+  const { monthlyTreasuryProjection } = computed;
   const { startYear, durationYears, initialCash } = state.scenarioSettings;
   const lastYear = startYear + durationYears - 1;
+  const years = Array.from({ length: durationYears }, (_, i) => startYear + i);
 
-  // Montant levé
-  const amountRaised = treasuryProjection.totalFundingRaised;
+  // Agréger par année — MÊME source que Financement et Prévisionnel
+  const yearlyData = useMemo(() => {
+    const aggregated = aggregateByYear(monthlyTreasuryProjection.months);
+    return years.map(year => {
+      const data = aggregated.get(year);
+      if (!data) return {
+        year, revenue: 0, cogs: 0, grossMargin: 0, payroll: 0, opex: 0,
+        variableCharges: 0, loanPayments: 0, fundingInjection: 0,
+        netCashFlow: 0, treasuryStart: 0, treasuryEnd: 0, ebitda: 0,
+        capex: 0,
+      };
+      // Calcul du CAPEX annuel depuis les données mensuelles
+      const yearMonths = monthlyTreasuryProjection.months.filter(m => m.year === year);
+      const capex = yearMonths.reduce((sum, m) => sum + m.capexPayments, 0);
+      return { ...data, capex };
+    });
+  }, [monthlyTreasuryProjection, years]);
+
+  // Montant levé — depuis le moteur unifié
+  const amountRaised = monthlyTreasuryProjection.totalFundingRaised;
   const startingCash = initialCash + amountRaised;
 
-  // Données directement depuis le moteur unifié
-  const projectionData = treasuryProjection.years;
-
   // KPIs clés depuis le moteur unifié
-  const minTreasury = treasuryProjection.minTreasury;
-  const breakEvenYear = treasuryProjection.breakEvenYear || 'N/A';
+  const minTreasury = monthlyTreasuryProjection.minTreasury;
+  const breakEvenYear = monthlyTreasuryProjection.breakEvenMonth?.year || 'N/A';
   const hasNegativeTreasury = minTreasury < 0;
-  const criticalYear = projectionData.find(t => t.treasuryEnd < 0)?.year;
-  
-  const avgMonthlyBurn = treasuryProjection.maxBurn / 12;
-  const runway = treasuryProjection.runway;
+  const criticalYear = yearlyData.find(t => t.treasuryEnd < 0)?.year;
 
-  // Totaux cumulés sur la période (depuis le moteur)
-  const totalRevenue = projectionData.reduce((sum, d) => sum + d.revenue, 0);
-  const totalPayroll = projectionData.reduce((sum, d) => sum + d.payroll, 0);
-  const totalOpex = projectionData.reduce((sum, d) => sum + d.opex, 0);
-  const totalCapex = treasuryProjection.totalCapex;
-  const totalCogs = projectionData.reduce((sum, d) => sum + d.cogs, 0);
-  const totalDepreciation = treasuryProjection.totalDepreciation;
+  // Burn rate: max monthly outflow
+  const maxMonthlyBurn = useMemo(() => {
+    const negativeMonths = monthlyTreasuryProjection.months.filter(m => m.netCashFlow < 0);
+    if (negativeMonths.length === 0) return 0;
+    return Math.max(...negativeMonths.map(m => Math.abs(m.netCashFlow)));
+  }, [monthlyTreasuryProjection]);
+  const avgMonthlyBurn = useMemo(() => {
+    const negativeMonths = monthlyTreasuryProjection.months.filter(m => m.netCashFlow < 0);
+    if (negativeMonths.length === 0) return 0;
+    return negativeMonths.reduce((sum, m) => sum + Math.abs(m.netCashFlow), 0) / negativeMonths.length;
+  }, [monthlyTreasuryProjection]);
+  const runway = avgMonthlyBurn > 0 ? Math.round(startingCash / avgMonthlyBurn) : 99;
+
+  // Totaux cumulés sur la période
+  const totalRevenue = yearlyData.reduce((sum, d) => sum + d.revenue, 0);
+  const totalPayroll = yearlyData.reduce((sum, d) => sum + d.payroll, 0);
+  const totalOpex = yearlyData.reduce((sum, d) => sum + d.opex, 0);
+  const totalCapex = monthlyTreasuryProjection.totalCapexPayments;
+  const totalCogs = yearlyData.reduce((sum, d) => sum + d.cogs, 0);
   const totalCosts = totalPayroll + totalOpex + totalCapex + totalCogs;
 
-  // Besoin de financement = max(0, -trésorerie minimale) - PAS la somme des flux négatifs
-  const totalNeed = treasuryProjection.fundingNeed;
+  // Besoin de financement = max(0, -trésorerie minimale)
+  const totalNeed = Math.max(0, -minTreasury);
   const surplus = amountRaised - totalNeed;
 
   // Données pour le graphique
-  const chartData = projectionData.map(d => ({
+  const chartData = yearlyData.map(d => ({
     year: d.year,
-    'Cash Flow': d.cashFlow / 1000,
+    'Cash Flow': d.netCashFlow / 1000,
     'Trésorerie': d.treasuryEnd / 1000,
   }));
 
@@ -87,7 +114,6 @@ export function InvestmentSummaryPage() {
   const dilution = latestRound 
     ? latestRound.amount / postMoney 
     : 0;
-
   return (
     <div className="space-y-6">
       <HeroBanner
@@ -111,7 +137,7 @@ export function InvestmentSummaryPage() {
           </Badge>
           <Badge variant="secondary" className="text-xs gap-1">
             <Calendar className="h-3 w-3" />
-            {state.products.length} produits • {projectionData[projectionData.length - 1]?.headcount || 0} ETP
+            {state.products.length} produits
           </Badge>
         </div>
         <ExportPDFDialog />
@@ -347,7 +373,7 @@ export function InvestmentSummaryPage() {
               </tr>
             </thead>
             <tbody>
-              {projectionData.map((row) => (
+              {yearlyData.map((row) => (
                 <tr key={row.year} className={cn(
                   "border-b hover:bg-muted/20",
                   row.treasuryEnd < 0 && "bg-destructive/5"
@@ -375,16 +401,16 @@ export function InvestmentSummaryPage() {
                     {formatCurrency(row.ebitda, true)}
                   </td>
                   <td className="py-3 px-3 text-right font-mono-numbers text-muted-foreground">
-                    {formatCurrency(row.depreciation, true)}
+                    -
                   </td>
                   <td className="py-3 px-3 text-right font-mono-numbers text-muted-foreground">
                     {formatCurrency(row.capex, true)}
                   </td>
                   <td className={cn(
                     "py-3 px-3 text-right font-mono-numbers font-medium",
-                    row.cashFlow >= 0 ? "text-chart-4" : "text-accent"
+                    row.netCashFlow >= 0 ? "text-chart-4" : "text-accent"
                   )}>
-                    {row.cashFlow >= 0 ? '+' : ''}{formatCurrency(row.cashFlow, true)}
+                    {row.netCashFlow >= 0 ? '+' : ''}{formatCurrency(row.netCashFlow, true)}
                   </td>
                   <td className={cn(
                     "py-3 px-3 text-right font-mono-numbers font-bold",
@@ -404,10 +430,10 @@ export function InvestmentSummaryPage() {
                 <td className="py-3 px-3 text-right font-mono-numbers">{formatCurrency(totalPayroll, true)}</td>
                 <td className="py-3 px-3 text-right font-mono-numbers">{formatCurrency(totalOpex, true)}</td>
                 <td className="py-3 px-3 text-right font-mono-numbers">-</td>
-                <td className="py-3 px-3 text-right font-mono-numbers">{formatCurrency(totalDepreciation, true)}</td>
+                <td className="py-3 px-3 text-right font-mono-numbers">-</td>
                 <td className="py-3 px-3 text-right font-mono-numbers">{formatCurrency(totalCapex, true)}</td>
                 <td className="py-3 px-3 text-right font-mono-numbers">-</td>
-                <td className="py-3 px-3 text-right font-mono-numbers">{formatCurrency(projectionData[projectionData.length - 1]?.treasuryEnd || 0, true)}</td>
+                <td className="py-3 px-3 text-right font-mono-numbers">{formatCurrency(yearlyData[yearlyData.length - 1]?.treasuryEnd || 0, true)}</td>
               </tr>
             </tfoot>
           </table>
@@ -435,7 +461,7 @@ export function InvestmentSummaryPage() {
           />
           <KPICard
             label="Multiple CA"
-            value={totalRevenue > 0 ? `${(postMoney / (projectionData[projectionData.length - 1]?.revenue || 1)).toFixed(1)}x` : '-'}
+            value={totalRevenue > 0 ? `${(postMoney / (yearlyData[yearlyData.length - 1]?.revenue || 1)).toFixed(1)}x` : '-'}
             subValue={`sur CA ${lastYear}`}
           />
         </div>
