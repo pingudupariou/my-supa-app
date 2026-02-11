@@ -1,16 +1,17 @@
-import React, { useState } from 'react';
-import { useFinancial } from '@/context/FinancialContext';
+import React from 'react';
+import { useFinancial, ValuationConfig } from '@/context/FinancialContext';
 import { SectionCard, KPICard } from '@/components/ui/KPICard';
 import { HeroBanner } from '@/components/ui/HeroBanner';
 import { SaveButton } from '@/components/ui/SaveButton';
 import { PageExportPDF, ExportableSection } from '@/components/export/PageExportPDF';
 import { ReadOnlyWrapper } from '@/components/auth/ReadOnlyWrapper';
 import { EditableHistoricalFinancials } from '@/components/valuation/EditableHistoricalFinancials';
-import { DilutionSimulator, DilutionConfig, defaultDilutionConfig } from '@/components/valuation/DilutionSimulator';
+import { DilutionSimulator } from '@/components/valuation/DilutionSimulator';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { Label } from '@/components/ui/label';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { formatCurrency, formatPercent } from '@/data/financialConfig';
 import { cn } from '@/lib/utils';
@@ -32,15 +33,7 @@ import {
   Legend,
   BarChart,
   Bar,
-  Cell,
-  RadarChart,
-  PolarGrid,
-  PolarAngleAxis,
-  PolarRadiusAxis,
-  Radar,
 } from 'recharts';
-
-// Les années sont dynamiques, basées sur les paramètres de scénario
 
 const EXPORT_SECTIONS: ExportableSection[] = [
   { id: 'kpis', label: 'KPIs Valorisation', elementId: 'valuation-kpis' },
@@ -50,40 +43,26 @@ const EXPORT_SECTIONS: ExportableSection[] = [
 ];
 
 export function ValuationAnalysisPage() {
-  const { state, computed, updateHistoricalData, saveAll } = useFinancial();
+  const { state, computed, updateHistoricalData, updateValuationConfig, saveAll } = useFinancial();
   const { startYear, durationYears } = state.scenarioSettings;
   const YEARS = Array.from({ length: durationYears }, (_, i) => startYear + i);
-  
-  // État pour la méthode de valorisation sélectionnée
-  const [selectedMethods, setSelectedMethods] = useState<ValuationMethod[]>(['revenue_multiple', 'ebitda_multiple']);
-  const [valuationBasis, setValuationBasis] = useState<'historical' | 'projected' | 'mixed'>('projected');
-  const [historicalYear, setHistoricalYear] = useState(2024);
-  const [projectedYear, setProjectedYear] = useState(2028);
-  const [mixWeight, setMixWeight] = useState(0.5);
-  
-  // Paramètres des méthodes de valorisation
-  const [valuationParams, setValuationParams] = useState({
-    revenue_multiple: { multiple: 4 },
-    ebitda_multiple: { multiple: 8 },
-    ebit_multiple: { multiple: 10 },
-    dcf: { discountRate: 0.25, terminalGrowthRate: 0.03 },
-    scorecard: { 
-      baseValuation: 3000000,
-      team: 0.15, market: 0.20, product: 0.10, competition: -0.10, marketing: 0, fundingNeed: 0 
-    },
-    berkus: { soundIdea: 400000, prototype: 350000, qualityManagement: 300000, strategicRelationships: 200000, productRollout: 250000 },
-    risk_factor: { 
-      baseValuation: 3000000,
-      managementRisk: 1, businessStage: 0, legislation: 0, manufacturing: -1, salesMarketing: 1,
-      fundingCapital: 0, competition: -1, technology: 1, litigation: 0, international: 0, reputation: 1, potentialExit: 1
-    },
-  });
-  
-  // Dilution config - synchronisé avec le montant à lever du financement
-  const latestRound = state.fundingRounds[state.fundingRounds.length - 1];
-  const totalRaiseFromFunding = latestRound?.amount || 1500000;
-  
-  // EBITDA de référence pour la valorisation
+
+  // Use persisted valuation config
+  const vc = state.valuationConfig;
+  const updateVC = (partial: Partial<ValuationConfig>) => updateValuationConfig(partial);
+
+  // Shorthand accessors
+  const selectedMethods = vc.selectedMethods;
+  const valuationBasis = vc.valuationBasis;
+  const historicalYear = vc.historicalYear;
+  const projectedYear = vc.projectedYear;
+  const mixWeight = vc.mixWeight;
+  const averageYears = vc.averageYears;
+  const valuationParams = vc.valuationParams;
+  const dilutionConfig = vc.dilutionConfig;
+  const exitScenarios = vc.exitScenarios;
+
+  // EBITDA de référence pour la dilution (sync avec historique)
   const referenceEBITDA = (() => {
     const lastHistorical = state.historicalData[state.historicalData.length - 1];
     if (lastHistorical) {
@@ -92,37 +71,26 @@ export function ValuationAnalysisPage() {
     }
     return 500000;
   })();
-  
-  const [dilutionConfig, setDilutionConfig] = useState<DilutionConfig>({
-    ...defaultDilutionConfig,
-    totalRaise: totalRaiseFromFunding,
-    referenceEBITDA,
-  });
 
-  // Synchroniser quand le montant à lever change
+  // Synchroniser totalRaise et referenceEBITDA
+  const latestRound = state.fundingRounds[state.fundingRounds.length - 1];
+  const totalRaiseFromFunding = latestRound?.amount || 1500000;
+
   React.useEffect(() => {
-    setDilutionConfig(prev => ({
-      ...prev,
-      totalRaise: totalRaiseFromFunding,
-      referenceEBITDA,
-    }));
+    if (dilutionConfig.totalRaise !== totalRaiseFromFunding || dilutionConfig.referenceEBITDA !== referenceEBITDA) {
+      updateVC({ dilutionConfig: { ...dilutionConfig, totalRaise: totalRaiseFromFunding, referenceEBITDA } });
+    }
   }, [totalRaiseFromFunding, referenceEBITDA]);
 
-  // Calculs de valorisation basés sur la config de dilution
+  // Calculs de valorisation basés sur la dilution config
   const preMoneyFromEBITDA = Math.max(200000, dilutionConfig.referenceEBITDA * dilutionConfig.ebitdaMultiple);
   const equityAmount = dilutionConfig.totalRaise * (1 - dilutionConfig.ocRatio);
   const postMoneyFromConfig = preMoneyFromEBITDA + equityAmount;
   const dilutionFromConfig = postMoneyFromConfig > 0 ? equityAmount / postMoneyFromConfig : 0;
 
-  // Scénarios de sortie avec multiples EBITDA ajustables
-  const [exitScenarios, setExitScenarios] = useState({
-    conservative: { year: 2030, exitMultiple: 4, probability: 0.25 },
-    base: { year: 2029, exitMultiple: 6, probability: 0.50 },
-    ambitious: { year: 2028, exitMultiple: 10, probability: 0.25 },
-  });
-
-  // Années historiques disponibles
+  // Années historiques et projetées disponibles
   const HISTORICAL_YEARS = state.historicalData.map(d => d.year);
+  const ALL_AVAILABLE_YEARS = [...HISTORICAL_YEARS, ...YEARS];
 
   // Calcul des métriques selon la base choisie
   const getMetricsForValuation = () => {
@@ -140,50 +108,62 @@ export function ValuationAnalysisPage() {
       const payData = computed.payrollByYear.find(p => p.year === year);
       const opData = computed.opexByYear.find(o => o.year === year);
       const capData = computed.capexByYear.find(c => c.year === year);
-      
       const revenue = revData?.revenue || 0;
       const grossMargin = revenue - (revData?.cogs || 0);
       const ebitda = grossMargin - (payData?.payroll || 0) - (opData?.opex || 0);
       const ebit = ebitda - (capData?.depreciation || 0);
-      
       return { revenue, ebitda, ebit };
     };
 
-    if (valuationBasis === 'historical') {
-      return getHistoricalMetrics(historicalYear);
-    } else if (valuationBasis === 'projected') {
-      return getProjectedMetrics(projectedYear);
-    } else {
-      const hist = getHistoricalMetrics(historicalYear);
-      const proj = getProjectedMetrics(projectedYear);
+    const getYearMetrics = (year: number) => {
+      if (HISTORICAL_YEARS.includes(year)) return getHistoricalMetrics(year);
+      return getProjectedMetrics(year);
+    };
+
+    if (valuationBasis === 'average') {
+      if (averageYears.length === 0) return { revenue: 0, ebitda: 0, ebit: 0 };
+      const allMetrics = averageYears.map(y => getYearMetrics(y));
+      const count = allMetrics.length;
       return {
-        revenue: hist.revenue * (1 - mixWeight) + proj.revenue * mixWeight,
-        ebitda: hist.ebitda * (1 - mixWeight) + proj.ebitda * mixWeight,
-        ebit: hist.ebit * (1 - mixWeight) + proj.ebit * mixWeight,
+        revenue: allMetrics.reduce((s, m) => s + m.revenue, 0) / count,
+        ebitda: allMetrics.reduce((s, m) => s + m.ebitda, 0) / count,
+        ebit: allMetrics.reduce((s, m) => s + m.ebit, 0) / count,
       };
     }
+
+    if (valuationBasis === 'historical') return getHistoricalMetrics(historicalYear);
+    if (valuationBasis === 'projected') return getProjectedMetrics(projectedYear);
+
+    // mixed
+    const hist = getHistoricalMetrics(historicalYear);
+    const proj = getProjectedMetrics(projectedYear);
+    return {
+      revenue: hist.revenue * (1 - mixWeight) + proj.revenue * mixWeight,
+      ebitda: hist.ebitda * (1 - mixWeight) + proj.ebitda * mixWeight,
+      ebit: hist.ebit * (1 - mixWeight) + proj.ebit * mixWeight,
+    };
   };
 
   const metrics = getMetricsForValuation();
-  
+
   // Calcul des valorisations par méthode
   const getValuationResults = (): ValuationResult[] => {
     const results: ValuationResult[] = [];
-    
+
     if (selectedMethods.includes('revenue_multiple')) {
       results.push(calculateValuation('revenue_multiple', {
         projectedRevenue: metrics.revenue,
         multiple: valuationParams.revenue_multiple.multiple,
       }));
     }
-    
+
     if (selectedMethods.includes('ebitda_multiple')) {
       results.push(calculateValuation('ebitda_multiple', {
         projectedEBITDA: metrics.ebitda,
         multiple: valuationParams.ebitda_multiple.multiple,
       }));
     }
-    
+
     if (selectedMethods.includes('dcf')) {
       const cashFlows = YEARS.map(year => {
         const r = computed.revenueByYear.find(d => d.year === year);
@@ -198,7 +178,7 @@ export function ValuationAnalysisPage() {
         terminalGrowthRate: valuationParams.dcf.terminalGrowthRate,
       }));
     }
-    
+
     if (selectedMethods.includes('scorecard')) {
       results.push(calculateValuation('scorecard', {
         baseValuation: valuationParams.scorecard.baseValuation,
@@ -212,11 +192,11 @@ export function ValuationAnalysisPage() {
         },
       }));
     }
-    
+
     if (selectedMethods.includes('berkus')) {
       results.push(calculateValuation('berkus', valuationParams.berkus));
     }
-    
+
     if (selectedMethods.includes('risk_factor')) {
       results.push(calculateValuation('risk_factor', {
         baseValuation: valuationParams.risk_factor.baseValuation,
@@ -236,34 +216,39 @@ export function ValuationAnalysisPage() {
         },
       }));
     }
-    
+
     return results;
   };
-  
+
   const valuationResults = getValuationResults();
   const averageValuation = calculateAverageValuation(valuationResults);
-  
+
   const toggleMethod = (method: ValuationMethod) => {
-    setSelectedMethods(prev => 
-      prev.includes(method) 
-        ? prev.filter(m => m !== method)
-        : [...prev, method]
-    );
+    const next = selectedMethods.includes(method)
+      ? selectedMethods.filter(m => m !== method)
+      : [...selectedMethods, method];
+    updateVC({ selectedMethods: next });
   };
-  
+
+  const toggleAverageYear = (year: number) => {
+    const next = averageYears.includes(year)
+      ? averageYears.filter(y => y !== year)
+      : [...averageYears, year].sort();
+    updateVC({ averageYears: next });
+  };
+
   const valuationComparisonData = valuationResults.map(result => ({
     name: VALUATION_METHODS.find(m => m.id === result.method)?.name || result.method,
     value: result.value / 1000000,
     confidence: result.confidence,
   }));
-  
-  // Calcul TRI investisseur par scénario
+
+  // Calcul TRI investisseur
   const calculateIRR = (investment: number, exitValue: number, years: number): number => {
     if (investment <= 0 || exitValue <= 0 || years <= 0) return 0;
     return Math.pow(exitValue / investment, 1 / years) - 1;
   };
 
-  // Calcul EBITDA par année pour les scénarios de sortie
   const getEBITDAForYear = (year: number) => {
     const rev = computed.revenueByYear.find(r => r.year === year);
     const pay = computed.payrollByYear.find(p => p.year === year);
@@ -271,7 +256,7 @@ export function ValuationAnalysisPage() {
     if (!rev) return 0;
     return (rev.revenue - rev.cogs) - (pay?.payroll || 0) - (op?.opex || 0);
   };
-  
+
   const exitAnalysis = Object.entries(exitScenarios).map(([scenario, params]) => {
     const exitYear = params.year;
     const ebitdaAtExit = getEBITDAForYear(exitYear);
@@ -281,7 +266,7 @@ export function ValuationAnalysisPage() {
     const holdingPeriod = exitYear - state.scenarioSettings.startYear;
     const irr = calculateIRR(equityAmount, investorReturn, holdingPeriod);
     const multiple = equityAmount > 0 ? investorReturn / equityAmount : 0;
-    
+
     return {
       scenario,
       year: exitYear,
@@ -301,21 +286,13 @@ export function ValuationAnalysisPage() {
     const pay = computed.payrollByYear.find(p => p.year === year);
     const op = computed.opexByYear.find(o => o.year === year);
     const cap = computed.capexByYear.find(c => c.year === year);
-    
     const revenue = rev?.revenue || 0;
     const grossMargin = revenue - (rev?.cogs || 0);
     const ebitda = grossMargin - (pay?.payroll || 0) - (op?.opex || 0);
     const ebit = ebitda - (cap?.depreciation || 0);
-    
-    return {
-      year,
-      revenue: revenue / 1000,
-      grossMargin: grossMargin / 1000,
-      ebitda: ebitda / 1000,
-      ebit: ebit / 1000,
-    };
+    return { year, revenue: revenue / 1000, grossMargin: grossMargin / 1000, ebitda: ebitda / 1000, ebit: ebit / 1000 };
   });
-  
+
   return (
     <ReadOnlyWrapper tabKey="valuation">
     <div className="space-y-6">
@@ -393,19 +370,20 @@ export function ValuationAnalysisPage() {
         <TabsContent value="methods" className="space-y-6">
           {/* Sélection base de calcul */}
           <SectionCard title="Base de Calcul">
-            <div className="grid md:grid-cols-3 gap-4 mb-4">
+            <div className="grid md:grid-cols-4 gap-4 mb-4">
               {[
-                { value: 'historical', label: 'Historique', desc: 'Basé sur les données passées' },
-                { value: 'projected', label: 'Projeté', desc: 'Basé sur les projections futures' },
-                { value: 'mixed', label: 'Mixte', desc: 'Combinaison historique + projeté' },
+                { value: 'historical' as const, label: 'Historique', desc: 'Basé sur les données passées' },
+                { value: 'projected' as const, label: 'Projeté', desc: 'Basé sur les projections futures' },
+                { value: 'mixed' as const, label: 'Mixte', desc: 'Combinaison historique + projeté' },
+                { value: 'average' as const, label: 'Moyenne', desc: 'Moyenne de plusieurs années' },
               ].map(option => (
                 <button
                   key={option.value}
-                  onClick={() => setValuationBasis(option.value as typeof valuationBasis)}
+                  onClick={() => updateVC({ valuationBasis: option.value })}
                   className={cn(
                     "p-4 rounded-lg text-left transition-colors border-2",
-                    valuationBasis === option.value 
-                      ? "bg-primary/10 border-primary" 
+                    valuationBasis === option.value
+                      ? "bg-primary/10 border-primary"
                       : "bg-muted/30 border-transparent hover:bg-muted/50"
                   )}
                 >
@@ -425,7 +403,7 @@ export function ValuationAnalysisPage() {
                         key={year}
                         size="sm"
                         variant={historicalYear === year ? 'default' : 'outline'}
-                        onClick={() => setHistoricalYear(year)}
+                        onClick={() => updateVC({ historicalYear: year })}
                       >
                         {year}
                       </Button>
@@ -442,7 +420,7 @@ export function ValuationAnalysisPage() {
                         key={year}
                         size="sm"
                         variant={projectedYear === year ? 'default' : 'outline'}
-                        onClick={() => setProjectedYear(year)}
+                        onClick={() => updateVC({ projectedYear: year })}
                       >
                         {year}
                       </Button>
@@ -452,6 +430,42 @@ export function ValuationAnalysisPage() {
               )}
             </div>
 
+            {/* Sélection des années pour le mode Moyenne */}
+            {valuationBasis === 'average' && (
+              <div className="mt-4 space-y-3">
+                <Label>Sélectionnez les années de référence pour le calcul de la moyenne</Label>
+                <div className="flex flex-wrap gap-3">
+                  {ALL_AVAILABLE_YEARS.map(year => {
+                    const isSelected = averageYears.includes(year);
+                    const isHistorical = HISTORICAL_YEARS.includes(year);
+                    return (
+                      <label
+                        key={year}
+                        className={cn(
+                          "flex items-center gap-2 px-3 py-2 rounded-lg border-2 cursor-pointer transition-colors",
+                          isSelected ? "bg-primary/10 border-primary" : "bg-muted/30 border-transparent hover:bg-muted/50"
+                        )}
+                      >
+                        <Checkbox
+                          checked={isSelected}
+                          onCheckedChange={() => toggleAverageYear(year)}
+                        />
+                        <span className="text-sm font-medium">{year}</span>
+                        <Badge variant="outline" className="text-[10px]">
+                          {isHistorical ? 'Hist.' : 'Proj.'}
+                        </Badge>
+                      </label>
+                    );
+                  })}
+                </div>
+                {averageYears.length > 0 && (
+                  <p className="text-sm text-muted-foreground">
+                    {averageYears.length} année{averageYears.length > 1 ? 's' : ''} sélectionnée{averageYears.length > 1 ? 's' : ''} : {averageYears.join(', ')}
+                  </p>
+                )}
+              </div>
+            )}
+
             {valuationBasis === 'mixed' && (
               <div className="mt-4 space-y-2">
                 <div className="flex justify-between text-sm">
@@ -460,7 +474,7 @@ export function ValuationAnalysisPage() {
                 </div>
                 <Slider
                   value={[mixWeight * 100]}
-                  onValueChange={([v]) => setMixWeight(v / 100)}
+                  onValueChange={([v]) => updateVC({ mixWeight: v / 100 })}
                   min={0}
                   max={100}
                   step={5}
@@ -471,17 +485,17 @@ export function ValuationAnalysisPage() {
             {/* Métriques utilisées */}
             <div className="mt-4 p-4 bg-muted/30 rounded-lg grid grid-cols-3 gap-4">
               <div>
-                <div className="text-xs text-muted-foreground">CA de référence</div>
+                <div className="text-xs text-muted-foreground">CA de référence{valuationBasis === 'average' ? ' (moyenne)' : ''}</div>
                 <div className="text-lg font-bold font-mono-numbers">{formatCurrency(metrics.revenue, true)}</div>
               </div>
               <div>
-                <div className="text-xs text-muted-foreground">EBITDA de référence</div>
+                <div className="text-xs text-muted-foreground">EBITDA de référence{valuationBasis === 'average' ? ' (moyenne)' : ''}</div>
                 <div className={cn("text-lg font-bold font-mono-numbers", metrics.ebitda < 0 && "text-destructive")}>
                   {formatCurrency(metrics.ebitda, true)}
                 </div>
               </div>
               <div>
-                <div className="text-xs text-muted-foreground">EBIT de référence</div>
+                <div className="text-xs text-muted-foreground">EBIT de référence{valuationBasis === 'average' ? ' (moyenne)' : ''}</div>
                 <div className={cn("text-lg font-bold font-mono-numbers", metrics.ebit < 0 && "text-destructive")}>
                   {formatCurrency(metrics.ebit, true)}
                 </div>
@@ -495,7 +509,7 @@ export function ValuationAnalysisPage() {
               {VALUATION_METHODS.map(method => {
                 const isSelected = selectedMethods.includes(method.id);
                 const result = valuationResults.find(r => r.method === method.id);
-                
+
                 return (
                   <button
                     key={method.id}
@@ -547,7 +561,7 @@ export function ValuationAnalysisPage() {
         <TabsContent value="dilution" className="space-y-6">
           <DilutionSimulator
             config={dilutionConfig}
-            onChange={setDilutionConfig}
+            onChange={(newConfig) => updateVC({ dilutionConfig: newConfig })}
           />
         </TabsContent>
 
@@ -557,28 +571,30 @@ export function ValuationAnalysisPage() {
           <SectionCard title="Paramètres des Scénarios de Sortie">
             <div className="grid md:grid-cols-3 gap-6">
               {[
-                { key: 'conservative', label: 'Prudent', color: 'text-muted-foreground' },
-                { key: 'base', label: 'Base', color: 'text-primary' },
-                { key: 'ambitious', label: 'Ambitieux', color: 'text-green-600 dark:text-green-400' },
+                { key: 'conservative' as const, label: 'Prudent', color: 'text-muted-foreground' },
+                { key: 'base' as const, label: 'Base', color: 'text-primary' },
+                { key: 'ambitious' as const, label: 'Ambitieux', color: 'text-green-600 dark:text-green-400' },
               ].map(({ key, label, color }) => (
                 <div key={key} className="space-y-3 p-4 bg-muted/30 rounded-lg">
                   <div className="flex justify-between items-center">
                     <span className={cn("font-medium", color)}>{label}</span>
-                    <Badge variant="outline">{exitScenarios[key as keyof typeof exitScenarios].year}</Badge>
+                    <Badge variant="outline">{exitScenarios[key].year}</Badge>
                   </div>
                   <div className="space-y-2">
                     <div className="flex justify-between text-sm">
                       <span>Multiple EBITDA sortie</span>
                       <span className="font-mono-numbers font-bold">
-                        {exitScenarios[key as keyof typeof exitScenarios].exitMultiple}x
+                        {exitScenarios[key].exitMultiple}x
                       </span>
                     </div>
                     <Slider
-                      value={[exitScenarios[key as keyof typeof exitScenarios].exitMultiple]}
-                      onValueChange={([v]) => setExitScenarios(prev => ({
-                        ...prev,
-                        [key]: { ...prev[key as keyof typeof prev], exitMultiple: v }
-                      }))}
+                      value={[exitScenarios[key].exitMultiple]}
+                      onValueChange={([v]) => updateVC({
+                        exitScenarios: {
+                          ...exitScenarios,
+                          [key]: { ...exitScenarios[key], exitMultiple: v }
+                        }
+                      })}
                       min={2}
                       max={15}
                       step={0.5}
@@ -592,8 +608,8 @@ export function ValuationAnalysisPage() {
           {/* Résultats par scénario */}
           <div className="grid md:grid-cols-3 gap-4">
             {exitAnalysis.map((exit) => (
-              <SectionCard 
-                key={exit.scenario} 
+              <SectionCard
+                key={exit.scenario}
                 title={exit.scenario === 'conservative' ? 'Prudent' : exit.scenario === 'base' ? 'Base' : 'Ambitieux'}
               >
                 <div className="space-y-4">
@@ -607,12 +623,12 @@ export function ValuationAnalysisPage() {
                       <p className="text-xl font-bold">{exit.exitMultiple}x</p>
                     </div>
                   </div>
-                  
+
                   <div className="p-3 bg-muted/30 rounded">
                     <p className="text-xs text-muted-foreground">EBITDA à la sortie</p>
                     <p className="font-bold font-mono-numbers">{formatCurrency(exit.ebitdaAtExit, true)}</p>
                   </div>
-                  
+
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <p className="text-xs text-muted-foreground">Valorisation sortie</p>
@@ -623,13 +639,13 @@ export function ValuationAnalysisPage() {
                       <p className="font-bold font-mono-numbers">{formatCurrency(exit.investorReturn, true)}</p>
                     </div>
                   </div>
-                  
+
                   <div className="pt-4 border-t">
                     <div className="flex justify-between items-center">
                       <span className="text-sm">TRI</span>
                       <span className={cn(
                         "font-bold font-mono-numbers",
-                        exit.irr >= 0.25 ? "text-green-600 dark:text-green-400" : 
+                        exit.irr >= 0.25 ? "text-green-600 dark:text-green-400" :
                         exit.irr >= 0.15 ? "text-amber-600 dark:text-amber-400" : "text-destructive"
                       )}>
                         {formatPercent(exit.irr)}

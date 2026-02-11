@@ -7,6 +7,8 @@ import { calculateMonthlyTreasuryProjection, MonthlyTreasuryProjection, getDefau
 import { calculateCapexByYear } from '@/engine/fundingNeedsCalculator';
 import { GlobalRevenueConfig, defaultGlobalRevenueConfig, calculateGlobalRevenue, calculateGlobalCogs } from '@/components/product/GlobalRevenueEditor';
 import { HistoricalYearData } from '@/components/valuation/EditableHistoricalFinancials';
+import { ValuationMethod } from '@/engine/valuationMethods';
+import { DilutionConfig, defaultDilutionConfig } from '@/components/valuation/DilutionSimulator';
 import { toast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/context/AuthContext';
@@ -30,6 +32,54 @@ interface ScenarioSettings {
   initialCash: number;
 }
 
+export interface ValuationConfig {
+  selectedMethods: ValuationMethod[];
+  valuationBasis: 'historical' | 'projected' | 'mixed' | 'average';
+  historicalYear: number;
+  projectedYear: number;
+  mixWeight: number;
+  averageYears: number[]; // années sélectionnées pour le calcul en moyenne
+  valuationParams: {
+    revenue_multiple: { multiple: number };
+    ebitda_multiple: { multiple: number };
+    ebit_multiple: { multiple: number };
+    dcf: { discountRate: number; terminalGrowthRate: number };
+    scorecard: { baseValuation: number; team: number; market: number; product: number; competition: number; marketing: number; fundingNeed: number };
+    berkus: { soundIdea: number; prototype: number; qualityManagement: number; strategicRelationships: number; productRollout: number };
+    risk_factor: { baseValuation: number; managementRisk: number; businessStage: number; legislation: number; manufacturing: number; salesMarketing: number; fundingCapital: number; competition: number; technology: number; litigation: number; international: number; reputation: number; potentialExit: number };
+  };
+  dilutionConfig: DilutionConfig;
+  exitScenarios: {
+    conservative: { year: number; exitMultiple: number; probability: number };
+    base: { year: number; exitMultiple: number; probability: number };
+    ambitious: { year: number; exitMultiple: number; probability: number };
+  };
+}
+
+export const defaultValuationConfig: ValuationConfig = {
+  selectedMethods: ['revenue_multiple', 'ebitda_multiple'],
+  valuationBasis: 'projected',
+  historicalYear: 2024,
+  projectedYear: 2028,
+  mixWeight: 0.5,
+  averageYears: [],
+  valuationParams: {
+    revenue_multiple: { multiple: 4 },
+    ebitda_multiple: { multiple: 8 },
+    ebit_multiple: { multiple: 10 },
+    dcf: { discountRate: 0.25, terminalGrowthRate: 0.03 },
+    scorecard: { baseValuation: 3000000, team: 0.15, market: 0.20, product: 0.10, competition: -0.10, marketing: 0, fundingNeed: 0 },
+    berkus: { soundIdea: 400000, prototype: 350000, qualityManagement: 300000, strategicRelationships: 200000, productRollout: 250000 },
+    risk_factor: { baseValuation: 3000000, managementRisk: 1, businessStage: 0, legislation: 0, manufacturing: -1, salesMarketing: 1, fundingCapital: 0, competition: -1, technology: 1, litigation: 0, international: 0, reputation: 1, potentialExit: 1 },
+  },
+  dilutionConfig: { ...defaultDilutionConfig },
+  exitScenarios: {
+    conservative: { year: 2030, exitMultiple: 4, probability: 0.25 },
+    base: { year: 2029, exitMultiple: 6, probability: 0.50 },
+    ambitious: { year: 2028, exitMultiple: 10, probability: 0.25 },
+  },
+};
+
 interface FinancialState {
   products: Product[];
   roles: Role[];
@@ -47,6 +97,7 @@ interface FinancialState {
   historicalData: HistoricalYearData[];
   excludeFundingFromTreasury: boolean;
   monthlyTreasuryConfig: MonthlyTreasuryConfig;
+  valuationConfig: ValuationConfig;
 }
 
 interface ComputedValues {
@@ -84,6 +135,7 @@ interface FinancialContextType {
   setExcludeFundingFromTreasury: (exclude: boolean) => void;
   updateHistoricalData: (data: HistoricalYearData[]) => void;
   updateMonthlyTreasuryConfig: (config: MonthlyTreasuryConfig) => void;
+  updateValuationConfig: (config: Partial<ValuationConfig>) => void;
   saveAll: () => void;
 }
 
@@ -122,6 +174,7 @@ function getDefaultState(): FinancialState {
     ],
     excludeFundingFromTreasury: false,
     monthlyTreasuryConfig: getDefaultMonthlyTreasuryConfig(),
+    valuationConfig: { ...defaultValuationConfig },
   };
 }
 
@@ -182,6 +235,7 @@ export function FinancialProvider({ children }: { children: ReactNode }) {
   const setExcludeFundingFromTreasury = useCallback((excludeFundingFromTreasury: boolean) => { setState(prev => ({ ...prev, excludeFundingFromTreasury, hasUnsavedChanges: true })); }, []);
   const updateHistoricalData = useCallback((historicalData: HistoricalYearData[]) => { setState(prev => ({ ...prev, historicalData, hasUnsavedChanges: true })); }, []);
   const updateMonthlyTreasuryConfig = useCallback((monthlyTreasuryConfig: MonthlyTreasuryConfig) => { setState(prev => ({ ...prev, monthlyTreasuryConfig, hasUnsavedChanges: true })); }, []);
+  const updateValuationConfig = useCallback((config: Partial<ValuationConfig>) => { setState(prev => ({ ...prev, valuationConfig: { ...prev.valuationConfig, ...config }, hasUnsavedChanges: true })); }, []);
 
   const saveAll = useCallback(async () => {
     try {
@@ -301,6 +355,7 @@ export function FinancialProvider({ children }: { children: ReactNode }) {
       setOpexMode, updateSimpleOpexConfig,
       setExcludeFundingFromTreasury, updateHistoricalData,
       updateMonthlyTreasuryConfig,
+      updateValuationConfig,
       saveAll,
     }}>
       {children}
