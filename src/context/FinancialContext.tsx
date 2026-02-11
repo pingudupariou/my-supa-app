@@ -144,7 +144,14 @@ const STATE_KEY = 'novaride_financial_state_v5';
 function loadState(): FinancialState {
   try {
     const stored = localStorage.getItem(STATE_KEY);
-    if (stored) return JSON.parse(stored);
+    if (stored) {
+      const parsed = JSON.parse(stored);
+      // Ensure valuationConfig exists for older saved states
+      if (!parsed.valuationConfig) {
+        parsed.valuationConfig = { ...defaultValuationConfig };
+      }
+      return parsed;
+    }
   } catch {}
   return getDefaultState();
 }
@@ -198,6 +205,7 @@ export function FinancialProvider({ children }: { children: ReactNode }) {
           .maybeSingle();
         if (data?.state_data) {
           const cloudState = data.state_data as unknown as FinancialState;
+          if (!cloudState.valuationConfig) cloudState.valuationConfig = { ...defaultValuationConfig };
           setState({ ...cloudState, hasUnsavedChanges: false });
           localStorage.setItem(STATE_KEY, JSON.stringify(cloudState));
         }
