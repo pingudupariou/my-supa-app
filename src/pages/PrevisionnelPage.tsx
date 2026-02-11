@@ -268,7 +268,7 @@ const CATEGORY_LABELS = {
 };
 
 export function PrevisionnelPage() {
-  const { state, computed, saveAll, setExcludeFundingFromTreasury, updateMonthlyTreasuryConfig } = useFinancial();
+  const { state, computed, saveAll, updateMonthlyTreasuryConfig } = useFinancial();
   
   // État pour les indicateurs visibles (personnalisation)
   const [visibleIndicators, setVisibleIndicators] = useState<Set<string>>(() => {
@@ -423,16 +423,14 @@ export function PrevisionnelPage() {
               </Badge>
             </div>
             
-            {/* Checkbox exclusion financement */}
+            {/* Indicateur levée (piloté depuis Scénarios) */}
             <div className="flex items-center gap-2">
-              <Checkbox
-                id="exclude-funding"
-                checked={excludeFunding}
-                onCheckedChange={(checked) => setExcludeFundingFromTreasury(checked === true)}
-              />
-              <Label htmlFor="exclude-funding" className="text-sm cursor-pointer">
-                Ne pas intégrer le montant à lever dans la trésorerie
-              </Label>
+              <Badge variant={excludeFunding ? 'outline' : 'default'} className="text-xs">
+                {excludeFunding ? 'Levée désactivée' : 'Levée activée'}
+              </Badge>
+              <span className="text-xs text-muted-foreground">
+                (configurable dans Scénarios)
+              </span>
             </div>
           </div>
           

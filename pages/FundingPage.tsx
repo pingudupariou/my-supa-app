@@ -25,6 +25,7 @@ import { AlertTriangle, Calendar } from 'lucide-react';
 
 export function FundingPage() {
   const { state, computed, updateFundingRounds, updateScenarioSettings } = useFinancial();
+  const fundingDisabled = state.excludeFundingFromTreasury;
 
   // Générer les années depuis les paramètres de scénario
   const { startYear, durationYears, initialCash } = state.scenarioSettings;
@@ -96,7 +97,19 @@ export function FundingPage() {
         height="sm"
       />
 
-      {hasNegativeTreasury && (
+      {fundingDisabled && (
+        <div className="p-3 bg-muted/50 border border-border rounded-lg flex items-center gap-3">
+          <AlertTriangle className="h-5 w-5 text-muted-foreground" />
+          <div>
+            <span className="font-medium text-muted-foreground">Levée désactivée</span>
+            <span className="text-sm text-muted-foreground ml-2">
+              Activez la levée dans l'onglet Scénarios pour modifier le calibrage.
+            </span>
+          </div>
+        </div>
+      )}
+
+      {hasNegativeTreasury && !fundingDisabled && (
         <div className="p-3 bg-destructive/10 border border-destructive/30 rounded-lg flex items-center gap-3">
           <AlertTriangle className="h-5 w-5 text-destructive" />
           <div>
@@ -118,29 +131,29 @@ export function FundingPage() {
         />
         <KPICard
           label="Montant à Lever"
-          value={formatCurrency(totalRaise, true)}
-          subValue="Ajustable ci-dessous"
+          value={fundingDisabled ? '-' : formatCurrency(totalRaise, true)}
+          subValue={fundingDisabled ? 'Désactivé' : 'Ajustable ci-dessous'}
         />
         <KPICard
           label="Pre-Money"
-          value={formatCurrency(preMoneyValuation, true)}
+          value={fundingDisabled ? '-' : formatCurrency(preMoneyValuation, true)}
           subValue="Valorisation"
         />
         <KPICard
           label="Post-Money"
-          value={formatCurrency(postMoneyValuation, true)}
+          value={fundingDisabled ? '-' : formatCurrency(postMoneyValuation, true)}
           subValue="Après levée"
         />
         <KPICard
           label="Dilution"
-          value={formatPercent(dilution)}
+          value={fundingDisabled ? '-' : formatPercent(dilution)}
           subValue="Sur le round"
         />
       </div>
 
       {/* Calibrage */}
       <SectionCard title="Calibrage de la Levée">
-        <div className="grid md:grid-cols-2 gap-6">
+        <div className={cn("grid md:grid-cols-2 gap-6", fundingDisabled && "opacity-40 pointer-events-none select-none")}>
           <div className="space-y-6">
             {/* Trésorerie initiale */}
             <div className="space-y-3">
