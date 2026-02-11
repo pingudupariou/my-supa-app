@@ -83,6 +83,7 @@ export function ValuationAnalysisPage() {
   }, [totalRaiseFromFunding, referenceEBITDA]);
 
   // Calculs de valorisation basés sur la dilution config
+  // Pre-money basé sur l'EBITDA de référence des métriques unifiées (base de calcul sélectionnée)
   const preMoneyFromEBITDA = Math.max(200000, dilutionConfig.referenceEBITDA * dilutionConfig.ebitdaMultiple);
   const equityAmount = dilutionConfig.totalRaise * (1 - dilutionConfig.ocRatio);
   const postMoneyFromConfig = preMoneyFromEBITDA + equityAmount;
@@ -326,29 +327,40 @@ export function ValuationAnalysisPage() {
         </div>
       </div>
 
-      {/* KPIs Valorisation */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4" id="valuation-kpis">
-        <KPICard
-          label="Pre-Money (EBITDA)"
-          value={formatCurrency(preMoneyFromEBITDA, true)}
-          subValue={`${dilutionConfig.ebitdaMultiple.toFixed(1)}x EBITDA`}
-        />
-        <KPICard
-          label="Post-Money"
-          value={formatCurrency(postMoneyFromConfig, true)}
-          subValue="Après levée"
-        />
-        <KPICard
-          label="Dilution Totale"
-          value={formatPercent(dilutionFromConfig)}
-          subValue="Part investisseur"
-        />
-        <KPICard
-          label="TRI moyen"
-          value={formatPercent(exitAnalysis.reduce((sum, e) => sum + e.irr * e.probability, 0))}
-          subValue="Pondéré par probabilité"
-        />
-      </div>
+      {/* KPIs Valorisation — basés sur les métriques unifiées */}
+      {(() => {
+        const kpiPreMoney = Math.max(200000, metrics.ebitda * dilutionConfig.ebitdaMultiple);
+        const kpiEquity = dilutionConfig.totalRaise * (1 - dilutionConfig.ocRatio);
+        const kpiPostMoney = kpiPreMoney + kpiEquity;
+        const kpiDilution = kpiPostMoney > 0 ? kpiEquity / kpiPostMoney : 0;
+        const kpiTRI = exitAnalysis.reduce((sum, e) => sum + e.irr * e.probability, 0);
+        const basisLabel = valuationBasis === 'average' ? 'moyenne' : valuationBasis === 'historical' ? 'historique' : valuationBasis === 'mixed' ? 'mixte' : 'projeté';
+
+        return (
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4" id="valuation-kpis">
+            <KPICard
+              label="Pre-Money (EBITDA)"
+              value={formatCurrency(kpiPreMoney, true)}
+              subValue={`${dilutionConfig.ebitdaMultiple.toFixed(1)}x EBITDA ${basisLabel}`}
+            />
+            <KPICard
+              label="Post-Money"
+              value={formatCurrency(kpiPostMoney, true)}
+              subValue={`Levée: ${formatCurrency(dilutionConfig.totalRaise, true)}`}
+            />
+            <KPICard
+              label="Dilution Totale"
+              value={formatPercent(kpiDilution)}
+              subValue="Part investisseur"
+            />
+            <KPICard
+              label="TRI moyen"
+              value={formatPercent(kpiTRI)}
+              subValue="Pondéré par probabilité"
+            />
+          </div>
+        );
+      })()}
 
       <Tabs defaultValue="historical" className="space-y-4">
         <TabsList className="flex flex-wrap">
