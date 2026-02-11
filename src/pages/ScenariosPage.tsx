@@ -9,6 +9,7 @@ import { Slider } from '@/components/ui/slider';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
 import { formatCurrency, formatPercent } from '@/data/financialConfig';
 import { cn } from '@/lib/utils';
 import { Calendar, Clock, Wallet, TrendingUp } from 'lucide-react';
@@ -35,7 +36,7 @@ const EXPORT_SECTIONS: ExportableSection[] = [
 ];
 
 export function ScenariosPage() {
-  const { state, computed, setActiveScenario, updateScenarioConfig, updateScenarioSettings, updateFundingRounds, saveAll } = useFinancial();
+  const { state, computed, setActiveScenario, updateScenarioConfig, updateScenarioSettings, updateFundingRounds, setExcludeFundingFromTreasury, saveAll } = useFinancial();
 
   const activeConfig = state.scenarioConfigs[state.activeScenarioId];
   const { startYear, durationYears, initialCash } = state.scenarioSettings;
@@ -236,6 +237,20 @@ export function ScenariosPage() {
 
       {/* Paramètres Trésorerie */}
       <SectionCard title="Paramètres Trésorerie" id="treasury-params">
+        <div className="flex items-center gap-3 mb-6 p-3 rounded-lg border bg-muted/30">
+          <Checkbox
+            id="funding-toggle"
+            checked={!state.excludeFundingFromTreasury}
+            onCheckedChange={(checked) => setExcludeFundingFromTreasury(!checked)}
+          />
+          <Label htmlFor="funding-toggle" className="cursor-pointer text-sm font-medium">
+            Activer la levée de fonds dans le scénario
+          </Label>
+          <Badge variant={state.excludeFundingFromTreasury ? 'outline' : 'default'} className="ml-auto text-xs">
+            {state.excludeFundingFromTreasury ? 'Désactivée' : 'Activée'}
+          </Badge>
+        </div>
+
         <div className="grid md:grid-cols-2 gap-6">
           <div className="space-y-4">
             <div className="flex items-center gap-2 mb-2">
@@ -261,6 +276,7 @@ export function ScenariosPage() {
             </div>
           </div>
 
+          {!state.excludeFundingFromTreasury && (
           <div className="space-y-4">
             <div className="flex items-center gap-2 mb-2">
               <TrendingUp className="h-4 w-4 text-muted-foreground" />
@@ -287,13 +303,14 @@ export function ScenariosPage() {
               </div>
             </div>
           </div>
+          )}
         </div>
 
         <div className="mt-6 pt-4 border-t grid md:grid-cols-4 gap-4">
           <KPICard
             label="Cash Total T0"
-            value={formatCurrency(initialCash + amountRaised, true)}
-            subValue="Tréso + Levée"
+            value={formatCurrency(initialCash + (state.excludeFundingFromTreasury ? 0 : amountRaised), true)}
+            subValue={state.excludeFundingFromTreasury ? 'Tréso seule' : 'Tréso + Levée'}
           />
           <KPICard
             label="Point Bas Tréso"
