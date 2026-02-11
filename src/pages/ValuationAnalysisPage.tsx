@@ -40,7 +40,7 @@ import {
   Radar,
 } from 'recharts';
 
-const YEARS = [2025, 2026, 2027, 2028, 2029, 2030];
+// Les années sont dynamiques, basées sur les paramètres de scénario
 
 const EXPORT_SECTIONS: ExportableSection[] = [
   { id: 'kpis', label: 'KPIs Valorisation', elementId: 'valuation-kpis' },
@@ -51,6 +51,8 @@ const EXPORT_SECTIONS: ExportableSection[] = [
 
 export function ValuationAnalysisPage() {
   const { state, computed, updateHistoricalData, saveAll } = useFinancial();
+  const { startYear, durationYears } = state.scenarioSettings;
+  const YEARS = Array.from({ length: durationYears }, (_, i) => startYear + i);
   
   // État pour la méthode de valorisation sélectionnée
   const [selectedMethods, setSelectedMethods] = useState<ValuationMethod[]>(['revenue_multiple', 'ebitda_multiple']);
@@ -435,7 +437,7 @@ export function ValuationAnalysisPage() {
                 <div className="space-y-2">
                   <Label>Année projetée de référence</Label>
                   <div className="flex gap-2">
-                    {[2027, 2028, 2029, 2030].map(year => (
+                    {YEARS.filter((_, i) => i >= Math.max(0, YEARS.length - 4)).map(year => (
                       <Button
                         key={year}
                         size="sm"
