@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { useFinancial } from '@/context/FinancialContext';
 import { SectionCard, KPICard } from '@/components/ui/KPICard';
 import { HeroBanner } from '@/components/ui/HeroBanner';
@@ -13,6 +14,8 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { formatCurrency, formatPercent } from '@/data/financialConfig';
 import { cn } from '@/lib/utils';
 import { Calendar, Clock, Wallet, TrendingUp } from 'lucide-react';
+import { calculateGlobalRevenue } from '@/components/product/GlobalRevenueEditor';
+import { aggregateByYear } from '@/engine/monthlyTreasuryEngine';
 import {
   LineChart,
   Line,
@@ -48,20 +51,43 @@ export function ScenariosPage() {
   // Générer les années basées sur les paramètres
   const YEARS = Array.from({ length: durationYears }, (_, i) => startYear + i);
 
+  // Calcul du CA par scénario — aligné sur le moteur unifié (gère canaux + mode global)
+  const getScenarioRevenue = (scenarioId: string, year: number): number => {
+    const config = state.scenarioConfigs[scenarioId];
+    
+    if (state.revenueMode === 'by-channel-global') {
+      return calculateGlobalRevenue(state.globalRevenueConfig, year) * (1 + config.volumeAdjustment) * (1 + config.priceAdjustment);
+    }
+    
+    let revenue = 0;
+    state.products.forEach(product => {
+      const volumesByChannel = product.volumesByChannel;
+      if (volumesByChannel) {
+        const priceHT_B2C = product.priceHT || (product.priceTTC_B2C / (1 + (product.vatRate || 0.20)));
+        const coef_shop = product.coef_shop || 1.6;
+        const coef_dist = product.coef_dist || 1.3;
+        const coef_oem = product.coef_oem || 1.4;
+        const priceMarqueB2B_HT = priceHT_B2C / coef_shop / coef_dist;
+        const priceOEM_HT = product.unitCost * coef_oem;
+
+        const volB2C = Math.round((volumesByChannel.B2C[year] || 0) * (1 + config.volumeAdjustment));
+        const volB2B = Math.round((volumesByChannel.B2B[year] || 0) * (1 + config.volumeAdjustment));
+        const volOEM = Math.round((volumesByChannel.OEM[year] || 0) * (1 + config.volumeAdjustment));
+
+        revenue += volB2C * priceHT_B2C * (1 + config.priceAdjustment);
+        revenue += volB2B * priceMarqueB2B_HT * (1 + config.priceAdjustment);
+        revenue += volOEM * priceOEM_HT * (1 + config.priceAdjustment);
+      } else if (product.volumesByYear[year]) {
+        const volume = Math.round(product.volumesByYear[year] * (1 + config.volumeAdjustment));
+        revenue += volume * product.priceHT * (1 + config.priceAdjustment);
+      }
+    });
+    return revenue;
+  };
+
   // Calculate projections for each scenario
   const getScenarioMetrics = (scenarioId: string) => {
-    const config = state.scenarioConfigs[scenarioId];
-    const revenueByYear = YEARS.map(year => {
-      let revenue = 0;
-      state.products.forEach(product => {
-        if (product.volumesByYear[year]) {
-          const volume = Math.round(product.volumesByYear[year] * (1 + config.volumeAdjustment));
-          const price = product.priceHT * (1 + config.priceAdjustment);
-          revenue += volume * price;
-        }
-      });
-      return revenue;
-    });
+    const revenueByYear = YEARS.map(year => getScenarioRevenue(scenarioId, year));
     
     const lastYearRevenue = revenueByYear[revenueByYear.length - 1] || 0;
     const firstYearRevenue = revenueByYear[0] || 0;
@@ -81,23 +107,12 @@ export function ScenariosPage() {
     { id: 'ambitious', name: 'Ambitieux', color: 'hsl(150, 60%, 40%)' },
   ];
 
-  // Chart data comparing scenarios
+  // Chart data comparing scenarios — utilise le calcul unifié
   const comparisonData = YEARS.map(year => {
     const data: Record<string, number | string> = { year };
-    
     scenarios.forEach(scenario => {
-      const config = state.scenarioConfigs[scenario.id];
-      let revenue = 0;
-      state.products.forEach(product => {
-        if (product.volumesByYear[year]) {
-          const volume = Math.round(product.volumesByYear[year] * (1 + config.volumeAdjustment));
-          const price = product.priceHT * (1 + config.priceAdjustment);
-          revenue += volume * price;
-        }
-      });
-      data[scenario.id] = revenue / 1000;
+      data[scenario.id] = getScenarioRevenue(scenario.id, year) / 1000;
     });
-    
     return data;
   });
 
@@ -132,26 +147,31 @@ export function ScenariosPage() {
     }
   };
 
-  // Utiliser la projection unifiée depuis le moteur (source unique)
-  const { treasuryProjection } = computed;
+  // Utiliser la projection unifiée depuis le moteur MENSUEL (même source que Prévisionnel)
+  const { monthlyTreasuryProjection } = computed;
 
-  // Calcul projection Cash Flow basé sur le scénario actif - DEPUIS LE MOTEUR UNIFIÉ
-  const cashFlowProjection = treasuryProjection.years.map(yp => ({
-    year: yp.year,
-    revenue: yp.revenue / 1000,
-    cogs: yp.cogs / 1000,
-    payroll: yp.payroll / 1000,
-    opex: yp.opex / 1000,
-    capex: yp.capex / 1000,
-    depreciation: yp.depreciation / 1000,
-    grossMargin: yp.grossMargin / 1000,
-    ebitda: yp.ebitda / 1000,
-    cashFlow: yp.cashFlow / 1000,
-    treasury: yp.treasuryEnd / 1000,
-  }));
+  // Agréger par année depuis le moteur mensuel — cohérent avec Prévisionnel
+  const cashFlowProjection = useMemo(() => {
+    const aggregated = aggregateByYear(monthlyTreasuryProjection.months);
+    return YEARS.map(year => {
+      const data = aggregated.get(year);
+      if (!data) return { year, revenue: 0, cogs: 0, payroll: 0, opex: 0, grossMargin: 0, ebitda: 0, cashFlow: 0, treasury: 0 };
+      return {
+        year: data.year,
+        revenue: data.revenue / 1000,
+        cogs: data.cogs / 1000,
+        payroll: data.payroll / 1000,
+        opex: data.opex / 1000,
+        grossMargin: data.grossMargin / 1000,
+        ebitda: data.ebitda / 1000,
+        cashFlow: data.netCashFlow / 1000,
+        treasury: data.treasuryEnd / 1000,
+      };
+    });
+  }, [monthlyTreasuryProjection, YEARS]);
 
-  const minTreasury = treasuryProjection.minTreasury / 1000;
-  const breakEvenYear = treasuryProjection.breakEvenYear || 'N/A';
+  const minTreasury = monthlyTreasuryProjection.minTreasury / 1000;
+  const breakEvenYear = monthlyTreasuryProjection.breakEvenMonth?.year || 'N/A';
 
   return (
     <ReadOnlyWrapper tabKey="scenarios">
@@ -454,7 +474,8 @@ export function ScenariosPage() {
       {/* Cash Flow Projection Chart */}
       <SectionCard title="Projection Cash Flow & Trésorerie" id="scenario-cashflow">
         <p className="text-sm text-muted-foreground mb-4">
-          Basé sur le scénario <Badge variant="outline">{scenarios.find(s => s.id === state.activeScenarioId)?.name}</Badge> avec tréso initiale {formatCurrency(initialCash, true)} + levée {formatCurrency(amountRaised, true)}
+          Basé sur le scénario <Badge variant="outline">{scenarios.find(s => s.id === state.activeScenarioId)?.name}</Badge> avec tréso initiale {formatCurrency(initialCash, true)}{!state.excludeFundingFromTreasury && ` + levée ${formatCurrency(amountRaised, true)}`}
+          {' '}— <span className="italic">Source: moteur de trésorerie mensuel (identique au Prévisionnel)</span>
         </p>
         <div className="h-80">
           <ResponsiveContainer width="100%" height="100%">
