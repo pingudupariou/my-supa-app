@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { useFinancial } from '@/context/FinancialContext';
 import { SectionCard, KPICard } from '@/components/ui/KPICard';
 import { HeroBanner } from '@/components/ui/HeroBanner';
@@ -10,6 +11,7 @@ import { Quarter } from '@/engine/types';
 import { QUARTERS } from '@/engine/treasuryEngine';
 import { FundsAllocationDisplay } from '@/components/funding/FundsAllocationDisplay';
 import { ReadOnlyWrapper } from '@/components/auth/ReadOnlyWrapper';
+import { aggregateByYear } from '@/engine/monthlyTreasuryEngine';
 import {
   ComposedChart,
   Bar,
@@ -40,19 +42,40 @@ export function FundingPage() {
     quarter: 'Q1' as Quarter,
   };
 
-  // Projection unifiée depuis le moteur
-  const { treasuryProjection } = computed;
+  // Projection unifiée depuis le moteur MENSUEL (même source que Prévisionnel)
+  const { monthlyTreasuryProjection } = computed;
+  
+  // Agréger par année depuis le moteur mensuel — cohérent avec Prévisionnel
+  const yearlyAggregated = useMemo(() => {
+    const aggregated = aggregateByYear(monthlyTreasuryProjection.months);
+    return years.map(year => {
+      const data = aggregated.get(year);
+      if (!data) return { year, revenue: 0, totalCosts: 0, cashFlow: 0, treasuryStart: 0, treasuryEnd: 0, fundingInjection: 0, minTreasuryInYear: 0 };
+      return {
+        year: data.year,
+        revenue: data.revenue,
+        totalCosts: data.cogs + data.payroll + data.opex,
+        cashFlow: data.netCashFlow,
+        treasuryStart: data.treasuryStart,
+        treasuryEnd: data.treasuryEnd,
+        fundingInjection: data.fundingInjection,
+        minTreasuryInYear: data.treasuryEnd, // approximation
+      };
+    });
+  }, [monthlyTreasuryProjection, years]);
   
   // Calculs dérivés
   const totalRaise = currentRound.amount;
   const preMoneyValuation = currentRound.preMoneyValuation;
   const postMoneyValuation = preMoneyValuation + totalRaise;
   const dilution = totalRaise / postMoneyValuation;
-  const calculatedNeed = treasuryProjection.fundingNeed;
+  const minTreasury = monthlyTreasuryProjection.minTreasury;
+  const calculatedNeed = Math.max(0, -minTreasury);
   const coverageRatio = calculatedNeed > 0 ? totalRaise / calculatedNeed : 1;
+  const breakEvenYear = monthlyTreasuryProjection.breakEvenMonth?.year || null;
 
-  // Data pour les graphiques (depuis la projection unifiée)
-  const treasuryData = treasuryProjection.years.map(yp => ({
+  // Data pour les graphiques (depuis la projection unifiée mensuelle)
+  const treasuryData = yearlyAggregated.map(yp => ({
     year: yp.year,
     revenue: yp.revenue / 1000,
     costs: yp.totalCosts / 1000,
@@ -83,8 +106,8 @@ export function FundingPage() {
   };
 
   // Alertes
-  const hasNegativeTreasury = treasuryProjection.minTreasury < 0;
-  const minTreasuryYear = treasuryProjection.years.find(y => y.minTreasuryInYear === treasuryProjection.minTreasury)?.year;
+  const hasNegativeTreasury = minTreasury < 0;
+  const minTreasuryYear = monthlyTreasuryProjection.breakEvenMonth?.year || yearlyAggregated.find(y => y.treasuryEnd < 0)?.year;
 
   return (
     <ReadOnlyWrapper tabKey="funding">
@@ -102,7 +125,7 @@ export function FundingPage() {
           <div>
             <span className="font-medium text-destructive">Alerte Trésorerie</span>
             <span className="text-sm text-muted-foreground ml-2">
-              Point bas de {formatCurrency(treasuryProjection.minTreasury, true)} en {minTreasuryYear}
+              Point bas de {formatCurrency(minTreasury, true)} en {minTreasuryYear}
             </span>
           </div>
         </div>
@@ -273,16 +296,16 @@ export function FundingPage() {
               <div className="p-3 bg-muted/30 rounded-lg text-center">
                 <div className="text-xs text-muted-foreground mb-1">Break-even</div>
                 <div className="text-lg font-bold">
-                  {treasuryProjection.breakEvenYear || 'N/A'}
+                  {breakEvenYear || 'N/A'}
                 </div>
               </div>
               <div className="p-3 bg-muted/30 rounded-lg text-center">
                 <div className="text-xs text-muted-foreground mb-1">Point bas tréso</div>
                 <div className={cn(
                   "text-lg font-bold font-mono-numbers",
-                  treasuryProjection.minTreasury < 0 ? "text-destructive" : ""
+                  minTreasury < 0 ? "text-destructive" : ""
                 )}>
-                  {formatCurrency(treasuryProjection.minTreasury, true)}
+                  {formatCurrency(minTreasury, true)}
                 </div>
               </div>
             </div>
@@ -327,7 +350,7 @@ export function FundingPage() {
               </tr>
             </thead>
             <tbody>
-              {treasuryProjection.years.map((yp) => (
+              {yearlyAggregated.map((yp) => (
                 <tr key={yp.year} className={cn(
                   "border-b",
                   yp.treasuryEnd < 0 && "bg-destructive/5"
