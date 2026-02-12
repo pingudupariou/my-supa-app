@@ -329,8 +329,9 @@ export function FinancialProvider({ children }: { children: ReactNode }) {
     const currentPayroll = roles.filter(r => r.startYear <= currentYear).reduce((s, r) => s + r.annualCostLoaded, 0);
 
     const roundsWithQuarter = fundingRounds.map(r => ({ ...r, quarter: r.quarter || 'Q1' as const }));
+    const effectiveRounds = excludeFundingFromTreasury ? [] : roundsWithQuarter;
     const treasuryProjection = calculateTreasuryProjection(
-      products, roles, expenses, roundsWithQuarter, initialCash, startYear, durationYears, config, opexMode, simpleOpexConfig
+      products, roles, expenses, effectiveRounds, initialCash, startYear, durationYears, config, opexMode, simpleOpexConfig
     );
 
     // Monthly treasury
