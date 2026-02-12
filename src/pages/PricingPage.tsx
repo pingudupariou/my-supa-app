@@ -22,7 +22,7 @@ type MarginSort = 'none' | 'asc' | 'desc';
 interface SalesRule {
   id: string;
   name: string;
-  type: 'b2b' | 'oem';
+  type: 'b2b' | 'oem' | 'b2c';
   tvaRate: number;
   intermediaries: { label: string; coefficient: number }[];
 }
@@ -66,7 +66,7 @@ export function PricingPage() {
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
   const [ruleDialogOpen, setRuleDialogOpen] = useState(false);
   const [newRuleName, setNewRuleName] = useState('');
-  const [newRuleType, setNewRuleType] = useState<'b2b' | 'oem'>('b2b');
+  const [newRuleType, setNewRuleType] = useState<'b2b' | 'oem' | 'b2c'>('b2b');
 
   // Editable prices (local overrides before save) - for public TTC mode
   const [editedPrices, setEditedPrices] = useState<Record<string, number>>({});
@@ -366,7 +366,9 @@ export function PricingPage() {
   // Sales rule management
   const addRule = () => {
     if (!newRuleName.trim()) return;
-    const intermediaries = newRuleType === 'oem'
+    const intermediaries = newRuleType === 'b2c'
+      ? []
+      : newRuleType === 'oem'
       ? [{ label: 'Partenaire OEM', coefficient: 1.4 }]
       : [{ label: 'Distributeur', coefficient: distributorCoef }, { label: 'Shop', coefficient: shopCoef }];
     const rule: SalesRule = {
@@ -400,7 +402,7 @@ export function PricingPage() {
   const addIntermediary = (ruleId: string) => {
     setSalesRules(prev => prev.map(rule => {
       if (rule.id !== ruleId) return rule;
-      const max = rule.type === 'oem' ? 1 : 2;
+      const max = rule.type === 'b2c' ? 0 : rule.type === 'oem' ? 1 : 2;
       if (rule.intermediaries.length >= max) return rule;
       return { ...rule, intermediaries: [...rule.intermediaries, { label: 'Intermédiaire', coefficient: 1.3 }] };
     }));
@@ -912,11 +914,12 @@ export function PricingPage() {
                   </div>
                   <div>
                     <Label>Type</Label>
-                    <Select value={newRuleType} onValueChange={v => setNewRuleType(v as 'b2b' | 'oem')}>
+                    <Select value={newRuleType} onValueChange={v => setNewRuleType(v as 'b2b' | 'oem' | 'b2c')}>
                       <SelectTrigger><SelectValue /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="b2b">B2B (max 2 intermédiaires)</SelectItem>
                         <SelectItem value="oem">OEM (max 1 intermédiaire)</SelectItem>
+                        <SelectItem value="b2c">B2C (vente directe)</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>

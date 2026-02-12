@@ -4,7 +4,7 @@ import { supabase } from '@/integrations/supabase/client';
 interface SalesRule {
   id: string;
   name: string;
-  type: 'b2b' | 'oem';
+  type: 'b2b' | 'oem' | 'b2c';
   tvaRate: number;
   intermediaries: { label: string; coefficient: number }[];
 }
