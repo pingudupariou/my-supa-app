@@ -621,6 +621,30 @@ export type Database = {
         }
         Relationships: []
       }
+      pricing_config: {
+        Row: {
+          config_data: Json
+          created_at: string
+          id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          config_data?: Json
+          created_at?: string
+          id?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          config_data?: Json
+          created_at?: string
+          id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       snapshots: {
         Row: {
           comment: string | null

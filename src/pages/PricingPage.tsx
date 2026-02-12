@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -11,8 +11,9 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { useCostFlowData } from '@/hooks/useCostFlowData';
-import { Settings2, Plus, Trash2, Tag, ChevronDown, ChevronRight, Package, Copy, Check, ArrowDown, ArrowUp, ArrowUpDown } from 'lucide-react';
+import { Settings2, Plus, Trash2, Tag, ChevronDown, ChevronRight, Package, Copy, Check, ArrowDown, ArrowUp, ArrowUpDown, Save, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
+import { supabase } from '@/integrations/supabase/client';
 
 type PricingMode = 'from_public' | 'from_our_price';
 type MarginSort = 'none' | 'asc' | 'desc';
@@ -82,7 +83,80 @@ export function PricingPage() {
   const [bulkPrice, setBulkPrice] = useState('');
   const [bulkDialogOpen, setBulkDialogOpen] = useState(false);
 
+  const [savingConfig, setSavingConfig] = useState(false);
+  const [configLoaded, setConfigLoaded] = useState(false);
+
   const activeRule = salesRules.find(r => r.id === activeRuleId) || salesRules[0];
+
+  // Build config object to save
+  const buildConfigData = () => ({
+    pricingMode,
+    distributorCoef,
+    shopCoef,
+    salesRules,
+    activeRuleId,
+    editedPrices,
+    editedOurPrices,
+    editedFinalPrices,
+    editedProductCoefs,
+  });
+
+  // Load config from Supabase on mount
+  useEffect(() => {
+    const loadConfig = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { data } = await supabase
+        .from('pricing_config')
+        .select('config_data')
+        .eq('user_id', user.id)
+        .maybeSingle();
+
+      if (data?.config_data) {
+        const cfg = data.config_data as any;
+        if (cfg.pricingMode) setPricingMode(cfg.pricingMode);
+        if (cfg.distributorCoef !== undefined) setDistributorCoef(cfg.distributorCoef);
+        if (cfg.shopCoef !== undefined) setShopCoef(cfg.shopCoef);
+        if (cfg.salesRules?.length) setSalesRules(cfg.salesRules);
+        if (cfg.activeRuleId) setActiveRuleId(cfg.activeRuleId);
+        if (cfg.editedPrices) setEditedPrices(cfg.editedPrices);
+        if (cfg.editedOurPrices) setEditedOurPrices(cfg.editedOurPrices);
+        if (cfg.editedFinalPrices) setEditedFinalPrices(cfg.editedFinalPrices);
+        if (cfg.editedProductCoefs) setEditedProductCoefs(cfg.editedProductCoefs);
+      }
+      setConfigLoaded(true);
+    };
+    loadConfig();
+  }, []);
+
+  // Save config to Supabase
+  const savePricingConfig = async () => {
+    setSavingConfig(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        toast.error('Vous devez être connecté pour sauvegarder');
+        return;
+      }
+
+      const configData = buildConfigData();
+
+      const { error } = await supabase
+        .from('pricing_config')
+        .upsert({
+          user_id: user.id,
+          config_data: configData,
+        }, { onConflict: 'user_id' });
+
+      if (error) throw error;
+      toast.success('Configuration pricing sauvegardée');
+    } catch (err: any) {
+      toast.error(`Erreur: ${err.message}`);
+    } finally {
+      setSavingConfig(false);
+    }
+  };
 
   // Update global coefficients in active rule
   const syncGlobalCoefs = () => {
@@ -674,6 +748,10 @@ export function PricingPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <Button onClick={savePricingConfig} disabled={savingConfig} variant="default" size="sm">
+            {savingConfig ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Save className="h-4 w-4 mr-1" />}
+            Sauvegarder Config
+          </Button>
           {selectedProducts.size > 0 && (
             <Dialog open={bulkDialogOpen} onOpenChange={setBulkDialogOpen}>
               <DialogTrigger asChild>
