@@ -124,7 +124,7 @@ export function AuthPage() {
           <div className="flex justify-center mb-4">
             <NovarideLogo variant="full" color="dark" />
           </div>
-          <CardTitle>FinPlan Studio</CardTitle>
+          <CardTitle className="whitespace-pre-line">We engage, we move</CardTitle>
           <CardDescription>
             Plateforme de pilotage financier et de présentation investisseurs
           </CardDescription>
