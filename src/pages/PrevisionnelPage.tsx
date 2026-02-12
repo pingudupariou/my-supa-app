@@ -65,6 +65,8 @@ import { LoanManager } from '@/components/treasury/LoanManager';
 import { CapexScheduler } from '@/components/treasury/CapexScheduler';
 import { TreasuryDetailChart } from '@/components/treasury/TreasuryDetailChart';
 import { DetailedTreasuryBreakdown } from '@/components/treasury/DetailedTreasuryBreakdown';
+import { SeasonalityEditor } from '@/components/treasury/SeasonalityEditor';
+import { PaymentTermsEditor } from '@/components/treasury/PaymentTermsEditor';
 import { aggregateByYear } from '@/engine/monthlyTreasuryEngine';
 
 // Définition des indicateurs SIG disponibles
@@ -454,6 +456,87 @@ export function PrevisionnelPage() {
         {/* Contenu conditionnel selon la vue */}
         {activeView === 'params' ? (
           <div className="space-y-6">
+            {/* Saisonnalité CA */}
+            <SeasonalityEditor
+              title="Saisonnalité du CA"
+              description="Ajustez la répartition mensuelle du chiffre d'affaires. Par défaut, le CA est réparti uniformément (1/12e par mois)."
+              seasonality={state.monthlyTreasuryConfig.revenueSeasonality}
+              onChange={(revenueSeasonality) => updateMonthlyTreasuryConfig({ ...state.monthlyTreasuryConfig, revenueSeasonality })}
+            />
+            
+            {/* Saisonnalité Achats Matière */}
+            <SeasonalityEditor
+              title="Saisonnalité des Achats Matière"
+              description="Modulation mensuelle des achats. Les achats peuvent suivre la même saisonnalité que le CA ou être décalés (anticipation, stockage…)."
+              seasonality={state.monthlyTreasuryConfig.cogsSeasonality}
+              onChange={(cogsSeasonality) => updateMonthlyTreasuryConfig({ ...state.monthlyTreasuryConfig, cogsSeasonality })}
+            />
+            
+            {/* Conditions de paiement fournisseur */}
+            <PaymentTermsEditor
+              terms={state.monthlyTreasuryConfig.cogsPaymentTerms || [{ delayMonths: 0, percentage: 100 }]}
+              onChange={(cogsPaymentTerms) => updateMonthlyTreasuryConfig({ ...state.monthlyTreasuryConfig, cogsPaymentTerms })}
+            />
+            
+            {/* Vérification cohérence annuelle */}
+            <SectionCard title="Vérification Cohérence Annuelle" action={
+              <Badge variant="outline" className="text-xs">Plan Produit vs Trésorerie</Badge>
+            }>
+              <p className="text-xs text-muted-foreground mb-3">
+                Vérifiez que la somme annuelle du CA et des achats matière correspond aux données du Plan Produit / moteur financier.
+              </p>
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="border-b">
+                      <th className="text-left py-2 px-2">Année</th>
+                      <th className="text-right py-2 px-2">CA Plan Produit</th>
+                      <th className="text-right py-2 px-2">CA Trésorerie (Σ mois)</th>
+                      <th className="text-right py-2 px-2">Écart CA</th>
+                      <th className="text-right py-2 px-2">Achats Plan Produit</th>
+                      <th className="text-right py-2 px-2">Achats Trésorerie (Σ mois)</th>
+                      <th className="text-right py-2 px-2">Écart Achats</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {years.map(year => {
+                      const revPlan = computed.revenueByYear.find(r => r.year === year);
+                      const planRevenue = revPlan?.revenue || 0;
+                      const planCogs = revPlan?.cogs || 0;
+
+                      const yearMonths = monthlyTreasuryProjection.months.filter(m => m.year === year);
+                      const tresoRevenue = yearMonths.reduce((s, m) => s + m.revenue, 0);
+                      const tresoCogs = yearMonths.reduce((s, m) => s + m.cogs, 0);
+
+                      const revDiff = tresoRevenue - planRevenue;
+                      const cogsDiff = tresoCogs - planCogs;
+                      const revOk = Math.abs(revDiff) < 1;
+                      const cogsOk = Math.abs(cogsDiff) < planCogs * 0.01 + 1; // tolérance arrondi + délais
+
+                      return (
+                        <tr key={year} className="border-b">
+                          <td className="py-1.5 px-2 font-medium">{year}</td>
+                          <td className="py-1.5 px-2 text-right font-mono-numbers">{formatCurrency(planRevenue, true)}</td>
+                          <td className="py-1.5 px-2 text-right font-mono-numbers">{formatCurrency(tresoRevenue, true)}</td>
+                          <td className={cn("py-1.5 px-2 text-right font-mono-numbers", revOk ? "text-[hsl(var(--positive))]" : "text-destructive")}>
+                            {revOk ? '✓' : formatCurrency(revDiff, true)}
+                          </td>
+                          <td className="py-1.5 px-2 text-right font-mono-numbers">{formatCurrency(planCogs, true)}</td>
+                          <td className="py-1.5 px-2 text-right font-mono-numbers">{formatCurrency(tresoCogs, true)}</td>
+                          <td className={cn("py-1.5 px-2 text-right font-mono-numbers", cogsOk ? "text-[hsl(var(--positive))]" : "text-amber-600")}>
+                            {cogsOk ? '✓' : formatCurrency(cogsDiff, true)}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+              <p className="text-[10px] text-muted-foreground mt-2">
+                Note : les écarts sur les achats peuvent être normaux si des conditions de paiement avec délais sont configurées (report entre années).
+              </p>
+            </SectionCard>
+            
             <LoanManager
               loans={state.monthlyTreasuryConfig.loans}
               onChange={(loans) => updateMonthlyTreasuryConfig({ ...state.monthlyTreasuryConfig, loans })}

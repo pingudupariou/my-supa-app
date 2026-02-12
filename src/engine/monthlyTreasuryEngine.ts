@@ -75,12 +75,26 @@ export interface CapexPaymentConfig {
   amount: number; // Montant calculé
 }
 
+// Conditions de paiement fournisseur (achats matière)
+export interface PaymentTermLine {
+  delayMonths: number; // Décalage en mois (0 = mois courant, 1 = M+1, etc.)
+  percentage: number;  // % du paiement total (ex: 30 = 30%)
+}
+
+export type PaymentTermsConfig = PaymentTermLine[];
+
+export function getDefaultPaymentTerms(): PaymentTermsConfig {
+  return [{ delayMonths: 0, percentage: 100 }]; // Paiement comptant par défaut
+}
+
 // Configuration complète du plan de trésorerie mensuel
 export interface MonthlyTreasuryConfig {
   // Saisonnalité du CA (variations relatives)
   revenueSeasonality: SeasonalityConfig;
   // Saisonnalité des achats/COGS
   cogsSeasonality: SeasonalityConfig;
+  // Conditions de paiement fournisseur
+  cogsPaymentTerms: PaymentTermsConfig;
   // Charges variables (% du CA)
   variableCharges: VariableChargeConfig[];
   // Prêts
@@ -154,6 +168,7 @@ export function getDefaultMonthlyTreasuryConfig(): MonthlyTreasuryConfig {
   return {
     revenueSeasonality: getDefaultSeasonality(),
     cogsSeasonality: getDefaultSeasonality(),
+    cogsPaymentTerms: getDefaultPaymentTerms(),
     variableCharges: [],
     loans: [],
     capexPayments: [],
@@ -390,6 +405,17 @@ export function calculateMonthlyTreasuryProjection(
   // Normaliser les saisonnalités
   const revenueCoefs = normalizeSeasonality(config.revenueSeasonality);
   const cogsCoefs = normalizeSeasonality(config.cogsSeasonality);
+  
+  // Conditions de paiement fournisseur
+  const paymentTerms = config.cogsPaymentTerms && config.cogsPaymentTerms.length > 0
+    ? config.cogsPaymentTerms
+    : [{ delayMonths: 0, percentage: 100 }];
+  
+  // Normaliser les % pour qu'ils totalisent 100
+  const termsTotalPct = paymentTerms.reduce((s, t) => s + t.percentage, 0);
+  const normalizedTerms = termsTotalPct > 0
+    ? paymentTerms.map(t => ({ ...t, percentage: t.percentage / termsTotalPct }))
+    : [{ delayMonths: 0, percentage: 1 }];
 
   // Récupérer toutes les échéances de prêts (mode manuel)
   const allLoanPayments: LoanPayment[] = [];
@@ -400,19 +426,40 @@ export function calculateMonthlyTreasuryProjection(
   // Récupérer tous les paiements CAPEX
   const allCapexPayments = config.capexPayments || [];
 
+  // Pré-calculer les COGS par mois (avant délais de paiement)
+  const totalMonths = durationYears * 12;
+  const rawMonthlyCogs: number[] = [];
+  for (let yearOffset = 0; yearOffset < durationYears; yearOffset++) {
+    const year = startYear + yearOffset;
+    const yearCogs = inputData.annualCogs[year] || 0;
+    const avgMonthlyCogs = yearCogs / 12;
+    for (let month = 0; month < 12; month++) {
+      rawMonthlyCogs.push(avgMonthlyCogs * cogsCoefs[month]);
+    }
+  }
+  
+  // Appliquer les conditions de paiement (décaler les COGS)
+  const paidMonthlyCogs = new Array(totalMonths + 24).fill(0); // buffer pour les délais
+  rawMonthlyCogs.forEach((cogsAmount, absMonth) => {
+    normalizedTerms.forEach(term => {
+      const targetMonth = absMonth + term.delayMonths;
+      if (targetMonth < paidMonthlyCogs.length) {
+        paidMonthlyCogs[targetMonth] += cogsAmount * term.percentage;
+      }
+    });
+  });
+
   // Boucle sur chaque mois
   for (let yearOffset = 0; yearOffset < durationYears; yearOffset++) {
     const year = startYear + yearOffset;
     
     // Données annuelles
     const yearRevenue = inputData.annualRevenue[year] || 0;
-    const yearCogs = inputData.annualCogs[year] || 0;
     const yearPayroll = inputData.annualPayroll[year] || 0;
     const yearOpex = inputData.annualOpex[year] || 0;
     
     // Moyennes mensuelles
     const avgMonthlyRevenue = yearRevenue / 12;
-    const avgMonthlyCogs = yearCogs / 12;
     const monthlyPayroll = yearPayroll / 12;
     const monthlyOpex = yearOpex / 12;
 
@@ -449,8 +496,9 @@ export function calculateMonthlyTreasuryProjection(
 
       // === SORTIES ===
       
-      // COGS avec saisonnalité
-      const cogs = avgMonthlyCogs * cogsCoefs[month];
+      // COGS avec saisonnalité ET conditions de paiement
+      const absMonthIdx = yearOffset * 12 + month;
+      const cogs = paidMonthlyCogs[absMonthIdx] || 0;
       
       // Charges variables
       let variableChargesAmount = 0;
