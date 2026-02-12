@@ -17,7 +17,7 @@ interface TreasuryDetailChartProps {
 type ViewMode = 'annual' | 'full-period';
 
 export function TreasuryDetailChart({ projection, startYear, durationYears }: TreasuryDetailChartProps) {
-  const [viewMode, setViewMode] = useState<ViewMode>('full-period');
+  const [viewMode, setViewMode] = useState<ViewMode>('annual');
   const [selectedYear, setSelectedYear] = useState(startYear);
 
   const years = Array.from({ length: durationYears }, (_, i) => startYear + i);
