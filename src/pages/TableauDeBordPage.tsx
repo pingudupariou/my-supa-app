@@ -6,7 +6,7 @@ import { useCostFlowData } from '@/hooks/useCostFlowData';
 import { usePlanningData } from '@/hooks/usePlanningData';
 import { useCRMData } from '@/hooks/useCRMData';
 import { Package, Layers, Factory, Users, CalendarRange, TrendingUp, Cog } from 'lucide-react';
-import heroImg from '@/assets/hero-novaride.jpg';
+import heroImg from '@/assets/banner-nrc-udh.jpg';
 import visionImg from '@/assets/savoir-faire.jpg';
 import productImg from '@/assets/ccd-gold.jpg';
 import transmissionImg from '@/assets/pulley-wheels.jpg';
