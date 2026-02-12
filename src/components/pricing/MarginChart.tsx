@@ -41,14 +41,7 @@ interface MarginChartProps {
   pricingMode: 'from_public' | 'from_our_price';
 }
 
-const COLORS = [
-  'hsl(var(--primary))',
-  'hsl(220, 70%, 50%)',
-  'hsl(150, 60%, 40%)',
-  'hsl(30, 80%, 50%)',
-  'hsl(280, 60%, 50%)',
-  'hsl(0, 70%, 50%)',
-];
+const DEFAULT_CATEGORY_COLOR = 'hsl(var(--muted-foreground))';
 
 export function MarginChart({
   products,
@@ -97,10 +90,14 @@ export function MarginChart({
   const chartData = useMemo(() => {
     return filteredProducts.map(prod => {
       const costPrice = calculateProductCost(prod.id, prod.default_volume || 500);
+      const cat = productCategories.find(c => c.id === prod.category_id);
+      const catColor = cat?.color || DEFAULT_CATEGORY_COLOR;
       const entry: Record<string, any> = {
         name: prod.name.length > 15 ? prod.name.slice(0, 14) + '…' : prod.name,
         fullName: prod.name,
         costPrice,
+        catColor,
+        categoryName: cat?.name || 'Sans catégorie',
       };
 
       for (const rule of salesRules) {
@@ -225,12 +222,12 @@ export function MarginChart({
                   }}
                 />
                 <ReferenceLine y={0} stroke="hsl(var(--destructive))" strokeDasharray="3 3" strokeWidth={1.5} />
-                {activeRules.map((rule, i) => (
+                {activeRules.map((rule) => (
                   <Bar
                     key={rule.id}
                     dataKey={`margin_${rule.id}`}
                     name={`margin_${rule.id}`}
-                    fill={COLORS[i % COLORS.length]}
+                    fill={DEFAULT_CATEGORY_COLOR}
                     radius={[3, 3, 0, 0]}
                     maxBarSize={40}
                   >
@@ -239,7 +236,7 @@ export function MarginChart({
                       return (
                         <Cell
                           key={idx}
-                          fill={val < 0 ? 'hsl(var(--destructive))' : COLORS[i % COLORS.length]}
+                          fill={val < 0 ? 'hsl(var(--destructive))' : entry.catColor}
                           fillOpacity={val < 0 ? 0.8 : 1}
                         />
                       );
@@ -258,10 +255,10 @@ export function MarginChart({
         {/* Legend */}
         {activeRules.length > 0 && (
           <div className="flex flex-wrap gap-4 justify-center text-xs">
-            {activeRules.map((rule, i) => (
-              <div key={rule.id} className="flex items-center gap-1.5">
-                <div className="h-3 w-3 rounded-sm" style={{ backgroundColor: COLORS[i % COLORS.length] }} />
-                <span>{rule.name}</span>
+            {productCategories.filter(c => selectedCategoryIds.has(c.id)).map(cat => (
+              <div key={cat.id} className="flex items-center gap-1.5">
+                <div className="h-3 w-3 rounded-sm" style={{ backgroundColor: cat.color || DEFAULT_CATEGORY_COLOR }} />
+                <span>{cat.name}</span>
               </div>
             ))}
             <div className="flex items-center gap-1.5">
