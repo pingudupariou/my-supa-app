@@ -150,6 +150,10 @@ function loadState(): FinancialState {
       if (!parsed.valuationConfig) {
         parsed.valuationConfig = { ...defaultValuationConfig };
       }
+      // Ensure cogsPaymentTerms exists for older saved states
+      if (parsed.monthlyTreasuryConfig && !parsed.monthlyTreasuryConfig.cogsPaymentTerms) {
+        parsed.monthlyTreasuryConfig.cogsPaymentTerms = [{ delayMonths: 0, percentage: 100 }];
+      }
       return parsed;
     }
   } catch {}
