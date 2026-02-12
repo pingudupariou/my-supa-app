@@ -456,6 +456,28 @@ export function PrevisionnelPage() {
         {/* Contenu conditionnel selon la vue */}
         {activeView === 'params' ? (
           <div className="space-y-6">
+            <LoanManager
+              loans={state.monthlyTreasuryConfig.loans}
+              onChange={(loans) => updateMonthlyTreasuryConfig({ ...state.monthlyTreasuryConfig, loans })}
+              startYear={startYear}
+              durationYears={durationYears}
+            />
+            <CapexScheduler
+              capexPayments={state.monthlyTreasuryConfig.capexPayments}
+              onChange={(capexPayments) => updateMonthlyTreasuryConfig({ ...state.monthlyTreasuryConfig, capexPayments })}
+              products={state.products}
+              startYear={startYear}
+              durationYears={durationYears}
+            />
+          </div>
+        ) : activeView === 'monthly' ? (
+          <div className="space-y-6">
+            <TreasuryDetailChart
+              projection={monthlyTreasuryProjection}
+              startYear={startYear}
+              durationYears={durationYears}
+            />
+
             {/* Saisonnalité CA */}
             <SeasonalityEditor
               title="Saisonnalité du CA"
@@ -477,7 +499,7 @@ export function PrevisionnelPage() {
               terms={state.monthlyTreasuryConfig.cogsPaymentTerms || [{ delayMonths: 0, percentage: 100 }]}
               onChange={(cogsPaymentTerms) => updateMonthlyTreasuryConfig({ ...state.monthlyTreasuryConfig, cogsPaymentTerms })}
             />
-            
+
             {/* Vérification cohérence annuelle */}
             <SectionCard title="Vérification Cohérence Annuelle" action={
               <Badge variant="outline" className="text-xs">Plan Produit vs Trésorerie</Badge>
@@ -511,7 +533,7 @@ export function PrevisionnelPage() {
                       const revDiff = tresoRevenue - planRevenue;
                       const cogsDiff = tresoCogs - planCogs;
                       const revOk = Math.abs(revDiff) < 1;
-                      const cogsOk = Math.abs(cogsDiff) < planCogs * 0.01 + 1; // tolérance arrondi + délais
+                      const cogsOk = Math.abs(cogsDiff) < planCogs * 0.01 + 1;
 
                       return (
                         <tr key={year} className="border-b">
@@ -536,28 +558,7 @@ export function PrevisionnelPage() {
                 Note : les écarts sur les achats peuvent être normaux si des conditions de paiement avec délais sont configurées (report entre années).
               </p>
             </SectionCard>
-            
-            <LoanManager
-              loans={state.monthlyTreasuryConfig.loans}
-              onChange={(loans) => updateMonthlyTreasuryConfig({ ...state.monthlyTreasuryConfig, loans })}
-              startYear={startYear}
-              durationYears={durationYears}
-            />
-            <CapexScheduler
-              capexPayments={state.monthlyTreasuryConfig.capexPayments}
-              onChange={(capexPayments) => updateMonthlyTreasuryConfig({ ...state.monthlyTreasuryConfig, capexPayments })}
-              products={state.products}
-              startYear={startYear}
-              durationYears={durationYears}
-            />
-          </div>
-        ) : activeView === 'monthly' ? (
-          <div className="space-y-6">
-            <TreasuryDetailChart
-              projection={monthlyTreasuryProjection}
-              startYear={startYear}
-              durationYears={durationYears}
-            />
+
             <DetailedTreasuryBreakdown
               projection={monthlyTreasuryProjection}
               startYear={startYear}
