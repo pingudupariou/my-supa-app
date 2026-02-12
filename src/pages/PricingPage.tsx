@@ -9,9 +9,12 @@ import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { useCostFlowData } from '@/hooks/useCostFlowData';
-import { Settings2, Plus, Trash2, Tag, ChevronDown, ChevronRight, Package, Copy, Check } from 'lucide-react';
+import { Settings2, Plus, Trash2, Tag, ChevronDown, ChevronRight, Package, Copy, Check, ArrowDown, ArrowUp } from 'lucide-react';
 import { toast } from 'sonner';
+
+type PricingMode = 'from_public' | 'from_our_price';
 
 interface SalesRule {
   id: string;
@@ -25,6 +28,9 @@ const DEFAULT_TVA = 20;
 
 export function PricingPage() {
   const { products, productCategories, references, bom, calculateProductCost, updateProduct } = useCostFlowData();
+
+  // Pricing mode
+  const [pricingMode, setPricingMode] = useState<PricingMode>('from_public');
 
   // Global settings
   const [distributorCoef, setDistributorCoef] = useState(1.3);
@@ -59,8 +65,10 @@ export function PricingPage() {
   const [newRuleName, setNewRuleName] = useState('');
   const [newRuleType, setNewRuleType] = useState<'b2b' | 'oem'>('b2b');
 
-  // Editable prices (local overrides before save)
+  // Editable prices (local overrides before save) - for public TTC mode
   const [editedPrices, setEditedPrices] = useState<Record<string, number>>({});
+  // Editable our B2B prices - for our_price mode
+  const [editedOurPrices, setEditedOurPrices] = useState<Record<string, number>>({});
 
   // Multi-select
   const [selectedProducts, setSelectedProducts] = useState<Set<string>>(new Set());
@@ -109,7 +117,7 @@ export function PricingPage() {
     return editedPrices[prod.id] !== undefined ? editedPrices[prod.id] : prod.price_ttc;
   };
 
-  // Calculate chain pricing for a product - REVERSE: from public TTC price, compute B2B price
+  // OPTION 1: From public TTC price, compute our B2B price (reverse)
   const computeChainFromPublicTTC = (priceTTC: number) => {
     if (!activeRule || priceTTC <= 0) return null;
 
@@ -118,24 +126,14 @@ export function PricingPage() {
 
     // Reverse the chain to find our B2B selling price
     let currentPrice = prixPublicHT;
-    const reverseChain: { label: string; coef: number; sellPrice: number; buyPrice: number }[] = [];
-
-    // Walk backwards through intermediaries
     const intermediaries = [...activeRule.intermediaries].reverse();
     for (const inter of intermediaries) {
-      const buyPrice = currentPrice / inter.coefficient;
-      reverseChain.unshift({
-        label: inter.label,
-        coef: inter.coefficient,
-        buyPrice,
-        sellPrice: currentPrice,
-      });
-      currentPrice = buyPrice;
+      currentPrice = currentPrice / inter.coefficient;
     }
 
-    const ourB2BPrice = currentPrice; // What we sell at to the first intermediary
+    const ourB2BPrice = currentPrice;
 
-    // Now compute forward with margins
+    // Forward chain for display
     const chain: { label: string; buyPrice: number; coef: number; sellPrice: number; margin: number; marginPct: number }[] = [];
     let forwardPrice = ourB2BPrice;
     for (const inter of activeRule.intermediaries) {
@@ -149,10 +147,37 @@ export function PricingPage() {
     return { chain, ourB2BPrice, prixPublicHT, prixPublicTTC: priceTTC };
   };
 
+  // OPTION 2: From our B2B price, compute public TTC price (forward)
+  const computeChainFromOurPrice = (ourPrice: number) => {
+    if (!activeRule || ourPrice <= 0) return null;
+
+    const tvaRate = activeRule?.tvaRate ?? DEFAULT_TVA;
+
+    const chain: { label: string; buyPrice: number; coef: number; sellPrice: number; margin: number; marginPct: number }[] = [];
+    let forwardPrice = ourPrice;
+    for (const inter of activeRule.intermediaries) {
+      const sellPrice = forwardPrice * inter.coefficient;
+      const margin = sellPrice - forwardPrice;
+      const marginPct = forwardPrice > 0 ? (margin / forwardPrice) * 100 : 0;
+      chain.push({ label: inter.label, buyPrice: forwardPrice, coef: inter.coefficient, sellPrice, margin, marginPct });
+      forwardPrice = sellPrice;
+    }
+
+    const prixPublicHT = forwardPrice;
+    const prixPublicTTC = prixPublicHT * (1 + tvaRate / 100);
+
+    return { chain, ourB2BPrice: ourPrice, prixPublicHT, prixPublicTTC };
+  };
+
   // Save a single product price
   const saveProductPrice = useCallback(async (productId: string, priceTTC: number) => {
     await updateProduct(productId, { price_ttc: priceTTC });
     setEditedPrices(prev => {
+      const next = { ...prev };
+      delete next[productId];
+      return next;
+    });
+    setEditedOurPrices(prev => {
       const next = { ...prev };
       delete next[productId];
       return next;
@@ -164,15 +189,28 @@ export function PricingPage() {
     const price = parseFloat(bulkPrice);
     if (isNaN(price) || price < 0) return;
 
-    const promises = Array.from(selectedProducts).map(id =>
-      updateProduct(id, { price_ttc: price })
-    );
-    await Promise.all(promises);
-    toast.success(`Prix ${price.toFixed(2)} € TTC appliqué à ${selectedProducts.size} produit(s)`);
+    if (pricingMode === 'from_public') {
+      const promises = Array.from(selectedProducts).map(id =>
+        updateProduct(id, { price_ttc: price })
+      );
+      await Promise.all(promises);
+      toast.success(`Prix ${price.toFixed(2)} € TTC appliqué à ${selectedProducts.size} produit(s)`);
+    } else {
+      // From our price mode: compute the TTC and save it
+      const result = computeChainFromOurPrice(price);
+      if (result) {
+        const promises = Array.from(selectedProducts).map(id =>
+          updateProduct(id, { price_ttc: result.prixPublicTTC })
+        );
+        await Promise.all(promises);
+        toast.success(`Notre prix ${price.toFixed(2)} € HT appliqué → TTC ${result.prixPublicTTC.toFixed(2)} € pour ${selectedProducts.size} produit(s)`);
+      }
+    }
     setSelectedProducts(new Set());
     setBulkPrice('');
     setBulkDialogOpen(false);
     setEditedPrices({});
+    setEditedOurPrices({});
   };
 
   // Toggle product selection
@@ -257,71 +295,133 @@ export function PricingPage() {
 
   const renderProductRow = (prod: typeof products[0]) => {
     const costPrice = calculateProductCost(prod.id, prod.default_volume || 500);
-    const effectivePrice = getEffectivePrice(prod);
-    const result = computeChainFromPublicTTC(effectivePrice);
-    const isEdited = editedPrices[prod.id] !== undefined;
     const isSelected = selectedProducts.has(prod.id);
 
-    return (
-      <TableRow key={prod.id} className={isSelected ? 'bg-primary/5' : ''}>
-        <TableCell className="w-10">
-          <Checkbox
-            checked={isSelected}
-            onCheckedChange={() => toggleSelect(prod.id)}
-          />
-        </TableCell>
-        <TableCell className="font-medium">{prod.name}</TableCell>
-        <TableCell className="text-right font-mono text-sm">{costPrice > 0 ? `${fmt(costPrice)} €` : '–'}</TableCell>
-        <TableCell className="text-right font-mono text-sm font-semibold text-primary">
-          {result ? `${fmt(result.ourB2BPrice)} €` : '–'}
-        </TableCell>
-        {activeRule?.intermediaries.map((inter, i) => {
-          const step = result?.chain[i];
-          return (
-            <TableCell key={i} className="text-right font-mono text-sm">
-              {step ? `${fmt(step.sellPrice)} €` : '–'}
-            </TableCell>
-          );
-        })}
-        <TableCell className="text-right font-mono text-sm">
-          {result ? `${fmt(result.prixPublicHT)} €` : '–'}
-        </TableCell>
-        <TableCell className="w-36">
-          <div className="flex items-center gap-1">
-            <Input
-              type="number"
-              step="0.01"
-              className="h-8 text-sm font-mono w-24 text-right"
-              value={effectivePrice || ''}
-              onChange={e => {
-                const val = parseFloat(e.target.value);
-                setEditedPrices(prev => ({ ...prev, [prod.id]: isNaN(val) ? 0 : val }));
-              }}
-              placeholder="0.00"
-            />
-            <span className="text-xs text-muted-foreground">€</span>
-          </div>
-        </TableCell>
-        <TableCell className="text-right font-mono text-sm text-muted-foreground">
-          {result && costPrice > 0
-            ? `${fmt(((result.ourB2BPrice - costPrice) / costPrice) * 100)}%`
-            : '–'}
-        </TableCell>
-        <TableCell className="w-10">
-          {isEdited && (
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-7 w-7 text-primary"
-              onClick={() => saveProductPrice(prod.id, editedPrices[prod.id])}
-              title="Enregistrer"
-            >
-              <Check className="h-3.5 w-3.5" />
-            </Button>
-          )}
-        </TableCell>
-      </TableRow>
-    );
+    if (pricingMode === 'from_public') {
+      // Option 1: fix public TTC → compute our price
+      const effectivePrice = getEffectivePrice(prod);
+      const result = computeChainFromPublicTTC(effectivePrice);
+      const isEdited = editedPrices[prod.id] !== undefined;
+
+      return (
+        <TableRow key={prod.id} className={isSelected ? 'bg-primary/5' : ''}>
+          <TableCell className="w-10">
+            <Checkbox checked={isSelected} onCheckedChange={() => toggleSelect(prod.id)} />
+          </TableCell>
+          <TableCell className="font-medium">{prod.name}</TableCell>
+          <TableCell className="text-right font-mono text-sm">{costPrice > 0 ? `${fmt(costPrice)} €` : '–'}</TableCell>
+          <TableCell className="text-right font-mono text-sm font-semibold text-primary">
+            {result ? `${fmt(result.ourB2BPrice)} €` : '–'}
+          </TableCell>
+          {activeRule?.intermediaries.map((inter, i) => {
+            const step = result?.chain[i];
+            return (
+              <TableCell key={i} className="text-right font-mono text-sm">
+                {step ? (
+                  <span className="text-muted-foreground">
+                    {fmt(step.buyPrice)} → <span className="text-foreground">{fmt(step.sellPrice)} €</span>
+                    <span className="text-xs ml-1 opacity-60">(×{step.coef})</span>
+                  </span>
+                ) : '–'}
+              </TableCell>
+            );
+          })}
+          <TableCell className="text-right font-mono text-sm">{result ? `${fmt(result.prixPublicHT)} €` : '–'}</TableCell>
+          <TableCell className="w-36">
+            <div className="flex items-center gap-1">
+              <Input
+                type="number"
+                step="0.01"
+                className="h-8 text-sm font-mono w-24 text-right border-primary/30 bg-primary/5"
+                value={effectivePrice || ''}
+                onChange={e => {
+                  const val = parseFloat(e.target.value);
+                  setEditedPrices(prev => ({ ...prev, [prod.id]: isNaN(val) ? 0 : val }));
+                }}
+                placeholder="0.00"
+              />
+              <span className="text-xs text-muted-foreground">€</span>
+            </div>
+          </TableCell>
+          <TableCell className="text-right font-mono text-sm text-muted-foreground">
+            {result && costPrice > 0
+              ? `${fmt(((result.ourB2BPrice - costPrice) / costPrice) * 100)}%`
+              : '–'}
+          </TableCell>
+          <TableCell className="w-10">
+            {isEdited && (
+              <Button variant="ghost" size="icon" className="h-7 w-7 text-primary" onClick={() => saveProductPrice(prod.id, editedPrices[prod.id])} title="Enregistrer">
+                <Check className="h-3.5 w-3.5" />
+              </Button>
+            )}
+          </TableCell>
+        </TableRow>
+      );
+    } else {
+      // Option 2: fix our B2B price → compute public TTC
+      const effectiveTTC = getEffectivePrice(prod);
+      const reverseResult = computeChainFromPublicTTC(effectiveTTC);
+      const currentOurPrice = editedOurPrices[prod.id] !== undefined
+        ? editedOurPrices[prod.id]
+        : (reverseResult?.ourB2BPrice || 0);
+      const result = computeChainFromOurPrice(currentOurPrice);
+      const isEdited = editedOurPrices[prod.id] !== undefined;
+
+      return (
+        <TableRow key={prod.id} className={isSelected ? 'bg-primary/5' : ''}>
+          <TableCell className="w-10">
+            <Checkbox checked={isSelected} onCheckedChange={() => toggleSelect(prod.id)} />
+          </TableCell>
+          <TableCell className="font-medium">{prod.name}</TableCell>
+          <TableCell className="text-right font-mono text-sm">{costPrice > 0 ? `${fmt(costPrice)} €` : '–'}</TableCell>
+          <TableCell className="w-36">
+            <div className="flex items-center gap-1">
+              <Input
+                type="number"
+                step="0.01"
+                className="h-8 text-sm font-mono w-24 text-right border-primary/30 bg-primary/5"
+                value={currentOurPrice || ''}
+                onChange={e => {
+                  const val = parseFloat(e.target.value);
+                  setEditedOurPrices(prev => ({ ...prev, [prod.id]: isNaN(val) ? 0 : val }));
+                }}
+                placeholder="0.00"
+              />
+              <span className="text-xs text-muted-foreground">€</span>
+            </div>
+          </TableCell>
+          {activeRule?.intermediaries.map((inter, i) => {
+            const step = result?.chain[i];
+            return (
+              <TableCell key={i} className="text-right font-mono text-sm">
+                {step ? (
+                  <span className="text-muted-foreground">
+                    {fmt(step.buyPrice)} → <span className="text-foreground">{fmt(step.sellPrice)} €</span>
+                    <span className="text-xs ml-1 opacity-60">(×{step.coef})</span>
+                  </span>
+                ) : '–'}
+              </TableCell>
+            );
+          })}
+          <TableCell className="text-right font-mono text-sm">{result ? `${fmt(result.prixPublicHT)} €` : '–'}</TableCell>
+          <TableCell className="text-right font-mono text-sm font-semibold text-primary">
+            {result ? `${fmt(result.prixPublicTTC)} €` : '–'}
+          </TableCell>
+          <TableCell className="text-right font-mono text-sm text-muted-foreground">
+            {result && costPrice > 0
+              ? `${fmt(((currentOurPrice - costPrice) / costPrice) * 100)}%`
+              : '–'}
+          </TableCell>
+          <TableCell className="w-10">
+            {isEdited && result && (
+              <Button variant="ghost" size="icon" className="h-7 w-7 text-primary" onClick={() => saveProductPrice(prod.id, result.prixPublicTTC)} title="Enregistrer">
+                <Check className="h-3.5 w-3.5" />
+              </Button>
+            )}
+          </TableCell>
+        </TableRow>
+      );
+    }
   };
 
   const renderCategoryTable = (catProducts: typeof products, catId: string) => {
@@ -342,12 +442,35 @@ export function PricingPage() {
               </TableHead>
               <TableHead>Produit</TableHead>
               <TableHead className="text-right">Coût revient</TableHead>
-              <TableHead className="text-right">Notre prix B2B HT</TableHead>
-              {activeRule?.intermediaries.map((inter, i) => (
-                <TableHead key={i} className="text-right">Sortie {inter.label}</TableHead>
-              ))}
-              <TableHead className="text-right">Prix Public HT</TableHead>
-              <TableHead className="text-right">Prix Public TTC</TableHead>
+              {pricingMode === 'from_public' ? (
+                <>
+                  <TableHead className="text-right">Notre prix HT <span className="text-xs opacity-60">(calculé)</span></TableHead>
+                  {activeRule?.intermediaries.map((inter, i) => (
+                    <TableHead key={i} className="text-right">{inter.label}</TableHead>
+                  ))}
+                  <TableHead className="text-right">Prix Public HT</TableHead>
+                  <TableHead className="text-right">
+                    <span className="flex items-center justify-end gap-1">
+                      <ArrowDown className="h-3 w-3 text-primary" />
+                      Prix Public TTC
+                    </span>
+                  </TableHead>
+                </>
+              ) : (
+                <>
+                  <TableHead className="text-right">
+                    <span className="flex items-center justify-end gap-1">
+                      <ArrowDown className="h-3 w-3 text-primary" />
+                      Notre prix HT
+                    </span>
+                  </TableHead>
+                  {activeRule?.intermediaries.map((inter, i) => (
+                    <TableHead key={i} className="text-right">{inter.label}</TableHead>
+                  ))}
+                  <TableHead className="text-right">Prix Public HT</TableHead>
+                  <TableHead className="text-right">Prix Public TTC <span className="text-xs opacity-60">(calculé)</span></TableHead>
+                </>
+              )}
               <TableHead className="text-right">Notre marge</TableHead>
               <TableHead className="w-10"></TableHead>
             </TableRow>
@@ -360,15 +483,28 @@ export function PricingPage() {
     );
   };
 
-  const hasEdits = Object.keys(editedPrices).length > 0;
+  const hasEdits = pricingMode === 'from_public'
+    ? Object.keys(editedPrices).length > 0
+    : Object.keys(editedOurPrices).length > 0;
 
   const saveAllEdits = async () => {
-    const promises = Object.entries(editedPrices).map(([id, price]) =>
-      updateProduct(id, { price_ttc: price })
-    );
-    await Promise.all(promises);
-    toast.success(`${Object.keys(editedPrices).length} prix mis à jour`);
-    setEditedPrices({});
+    if (pricingMode === 'from_public') {
+      const promises = Object.entries(editedPrices).map(([id, price]) =>
+        updateProduct(id, { price_ttc: price })
+      );
+      await Promise.all(promises);
+      toast.success(`${Object.keys(editedPrices).length} prix mis à jour`);
+      setEditedPrices({});
+    } else {
+      const entries = Object.entries(editedOurPrices);
+      const promises = entries.map(([id, ourPrice]) => {
+        const result = computeChainFromOurPrice(ourPrice);
+        return result ? updateProduct(id, { price_ttc: result.prixPublicTTC }) : Promise.resolve();
+      });
+      await Promise.all(promises);
+      toast.success(`${entries.length} prix mis à jour`);
+      setEditedOurPrices({});
+    }
   };
 
   return (
@@ -377,7 +513,7 @@ export function PricingPage() {
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Pricing</h1>
           <p className="text-muted-foreground">
-            Stratégie tarifaire B2B, chaîne de distribution et marges par produit
+            Stratégie tarifaire, chaîne de distribution et marges par produit
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -404,7 +540,7 @@ export function PricingPage() {
                     </ul>
                   </div>
                   <div>
-                    <Label>Prix Public TTC (€)</Label>
+                    <Label>{pricingMode === 'from_public' ? 'Prix Public TTC (€)' : 'Notre Prix de Vente HT (€)'}</Label>
                     <Input
                       type="number"
                       step="0.01"
@@ -424,11 +560,42 @@ export function PricingPage() {
           {hasEdits && (
             <Button size="sm" onClick={saveAllEdits}>
               <Check className="h-4 w-4 mr-1" />
-              Enregistrer tout ({Object.keys(editedPrices).length})
+              Enregistrer tout ({pricingMode === 'from_public' ? Object.keys(editedPrices).length : Object.keys(editedOurPrices).length})
             </Button>
           )}
         </div>
       </div>
+
+      {/* Pricing Mode Selector */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-lg">Mode de tarification</CardTitle>
+          <CardDescription>Choisissez votre point de départ pour fixer les prix</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <ToggleGroup
+            type="single"
+            value={pricingMode}
+            onValueChange={v => { if (v) setPricingMode(v as PricingMode); }}
+            className="justify-start"
+          >
+            <ToggleGroupItem value="from_public" className="flex items-center gap-2 px-4 py-3 h-auto data-[state=on]:bg-primary/10 data-[state=on]:border-primary">
+              <ArrowUp className="h-4 w-4" />
+              <div className="text-left">
+                <div className="font-semibold text-sm">Option 1 — Depuis le prix public</div>
+                <div className="text-xs text-muted-foreground">Fixer le prix TTC client final → notre prix de vente est calculé en remontant la chaîne</div>
+              </div>
+            </ToggleGroupItem>
+            <ToggleGroupItem value="from_our_price" className="flex items-center gap-2 px-4 py-3 h-auto data-[state=on]:bg-primary/10 data-[state=on]:border-primary">
+              <ArrowDown className="h-4 w-4" />
+              <div className="text-left">
+                <div className="font-semibold text-sm">Option 2 — Depuis notre prix de vente</div>
+                <div className="text-xs text-muted-foreground">Fixer notre prix HT B2B/OEM → le prix public client final est calculé en descendant la chaîne</div>
+              </div>
+            </ToggleGroupItem>
+          </ToggleGroup>
+        </CardContent>
+      </Card>
 
       {/* Global coefficients & TVA */}
       <div className="grid gap-4 md:grid-cols-4">
@@ -472,7 +639,10 @@ export function PricingPage() {
           </CardHeader>
           <CardContent>
             <div className="text-xs text-muted-foreground">
-              Nous → {activeRule?.intermediaries.map(i => i.label).join(' → ')} → Client final
+              {pricingMode === 'from_public'
+                ? `Client final → ${[...activeRule?.intermediaries || []].reverse().map(i => i.label).join(' → ')} → Nous`
+                : `Nous → ${activeRule?.intermediaries.map(i => i.label).join(' → ')} → Client final`
+              }
             </div>
           </CardContent>
         </Card>
@@ -621,7 +791,10 @@ export function PricingPage() {
                 Détail des prix par catégorie
               </CardTitle>
               <CardDescription>
-                Fixez le prix public TTC → le prix B2B (1er maillon) est calculé automatiquement via la chaîne "{activeRule?.name}"
+                {pricingMode === 'from_public'
+                  ? `Fixez le prix public TTC → notre prix de vente est calculé via la chaîne "${activeRule?.name}"`
+                  : `Fixez notre prix de vente HT → le prix public TTC est calculé via la chaîne "${activeRule?.name}"`
+                }
               </CardDescription>
             </div>
             {selectedProducts.size > 0 && (
