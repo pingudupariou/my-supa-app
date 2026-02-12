@@ -67,8 +67,11 @@ export function PricingPage() {
 
   // Editable prices (local overrides before save) - for public TTC mode
   const [editedPrices, setEditedPrices] = useState<Record<string, number>>({});
-  // Editable our B2B prices - for our_price mode
+  // Option 2: editable our B2B prices AND final TTC prices (both ends fixed)
   const [editedOurPrices, setEditedOurPrices] = useState<Record<string, number>>({});
+  const [editedFinalPrices, setEditedFinalPrices] = useState<Record<string, number>>({});
+  // Option 2: per-product intermediary coef overrides (linked)
+  const [editedProductCoefs, setEditedProductCoefs] = useState<Record<string, number[]>>({});
 
   // Multi-select
   const [selectedProducts, setSelectedProducts] = useState<Set<string>>(new Set());
@@ -147,26 +150,60 @@ export function PricingPage() {
     return { chain, ourB2BPrice, prixPublicHT, prixPublicTTC: priceTTC };
   };
 
-  // OPTION 2: From our B2B price, compute public TTC price (forward)
-  const computeChainFromOurPrice = (ourPrice: number) => {
-    if (!activeRule || ourPrice <= 0) return null;
+  // OPTION 2: Both ends fixed — compute intermediary coefs
+  const computeChainBothEnds = (ourPrice: number, finalTTC: number, customCoefs?: number[]) => {
+    if (!activeRule || ourPrice <= 0 || finalTTC <= 0) return null;
 
     const tvaRate = activeRule?.tvaRate ?? DEFAULT_TVA;
+    const prixPublicHT = finalTTC / (1 + tvaRate / 100);
+    const totalCoef = prixPublicHT / ourPrice;
+    const n = activeRule.intermediaries.length;
 
+    if (totalCoef <= 0 || n === 0) return null;
+
+    // Determine coefs: use custom if provided, otherwise split equally
+    let coefs: number[];
+    if (customCoefs && customCoefs.length === n) {
+      coefs = customCoefs;
+    } else {
+      // Equal split: each coef = totalCoef^(1/n)
+      const equalCoef = Math.pow(totalCoef, 1 / n);
+      coefs = Array(n).fill(equalCoef);
+    }
+
+    // Build chain
     const chain: { label: string; buyPrice: number; coef: number; sellPrice: number; margin: number; marginPct: number }[] = [];
     let forwardPrice = ourPrice;
-    for (const inter of activeRule.intermediaries) {
-      const sellPrice = forwardPrice * inter.coefficient;
+    for (let i = 0; i < n; i++) {
+      const sellPrice = forwardPrice * coefs[i];
       const margin = sellPrice - forwardPrice;
       const marginPct = forwardPrice > 0 ? (margin / forwardPrice) * 100 : 0;
-      chain.push({ label: inter.label, buyPrice: forwardPrice, coef: inter.coefficient, sellPrice, margin, marginPct });
+      chain.push({
+        label: activeRule.intermediaries[i].label,
+        buyPrice: forwardPrice,
+        coef: coefs[i],
+        sellPrice,
+        margin,
+        marginPct,
+      });
       forwardPrice = sellPrice;
     }
 
-    const prixPublicHT = forwardPrice;
-    const prixPublicTTC = prixPublicHT * (1 + tvaRate / 100);
+    return { chain, ourB2BPrice: ourPrice, prixPublicHT, prixPublicTTC: finalTTC, totalCoef, coefs };
+  };
 
-    return { chain, ourB2BPrice: ourPrice, prixPublicHT, prixPublicTTC };
+  // When user edits one intermediary coef in Option 2, redistribute to maintain total
+  const handleProductCoefChange = (productId: string, index: number, newCoef: number, totalCoef: number) => {
+    const n = activeRule?.intermediaries.length || 1;
+    if (n <= 1) {
+      // Single intermediary: coef = totalCoef (can't change)
+      setEditedProductCoefs(prev => ({ ...prev, [productId]: [totalCoef] }));
+      return;
+    }
+    const clampedCoef = Math.max(1.01, Math.min(newCoef, totalCoef / 1.01)); // keep other > 1
+    const remainingCoef = totalCoef / clampedCoef;
+    const newCoefs = index === 0 ? [clampedCoef, remainingCoef] : [remainingCoef, clampedCoef];
+    setEditedProductCoefs(prev => ({ ...prev, [productId]: newCoefs }));
   };
 
   // Save a single product price
@@ -196,21 +233,20 @@ export function PricingPage() {
       await Promise.all(promises);
       toast.success(`Prix ${price.toFixed(2)} € TTC appliqué à ${selectedProducts.size} produit(s)`);
     } else {
-      // From our price mode: compute the TTC and save it
-      const result = computeChainFromOurPrice(price);
-      if (result) {
-        const promises = Array.from(selectedProducts).map(id =>
-          updateProduct(id, { price_ttc: result.prixPublicTTC })
-        );
-        await Promise.all(promises);
-        toast.success(`Notre prix ${price.toFixed(2)} € HT appliqué → TTC ${result.prixPublicTTC.toFixed(2)} € pour ${selectedProducts.size} produit(s)`);
-      }
+      // Option 2: bulk doesn't apply here easily, just save TTC directly
+      const promises = Array.from(selectedProducts).map(id =>
+        updateProduct(id, { price_ttc: price })
+      );
+      await Promise.all(promises);
+      toast.success(`Prix ${price.toFixed(2)} € appliqué à ${selectedProducts.size} produit(s)`);
     }
     setSelectedProducts(new Set());
     setBulkPrice('');
     setBulkDialogOpen(false);
     setEditedPrices({});
     setEditedOurPrices({});
+    setEditedFinalPrices({});
+    setEditedProductCoefs({});
   };
 
   // Toggle product selection
@@ -358,14 +394,18 @@ export function PricingPage() {
         </TableRow>
       );
     } else {
-      // Option 2: fix our B2B price → compute public TTC
+      // Option 2: fix both our price AND final TTC, compute intermediary coefs
       const effectiveTTC = getEffectivePrice(prod);
+      const currentFinalTTC = editedFinalPrices[prod.id] !== undefined
+        ? editedFinalPrices[prod.id]
+        : (effectiveTTC || 0);
       const reverseResult = computeChainFromPublicTTC(effectiveTTC);
       const currentOurPrice = editedOurPrices[prod.id] !== undefined
         ? editedOurPrices[prod.id]
         : (reverseResult?.ourB2BPrice || 0);
-      const result = computeChainFromOurPrice(currentOurPrice);
-      const isEdited = editedOurPrices[prod.id] !== undefined;
+      const customCoefs = editedProductCoefs[prod.id];
+      const result = computeChainBothEnds(currentOurPrice, currentFinalTTC, customCoefs);
+      const isEdited = editedOurPrices[prod.id] !== undefined || editedFinalPrices[prod.id] !== undefined || editedProductCoefs[prod.id] !== undefined;
 
       return (
         <TableRow key={prod.id} className={isSelected ? 'bg-primary/5' : ''}>
@@ -374,6 +414,7 @@ export function PricingPage() {
           </TableCell>
           <TableCell className="font-medium">{prod.name}</TableCell>
           <TableCell className="text-right font-mono text-sm">{costPrice > 0 ? `${fmt(costPrice)} €` : '–'}</TableCell>
+          {/* Notre prix HT - input */}
           <TableCell className="w-36">
             <div className="flex items-center gap-1">
               <Input
@@ -384,37 +425,80 @@ export function PricingPage() {
                 onChange={e => {
                   const val = parseFloat(e.target.value);
                   setEditedOurPrices(prev => ({ ...prev, [prod.id]: isNaN(val) ? 0 : val }));
+                  // Reset custom coefs so they get recomputed
+                  setEditedProductCoefs(prev => { const n = { ...prev }; delete n[prod.id]; return n; });
                 }}
                 placeholder="0.00"
               />
               <span className="text-xs text-muted-foreground">€</span>
             </div>
           </TableCell>
+          {/* Intermediary coefs - editable, linked */}
           {activeRule?.intermediaries.map((inter, i) => {
             const step = result?.chain[i];
+            const coef = result?.coefs[i] || 1;
             return (
-              <TableCell key={i} className="text-right font-mono text-sm">
+              <TableCell key={i} className="font-mono text-sm">
                 {step ? (
-                  <span className="text-muted-foreground">
-                    {fmt(step.buyPrice)} → <span className="text-foreground">{fmt(step.sellPrice)} €</span>
-                    <span className="text-xs ml-1 opacity-60">(×{step.coef})</span>
-                  </span>
+                  <div className="flex flex-col items-end gap-0.5">
+                    <div className="flex items-center gap-1">
+                      <span className="text-xs text-muted-foreground">×</span>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        min="1.01"
+                        className="h-7 text-xs font-mono w-16 text-right"
+                        value={Number(coef.toFixed(4))}
+                        onChange={e => {
+                          const val = parseFloat(e.target.value);
+                          if (!isNaN(val) && result) {
+                            handleProductCoefChange(prod.id, i, val, result.totalCoef);
+                          }
+                        }}
+                      />
+                    </div>
+                    <span className="text-[10px] text-muted-foreground">
+                      {fmt(step.buyPrice)} → {fmt(step.sellPrice)} €
+                    </span>
+                  </div>
                 ) : '–'}
               </TableCell>
             );
           })}
+          {/* Prix Public HT */}
           <TableCell className="text-right font-mono text-sm">{result ? `${fmt(result.prixPublicHT)} €` : '–'}</TableCell>
-          <TableCell className="text-right font-mono text-sm font-semibold text-primary">
-            {result ? `${fmt(result.prixPublicTTC)} €` : '–'}
+          {/* Prix Public TTC - input */}
+          <TableCell className="w-36">
+            <div className="flex items-center gap-1">
+              <Input
+                type="number"
+                step="0.01"
+                className="h-8 text-sm font-mono w-24 text-right border-primary/30 bg-primary/5"
+                value={currentFinalTTC || ''}
+                onChange={e => {
+                  const val = parseFloat(e.target.value);
+                  setEditedFinalPrices(prev => ({ ...prev, [prod.id]: isNaN(val) ? 0 : val }));
+                  // Reset custom coefs so they get recomputed
+                  setEditedProductCoefs(prev => { const n = { ...prev }; delete n[prod.id]; return n; });
+                }}
+                placeholder="0.00"
+              />
+              <span className="text-xs text-muted-foreground">€</span>
+            </div>
           </TableCell>
+          {/* Coef total */}
+          <TableCell className="text-right font-mono text-sm text-muted-foreground">
+            {result ? `×${result.totalCoef.toFixed(2)}` : '–'}
+          </TableCell>
+          {/* Notre marge */}
           <TableCell className="text-right font-mono text-sm text-muted-foreground">
             {result && costPrice > 0
               ? `${fmt(((currentOurPrice - costPrice) / costPrice) * 100)}%`
               : '–'}
           </TableCell>
           <TableCell className="w-10">
-            {isEdited && result && (
-              <Button variant="ghost" size="icon" className="h-7 w-7 text-primary" onClick={() => saveProductPrice(prod.id, result.prixPublicTTC)} title="Enregistrer">
+            {isEdited && currentFinalTTC > 0 && (
+              <Button variant="ghost" size="icon" className="h-7 w-7 text-primary" onClick={() => saveProductPrice(prod.id, currentFinalTTC)} title="Enregistrer">
                 <Check className="h-3.5 w-3.5" />
               </Button>
             )}
@@ -465,10 +549,16 @@ export function PricingPage() {
                     </span>
                   </TableHead>
                   {activeRule?.intermediaries.map((inter, i) => (
-                    <TableHead key={i} className="text-right">{inter.label}</TableHead>
+                    <TableHead key={i} className="text-right">{inter.label} <span className="text-xs opacity-60">(coef)</span></TableHead>
                   ))}
                   <TableHead className="text-right">Prix Public HT</TableHead>
-                  <TableHead className="text-right">Prix Public TTC <span className="text-xs opacity-60">(calculé)</span></TableHead>
+                  <TableHead className="text-right">
+                    <span className="flex items-center justify-end gap-1">
+                      <ArrowDown className="h-3 w-3 text-primary" />
+                      Prix Public TTC
+                    </span>
+                  </TableHead>
+                  <TableHead className="text-right">Coef total</TableHead>
                 </>
               )}
               <TableHead className="text-right">Notre marge</TableHead>
@@ -485,7 +575,7 @@ export function PricingPage() {
 
   const hasEdits = pricingMode === 'from_public'
     ? Object.keys(editedPrices).length > 0
-    : Object.keys(editedOurPrices).length > 0;
+    : (Object.keys(editedOurPrices).length > 0 || Object.keys(editedFinalPrices).length > 0 || Object.keys(editedProductCoefs).length > 0);
 
   const saveAllEdits = async () => {
     if (pricingMode === 'from_public') {
@@ -496,14 +586,21 @@ export function PricingPage() {
       toast.success(`${Object.keys(editedPrices).length} prix mis à jour`);
       setEditedPrices({});
     } else {
-      const entries = Object.entries(editedOurPrices);
-      const promises = entries.map(([id, ourPrice]) => {
-        const result = computeChainFromOurPrice(ourPrice);
-        return result ? updateProduct(id, { price_ttc: result.prixPublicTTC }) : Promise.resolve();
+      // Collect all products that have any edit in option 2
+      const allEditedIds = new Set([
+        ...Object.keys(editedOurPrices),
+        ...Object.keys(editedFinalPrices),
+        ...Object.keys(editedProductCoefs),
+      ]);
+      const promises = Array.from(allEditedIds).map(id => {
+        const finalTTC = editedFinalPrices[id] !== undefined ? editedFinalPrices[id] : (products.find(p => p.id === id)?.price_ttc || 0);
+        return finalTTC > 0 ? updateProduct(id, { price_ttc: finalTTC }) : Promise.resolve();
       });
       await Promise.all(promises);
-      toast.success(`${entries.length} prix mis à jour`);
+      toast.success(`${allEditedIds.size} prix mis à jour`);
       setEditedOurPrices({});
+      setEditedFinalPrices({});
+      setEditedProductCoefs({});
     }
   };
 
@@ -560,7 +657,7 @@ export function PricingPage() {
           {hasEdits && (
             <Button size="sm" onClick={saveAllEdits}>
               <Check className="h-4 w-4 mr-1" />
-              Enregistrer tout ({pricingMode === 'from_public' ? Object.keys(editedPrices).length : Object.keys(editedOurPrices).length})
+              Enregistrer tout ({pricingMode === 'from_public' ? Object.keys(editedPrices).length : new Set([...Object.keys(editedOurPrices), ...Object.keys(editedFinalPrices), ...Object.keys(editedProductCoefs)]).size})
             </Button>
           )}
         </div>
@@ -589,8 +686,8 @@ export function PricingPage() {
             <ToggleGroupItem value="from_our_price" className="flex items-center gap-2 px-4 py-3 h-auto data-[state=on]:bg-primary/10 data-[state=on]:border-primary">
               <ArrowDown className="h-4 w-4" />
               <div className="text-left">
-                <div className="font-semibold text-sm">Option 2 — Depuis notre prix de vente</div>
-                <div className="text-xs text-muted-foreground">Fixer notre prix HT B2B/OEM → le prix public client final est calculé en descendant la chaîne</div>
+                <div className="font-semibold text-sm">Option 2 — Prix fixés aux deux extrémités</div>
+                <div className="text-xs text-muted-foreground">Fixer notre prix HT + le prix client TTC → les coefficients intermédiaires sont calculés et liés</div>
               </div>
             </ToggleGroupItem>
           </ToggleGroup>
@@ -793,7 +890,7 @@ export function PricingPage() {
               <CardDescription>
                 {pricingMode === 'from_public'
                   ? `Fixez le prix public TTC → notre prix de vente est calculé via la chaîne "${activeRule?.name}"`
-                  : `Fixez notre prix de vente HT → le prix public TTC est calculé via la chaîne "${activeRule?.name}"`
+                  : `Fixez notre prix HT et le prix client TTC → les coefficients intermédiaires sont répartis équitablement via "${activeRule?.name}"`
                 }
               </CardDescription>
             </div>
