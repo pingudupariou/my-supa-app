@@ -246,7 +246,12 @@ export function PricingPage() {
     const totalCoef = prixPublicHT / ourPrice;
     const n = activeRule.intermediaries.length;
 
-    if (totalCoef <= 0 || n === 0) return null;
+    if (totalCoef <= 0) return null;
+
+    // B2C / vente directe: no intermediaries, our price = public HT
+    if (n === 0) {
+      return { chain: [], ourB2BPrice: ourPrice, prixPublicHT, prixPublicTTC: finalTTC, totalCoef, coefs: [] };
+    }
 
     // Determine coefs: use custom if provided, otherwise split equally
     let coefs: number[];
