@@ -6,10 +6,10 @@ import { useCostFlowData } from '@/hooks/useCostFlowData';
 import { usePlanningData } from '@/hooks/usePlanningData';
 import { useCRMData } from '@/hooks/useCRMData';
 import { Package, Layers, Factory, Users, CalendarRange, TrendingUp, Cog } from 'lucide-react';
-import heroImg from '@/assets/hero-home.jpg';
-import visionImg from '@/assets/vision-novaride.jpg';
-import productImg from '@/assets/product-ccd-evo.png';
-import transmissionImg from '@/assets/product-transmission.jpg';
+import heroImg from '@/assets/hero-novaride.jpg';
+import visionImg from '@/assets/savoir-faire.jpg';
+import productImg from '@/assets/ccd-gold.jpg';
+import transmissionImg from '@/assets/pulley-wheels.jpg';
 import compImg from '@/assets/composants-hero.jpg';
 import actionImg from '@/assets/novaride-action.jpg';
 
