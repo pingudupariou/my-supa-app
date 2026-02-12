@@ -12,6 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { useCostFlowData } from '@/hooks/useCostFlowData';
 import { Settings2, Plus, Trash2, Tag, ChevronDown, ChevronRight, Package, Copy, Check, ArrowDown, ArrowUp, ArrowUpDown, Save, Loader2 } from 'lucide-react';
+import { MarginChart } from '@/components/pricing/MarginChart';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -205,15 +206,17 @@ export function PricingPage() {
   };
 
   // OPTION 1: From public TTC price, compute our B2B price (reverse)
-  const computeChainFromPublicTTC = (priceTTC: number) => {
-    if (!activeRule || priceTTC <= 0) return null;
+  // When called with a specific rule, uses that rule; otherwise uses activeRule
+  const computeChainFromPublicTTC = (priceTTC: number, ruleOverride?: typeof activeRule) => {
+    const rule = ruleOverride || activeRule;
+    if (!rule || priceTTC <= 0) return null;
 
-    const tvaRate = activeRule?.tvaRate ?? DEFAULT_TVA;
+    const tvaRate = rule?.tvaRate ?? DEFAULT_TVA;
     const prixPublicHT = priceTTC / (1 + tvaRate / 100);
 
     // Reverse the chain to find our B2B selling price
     let currentPrice = prixPublicHT;
-    const intermediaries = [...activeRule.intermediaries].reverse();
+    const intermediaries = [...rule.intermediaries].reverse();
     for (const inter of intermediaries) {
       currentPrice = currentPrice / inter.coefficient;
     }
@@ -223,7 +226,7 @@ export function PricingPage() {
     // Forward chain for display
     const chain: { label: string; buyPrice: number; coef: number; sellPrice: number; margin: number; marginPct: number }[] = [];
     let forwardPrice = ourB2BPrice;
-    for (const inter of activeRule.intermediaries) {
+    for (const inter of rule.intermediaries) {
       const sellPrice = forwardPrice * inter.coefficient;
       const margin = sellPrice - forwardPrice;
       const marginPct = forwardPrice > 0 ? (margin / forwardPrice) * 100 : 0;
@@ -798,12 +801,6 @@ export function PricingPage() {
               </DialogContent>
             </Dialog>
           )}
-          {hasEdits && (
-            <Button size="sm" onClick={saveAllEdits}>
-              <Check className="h-4 w-4 mr-1" />
-              Enregistrer tout ({pricingMode === 'from_public' ? Object.keys(editedPrices).length : new Set([...Object.keys(editedOurPrices), ...Object.keys(editedFinalPrices), ...Object.keys(editedProductCoefs)]).size})
-            </Button>
-          )}
         </div>
       </div>
 
@@ -947,7 +944,13 @@ export function PricingPage() {
           {activeRule && (
             <div className="border rounded-lg p-4 space-y-3">
               <div className="flex items-center justify-between">
-                <h4 className="font-semibold">{activeRule.name}</h4>
+                <Input
+                  value={activeRule.name}
+                  onChange={e => setSalesRules(prev => prev.map(r =>
+                    r.id === activeRule.id ? { ...r, name: e.target.value } : r
+                  ))}
+                  className="h-8 text-sm font-semibold w-48"
+                />
                 <div className="flex items-center gap-2">
                   <Badge variant="secondary">{activeRule.type === 'oem' ? 'Max 1 intermédiaire' : 'Max 2 intermédiaires'}</Badge>
                   {salesRules.length > 1 && (
@@ -1021,6 +1024,18 @@ export function PricingPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* Margin Analysis Chart */}
+      <MarginChart
+        products={products}
+        productCategories={productCategories}
+        salesRules={salesRules}
+        calculateProductCost={calculateProductCost}
+        computeChainFromPublicTTC={computeChainFromPublicTTC}
+        getEffectivePrice={getEffectivePrice}
+        editedOurPrices={editedOurPrices}
+        pricingMode={pricingMode}
+      />
 
       {/* Pricing table by category */}
       <Card>
