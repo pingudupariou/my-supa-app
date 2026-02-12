@@ -6,9 +6,12 @@ import { useCostFlowData } from '@/hooks/useCostFlowData';
 import { usePlanningData } from '@/hooks/usePlanningData';
 import { useCRMData } from '@/hooks/useCRMData';
 import { Package, Layers, Factory, Users, CalendarRange, TrendingUp, Cog } from 'lucide-react';
-import heroImg from '@/assets/novaride-engineering.jpg';
-import actionImg from '@/assets/novaride-action.jpg';
+import heroImg from '@/assets/hero-home.jpg';
+import visionImg from '@/assets/vision-novaride.jpg';
+import productImg from '@/assets/product-ccd-evo.png';
+import transmissionImg from '@/assets/product-transmission.jpg';
 import compImg from '@/assets/composants-hero.jpg';
+import actionImg from '@/assets/novaride-action.jpg';
 
 const ALL_MONTHS = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Jun', 'Jul', 'Aoû', 'Sep', 'Oct', 'Nov', 'Déc'];
 
@@ -157,7 +160,7 @@ export function TableauDeBordPage() {
           {/* Photo card */}
           <Card className="overflow-hidden">
             <div className="relative h-36">
-              <img src={actionImg} alt="Novaride" className="w-full h-full object-cover" />
+              <img src={productImg} alt="CCD EVO" className="w-full h-full object-cover object-center" />
               <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
               <div className="absolute bottom-3 left-4">
                 <p className="text-white text-sm font-semibold">Engineering Excellence</p>
@@ -217,19 +220,24 @@ export function TableauDeBordPage() {
       </div>
 
       {/* Bottom visual strip */}
-      <div className="grid grid-cols-3 gap-4 h-28 rounded-xl overflow-hidden">
+      <div className="grid grid-cols-4 gap-4 h-32 rounded-xl overflow-hidden">
+        <div className="relative">
+          <img src={visionImg} alt="Vision" className="w-full h-full object-cover rounded-lg" />
+          <div className="absolute inset-0 bg-black/30 rounded-lg" />
+          <div className="absolute bottom-2 left-3 text-white text-xs font-medium">Vision</div>
+        </div>
+        <div className="relative">
+          <img src={transmissionImg} alt="Transmission" className="w-full h-full object-cover rounded-lg" />
+          <div className="absolute inset-0 bg-black/30 rounded-lg" />
+          <div className="absolute bottom-2 left-3 text-white text-xs font-medium">Transmission</div>
+        </div>
         <div className="relative">
           <img src={compImg} alt="Composants" className="w-full h-full object-cover rounded-lg" />
           <div className="absolute inset-0 bg-black/30 rounded-lg" />
           <div className="absolute bottom-2 left-3 text-white text-xs font-medium">Composants</div>
         </div>
         <div className="relative">
-          <img src={heroImg} alt="Engineering" className="w-full h-full object-cover rounded-lg" />
-          <div className="absolute inset-0 bg-black/30 rounded-lg" />
-          <div className="absolute bottom-2 left-3 text-white text-xs font-medium">Bureau d'études</div>
-        </div>
-        <div className="relative">
-          <img src={actionImg} alt="Action" className="w-full h-full object-cover rounded-lg" />
+          <img src={actionImg} alt="Performance" className="w-full h-full object-cover rounded-lg" />
           <div className="absolute inset-0 bg-black/30 rounded-lg" />
           <div className="absolute bottom-2 left-3 text-white text-xs font-medium">Performance</div>
         </div>
