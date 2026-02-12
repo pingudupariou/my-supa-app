@@ -2,6 +2,8 @@ import { useMemo, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
+import { ArrowUp, ArrowDown } from 'lucide-react';
 import {
   BarChart,
   Bar,
@@ -58,6 +60,7 @@ export function MarginChart({
   editedOurPrices,
   pricingMode,
 }: MarginChartProps) {
+  const [chartPricingMode, setChartPricingMode] = useState<'from_public' | 'from_our_price'>(pricingMode);
   const [selectedRuleIds, setSelectedRuleIds] = useState<Set<string>>(
     new Set([salesRules[0]?.id].filter(Boolean))
   );
@@ -107,7 +110,7 @@ export function MarginChart({
         const result = computeChainFromPublicTTC(effectivePrice, rule);
 
         let ourPrice = 0;
-        if (pricingMode === 'from_public') {
+        if (chartPricingMode === 'from_public') {
           ourPrice = result?.ourB2BPrice || 0;
         } else {
           ourPrice = editedOurPrices[prod.id] !== undefined
@@ -121,7 +124,7 @@ export function MarginChart({
 
       return entry;
     });
-  }, [filteredProducts, selectedRuleIds, salesRules, calculateProductCost, getEffectivePrice, computeChainFromPublicTTC, editedOurPrices, pricingMode]);
+  }, [filteredProducts, selectedRuleIds, salesRules, calculateProductCost, getEffectivePrice, computeChainFromPublicTTC, editedOurPrices, chartPricingMode]);
 
   const activeRules = salesRules.filter(r => selectedRuleIds.has(r.id));
 
@@ -133,7 +136,25 @@ export function MarginChart({
       </CardHeader>
       <CardContent className="space-y-4">
         {/* Filters */}
-        <div className="flex flex-wrap gap-6">
+        <div className="flex flex-wrap gap-6 items-start">
+          <div className="space-y-2">
+            <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Mode tarification</span>
+            <ToggleGroup
+              type="single"
+              value={chartPricingMode}
+              onValueChange={v => { if (v) setChartPricingMode(v as 'from_public' | 'from_our_price'); }}
+              className="justify-start"
+            >
+              <ToggleGroupItem value="from_public" className="h-8 text-xs gap-1 data-[state=on]:bg-primary/10">
+                <ArrowUp className="h-3 w-3" />
+                Option 1
+              </ToggleGroupItem>
+              <ToggleGroupItem value="from_our_price" className="h-8 text-xs gap-1 data-[state=on]:bg-primary/10">
+                <ArrowDown className="h-3 w-3" />
+                Option 2
+              </ToggleGroupItem>
+            </ToggleGroup>
+          </div>
           <div className="space-y-2">
             <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Règles de vente</span>
             <div className="flex flex-wrap gap-2">
