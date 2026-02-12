@@ -154,6 +154,19 @@ function loadState(): FinancialState {
       if (parsed.monthlyTreasuryConfig && !parsed.monthlyTreasuryConfig.cogsPaymentTerms) {
         parsed.monthlyTreasuryConfig.cogsPaymentTerms = [{ delayMonths: 0, percentage: 100 }];
       }
+      // Ensure excludeFundingFromTreasury defaults
+      if (parsed.excludeFundingFromTreasury === undefined) {
+        parsed.excludeFundingFromTreasury = false;
+      }
+      // Ensure funding rounds have quarter property
+      if (parsed.fundingRounds) {
+        parsed.fundingRounds = parsed.fundingRounds.map((r: any) => ({
+          ...r,
+          quarter: r.quarter || 'Q1',
+        }));
+      } else {
+        parsed.fundingRounds = defaultFundingRounds;
+      }
       return parsed;
     }
   } catch {}
@@ -210,6 +223,22 @@ export function FinancialProvider({ children }: { children: ReactNode }) {
         if (data?.state_data) {
           const cloudState = data.state_data as unknown as FinancialState;
           if (!cloudState.valuationConfig) cloudState.valuationConfig = { ...defaultValuationConfig };
+          // Ensure excludeFundingFromTreasury defaults for old saved states
+          if (cloudState.excludeFundingFromTreasury === undefined) cloudState.excludeFundingFromTreasury = false;
+          // Ensure funding rounds have quarter property
+          if (cloudState.fundingRounds) {
+            cloudState.fundingRounds = cloudState.fundingRounds.map(r => ({
+              ...r,
+              quarter: r.quarter || 'Q1',
+            }));
+          } else {
+            cloudState.fundingRounds = defaultFundingRounds;
+          }
+          // Ensure monthlyTreasuryConfig exists
+          if (!cloudState.monthlyTreasuryConfig) cloudState.monthlyTreasuryConfig = getDefaultMonthlyTreasuryConfig();
+          if (cloudState.monthlyTreasuryConfig && !cloudState.monthlyTreasuryConfig.cogsPaymentTerms) {
+            cloudState.monthlyTreasuryConfig.cogsPaymentTerms = [{ delayMonths: 0, percentage: 100 }];
+          }
           setState({ ...cloudState, hasUnsavedChanges: false });
           localStorage.setItem(STATE_KEY, JSON.stringify(cloudState));
         }
