@@ -161,7 +161,7 @@ export function ValuationAnalysisPage() {
     if (selectedMethods.includes('ebitda_multiple')) {
       results.push(calculateValuation('ebitda_multiple', {
         projectedEBITDA: metrics.ebitda,
-        multiple: valuationParams.ebitda_multiple.multiple,
+        multiple: dilutionConfig.ebitdaMultiple,
       }));
     }
 
@@ -515,10 +515,10 @@ export function ValuationAnalysisPage() {
             </div>
           </SectionCard>
 
-          {/* Sélection des méthodes */}
+          {/* Sélection des méthodes — uniquement Multiple CA et Multiple EBITDA */}
           <SectionCard title="Sélection des Méthodes">
-            <div className="grid md:grid-cols-3 gap-3">
-              {VALUATION_METHODS.map(method => {
+            <div className="grid md:grid-cols-2 gap-4">
+              {VALUATION_METHODS.filter(m => m.id === 'revenue_multiple' || m.id === 'ebitda_multiple').map(method => {
                 const isSelected = selectedMethods.includes(method.id);
                 const result = valuationResults.find(r => r.method === method.id);
 
@@ -548,6 +548,51 @@ export function ValuationAnalysisPage() {
                   </button>
                 );
               })}
+            </div>
+
+            {/* Curseurs des multiples */}
+            <div className="grid md:grid-cols-2 gap-6 mt-6 p-4 bg-muted/30 rounded-lg">
+              <div className="space-y-3">
+                <div className="flex justify-between items-center">
+                  <Label>Multiple CA</Label>
+                  <span className="font-mono-numbers font-bold">{valuationParams.revenue_multiple.multiple.toFixed(1)}x</span>
+                </div>
+                <Slider
+                  value={[valuationParams.revenue_multiple.multiple]}
+                  onValueChange={([v]) => updateVC({
+                    valuationParams: {
+                      ...valuationParams,
+                      revenue_multiple: { ...valuationParams.revenue_multiple, multiple: v },
+                    }
+                  })}
+                  min={0.5}
+                  max={10}
+                  step={0.5}
+                />
+                {selectedMethods.includes('revenue_multiple') && (
+                  <p className="text-xs text-muted-foreground">
+                    = {formatCurrency(metrics.revenue, true)} × {valuationParams.revenue_multiple.multiple.toFixed(1)} = <span className="font-bold">{formatCurrency(metrics.revenue * valuationParams.revenue_multiple.multiple, true)}</span>
+                  </p>
+                )}
+              </div>
+              <div className="space-y-3">
+                <div className="flex justify-between items-center">
+                  <Label>Multiple EBITDA</Label>
+                  <span className="font-mono-numbers font-bold">{dilutionConfig.ebitdaMultiple.toFixed(1)}x</span>
+                </div>
+                <Slider
+                  value={[dilutionConfig.ebitdaMultiple]}
+                  onValueChange={([v]) => updateVC({ dilutionConfig: { ...dilutionConfig, ebitdaMultiple: v } })}
+                  min={2}
+                  max={15}
+                  step={0.5}
+                />
+                {selectedMethods.includes('ebitda_multiple') && (
+                  <p className="text-xs text-muted-foreground">
+                    = {formatCurrency(metrics.ebitda, true)} × {dilutionConfig.ebitdaMultiple.toFixed(1)} = <span className="font-bold">{formatCurrency(metrics.ebitda * dilutionConfig.ebitdaMultiple, true)}</span>
+                  </p>
+                )}
+              </div>
             </div>
           </SectionCard>
 

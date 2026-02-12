@@ -34,16 +34,6 @@ export function DilutionSimulator({ config, onChange }: DilutionSimulatorProps) 
       <div className="grid md:grid-cols-2 gap-6">
         <div className="space-y-6">
           <div className="space-y-3">
-            <Label>Multiple EBITDA: {config.ebitdaMultiple.toFixed(1)}x</Label>
-            <Slider
-              value={[config.ebitdaMultiple]}
-              onValueChange={([v]) => onChange({ ...config, ebitdaMultiple: v })}
-              min={2}
-              max={15}
-              step={0.5}
-            />
-          </div>
-          <div className="space-y-3">
             <Label>Part OC: {(config.ocRatio * 100).toFixed(0)}% — Equity: {((1 - config.ocRatio) * 100).toFixed(0)}%</Label>
             <Slider
               value={[config.ocRatio * 100]}
