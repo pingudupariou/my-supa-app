@@ -88,18 +88,24 @@ export function PricingPage() {
 
   const activeRule = salesRules.find(r => r.id === activeRuleId) || salesRules[0];
 
-  // Build config object to save
-  const buildConfigData = () => ({
-    pricingMode,
-    distributorCoef,
-    shopCoef,
-    salesRules,
-    activeRuleId,
-    editedPrices,
-    editedOurPrices,
-    editedFinalPrices,
-    editedProductCoefs,
-  });
+  // Build config object to save — only persist numbers for the active option
+  const buildConfigData = () => {
+    const base = {
+      pricingMode,
+      distributorCoef,
+      shopCoef,
+      salesRules,
+      activeRuleId,
+    };
+
+    if (pricingMode === 'from_public') {
+      // Option 1: only save edited public TTC prices
+      return { ...base, editedPrices };
+    } else {
+      // Option 2: only save our prices, final TTC prices & custom coefs
+      return { ...base, editedOurPrices, editedFinalPrices, editedProductCoefs };
+    }
+  };
 
   // Load config from Supabase on mount
   useEffect(() => {
