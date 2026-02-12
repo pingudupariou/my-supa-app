@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -7,9 +7,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { useCostFlowData } from '@/hooks/useCostFlowData';
-import { Settings2, Plus, Trash2, Tag, ChevronDown, ChevronRight, Package } from 'lucide-react';
+import { Settings2, Plus, Trash2, Tag, ChevronDown, ChevronRight, Package, Copy, Check } from 'lucide-react';
+import { toast } from 'sonner';
 
 interface SalesRule {
   id: string;
@@ -21,7 +23,7 @@ interface SalesRule {
 const DEFAULT_TVA = 20;
 
 export function PricingPage() {
-  const { products, productCategories, references, bom, calculateProductCost } = useCostFlowData();
+  const { products, productCategories, references, bom, calculateProductCost, updateProduct } = useCostFlowData();
 
   // Global settings
   const [distributorCoef, setDistributorCoef] = useState(1.3);
@@ -55,6 +57,14 @@ export function PricingPage() {
   const [newRuleName, setNewRuleName] = useState('');
   const [newRuleType, setNewRuleType] = useState<'b2b' | 'oem'>('b2b');
 
+  // Editable prices (local overrides before save)
+  const [editedPrices, setEditedPrices] = useState<Record<string, number>>({});
+
+  // Multi-select
+  const [selectedProducts, setSelectedProducts] = useState<Set<string>>(new Set());
+  const [bulkPrice, setBulkPrice] = useState('');
+  const [bulkDialogOpen, setBulkDialogOpen] = useState(false);
+
   const activeRule = salesRules.find(r => r.id === activeRuleId) || salesRules[0];
 
   // Update global coefficients in active rule
@@ -72,7 +82,6 @@ export function PricingPage() {
   const productsByCategory = useMemo(() => {
     const grouped: Record<string, typeof products> = {};
     const uncategorized: typeof products = [];
-
     for (const prod of products) {
       if (prod.category_id) {
         if (!grouped[prod.category_id]) grouped[prod.category_id] = [];
@@ -93,49 +102,114 @@ export function PricingPage() {
     });
   };
 
-  // Calculate chain pricing for a product
-  const computeChain = (costHT: number) => {
-    if (!activeRule || costHT <= 0) return null;
-
-    const chain: { label: string; buyPrice: number; coef: number; sellPrice: number; margin: number; marginPct: number }[] = [];
-    let currentPrice = costHT; // Our selling price = cost for first intermediary
-
-    // We sell to the first intermediary at costHT (our B2B price)
-    // Each intermediary applies their coefficient
-    for (const inter of activeRule.intermediaries) {
-      const sellPrice = currentPrice * inter.coefficient;
-      const margin = sellPrice - currentPrice;
-      const marginPct = currentPrice > 0 ? (margin / currentPrice) * 100 : 0;
-      chain.push({
-        label: inter.label,
-        buyPrice: currentPrice,
-        coef: inter.coefficient,
-        sellPrice,
-        margin,
-        marginPct,
-      });
-      currentPrice = sellPrice;
-    }
-
-    const prixPublicHT = currentPrice;
-    const prixPublicTTC = prixPublicHT * (1 + tvaRate / 100);
-
-    return { chain, prixPublicHT, prixPublicTTC };
+  // Get the effective price_ttc (edited or from DB)
+  const getEffectivePrice = (prod: typeof products[0]) => {
+    return editedPrices[prod.id] !== undefined ? editedPrices[prod.id] : prod.price_ttc;
   };
 
-  // Add a new rule
+  // Calculate chain pricing for a product - REVERSE: from public TTC price, compute B2B price
+  const computeChainFromPublicTTC = (priceTTC: number) => {
+    if (!activeRule || priceTTC <= 0) return null;
+
+    const prixPublicHT = priceTTC / (1 + tvaRate / 100);
+
+    // Reverse the chain to find our B2B selling price
+    let currentPrice = prixPublicHT;
+    const reverseChain: { label: string; coef: number; sellPrice: number; buyPrice: number }[] = [];
+
+    // Walk backwards through intermediaries
+    const intermediaries = [...activeRule.intermediaries].reverse();
+    for (const inter of intermediaries) {
+      const buyPrice = currentPrice / inter.coefficient;
+      reverseChain.unshift({
+        label: inter.label,
+        coef: inter.coefficient,
+        buyPrice,
+        sellPrice: currentPrice,
+      });
+      currentPrice = buyPrice;
+    }
+
+    const ourB2BPrice = currentPrice; // What we sell at to the first intermediary
+
+    // Now compute forward with margins
+    const chain: { label: string; buyPrice: number; coef: number; sellPrice: number; margin: number; marginPct: number }[] = [];
+    let forwardPrice = ourB2BPrice;
+    for (const inter of activeRule.intermediaries) {
+      const sellPrice = forwardPrice * inter.coefficient;
+      const margin = sellPrice - forwardPrice;
+      const marginPct = forwardPrice > 0 ? (margin / forwardPrice) * 100 : 0;
+      chain.push({ label: inter.label, buyPrice: forwardPrice, coef: inter.coefficient, sellPrice, margin, marginPct });
+      forwardPrice = sellPrice;
+    }
+
+    return { chain, ourB2BPrice, prixPublicHT, prixPublicTTC: priceTTC };
+  };
+
+  // Save a single product price
+  const saveProductPrice = useCallback(async (productId: string, priceTTC: number) => {
+    await updateProduct(productId, { price_ttc: priceTTC });
+    setEditedPrices(prev => {
+      const next = { ...prev };
+      delete next[productId];
+      return next;
+    });
+  }, [updateProduct]);
+
+  // Bulk apply price
+  const applyBulkPrice = async () => {
+    const price = parseFloat(bulkPrice);
+    if (isNaN(price) || price < 0) return;
+
+    const promises = Array.from(selectedProducts).map(id =>
+      updateProduct(id, { price_ttc: price })
+    );
+    await Promise.all(promises);
+    toast.success(`Prix ${price.toFixed(2)} € TTC appliqué à ${selectedProducts.size} produit(s)`);
+    setSelectedProducts(new Set());
+    setBulkPrice('');
+    setBulkDialogOpen(false);
+    setEditedPrices({});
+  };
+
+  // Toggle product selection
+  const toggleSelect = (productId: string) => {
+    setSelectedProducts(prev => {
+      const next = new Set(prev);
+      if (next.has(productId)) next.delete(productId);
+      else next.add(productId);
+      return next;
+    });
+  };
+
+  // Select all in a category
+  const toggleSelectCategory = (catId: string) => {
+    const catProducts = catId === '__uncategorized'
+      ? productsByCategory.uncategorized
+      : (productsByCategory.grouped[catId] || []);
+    const allSelected = catProducts.every(p => selectedProducts.has(p.id));
+
+    setSelectedProducts(prev => {
+      const next = new Set(prev);
+      catProducts.forEach(p => {
+        if (allSelected) next.delete(p.id);
+        else next.add(p.id);
+      });
+      return next;
+    });
+  };
+
+  // Sales rule management
   const addRule = () => {
     if (!newRuleName.trim()) return;
-    const maxIntermediaries = newRuleType === 'oem' ? 1 : 2;
     const intermediaries = newRuleType === 'oem'
       ? [{ label: 'Partenaire OEM', coefficient: 1.4 }]
       : [{ label: 'Distributeur', coefficient: distributorCoef }, { label: 'Shop', coefficient: shopCoef }];
-
     const rule: SalesRule = {
       id: `rule-${Date.now()}`,
       name: newRuleName.trim(),
       type: newRuleType,
-      intermediaries: intermediaries.slice(0, maxIntermediaries),
+      intermediaries,
     };
     setSalesRules(prev => [...prev, rule]);
     setActiveRuleId(rule.id);
@@ -152,11 +226,8 @@ export function PricingPage() {
     setSalesRules(prev => prev.map(rule => {
       if (rule.id !== ruleId) return rule;
       const updated = [...rule.intermediaries];
-      if (field === 'coefficient') {
-        updated[index] = { ...updated[index], coefficient: Number(value) || 1 };
-      } else {
-        updated[index] = { ...updated[index], label: String(value) };
-      }
+      if (field === 'coefficient') updated[index] = { ...updated[index], coefficient: Number(value) || 1 };
+      else updated[index] = { ...updated[index], label: String(value) };
       return { ...rule, intermediaries: updated };
     }));
   };
@@ -182,40 +253,177 @@ export function PricingPage() {
 
   const renderProductRow = (prod: typeof products[0]) => {
     const costPrice = calculateProductCost(prod.id, prod.default_volume || 500);
-    const result = computeChain(costPrice);
+    const effectivePrice = getEffectivePrice(prod);
+    const result = computeChainFromPublicTTC(effectivePrice);
+    const isEdited = editedPrices[prod.id] !== undefined;
+    const isSelected = selectedProducts.has(prod.id);
 
     return (
-      <TableRow key={prod.id}>
+      <TableRow key={prod.id} className={isSelected ? 'bg-primary/5' : ''}>
+        <TableCell className="w-10">
+          <Checkbox
+            checked={isSelected}
+            onCheckedChange={() => toggleSelect(prod.id)}
+          />
+        </TableCell>
         <TableCell className="font-medium">{prod.name}</TableCell>
-        <TableCell className="text-right font-mono">{fmt(costPrice)} €</TableCell>
+        <TableCell className="text-right font-mono text-sm">{costPrice > 0 ? `${fmt(costPrice)} €` : '–'}</TableCell>
+        <TableCell className="text-right font-mono text-sm font-semibold text-primary">
+          {result ? `${fmt(result.ourB2BPrice)} €` : '–'}
+        </TableCell>
         {activeRule?.intermediaries.map((inter, i) => {
           const step = result?.chain[i];
           return (
-            <TableCell key={i} className="text-right font-mono">
+            <TableCell key={i} className="text-right font-mono text-sm">
               {step ? `${fmt(step.sellPrice)} €` : '–'}
             </TableCell>
           );
         })}
-        <TableCell className="text-right font-mono font-semibold">
+        <TableCell className="text-right font-mono text-sm">
           {result ? `${fmt(result.prixPublicHT)} €` : '–'}
         </TableCell>
-        <TableCell className="text-right font-mono font-semibold text-primary">
-          {result ? `${fmt(result.prixPublicTTC)} €` : '–'}
+        <TableCell className="w-36">
+          <div className="flex items-center gap-1">
+            <Input
+              type="number"
+              step="0.01"
+              className="h-8 text-sm font-mono w-24 text-right"
+              value={effectivePrice || ''}
+              onChange={e => {
+                const val = parseFloat(e.target.value);
+                setEditedPrices(prev => ({ ...prev, [prod.id]: isNaN(val) ? 0 : val }));
+              }}
+              placeholder="0.00"
+            />
+            <span className="text-xs text-muted-foreground">€</span>
+          </div>
         </TableCell>
-        <TableCell className="text-right font-mono text-muted-foreground">
-          {result && costPrice > 0 ? `${fmt(((result.prixPublicHT - costPrice) / costPrice) * 100)}%` : '–'}
+        <TableCell className="text-right font-mono text-sm text-muted-foreground">
+          {result && costPrice > 0
+            ? `${fmt(((result.ourB2BPrice - costPrice) / costPrice) * 100)}%`
+            : '–'}
+        </TableCell>
+        <TableCell className="w-10">
+          {isEdited && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7 text-primary"
+              onClick={() => saveProductPrice(prod.id, editedPrices[prod.id])}
+              title="Enregistrer"
+            >
+              <Check className="h-3.5 w-3.5" />
+            </Button>
+          )}
         </TableCell>
       </TableRow>
     );
   };
 
+  const renderCategoryTable = (catProducts: typeof products, catId: string) => {
+    const allSelected = catProducts.length > 0 && catProducts.every(p => selectedProducts.has(p.id));
+    const someSelected = catProducts.some(p => selectedProducts.has(p.id));
+
+    return (
+      <div className="overflow-x-auto">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead className="w-10">
+                <Checkbox
+                  checked={allSelected}
+                  onCheckedChange={() => toggleSelectCategory(catId)}
+                  className={someSelected && !allSelected ? 'opacity-50' : ''}
+                />
+              </TableHead>
+              <TableHead>Produit</TableHead>
+              <TableHead className="text-right">Coût revient</TableHead>
+              <TableHead className="text-right">Notre prix B2B HT</TableHead>
+              {activeRule?.intermediaries.map((inter, i) => (
+                <TableHead key={i} className="text-right">Sortie {inter.label}</TableHead>
+              ))}
+              <TableHead className="text-right">Prix Public HT</TableHead>
+              <TableHead className="text-right">Prix Public TTC</TableHead>
+              <TableHead className="text-right">Notre marge</TableHead>
+              <TableHead className="w-10"></TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {catProducts.map(renderProductRow)}
+          </TableBody>
+        </Table>
+      </div>
+    );
+  };
+
+  const hasEdits = Object.keys(editedPrices).length > 0;
+
+  const saveAllEdits = async () => {
+    const promises = Object.entries(editedPrices).map(([id, price]) =>
+      updateProduct(id, { price_ttc: price })
+    );
+    await Promise.all(promises);
+    toast.success(`${Object.keys(editedPrices).length} prix mis à jour`);
+    setEditedPrices({});
+  };
+
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">Pricing</h1>
-        <p className="text-muted-foreground">
-          Stratégie tarifaire B2B, chaîne de distribution et marges par produit
-        </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Pricing</h1>
+          <p className="text-muted-foreground">
+            Stratégie tarifaire B2B, chaîne de distribution et marges par produit
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          {selectedProducts.size > 0 && (
+            <Dialog open={bulkDialogOpen} onOpenChange={setBulkDialogOpen}>
+              <DialogTrigger asChild>
+                <Button variant="outline" size="sm">
+                  <Copy className="h-4 w-4 mr-1" />
+                  Appliquer un prix ({selectedProducts.size})
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Appliquer un prix à {selectedProducts.size} produit(s)</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4">
+                  <div className="text-sm text-muted-foreground">
+                    Produits sélectionnés :
+                    <ul className="mt-1 list-disc pl-4">
+                      {Array.from(selectedProducts).map(id => {
+                        const p = products.find(pr => pr.id === id);
+                        return p ? <li key={id}>{p.name}</li> : null;
+                      })}
+                    </ul>
+                  </div>
+                  <div>
+                    <Label>Prix Public TTC (€)</Label>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      value={bulkPrice}
+                      onChange={e => setBulkPrice(e.target.value)}
+                      placeholder="Ex: 299.00"
+                      className="font-mono"
+                    />
+                  </div>
+                  <Button onClick={applyBulkPrice} className="w-full">
+                    Appliquer à {selectedProducts.size} produit(s)
+                  </Button>
+                </div>
+              </DialogContent>
+            </Dialog>
+          )}
+          {hasEdits && (
+            <Button size="sm" onClick={saveAllEdits}>
+              <Check className="h-4 w-4 mr-1" />
+              Enregistrer tout ({Object.keys(editedPrices).length})
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Global coefficients & TVA */}
@@ -228,17 +436,9 @@ export function PricingPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <Input
-              type="number"
-              step="0.01"
-              value={distributorCoef}
-              onChange={e => setDistributorCoef(Number(e.target.value) || 1)}
-              onBlur={syncGlobalCoefs}
-              className="font-mono"
-            />
+            <Input type="number" step="0.01" value={distributorCoef} onChange={e => setDistributorCoef(Number(e.target.value) || 1)} onBlur={syncGlobalCoefs} className="font-mono" />
           </CardContent>
         </Card>
-
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-medium flex items-center gap-2">
@@ -247,17 +447,9 @@ export function PricingPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <Input
-              type="number"
-              step="0.01"
-              value={shopCoef}
-              onChange={e => setShopCoef(Number(e.target.value) || 1)}
-              onBlur={syncGlobalCoefs}
-              className="font-mono"
-            />
+            <Input type="number" step="0.01" value={shopCoef} onChange={e => setShopCoef(Number(e.target.value) || 1)} onBlur={syncGlobalCoefs} className="font-mono" />
           </CardContent>
         </Card>
-
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-medium flex items-center gap-2">
@@ -266,21 +458,14 @@ export function PricingPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <Input
-              type="number"
-              step="0.1"
-              value={tvaRate}
-              onChange={e => setTvaRate(Number(e.target.value) || 0)}
-              className="font-mono"
-            />
+            <Input type="number" step="0.1" value={tvaRate} onChange={e => setTvaRate(Number(e.target.value) || 0)} className="font-mono" />
           </CardContent>
         </Card>
-
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-medium">Chaîne active</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-2">
+          <CardContent>
             <div className="text-xs text-muted-foreground">
               Nous → {activeRule?.intermediaries.map(i => i.label).join(' → ')} → Client final
             </div>
@@ -376,21 +561,11 @@ export function PricingPage() {
                   <div key={i} className="flex items-end gap-3">
                     <div className="flex-1">
                       <Label className="text-xs">Nom intermédiaire {i + 1}</Label>
-                      <Input
-                        value={inter.label}
-                        onChange={e => updateIntermediary(activeRule.id, i, 'label', e.target.value)}
-                        className="h-8 text-sm"
-                      />
+                      <Input value={inter.label} onChange={e => updateIntermediary(activeRule.id, i, 'label', e.target.value)} className="h-8 text-sm" />
                     </div>
                     <div className="w-28">
                       <Label className="text-xs">Coefficient</Label>
-                      <Input
-                        type="number"
-                        step="0.01"
-                        value={inter.coefficient}
-                        onChange={e => updateIntermediary(activeRule.id, i, 'coefficient', e.target.value)}
-                        className="h-8 text-sm font-mono"
-                      />
+                      <Input type="number" step="0.01" value={inter.coefficient} onChange={e => updateIntermediary(activeRule.id, i, 'coefficient', e.target.value)} className="h-8 text-sm font-mono" />
                     </div>
                     {activeRule.intermediaries.length > 1 && (
                       <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => removeIntermediary(activeRule.id, i)}>
@@ -399,7 +574,6 @@ export function PricingPage() {
                     )}
                   </div>
                 ))}
-
                 {activeRule.intermediaries.length < (activeRule.type === 'oem' ? 1 : 2) && (
                   <Button variant="outline" size="sm" onClick={() => addIntermediary(activeRule.id)}>
                     <Plus className="h-3.5 w-3.5 mr-1" />
@@ -415,13 +589,22 @@ export function PricingPage() {
       {/* Pricing table by category */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-lg flex items-center gap-2">
-            <Package className="h-5 w-5" />
-            Détail des prix par catégorie
-          </CardTitle>
-          <CardDescription>
-            Prix de revient → prix de vente B2B (1er maillon) → prix public HT/TTC via la chaîne "{activeRule?.name}"
-          </CardDescription>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Package className="h-5 w-5" />
+                Détail des prix par catégorie
+              </CardTitle>
+              <CardDescription>
+                Fixez le prix public TTC → le prix B2B (1er maillon) est calculé automatiquement via la chaîne "{activeRule?.name}"
+              </CardDescription>
+            </div>
+            {selectedProducts.size > 0 && (
+              <div className="text-sm text-muted-foreground">
+                {selectedProducts.size} produit(s) sélectionné(s)
+              </div>
+            )}
+          </div>
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
@@ -437,42 +620,15 @@ export function PricingPage() {
                     onClick={() => toggleCategory(cat.id)}
                   >
                     {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-                    <div
-                      className="h-3 w-3 rounded-full"
-                      style={{ backgroundColor: cat.color }}
-                    />
+                    <div className="h-3 w-3 rounded-full" style={{ backgroundColor: cat.color }} />
                     <span className="font-semibold">{cat.name}</span>
                     <Badge variant="secondary" className="ml-auto">{catProducts.length} produit{catProducts.length > 1 ? 's' : ''}</Badge>
                   </button>
-
-                  {isExpanded && (
-                    <div className="overflow-x-auto">
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead>Produit</TableHead>
-                            <TableHead className="text-right">Coût revient HT</TableHead>
-                            {activeRule?.intermediaries.map((inter, i) => (
-                              <TableHead key={i} className="text-right">
-                                Sortie {inter.label}
-                              </TableHead>
-                            ))}
-                            <TableHead className="text-right">Prix Public HT</TableHead>
-                            <TableHead className="text-right">Prix Public TTC</TableHead>
-                            <TableHead className="text-right">Marge totale</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {catProducts.map(renderProductRow)}
-                        </TableBody>
-                      </Table>
-                    </div>
-                  )}
+                  {isExpanded && renderCategoryTable(catProducts, cat.id)}
                 </div>
               );
             })}
 
-            {/* Uncategorized products */}
             {productsByCategory.uncategorized.length > 0 && (
               <div className="border rounded-lg overflow-hidden">
                 <button
@@ -481,32 +637,9 @@ export function PricingPage() {
                 >
                   {expandedCategories.has('__uncategorized') ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
                   <span className="font-semibold text-muted-foreground">Sans catégorie</span>
-                  <Badge variant="secondary" className="ml-auto">{productsByCategory.uncategorized.length} produit{productsByCategory.uncategorized.length > 1 ? 's' : ''}</Badge>
+                  <Badge variant="secondary" className="ml-auto">{productsByCategory.uncategorized.length}</Badge>
                 </button>
-
-                {expandedCategories.has('__uncategorized') && (
-                  <div className="overflow-x-auto">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Produit</TableHead>
-                          <TableHead className="text-right">Coût revient HT</TableHead>
-                          {activeRule?.intermediaries.map((inter, i) => (
-                            <TableHead key={i} className="text-right">
-                              Sortie {inter.label}
-                            </TableHead>
-                          ))}
-                          <TableHead className="text-right">Prix Public HT</TableHead>
-                          <TableHead className="text-right">Prix Public TTC</TableHead>
-                          <TableHead className="text-right">Marge totale</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {productsByCategory.uncategorized.map(renderProductRow)}
-                      </TableBody>
-                    </Table>
-                  </div>
-                )}
+                {expandedCategories.has('__uncategorized') && renderCategoryTable(productsByCategory.uncategorized, '__uncategorized')}
               </div>
             )}
 

@@ -114,7 +114,8 @@ export function ProductManager({ products, references, categories, onCreateProdu
               </div>
               <div>
                 <Label>Prix TTC public (€)</Label>
-                <Input type="number" step="0.01" className="font-mono-numbers" value={form.price_ttc} onChange={e => setForm({ ...form, price_ttc: parseFloat(e.target.value) || 0 })} />
+                <Input type="number" step="0.01" className="font-mono-numbers bg-muted" value={form.price_ttc} readOnly disabled title="Géré depuis l'onglet Pricing" />
+                <p className="text-xs text-muted-foreground mt-1">Géré depuis l'onglet Pricing</p>
               </div>
               <div className="col-span-2">
                 <Label>Commentaires</Label>
