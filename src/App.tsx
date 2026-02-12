@@ -23,6 +23,7 @@ import { CostFlowPage } from "@/pages/CostFlowPage";
 import { TimeTrackingPage } from "@/pages/TimeTrackingPage";
 import { SnapshotsPage } from "@/pages/SnapshotsPage";
 import { PricingPage } from "@/pages/PricingPage";
+import { PlanningDevPage } from "@/pages/PlanningDevPage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -133,6 +134,14 @@ const App = () => (
                     <CostFlowPage />
                   </DashboardLayout>
               </ProtectedRoute>
+              } />
+              
+              <Route path="/planning-dev" element={
+                <ProtectedRoute tabKey="costflow">
+                  <DashboardLayout>
+                    <PlanningDevPage />
+                  </DashboardLayout>
+                </ProtectedRoute>
               } />
               
               <Route path="/timetracking" element={
