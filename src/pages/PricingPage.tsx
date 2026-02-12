@@ -409,7 +409,7 @@ export function PricingPage() {
   const removeIntermediary = (ruleId: string, index: number) => {
     setSalesRules(prev => prev.map(rule => {
       if (rule.id !== ruleId) return rule;
-      if (rule.intermediaries.length <= 1) return rule;
+      if (rule.intermediaries.length <= 0) return rule;
       return { ...rule, intermediaries: rule.intermediaries.filter((_, i) => i !== index) };
     }));
   };
