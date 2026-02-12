@@ -17,6 +17,7 @@ interface SalesRule {
   id: string;
   name: string;
   type: 'b2b' | 'oem';
+  tvaRate: number;
   intermediaries: { label: string; coefficient: number }[];
 }
 
@@ -28,7 +29,6 @@ export function PricingPage() {
   // Global settings
   const [distributorCoef, setDistributorCoef] = useState(1.3);
   const [shopCoef, setShopCoef] = useState(1.8);
-  const [tvaRate, setTvaRate] = useState(DEFAULT_TVA);
 
   // Sales rules
   const [salesRules, setSalesRules] = useState<SalesRule[]>([
@@ -36,6 +36,7 @@ export function PricingPage() {
       id: 'default-b2b',
       name: 'B2B Standard',
       type: 'b2b',
+      tvaRate: 20,
       intermediaries: [
         { label: 'Distributeur', coefficient: 1.3 },
         { label: 'Shop', coefficient: 1.8 },
@@ -45,6 +46,7 @@ export function PricingPage() {
       id: 'default-oem',
       name: 'OEM',
       type: 'oem',
+      tvaRate: 0,
       intermediaries: [
         { label: 'Partenaire OEM', coefficient: 1.4 },
       ],
@@ -111,6 +113,7 @@ export function PricingPage() {
   const computeChainFromPublicTTC = (priceTTC: number) => {
     if (!activeRule || priceTTC <= 0) return null;
 
+    const tvaRate = activeRule?.tvaRate ?? DEFAULT_TVA;
     const prixPublicHT = priceTTC / (1 + tvaRate / 100);
 
     // Reverse the chain to find our B2B selling price
@@ -209,6 +212,7 @@ export function PricingPage() {
       id: `rule-${Date.now()}`,
       name: newRuleName.trim(),
       type: newRuleType,
+      tvaRate: 20,
       intermediaries,
     };
     setSalesRules(prev => [...prev, rule]);
@@ -454,11 +458,12 @@ export function PricingPage() {
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-medium flex items-center gap-2">
               <Tag className="h-4 w-4" />
-              TVA (%)
+              TVA
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <Input type="number" step="0.1" value={tvaRate} onChange={e => setTvaRate(Number(e.target.value) || 0)} className="font-mono" />
+            <div className="text-lg font-mono font-semibold">{activeRule?.tvaRate ?? 20} %</div>
+            <p className="text-xs text-muted-foreground mt-1">Défini dans la règle active</p>
           </CardContent>
         </Card>
         <Card>
@@ -555,6 +560,26 @@ export function PricingPage() {
               </div>
 
               <Separator />
+
+              <div className="flex items-end gap-3 mb-2">
+                <div className="w-40">
+                  <Label className="text-xs">Taux de TVA</Label>
+                  <Select
+                    value={String(activeRule.tvaRate)}
+                    onValueChange={v => setSalesRules(prev => prev.map(r =>
+                      r.id === activeRule.id ? { ...r, tvaRate: Number(v) } : r
+                    ))}
+                  >
+                    <SelectTrigger className="h-8 text-sm font-mono">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="20">20 %</SelectItem>
+                      <SelectItem value="0">0 % (exonéré)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
 
               <div className="space-y-3">
                 {activeRule.intermediaries.map((inter, i) => (
