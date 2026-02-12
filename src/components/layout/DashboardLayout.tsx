@@ -4,7 +4,7 @@ import { useAuth } from '@/context/AuthContext';
 import { NovarideLogo } from '@/components/ui/NovarideLogo';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import { Home, Package, Users, Receipt, LineChart, Banknote, BarChart3, TrendingUp, FileText, Shield, LogOut, Menu, X, MessageSquare, Cog, Clock, Database, Tag, CalendarRange } from 'lucide-react';
+import { Home, Package, Users, Receipt, LineChart, Banknote, BarChart3, TrendingUp, FileText, Shield, LogOut, Menu, X, MessageSquare, Cog, Clock, Database, Tag, CalendarRange, LayoutDashboard } from 'lucide-react';
 
 interface NavItem {
   to: string;
@@ -44,6 +44,7 @@ const navGroups: NavGroup[] = [
   },
   {
     items: [
+      { to: '/tableau-de-bord', label: 'Tableau de bord', icon: LayoutDashboard, tabKey: 'costflow' },
       { to: '/crm', label: 'CRM', icon: MessageSquare, tabKey: 'crm' },
       { to: '/pricing', label: 'Pricing', icon: Tag, tabKey: 'pricing' },
       { to: '/costflow', label: 'Production et BE', icon: Cog, tabKey: 'costflow' },
