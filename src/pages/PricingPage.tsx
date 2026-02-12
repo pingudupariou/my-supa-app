@@ -11,10 +11,11 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { useCostFlowData } from '@/hooks/useCostFlowData';
-import { Settings2, Plus, Trash2, Tag, ChevronDown, ChevronRight, Package, Copy, Check, ArrowDown, ArrowUp } from 'lucide-react';
+import { Settings2, Plus, Trash2, Tag, ChevronDown, ChevronRight, Package, Copy, Check, ArrowDown, ArrowUp, ArrowUpDown } from 'lucide-react';
 import { toast } from 'sonner';
 
 type PricingMode = 'from_public' | 'from_our_price';
+type MarginSort = 'none' | 'asc' | 'desc';
 
 interface SalesRule {
   id: string;
@@ -72,6 +73,9 @@ export function PricingPage() {
   const [editedFinalPrices, setEditedFinalPrices] = useState<Record<string, number>>({});
   // Option 2: per-product intermediary coef overrides (linked)
   const [editedProductCoefs, setEditedProductCoefs] = useState<Record<string, number[]>>({});
+
+  // Margin sort
+  const [marginSort, setMarginSort] = useState<MarginSort>('none');
 
   // Multi-select
   const [selectedProducts, setSelectedProducts] = useState<Set<string>>(new Set());
@@ -329,6 +333,30 @@ export function PricingPage() {
 
   const fmt = (n: number) => n.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
+  // Compute margin % for a product (used for sorting and display)
+  const getProductMarginPct = (prod: typeof products[0]): number | null => {
+    const costPrice = calculateProductCost(prod.id, prod.default_volume || 500);
+    if (costPrice <= 0) return null;
+
+    if (pricingMode === 'from_public') {
+      const effectivePrice = getEffectivePrice(prod);
+      const result = computeChainFromPublicTTC(effectivePrice);
+      if (!result) return null;
+      return ((result.ourB2BPrice - costPrice) / costPrice) * 100;
+    } else {
+      const effectiveTTC = getEffectivePrice(prod);
+      const reverseResult = computeChainFromPublicTTC(effectiveTTC);
+      const currentOurPrice = editedOurPrices[prod.id] !== undefined
+        ? editedOurPrices[prod.id]
+        : (reverseResult?.ourB2BPrice || 0);
+      if (currentOurPrice <= 0) return null;
+      return ((currentOurPrice - costPrice) / costPrice) * 100;
+    }
+  };
+
+  const marginColorClass = (marginPct: number) =>
+    marginPct < 0 ? 'text-red-500 font-semibold' : 'text-muted-foreground';
+
   const renderProductRow = (prod: typeof products[0]) => {
     const costPrice = calculateProductCost(prod.id, prod.default_volume || 500);
     const isSelected = selectedProducts.has(prod.id);
@@ -379,7 +407,11 @@ export function PricingPage() {
               <span className="text-xs text-muted-foreground">€</span>
             </div>
           </TableCell>
-          <TableCell className="text-right font-mono text-sm text-muted-foreground">
+          <TableCell className={`text-right font-mono text-sm ${(() => {
+            if (!result || costPrice <= 0) return 'text-muted-foreground';
+            const m = ((result.ourB2BPrice - costPrice) / costPrice) * 100;
+            return marginColorClass(m);
+          })()}`}>
             {result && costPrice > 0
               ? `${fmt(((result.ourB2BPrice - costPrice) / costPrice) * 100)}%`
               : '–'}
@@ -491,7 +523,11 @@ export function PricingPage() {
             {result ? `×${result.totalCoef.toFixed(2)}` : '–'}
           </TableCell>
           {/* Notre marge */}
-          <TableCell className="text-right font-mono text-sm text-muted-foreground">
+          <TableCell className={`text-right font-mono text-sm ${(() => {
+            if (!result || costPrice <= 0) return 'text-muted-foreground';
+            const m = ((currentOurPrice - costPrice) / costPrice) * 100;
+            return marginColorClass(m);
+          })()}`}>
             {result && costPrice > 0
               ? `${fmt(((currentOurPrice - costPrice) / costPrice) * 100)}%`
               : '–'}
@@ -508,9 +544,23 @@ export function PricingPage() {
     }
   };
 
+  const toggleMarginSort = () => {
+    setMarginSort(prev => prev === 'none' ? 'asc' : prev === 'asc' ? 'desc' : 'none');
+  };
+
+  const sortByMargin = (prods: typeof products) => {
+    if (marginSort === 'none') return prods;
+    return [...prods].sort((a, b) => {
+      const ma = getProductMarginPct(a) ?? -Infinity;
+      const mb = getProductMarginPct(b) ?? -Infinity;
+      return marginSort === 'asc' ? ma - mb : mb - ma;
+    });
+  };
+
   const renderCategoryTable = (catProducts: typeof products, catId: string) => {
     const allSelected = catProducts.length > 0 && catProducts.every(p => selectedProducts.has(p.id));
     const someSelected = catProducts.some(p => selectedProducts.has(p.id));
+    const sortedProducts = sortByMargin(catProducts);
 
     return (
       <div className="overflow-x-auto">
@@ -561,12 +611,22 @@ export function PricingPage() {
                   <TableHead className="text-right">Coef total</TableHead>
                 </>
               )}
-              <TableHead className="text-right">Notre marge</TableHead>
+              <TableHead className="text-right">
+                <button
+                  className="inline-flex items-center gap-1 hover:text-primary transition-colors cursor-pointer"
+                  onClick={toggleMarginSort}
+                >
+                  Notre marge
+                  {marginSort === 'none' && <ArrowUpDown className="h-3 w-3 opacity-40" />}
+                  {marginSort === 'asc' && <ArrowUp className="h-3 w-3 text-primary" />}
+                  {marginSort === 'desc' && <ArrowDown className="h-3 w-3 text-primary" />}
+                </button>
+              </TableHead>
               <TableHead className="w-10"></TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {catProducts.map(renderProductRow)}
+            {sortedProducts.map(renderProductRow)}
           </TableBody>
         </Table>
       </div>
