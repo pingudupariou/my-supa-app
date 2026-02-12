@@ -5,6 +5,8 @@ import { NovarideLogo } from '@/components/ui/NovarideLogo';
 import { useCostFlowData } from '@/hooks/useCostFlowData';
 import { usePlanningData } from '@/hooks/usePlanningData';
 import { useCRMData } from '@/hooks/useCRMData';
+import { usePricingConfig } from '@/hooks/usePricingConfig';
+import { MarginChart } from '@/components/pricing/MarginChart';
 import { Package, Layers, Factory, Users, CalendarRange, TrendingUp, Cog } from 'lucide-react';
 import heroImg from '@/assets/banner-nrc-udh.jpg';
 import visionImg from '@/assets/savoir-faire.jpg';
@@ -16,9 +18,10 @@ import actionImg from '@/assets/novaride-action.jpg';
 const ALL_MONTHS = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Jun', 'Jul', 'Aoû', 'Sep', 'Oct', 'Nov', 'Déc'];
 
 export function TableauDeBordPage() {
-  const { products, references, productCategories, suppliers, bom } = useCostFlowData();
+  const { products, references, productCategories, suppliers, bom, calculateProductCost } = useCostFlowData();
   const { rows, blocks, colors } = usePlanningData();
   const { customers, orders } = useCRMData();
+  const { salesRules, pricingMode, editedOurPrices, getEffectivePrice, computeChainFromPublicTTC, loaded: pricingLoaded } = usePricingConfig();
 
   // KPIs
   const totalProducts = products.length;
@@ -218,6 +221,20 @@ export function TableauDeBordPage() {
           </Card>
         </div>
       </div>
+
+      {/* Margin Chart */}
+      {pricingLoaded && salesRules.length > 0 && products.length > 0 && (
+        <MarginChart
+          products={products}
+          productCategories={productCategories}
+          salesRules={salesRules}
+          calculateProductCost={calculateProductCost}
+          computeChainFromPublicTTC={computeChainFromPublicTTC}
+          getEffectivePrice={getEffectivePrice}
+          editedOurPrices={editedOurPrices}
+          pricingMode={pricingMode}
+        />
+      )}
 
       {/* Bottom visual strip */}
       <div className="grid grid-cols-4 gap-4 h-32 rounded-xl overflow-hidden">
