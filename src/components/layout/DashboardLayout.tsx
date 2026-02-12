@@ -21,13 +21,13 @@ interface NavGroup {
 const navGroups: NavGroup[] = [
   {
     items: [
-      { to: '/home', label: 'Accueil', icon: Home, tabKey: 'home' },
+      { to: '/', label: 'Tableau de bord', icon: LayoutDashboard, tabKey: 'costflow' },
     ],
   },
   {
     label: 'Prévisionnel',
     items: [
-      { to: '/', label: 'Plan Produit', icon: Package, tabKey: 'product-plan' },
+      { to: '/product', label: 'Plan Produit', icon: Package, tabKey: 'product-plan' },
       { to: '/organisation', label: 'Organisation', icon: Users, tabKey: 'organisation' },
       { to: '/charges', label: 'Charges', icon: Receipt, tabKey: 'charges' },
       { to: '/scenarios', label: 'Scénarios', icon: BarChart3, tabKey: 'scenarios' },
@@ -44,7 +44,6 @@ const navGroups: NavGroup[] = [
   },
   {
     items: [
-      { to: '/tableau-de-bord', label: 'Tableau de bord', icon: LayoutDashboard, tabKey: 'costflow' },
       { to: '/crm', label: 'CRM', icon: MessageSquare, tabKey: 'crm' },
       { to: '/pricing', label: 'Pricing', icon: Tag, tabKey: 'pricing' },
       { to: '/costflow', label: 'Production et BE', icon: Cog, tabKey: 'costflow' },
@@ -98,7 +97,7 @@ export function DashboardLayout({
               )}
               {group.items.map(item => {
                 const Icon = item.icon;
-                return <NavLink key={item.to} to={item.to} end={item.to === '/'} onClick={() => setSidebarOpen(false)} className={({
+                return <NavLink key={item.to} to={item.to} end onClick={() => setSidebarOpen(false)} className={({
                   isActive
                 }) => cn('flex items-center gap-3 px-4 py-2.5 text-sm transition-colors', isActive ? 'bg-sidebar-accent text-sidebar-accent-foreground' : 'text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent/10')}>
                     <Icon className="h-4 w-4" />

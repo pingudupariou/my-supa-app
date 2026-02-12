@@ -7,7 +7,6 @@ import { FinancialProvider } from "@/context/FinancialContext";
 import { AuthProvider } from "@/context/AuthContext";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
-import { HomePage } from "@/pages/HomePage";
 import { ProductPlanPage } from "@/pages/ProductPlanPage";
 import { OrganisationPage } from "@/pages/OrganisationPage";
 import { ChargesPage } from "@/pages/ChargesPage";
@@ -41,15 +40,16 @@ const App = () => (
               {/* Auth route - public */}
               <Route path="/auth" element={<AuthPage />} />
               
-              {/* Home page - special layout */}
-              <Route path="/home" element={
-                <ProtectedRoute tabKey="home">
-                  <HomePage />
+              {/* Dashboard - default landing */}
+              <Route path="/" element={
+                <ProtectedRoute tabKey="costflow">
+                  <DashboardLayout>
+                    <TableauDeBordPage />
+                  </DashboardLayout>
                 </ProtectedRoute>
               } />
               
-              {/* Dashboard routes - protected */}
-              <Route path="/" element={
+              <Route path="/product" element={
                 <ProtectedRoute tabKey="product-plan">
                   <DashboardLayout>
                     <ProductPlanPage />
@@ -129,13 +129,9 @@ const App = () => (
                 </ProtectedRoute>
               } />
               
-              <Route path="/tableau-de-bord" element={
-                <ProtectedRoute tabKey="costflow">
-                  <DashboardLayout>
-                    <TableauDeBordPage />
-                  </DashboardLayout>
-                </ProtectedRoute>
-              } />
+              {/* Redirect old routes */}
+              <Route path="/home" element={<Navigate to="/" replace />} />
+              <Route path="/tableau-de-bord" element={<Navigate to="/" replace />} />
               
               <Route path="/costflow" element={
                 <ProtectedRoute tabKey="costflow">
