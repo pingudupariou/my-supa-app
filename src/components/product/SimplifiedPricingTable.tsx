@@ -41,11 +41,13 @@ export function SimplifiedPricingTable({ products, onUpdateProduct, onAddProduct
           <TableHeader>
             <TableRow>
               <TableHead>Produit</TableHead>
+              <TableHead className="text-center">Lancement</TableHead>
               <TableHead className="text-right">Prix TTC B2C</TableHead>
               <TableHead className="text-right">Prix HT</TableHead>
               <TableHead className="text-right">Coût Unitaire</TableHead>
               <TableHead className="text-right">Marge</TableHead>
-              <TableHead className="text-right">Dev Cost</TableHead>
+              <TableHead className="text-right">CAPEX R&D</TableHead>
+              <TableHead className="text-center">Amort. (ans)</TableHead>
               <TableHead></TableHead>
             </TableRow>
           </TableHeader>
@@ -57,6 +59,14 @@ export function SimplifiedPricingTable({ products, onUpdateProduct, onAddProduct
                     value={product.name}
                     onChange={e => onUpdateProduct({ ...product, name: e.target.value })}
                     className="h-8 w-40"
+                  />
+                </TableCell>
+                <TableCell className="text-center">
+                  <Input
+                    type="number"
+                    value={product.launchYear}
+                    onChange={e => onUpdateProduct({ ...product, launchYear: Number(e.target.value) })}
+                    className="h-8 w-20 text-center mx-auto"
                   />
                 </TableCell>
                 <TableCell className="text-right font-mono-numbers">
@@ -71,11 +81,34 @@ export function SimplifiedPricingTable({ products, onUpdateProduct, onAddProduct
                   />
                 </TableCell>
                 <TableCell className="text-right font-mono-numbers">{formatCurrency(product.priceHT)}</TableCell>
-                <TableCell className="text-right font-mono-numbers">{formatCurrency(product.unitCost)}</TableCell>
                 <TableCell className="text-right font-mono-numbers">
-                  {((1 - product.unitCost / product.priceHT) * 100).toFixed(0)}%
+                  <Input
+                    type="number"
+                    value={product.unitCost}
+                    onChange={e => onUpdateProduct({ ...product, unitCost: Number(e.target.value) })}
+                    className="h-8 w-24 text-right"
+                  />
                 </TableCell>
-                <TableCell className="text-right font-mono-numbers">{formatCurrency(product.devCost, true)}</TableCell>
+                <TableCell className="text-right font-mono-numbers">
+                  {product.priceHT > 0 ? ((1 - product.unitCost / product.priceHT) * 100).toFixed(0) : 0}%
+                </TableCell>
+                <TableCell className="text-right font-mono-numbers">
+                  <Input
+                    type="number"
+                    value={product.devCost}
+                    onChange={e => onUpdateProduct({ ...product, devCost: Number(e.target.value) })}
+                    className="h-8 w-28 text-right"
+                  />
+                </TableCell>
+                <TableCell className="text-center">
+                  <Input
+                    type="number"
+                    value={product.devAmortizationYears || 5}
+                    min={1}
+                    onChange={e => onUpdateProduct({ ...product, devAmortizationYears: Number(e.target.value) })}
+                    className="h-8 w-16 text-center mx-auto"
+                  />
+                </TableCell>
                 <TableCell>
                   <Button size="sm" variant="ghost" className="text-destructive" onClick={() => onRemoveProduct(product.id)}>
                     <Trash2 className="h-4 w-4" />
