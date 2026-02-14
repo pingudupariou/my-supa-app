@@ -25,6 +25,8 @@ export function SimplifiedPricingTable({ products, onUpdateProduct, onAddProduct
       unitCost: 200,
       priceHT: 500,
       priceTTC_B2C: 600,
+      priceHT_B2B: 300,
+      priceHT_OEM: 220,
       vatRate: 0.20,
       coef_shop: 1.8,
       coef_dist: 1.4,
@@ -43,9 +45,11 @@ export function SimplifiedPricingTable({ products, onUpdateProduct, onAddProduct
               <TableHead>Produit</TableHead>
               <TableHead className="text-center">Lancement</TableHead>
               <TableHead className="text-right">Prix TTC B2C</TableHead>
-              <TableHead className="text-right">Prix HT</TableHead>
+              <TableHead className="text-right">Prix HT B2C</TableHead>
+              <TableHead className="text-right">Prix HT B2B</TableHead>
+              <TableHead className="text-right">Prix HT OEM</TableHead>
               <TableHead className="text-right">Coût Unitaire</TableHead>
-              <TableHead className="text-right">Marge</TableHead>
+              <TableHead className="text-right">Marge B2C</TableHead>
               <TableHead className="text-right">CAPEX R&D</TableHead>
               <TableHead className="text-center">Amort. (ans)</TableHead>
               <TableHead></TableHead>
@@ -81,6 +85,22 @@ export function SimplifiedPricingTable({ products, onUpdateProduct, onAddProduct
                   />
                 </TableCell>
                 <TableCell className="text-right font-mono-numbers">{formatCurrency(product.priceHT)}</TableCell>
+                <TableCell className="text-right font-mono-numbers">
+                  <Input
+                    type="number"
+                    value={product.priceHT_B2B}
+                    onChange={e => onUpdateProduct({ ...product, priceHT_B2B: Number(e.target.value) })}
+                    className="h-8 w-24 text-right"
+                  />
+                </TableCell>
+                <TableCell className="text-right font-mono-numbers">
+                  <Input
+                    type="number"
+                    value={product.priceHT_OEM}
+                    onChange={e => onUpdateProduct({ ...product, priceHT_OEM: Number(e.target.value) })}
+                    className="h-8 w-24 text-right"
+                  />
+                </TableCell>
                 <TableCell className="text-right font-mono-numbers">
                   <Input
                     type="number"

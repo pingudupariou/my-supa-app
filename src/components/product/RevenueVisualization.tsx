@@ -12,8 +12,15 @@ export function RevenueVisualization({ products, years }: RevenueVisualizationPr
   const data = years.map(year => {
     const entry: Record<string, any> = { year };
     products.forEach(p => {
-      const vol = p.volumesByYear[year] || 0;
-      entry[p.name] = (vol * p.priceHT) / 1000;
+      if (p.volumesByChannel) {
+        const volB2C = p.volumesByChannel.B2C[year] || 0;
+        const volB2B = p.volumesByChannel.B2B[year] || 0;
+        const volOEM = p.volumesByChannel.OEM[year] || 0;
+        entry[p.name] = (volB2C * p.priceHT + volB2B * (p.priceHT_B2B || p.priceHT) + volOEM * (p.priceHT_OEM || p.priceHT)) / 1000;
+      } else {
+        const vol = p.volumesByYear[year] || 0;
+        entry[p.name] = (vol * p.priceHT) / 1000;
+      }
     });
     return entry;
   });

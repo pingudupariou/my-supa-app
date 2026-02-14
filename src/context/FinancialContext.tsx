@@ -314,9 +314,19 @@ export function FinancialProvider({ children }: { children: ReactNode }) {
       }
       let revenue = 0, cogs = 0;
       products.forEach(p => {
-        const vol = Math.round((p.volumesByYear[year] || 0) * (1 + config.volumeAdjustment));
-        revenue += vol * p.priceHT * (1 + config.priceAdjustment);
-        cogs += vol * p.unitCost;
+        if (p.volumesByChannel) {
+          const volB2C = Math.round((p.volumesByChannel.B2C[year] || 0) * (1 + config.volumeAdjustment));
+          const volB2B = Math.round((p.volumesByChannel.B2B[year] || 0) * (1 + config.volumeAdjustment));
+          const volOEM = Math.round((p.volumesByChannel.OEM[year] || 0) * (1 + config.volumeAdjustment));
+          revenue += volB2C * p.priceHT * (1 + config.priceAdjustment)
+                   + volB2B * (p.priceHT_B2B || p.priceHT) * (1 + config.priceAdjustment)
+                   + volOEM * (p.priceHT_OEM || p.priceHT) * (1 + config.priceAdjustment);
+          cogs += (volB2C + volB2B + volOEM) * p.unitCost;
+        } else {
+          const vol = Math.round((p.volumesByYear[year] || 0) * (1 + config.volumeAdjustment));
+          revenue += vol * p.priceHT * (1 + config.priceAdjustment);
+          cogs += vol * p.unitCost;
+        }
       });
       return { year, revenue, cogs };
     });
