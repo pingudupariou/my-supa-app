@@ -49,7 +49,9 @@ export function SimplifiedPricingTable({ products, onUpdateProduct, onAddProduct
               <TableHead className="text-right">Prix HT B2B</TableHead>
               <TableHead className="text-right">Prix HT OEM</TableHead>
               <TableHead className="text-right">Coût Unitaire</TableHead>
-              <TableHead className="text-right">Marge B2C</TableHead>
+              <TableHead className="text-right">Marque B2C</TableHead>
+              <TableHead className="text-right">Marque B2B</TableHead>
+              <TableHead className="text-right">Marque OEM</TableHead>
               <TableHead className="text-right">CAPEX R&D</TableHead>
               <TableHead className="text-center">Amort. (ans)</TableHead>
               <TableHead></TableHead>
@@ -110,7 +112,13 @@ export function SimplifiedPricingTable({ products, onUpdateProduct, onAddProduct
                   />
                 </TableCell>
                 <TableCell className="text-right font-mono-numbers">
-                  {product.priceHT > 0 ? ((1 - product.unitCost / product.priceHT) * 100).toFixed(0) : 0}%
+                  {product.priceHT > 0 ? ((1 - product.unitCost / product.priceHT) * 100).toFixed(1) : 0}%
+                </TableCell>
+                <TableCell className="text-right font-mono-numbers">
+                  {product.priceHT_B2B > 0 ? ((1 - product.unitCost / product.priceHT_B2B) * 100).toFixed(1) : 0}%
+                </TableCell>
+                <TableCell className="text-right font-mono-numbers">
+                  {product.priceHT_OEM > 0 ? ((1 - product.unitCost / product.priceHT_OEM) * 100).toFixed(1) : 0}%
                 </TableCell>
                 <TableCell className="text-right font-mono-numbers">
                   <Input
