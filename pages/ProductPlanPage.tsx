@@ -259,29 +259,59 @@ export function ProductPlanPage() {
         {/* Volumes by Year */}
         <TabsContent value="volumes">
           <div id="product-volumes">
-            <SectionCard title="Volumes par Année">
+            <SectionCard title="Volumes par Canal et par Année">
               <p className="text-sm text-muted-foreground mb-4">
-                Saisissez les volumes de vente prévisionnels par produit et par année.
+                Saisissez les volumes de vente prévisionnels par produit, par canal (B2C, B2B, OEM) et par année. Le CA est calculé comme la somme des (prix canal × volume canal).
               </p>
               <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>
                       <TableHead>Produit</TableHead>
-                      <TableHead className="text-right">Coût Unit.</TableHead>
                       {YEARS.map(year => (
-                        <TableHead key={year} className="text-center">{year}</TableHead>
+                        <TableHead key={year} className="text-center" colSpan={3}>
+                          {year}
+                        </TableHead>
                       ))}
                       <TableHead className="text-right">CA Total</TableHead>
+                    </TableRow>
+                    <TableRow>
+                      <TableHead></TableHead>
+                      {YEARS.map(year => (
+                        <>
+                          <TableHead key={`${year}-b2c`} className="text-center text-xs">B2C</TableHead>
+                          <TableHead key={`${year}-b2b`} className="text-center text-xs">B2B</TableHead>
+                          <TableHead key={`${year}-oem`} className="text-center text-xs">OEM</TableHead>
+                        </>
+                      ))}
+                      <TableHead></TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {state.products.map((product) => {
+                      const channels = product.volumesByChannel || { B2C: {}, B2B: {}, OEM: {} };
                       const totalRevenue = YEARS.reduce((sum, year) => {
-                        const vol = product.volumesByYear[year] || 0;
-                        return sum + vol * product.priceHT;
+                        if (year < product.launchYear) return sum;
+                        const volB2C = channels.B2C[year] || 0;
+                        const volB2B = channels.B2B[year] || 0;
+                        const volOEM = channels.OEM[year] || 0;
+                        return sum + volB2C * product.priceHT + volB2B * (product.priceHT_B2B || 0) + volOEM * (product.priceHT_OEM || 0);
                       }, 0);
-                      
+
+                      const handleChannelVolume = (channel: 'B2C' | 'B2B' | 'OEM', year: number, volume: number) => {
+                        const currentChannels = product.volumesByChannel || { B2C: {}, B2B: {}, OEM: {} };
+                        const updatedChannels = {
+                          ...currentChannels,
+                          [channel]: { ...currentChannels[channel], [year]: volume },
+                        };
+                        // Also update legacy volumesByYear as sum of channels
+                        const newVolByYear = { ...product.volumesByYear };
+                        YEARS.forEach(y => {
+                          newVolByYear[y] = (updatedChannels.B2C[y] || 0) + (updatedChannels.B2B[y] || 0) + (updatedChannels.OEM[y] || 0);
+                        });
+                        handleUpdateProduct({ ...product, volumesByChannel: updatedChannels, volumesByYear: newVolByYear });
+                      };
+
                       return (
                         <TableRow key={product.id}>
                           <TableCell>
@@ -290,22 +320,41 @@ export function ProductPlanPage() {
                               Lancement: {product.launchYear}
                             </div>
                           </TableCell>
-                          <TableCell className="text-right font-mono-numbers text-muted-foreground">
-                            {formatCurrency(product.unitCost)}
-                          </TableCell>
                           {YEARS.map(year => (
-                            <TableCell key={year} className="text-center">
-                              {year >= product.launchYear ? (
-                                <Input
-                                  type="number"
-                                  value={product.volumesByYear[year] || 0}
-                                  onChange={(e) => handleVolumeChange(product.id, year, Number(e.target.value))}
-                                  className="h-8 w-20 mx-auto text-center"
-                                />
-                              ) : (
-                                <span className="text-muted-foreground">-</span>
-                              )}
-                            </TableCell>
+                            year >= product.launchYear ? (
+                              <>
+                                <TableCell key={`${year}-b2c`} className="text-center">
+                                  <Input
+                                    type="number"
+                                    value={channels.B2C[year] || 0}
+                                    onChange={(e) => handleChannelVolume('B2C', year, Number(e.target.value))}
+                                    className="h-8 w-16 mx-auto text-center text-xs"
+                                  />
+                                </TableCell>
+                                <TableCell key={`${year}-b2b`} className="text-center">
+                                  <Input
+                                    type="number"
+                                    value={channels.B2B[year] || 0}
+                                    onChange={(e) => handleChannelVolume('B2B', year, Number(e.target.value))}
+                                    className="h-8 w-16 mx-auto text-center text-xs"
+                                  />
+                                </TableCell>
+                                <TableCell key={`${year}-oem`} className="text-center">
+                                  <Input
+                                    type="number"
+                                    value={channels.OEM[year] || 0}
+                                    onChange={(e) => handleChannelVolume('OEM', year, Number(e.target.value))}
+                                    className="h-8 w-16 mx-auto text-center text-xs"
+                                  />
+                                </TableCell>
+                              </>
+                            ) : (
+                              <>
+                                <TableCell key={`${year}-b2c`} className="text-center text-muted-foreground">-</TableCell>
+                                <TableCell key={`${year}-b2b`} className="text-center text-muted-foreground">-</TableCell>
+                                <TableCell key={`${year}-oem`} className="text-center text-muted-foreground">-</TableCell>
+                              </>
+                            )
                           ))}
                           <TableCell className="text-right font-mono-numbers font-medium">
                             {formatCurrency(totalRevenue, true)}

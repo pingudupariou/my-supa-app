@@ -23,8 +23,10 @@ export interface Product {
   devCost: number;
   devAmortizationYears?: number;
   unitCost: number;           // Coût de production unique
-  priceHT: number;            // Prix public HT (calculé depuis priceTTC_B2C)
+  priceHT: number;            // Prix public HT B2C (calculé depuis priceTTC_B2C)
   priceTTC_B2C: number;       // Prix public TTC B2C (saisie manuelle)
+  priceHT_B2B: number;        // Prix de vente HT canal B2B
+  priceHT_OEM: number;        // Prix de vente HT canal OEM
   vatRate: number;            // Taux de TVA (ex: 0.20)
   coef_shop: number;          // Coefficient shop B2B (> 1)
   coef_dist: number;          // Coefficient distributeur B2B (> 1)
