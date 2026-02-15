@@ -29,12 +29,13 @@ export function VolumesByChannelTable({ products, years, onChannelVolumeChange }
     const rate = growthRates[channel] / 100;
 
     years.forEach((year, i) => {
-      if (i === 0 || year < product.launchYear) return;
+      if (year < product.launchYear) return;
+      // First eligible year: keep existing volume (user-set base), don't overwrite
+      if (i === 0 || years[i - 1] < product.launchYear) return;
       const prevVol = channels[channel][years[i - 1]] || 0;
       const newVol = Math.round(prevVol * (1 + rate));
       if (newVol !== (channels[channel][year] || 0)) {
         onChannelVolumeChange(productId, year, channel, newVol);
-        // Update local reference for cascading
         channels[channel][year] = newVol;
       }
     });
