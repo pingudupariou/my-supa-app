@@ -6,6 +6,7 @@ import { HeroBanner } from '@/components/ui/HeroBanner';
 import { SaveButton } from '@/components/ui/SaveButton';
 import { SimplifiedPricingTable } from '@/components/product/SimplifiedPricingTable';
 import { RevenueVisualization } from '@/components/product/RevenueVisualization';
+import { VolumesByChannelTable } from '@/components/product/VolumesByChannelTable';
 import { GlobalRevenueEditor, calculateGlobalRevenue } from '@/components/product/GlobalRevenueEditor';
 import { PageExportPDF, ExportableSection } from '@/components/export/PageExportPDF';
 import { ReadOnlyWrapper } from '@/components/auth/ReadOnlyWrapper';
@@ -267,76 +268,11 @@ export function ProductPlanPage() {
         {/* Volumes by Year */}
         <TabsContent value="volumes">
           <div id="product-volumes">
-            <SectionCard title="Volumes par Année">
-              <p className="text-sm text-muted-foreground mb-4">
-                Saisissez les volumes de vente prévisionnels par produit et par année.
-              </p>
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead rowSpan={2}>Produit</TableHead>
-                      {YEARS.map(year => (
-                        <TableHead key={year} colSpan={3} className="text-center border-l">{year}</TableHead>
-                      ))}
-                      <TableHead rowSpan={2} className="text-right border-l">CA Total</TableHead>
-                    </TableRow>
-                    <TableRow>
-                      {YEARS.map(year => (
-                        <>
-                          <TableHead key={`${year}-b2c`} className="text-center text-xs border-l">B2C</TableHead>
-                          <TableHead key={`${year}-b2b`} className="text-center text-xs">B2B</TableHead>
-                          <TableHead key={`${year}-oem`} className="text-center text-xs">OEM</TableHead>
-                        </>
-                      ))}
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {state.products.map((product) => {
-                      const channels = product.volumesByChannel || { B2C: {}, B2B: {}, OEM: {} };
-                      const totalRevenue = YEARS.reduce((sum, year) => {
-                        const vB2C = channels.B2C[year] || 0;
-                        const vB2B = channels.B2B[year] || 0;
-                        const vOEM = channels.OEM[year] || 0;
-                        return sum + vB2C * product.priceHT + vB2B * (product.priceHT_B2B || product.priceHT) + vOEM * (product.priceHT_OEM || product.priceHT);
-                      }, 0);
-                      
-                      return (
-                        <TableRow key={product.id}>
-                          <TableCell>
-                            <div className="font-medium">{product.name}</div>
-                            <div className="text-xs text-muted-foreground">
-                              Coût: {formatCurrency(product.unitCost)}
-                            </div>
-                          </TableCell>
-                          {YEARS.map(year => (
-                            <>
-                              {(['B2C', 'B2B', 'OEM'] as const).map(ch => (
-                                <TableCell key={`${year}-${ch}`} className={`text-center ${ch === 'B2C' ? 'border-l' : ''}`}>
-                                  {year >= product.launchYear ? (
-                                    <Input
-                                      type="number"
-                                      value={channels[ch][year] || 0}
-                                      onChange={(e) => handleChannelVolumeChange(product.id, year, ch, Number(e.target.value))}
-                                      className="h-7 w-16 mx-auto text-center text-xs"
-                                    />
-                                  ) : (
-                                    <span className="text-muted-foreground text-xs">-</span>
-                                  )}
-                                </TableCell>
-                              ))}
-                            </>
-                          ))}
-                          <TableCell className="text-right font-mono-numbers font-medium border-l">
-                            {formatCurrency(totalRevenue, true)}
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
-              </div>
-            </SectionCard>
+            <VolumesByChannelTable
+              products={state.products}
+              years={YEARS}
+              onChannelVolumeChange={handleChannelVolumeChange}
+            />
           </div>
         </TabsContent>
       </Tabs>
