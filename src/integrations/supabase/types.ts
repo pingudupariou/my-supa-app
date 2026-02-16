@@ -14,6 +14,33 @@ export type Database = {
   }
   public: {
     Tables: {
+      b2b_client_categories: {
+        Row: {
+          color: string | null
+          created_at: string
+          id: string
+          name: string
+          sort_order: number | null
+          user_id: string
+        }
+        Insert: {
+          color?: string | null
+          created_at?: string
+          id?: string
+          name: string
+          sort_order?: number | null
+          user_id: string
+        }
+        Update: {
+          color?: string | null
+          created_at?: string
+          id?: string
+          name?: string
+          sort_order?: number | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       b2b_client_projections: {
         Row: {
           client_id: string
@@ -54,6 +81,7 @@ export type Database = {
       }
       b2b_clients: {
         Row: {
+          category_id: string | null
           client_type: string | null
           company_name: string
           contact_email: string | null
@@ -79,6 +107,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          category_id?: string | null
           client_type?: string | null
           company_name: string
           contact_email?: string | null
@@ -104,6 +133,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          category_id?: string | null
           client_type?: string | null
           company_name?: string
           contact_email?: string | null
@@ -128,7 +158,15 @@ export type Database = {
           updated_at?: string
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "b2b_clients_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "b2b_client_categories"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       b2b_delivery_fee_tiers: {
         Row: {
