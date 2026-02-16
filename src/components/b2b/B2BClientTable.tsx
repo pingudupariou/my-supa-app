@@ -6,7 +6,8 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Switch } from '@/components/ui/switch';
-import { Plus, Trash2, Upload, Edit2, Save, X, Settings, ChevronDown, ChevronRight, FolderPlus } from 'lucide-react';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
+import { Plus, Trash2, Upload, Edit2, Save, X, Settings, ChevronDown, ChevronRight, FolderPlus, Download } from 'lucide-react';
 import { B2BClient, B2BClientProjection, B2BPaymentTermOption, B2BDeliveryMethod, B2BDeliveryFeeTier, B2BClientCategory } from '@/hooks/useB2BClientsData';
 import { B2BClientImportDialog } from './B2BClientImportDialog';
 import { B2BSettingsPanel } from './B2BSettingsPanel';
@@ -54,6 +55,7 @@ export function B2BClientTable({
   const [collapsedCategories, setCollapsedCategories] = useState<Set<string>>(new Set());
   const [newCategoryName, setNewCategoryName] = useState('');
   const [showCategoryDialog, setShowCategoryDialog] = useState(false);
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
   // Revenue inline editing
   const [editingRevenue, setEditingRevenue] = useState<Record<string, Record<number, string>>>({});
@@ -126,6 +128,40 @@ export function B2BClientTable({
   const deliveryFeeLabels = deliveryFeeTiers.map(t => t.label);
   const paymentTermLabels = paymentTermsOptions.map(t => t.label);
   const deliveryMethodLabels = deliveryMethods.map(m => m.label);
+
+  const exportCSV = () => {
+    const headers = ['Actif', 'Client', 'Pays', 'Zone Géo', 'Email', 'Pricing', 'Délai paiement', 'Livraison', 'Frais livraison', 'MOQ', ...revenueYears.map(y => `CA ${y}`), 'Catégorie'];
+    const rows = clients.map(c => [
+      c.is_active ? 'Oui' : 'Non',
+      c.company_name,
+      c.country || '',
+      c.geographic_zone || '',
+      c.contact_email || '',
+      c.pricing_rule || '',
+      c.payment_terms || '',
+      c.delivery_method || '',
+      c.delivery_fee_rule || '',
+      c.moq || '',
+      ...revenueYears.map(y => String(getRevenue(c.id, y) || '')),
+      categories.find(cat => cat.id === c.category_id)?.name || '',
+    ]);
+    const csv = [headers, ...rows].map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(';')).join('\n');
+    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `clients_b2b_${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success('Fichier CSV exporté');
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (deleteConfirmId) {
+      await onDeleteClient(deleteConfirmId);
+      setDeleteConfirmId(null);
+    }
+  };
 
   // Group clients by category
   const uncategorized = clients.filter(c => !c.category_id);
@@ -258,7 +294,7 @@ export function B2BClientTable({
             ) : (
               <>
                 <Button size="sm" variant="ghost" onClick={() => startEdit(c)}><Edit2 className="h-3 w-3" /></Button>
-                <Button size="sm" variant="ghost" onClick={() => onDeleteClient(c.id)}><Trash2 className="h-3 w-3 text-destructive" /></Button>
+                <Button size="sm" variant="ghost" onClick={() => setDeleteConfirmId(c.id)}><Trash2 className="h-3 w-3 text-destructive" /></Button>
               </>
             )}
           </div>
@@ -291,6 +327,7 @@ export function B2BClientTable({
         <Button size="sm" variant="outline" onClick={() => setShowImport(true)}><Upload className="h-4 w-4 mr-1" /> Import copier-coller</Button>
         <Button size="sm" variant="outline" onClick={() => setShowCategoryDialog(true)}><FolderPlus className="h-4 w-4 mr-1" /> Catégorie</Button>
         <Button size="sm" variant="outline" onClick={() => setShowSettings(!showSettings)}><Settings className="h-4 w-4 mr-1" /> Paramètres</Button>
+        <Button size="sm" variant="outline" onClick={exportCSV}><Download className="h-4 w-4 mr-1" /> Export CSV</Button>
         <span className="text-xs text-muted-foreground ml-auto">{clients.length} client(s)</span>
       </div>
 
@@ -435,6 +472,23 @@ export function B2BClientTable({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      {/* Delete confirmation */}
+      <AlertDialog open={!!deleteConfirmId} onOpenChange={open => !open && setDeleteConfirmId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Supprimer ce client ?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Cette action est irréversible. Le client « {clients.find(c => c.id === deleteConfirmId)?.company_name} » et toutes ses données associées seront définitivement supprimés.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annuler</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteConfirm} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Supprimer
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
