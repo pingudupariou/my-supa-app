@@ -13,7 +13,21 @@ import { toast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/context/AuthContext';
 
-export type RevenueMode = 'by-product' | 'by-channel-global';
+export type RevenueMode = 'by-product' | 'by-channel-global' | 'by-client';
+
+export interface ClientRevenueEntry {
+  clientId: string;
+  clientName: string;
+  categoryId: string | null;
+  categoryName: string | null;
+  baseRevenue: number; // CA base year
+}
+
+export interface ClientRevenueConfig {
+  entries: ClientRevenueEntry[];
+  growthRate: number;
+  marginRate: number;
+}
 
 export interface ScenarioConfig {
   volumeAdjustment: number;
@@ -90,6 +104,7 @@ interface FinancialState {
   activeScenarioId: 'conservative' | 'base' | 'ambitious';
   revenueMode: RevenueMode;
   globalRevenueConfig: GlobalRevenueConfig;
+  clientRevenueConfig: ClientRevenueConfig;
   opexMode: 'detailed' | 'simple';
   simpleOpexConfig: SimpleOpexConfig;
   hasUnsavedChanges: boolean;
@@ -130,6 +145,7 @@ interface FinancialContextType {
   updateScenarioConfig: (id: string, config: Partial<ScenarioConfig>) => void;
   setRevenueMode: (mode: RevenueMode) => void;
   updateGlobalRevenueConfig: (config: GlobalRevenueConfig) => void;
+  updateClientRevenueConfig: (config: ClientRevenueConfig) => void;
   setOpexMode: (mode: 'detailed' | 'simple') => void;
   updateSimpleOpexConfig: (config: Partial<SimpleOpexConfig>) => void;
   setExcludeFundingFromTreasury: (exclude: boolean) => void;
@@ -167,6 +183,10 @@ function loadState(): FinancialState {
       } else {
         parsed.fundingRounds = defaultFundingRounds;
       }
+      // Ensure clientRevenueConfig exists
+      if (!parsed.clientRevenueConfig) {
+        parsed.clientRevenueConfig = { entries: [], growthRate: 0.15, marginRate: 0.5 };
+      }
       return parsed;
     }
   } catch {}
@@ -188,6 +208,7 @@ function getDefaultState(): FinancialState {
     activeScenarioId: 'base',
     revenueMode: 'by-product',
     globalRevenueConfig: defaultGlobalRevenueConfig,
+    clientRevenueConfig: { entries: [], growthRate: 0.15, marginRate: 0.5 },
     opexMode: 'detailed',
     simpleOpexConfig: { baseAmount: 200000, growthRate: 0.05 },
     hasUnsavedChanges: false,
@@ -239,6 +260,8 @@ export function FinancialProvider({ children }: { children: ReactNode }) {
           if (cloudState.monthlyTreasuryConfig && !cloudState.monthlyTreasuryConfig.cogsPaymentTerms) {
             cloudState.monthlyTreasuryConfig.cogsPaymentTerms = [{ delayMonths: 0, percentage: 100 }];
           }
+          // Ensure clientRevenueConfig exists
+          if (!cloudState.clientRevenueConfig) cloudState.clientRevenueConfig = { entries: [], growthRate: 0.15, marginRate: 0.5 };
           setState({ ...cloudState, hasUnsavedChanges: false });
           localStorage.setItem(STATE_KEY, JSON.stringify(cloudState));
         }
@@ -271,6 +294,7 @@ export function FinancialProvider({ children }: { children: ReactNode }) {
   }, []);
   const setRevenueMode = useCallback((revenueMode: RevenueMode) => { setState(prev => ({ ...prev, revenueMode, hasUnsavedChanges: true })); }, []);
   const updateGlobalRevenueConfig = useCallback((globalRevenueConfig: GlobalRevenueConfig) => { setState(prev => ({ ...prev, globalRevenueConfig, hasUnsavedChanges: true })); }, []);
+  const updateClientRevenueConfig = useCallback((clientRevenueConfig: ClientRevenueConfig) => { setState(prev => ({ ...prev, clientRevenueConfig, hasUnsavedChanges: true })); }, []);
   const setOpexMode = useCallback((opexMode: 'detailed' | 'simple') => { setState(prev => ({ ...prev, opexMode, hasUnsavedChanges: true })); }, []);
   const updateSimpleOpexConfig = useCallback((config: Partial<SimpleOpexConfig>) => { setState(prev => ({ ...prev, simpleOpexConfig: { ...prev.simpleOpexConfig, ...config }, hasUnsavedChanges: true })); }, []);
   const setExcludeFundingFromTreasury = useCallback((excludeFundingFromTreasury: boolean) => { setState(prev => ({ ...prev, excludeFundingFromTreasury, hasUnsavedChanges: true })); }, []);
@@ -306,11 +330,21 @@ export function FinancialProvider({ children }: { children: ReactNode }) {
 
     const totalDevCost = products.reduce((sum, p) => sum + p.devCost, 0);
 
-    const revenueByYear = years.map(year => {
+    const revenueByYear = years.map((year, i) => {
       if (state.revenueMode === 'by-channel-global') {
         const revenue = calculateGlobalRevenue(state.globalRevenueConfig, year);
         const cogs = calculateGlobalCogs(state.globalRevenueConfig, year);
         return { year, revenue, cogs };
+      }
+      if (state.revenueMode === 'by-client') {
+        const cfg = state.clientRevenueConfig || { entries: [], growthRate: 0.15, marginRate: 0.5 };
+        const baseYear = startYear;
+        const elapsed = year - baseYear;
+        const totalRevenue = cfg.entries.reduce((sum, e) => {
+          return sum + e.baseRevenue * Math.pow(1 + cfg.growthRate, elapsed);
+        }, 0);
+        const cogs = totalRevenue * (1 - cfg.marginRate);
+        return { year, revenue: totalRevenue, cogs };
       }
       let revenue = 0, cogs = 0;
       products.forEach(p => {
@@ -403,7 +437,7 @@ export function FinancialProvider({ children }: { children: ReactNode }) {
       updateExpenses, addExpense, removeExpense,
       updateFundingRounds, updateScenarioSettings,
       setActiveScenario, updateScenarioConfig,
-      setRevenueMode, updateGlobalRevenueConfig,
+      setRevenueMode, updateGlobalRevenueConfig, updateClientRevenueConfig,
       setOpexMode, updateSimpleOpexConfig,
       setExcludeFundingFromTreasury, updateHistoricalData,
       updateMonthlyTreasuryConfig,
