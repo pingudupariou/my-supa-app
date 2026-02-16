@@ -16,8 +16,9 @@ import {
 } from 'recharts';
 import { 
   Wallet, TrendingUp, TrendingDown, AlertTriangle, Users, Package,
-  Building2, Target, PiggyBank, Calendar, Eye, EyeOff, Settings2,
+  Building2, Target, PiggyBank, Calendar, Settings2, Briefcase, UserPlus,
 } from 'lucide-react';
+import { Department } from '@/engine/types';
 
 const scenarioLabels = {
   conservative: 'Prudent',
@@ -31,20 +32,22 @@ const revenueModeLabels: Record<RevenueMode, string> = {
   'by-client': 'Par Client',
 };
 
-type SectionKey = 'cash' | 'needs' | 'projection' | 'valuation' | 'clientDeck';
+type SectionKey = 'cash' | 'needs' | 'projection' | 'valuation' | 'clientDeck' | 'payroll';
 
 const defaultSections: Record<SectionKey, boolean> = {
   cash: true,
+  clientDeck: true,
   needs: true,
+  payroll: true,
   projection: true,
   valuation: true,
-  clientDeck: true,
 };
 
 const sectionLabels: Record<SectionKey, string> = {
   cash: 'Approche Cash',
   clientDeck: 'Deck CA Clients',
   needs: 'Justification des Besoins',
+  payroll: 'Masse Salariale',
   projection: 'Projection Détaillée',
   valuation: 'Valorisation & Tours',
 };
@@ -176,9 +179,9 @@ export function InvestmentSummaryPage() {
   }, [state.revenueMode, state.clientRevenueConfig, years]);
 
   const channelColors: Record<string, string> = {
-    B2C: 'hsl(var(--chart-1))',
+    B2C: '#e11d48',    // Rouge racing (rose-600)
     B2B: 'hsl(var(--primary))',
-    OEM: 'hsl(var(--accent))',
+    OEM: '#f59e0b',    // Amber-500
   };
 
   return (
@@ -437,11 +440,11 @@ export function InvestmentSummaryPage() {
       {/* =============== SECTION: JUSTIFICATION DES BESOINS =============== */}
       {visibleSections.needs && (
         <SectionCard title="Justification des Besoins" id="needs-justification">
-          <div className="grid lg:grid-cols-2 gap-6">
+          <div className="grid lg:grid-cols-2 gap-6 mb-6">
             <div>
               <h4 className="font-semibold mb-4 flex items-center gap-2">
                 <Building2 className="h-4 w-4" />
-                Répartition des Coûts ({startYear}-{lastYear})
+                Répartition Globale ({startYear}-{lastYear})
               </h4>
               <div className="space-y-3">
                 {[
@@ -515,6 +518,208 @@ export function InvestmentSummaryPage() {
               </div>
             </div>
           </div>
+
+          {/* Yearly cost breakdown table */}
+          <div className="mt-6">
+            <h4 className="font-semibold mb-3 flex items-center gap-2 text-sm">
+              <Calendar className="h-4 w-4" />
+              Détail Année par Année
+            </h4>
+            <div className="overflow-x-auto border rounded-lg">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b bg-muted/30">
+                    <th className="text-left py-2 px-3 font-semibold text-xs">Année</th>
+                    <th className="text-right py-2 px-3 font-semibold text-xs">CA</th>
+                    <th className="text-right py-2 px-3 font-semibold text-xs">COGS</th>
+                    <th className="text-right py-2 px-3 font-semibold text-xs">Masse Sal.</th>
+                    <th className="text-right py-2 px-3 font-semibold text-xs">OPEX</th>
+                    <th className="text-right py-2 px-3 font-semibold text-xs">CAPEX</th>
+                    <th className="text-right py-2 px-3 font-semibold text-xs">Total Coûts</th>
+                    <th className="text-right py-2 px-3 font-semibold text-xs">Cash Flow</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {yearlyData.map(row => {
+                    const yearCosts = row.cogs + row.payroll + row.opex + row.capex;
+                    return (
+                      <tr key={row.year} className="border-b hover:bg-muted/20 text-xs">
+                        <td className="py-2 px-3 font-semibold">{row.year}</td>
+                        <td className="py-2 px-3 text-right font-mono-numbers">{formatCurrency(row.revenue, true)}</td>
+                        <td className="py-2 px-3 text-right font-mono-numbers text-muted-foreground">{formatCurrency(row.cogs, true)}</td>
+                        <td className="py-2 px-3 text-right font-mono-numbers text-muted-foreground">{formatCurrency(row.payroll, true)}</td>
+                        <td className="py-2 px-3 text-right font-mono-numbers text-muted-foreground">{formatCurrency(row.opex, true)}</td>
+                        <td className="py-2 px-3 text-right font-mono-numbers text-muted-foreground">{formatCurrency(row.capex, true)}</td>
+                        <td className="py-2 px-3 text-right font-mono-numbers font-medium">{formatCurrency(yearCosts, true)}</td>
+                        <td className={cn("py-2 px-3 text-right font-mono-numbers font-medium", row.netCashFlow >= 0 ? "text-chart-4" : "text-destructive")}>
+                          {row.netCashFlow >= 0 ? '+' : ''}{formatCurrency(row.netCashFlow, true)}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </SectionCard>
+      )}
+
+      {/* =============== SECTION: MASSE SALARIALE =============== */}
+      {visibleSections.payroll && (
+        <SectionCard title="Masse Salariale & Embauches" id="payroll-detail">
+          {(() => {
+            const roles = state.roles || [];
+            const deptColors: Record<string, string> = {
+              'R&D': 'hsl(var(--chart-1))',
+              'Production': 'hsl(var(--chart-4))',
+              'Sales': 'hsl(var(--accent))',
+              'Support': 'hsl(var(--chart-3))',
+              'Admin': 'hsl(var(--primary))',
+            };
+
+            // Payroll by year and department
+            const payrollByYearDept = years.map(year => {
+              const activeRoles = roles.filter(r => r.startYear <= year);
+              const byDept: Record<string, number> = {};
+              activeRoles.forEach(r => {
+                byDept[r.department] = (byDept[r.department] || 0) + r.annualCostLoaded;
+              });
+              return { year, total: activeRoles.reduce((s, r) => s + r.annualCostLoaded, 0), byDept, headcount: activeRoles.length };
+            });
+
+            // New hires by year
+            const hiresByYear = years.map(year => ({
+              year,
+              hires: roles.filter(r => r.startYear === year),
+            }));
+
+            // Chart data
+            const depts = [...new Set(roles.map(r => r.department))];
+            const payrollChartData = payrollByYearDept.map(d => {
+              const row: Record<string, any> = { year: d.year, Effectif: d.headcount };
+              depts.forEach(dept => { row[dept] = (d.byDept[dept] || 0) / 1000; });
+              return row;
+            });
+
+            return (
+              <div className="space-y-6">
+                {/* KPIs */}
+                <div className="grid md:grid-cols-4 gap-4">
+                  <KPICard label="Effectif Final" value={payrollByYearDept[payrollByYearDept.length - 1]?.headcount || 0} subValue={`en ${lastYear}`} />
+                  <KPICard label="Masse Sal. Finale" value={formatCurrency(payrollByYearDept[payrollByYearDept.length - 1]?.total || 0, true)} subValue={`/an en ${lastYear}`} />
+                  <KPICard label="Coût Total Période" value={formatCurrency(totalPayroll, true)} subValue={`${startYear}–${lastYear}`} />
+                  <KPICard label="Coût Moyen / ETP" value={roles.length > 0 ? formatCurrency(totalPayroll / durationYears / (roles.length || 1), true) : '—'} subValue="/an moyen" />
+                </div>
+
+                {/* Stacked bar chart payroll by dept */}
+                <div className="h-64">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <ComposedChart data={payrollChartData}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="year" />
+                      <YAxis yAxisId="left" tickFormatter={(v) => `${v}k€`} />
+                      <YAxis yAxisId="right" orientation="right" />
+                      <Tooltip formatter={(value: number, name: string) => name === 'Effectif' ? value : `${value.toFixed(0)}k€`} />
+                      <Legend />
+                      {depts.map(dept => (
+                        <Bar key={dept} yAxisId="left" dataKey={dept} stackId="a" fill={deptColors[dept] || 'hsl(var(--muted-foreground))'} />
+                      ))}
+                      <Line yAxisId="right" type="monotone" dataKey="Effectif" stroke="hsl(var(--foreground))" strokeWidth={2} dot={{ r: 3 }} />
+                    </ComposedChart>
+                  </ResponsiveContainer>
+                </div>
+
+                {/* Hiring timeline */}
+                <div>
+                  <h4 className="font-semibold mb-3 flex items-center gap-2 text-sm">
+                    <UserPlus className="h-4 w-4" />
+                    Planning des Embauches
+                  </h4>
+                  <div className="space-y-4">
+                    {hiresByYear.filter(h => h.hires.length > 0).map(({ year, hires }) => (
+                      <div key={year}>
+                        <div className="flex items-center gap-2 mb-2">
+                          <Badge variant="outline" className="text-xs">{year}</Badge>
+                          <span className="text-xs text-muted-foreground">{hires.length} embauche(s)</span>
+                        </div>
+                        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-2">
+                          {hires.map(role => (
+                            <div key={role.id} className="p-3 bg-muted/30 rounded-lg border flex items-center justify-between">
+                              <div>
+                                <div className="text-sm font-medium">{role.title}</div>
+                                <div className="flex items-center gap-1 mt-1">
+                                  <div className="w-2 h-2 rounded-full" style={{ backgroundColor: deptColors[role.department] || 'hsl(var(--muted-foreground))' }} />
+                                  <span className="text-[10px] text-muted-foreground">{role.department}</span>
+                                </div>
+                              </div>
+                              <div className="text-sm font-mono-numbers font-semibold">
+                                {formatCurrency(role.annualCostLoaded, true)}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                    {hiresByYear.every(h => h.hires.length === 0) && (
+                      <p className="text-sm text-muted-foreground text-center py-4">Aucun poste configuré — rendez-vous dans l'onglet Organisation</p>
+                    )}
+                  </div>
+                </div>
+
+                {/* Summary table */}
+                <div className="overflow-x-auto border rounded-lg">
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr className="border-b bg-muted/30">
+                        <th className="text-left py-2 px-3 font-semibold">Poste</th>
+                        <th className="text-left py-2 px-3 font-semibold">Département</th>
+                        <th className="text-right py-2 px-3 font-semibold">Arrivée</th>
+                        <th className="text-right py-2 px-3 font-semibold">Coût chargé /an</th>
+                        {years.map(y => (
+                          <th key={y} className="text-center py-2 px-3 font-semibold">{y}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {roles.sort((a, b) => a.startYear - b.startYear || a.department.localeCompare(b.department)).map(role => (
+                        <tr key={role.id} className="border-b hover:bg-muted/20">
+                          <td className="py-2 px-3 font-medium">{role.title}</td>
+                          <td className="py-2 px-3">
+                            <div className="flex items-center gap-1">
+                              <div className="w-2 h-2 rounded-full" style={{ backgroundColor: deptColors[role.department] || 'hsl(var(--muted-foreground))' }} />
+                              {role.department}
+                            </div>
+                          </td>
+                          <td className="py-2 px-3 text-right font-mono-numbers">{role.startYear}</td>
+                          <td className="py-2 px-3 text-right font-mono-numbers">{formatCurrency(role.annualCostLoaded, true)}</td>
+                          {years.map(y => (
+                            <td key={y} className="py-2 px-3 text-center">
+                              {role.startYear <= y ? (
+                                <span className="inline-block w-4 h-4 rounded-full bg-primary/20 text-primary text-[10px] leading-4">✓</span>
+                              ) : (
+                                <span className="text-muted-foreground/30">—</span>
+                              )}
+                            </td>
+                          ))}
+                        </tr>
+                      ))}
+                    </tbody>
+                    <tfoot>
+                      <tr className="border-t-2 bg-muted/30 font-semibold text-xs">
+                        <td className="py-2 px-3" colSpan={3}>Total</td>
+                        <td className="py-2 px-3 text-right font-mono-numbers">—</td>
+                        {payrollByYearDept.map(d => (
+                          <td key={d.year} className="py-2 px-3 text-center font-mono-numbers">
+                            {(d.total / 1000).toFixed(0)}k
+                          </td>
+                        ))}
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+              </div>
+            );
+          })()}
         </SectionCard>
       )}
 
