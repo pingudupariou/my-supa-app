@@ -421,7 +421,7 @@ export function PrevisionnelPage() {
             <div className="flex items-center gap-2">
               <span className="text-sm text-muted-foreground">Mode CA :</span>
               <Badge variant={state.revenueMode === 'by-product' ? 'default' : 'secondary'}>
-                {state.revenueMode === 'by-product' ? 'Par Produit' : 'Global Canaux'}
+                {state.revenueMode === 'by-product' ? 'Par Produit' : state.revenueMode === 'by-channel-global' ? 'Global Canaux' : 'Par Client'}
               </Badge>
             </div>
             
