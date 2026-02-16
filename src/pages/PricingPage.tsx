@@ -136,19 +136,17 @@ export function PricingPage() {
 
   // Build config to save
   const buildConfigData = () => {
-    const base = {
+    return {
       pricingMode,
       distributorCoef,
       shopCoef,
       salesRules,
       activeRuleId,
+      editedPrices,
+      editedOurPrices,
+      editedFinalPrices,
+      editedProductCoefs,
     };
-
-    if (pricingMode === 'from_public') {
-      return { ...base, editedPrices };
-    } else {
-      return { ...base, editedOurPrices, editedFinalPrices, editedProductCoefs };
-    }
   };
 
   // Load config
