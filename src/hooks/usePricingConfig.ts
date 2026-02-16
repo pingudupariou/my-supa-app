@@ -34,8 +34,10 @@ const DEFAULT_RULES: SalesRule[] = [
 export function usePricingConfig() {
   const [salesRules, setSalesRules] = useState<SalesRule[]>(DEFAULT_RULES);
   const [pricingMode, setPricingMode] = useState<'from_public' | 'from_our_price'>('from_public');
-  const [editedPrices, setEditedPrices] = useState<Record<string, number>>({});
-  const [editedOurPrices, setEditedOurPrices] = useState<Record<string, number>>({});
+  const [activeRuleId, setActiveRuleId] = useState<string>('default-b2b');
+  // Per-rule prices
+  const [editedPrices, setEditedPrices] = useState<Record<string, Record<string, number>>>({});
+  const [editedOurPrices, setEditedOurPrices] = useState<Record<string, Record<string, number>>>({});
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
@@ -53,17 +55,38 @@ export function usePricingConfig() {
         const cfg = data.config_data as any;
         if (cfg.salesRules?.length) setSalesRules(cfg.salesRules);
         if (cfg.pricingMode) setPricingMode(cfg.pricingMode);
-        if (cfg.editedPrices) setEditedPrices(cfg.editedPrices);
-        if (cfg.editedOurPrices) setEditedOurPrices(cfg.editedOurPrices);
+        if (cfg.activeRuleId) setActiveRuleId(cfg.activeRuleId);
+
+        // Handle both old flat format and new per-rule format
+        if (cfg.editedPrices) {
+          const firstKey = Object.keys(cfg.editedPrices)[0];
+          if (firstKey && typeof cfg.editedPrices[firstKey] === 'object' && !Array.isArray(cfg.editedPrices[firstKey])) {
+            setEditedPrices(cfg.editedPrices);
+          } else if (firstKey && typeof cfg.editedPrices[firstKey] === 'number') {
+            const ruleId = cfg.activeRuleId || cfg.salesRules?.[0]?.id || 'default-b2b';
+            setEditedPrices({ [ruleId]: cfg.editedPrices });
+          }
+        }
+        if (cfg.editedOurPrices) {
+          const firstKey = Object.keys(cfg.editedOurPrices)[0];
+          if (firstKey && typeof cfg.editedOurPrices[firstKey] === 'object' && !Array.isArray(cfg.editedOurPrices[firstKey])) {
+            setEditedOurPrices(cfg.editedOurPrices);
+          } else if (firstKey && typeof cfg.editedOurPrices[firstKey] === 'number') {
+            const ruleId = cfg.activeRuleId || cfg.salesRules?.[0]?.id || 'default-b2b';
+            setEditedOurPrices({ [ruleId]: cfg.editedOurPrices });
+          }
+        }
       }
       setLoaded(true);
     };
     load();
   }, []);
 
-  const getEffectivePrice = useCallback((prod: { id: string; price_ttc: number | null }) => {
-    return editedPrices[prod.id] !== undefined ? editedPrices[prod.id] : prod.price_ttc;
-  }, [editedPrices]);
+  const getEffectivePrice = useCallback((prod: { id: string; price_ttc: number | null }, ruleId?: string) => {
+    const rid = ruleId || activeRuleId;
+    const rulePrices = editedPrices[rid] || {};
+    return rulePrices[prod.id] !== undefined ? rulePrices[prod.id] : prod.price_ttc;
+  }, [editedPrices, activeRuleId]);
 
   const computeChainFromPublicTTC = useCallback((priceTTC: number, rule: SalesRule) => {
     if (!rule || priceTTC <= 0) return null;
@@ -80,6 +103,7 @@ export function usePricingConfig() {
   return {
     salesRules,
     pricingMode,
+    activeRuleId,
     editedPrices,
     editedOurPrices,
     loaded,

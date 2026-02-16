@@ -21,7 +21,7 @@ export function TableauDeBordPage() {
   const { products, references, productCategories, suppliers, bom, calculateProductCost } = useCostFlowData();
   const { rows, blocks, colors } = usePlanningData();
   const { customers, orders } = useCRMData();
-  const { salesRules, pricingMode, editedOurPrices, getEffectivePrice, computeChainFromPublicTTC, loaded: pricingLoaded } = usePricingConfig();
+  const { salesRules, pricingMode, activeRuleId, editedOurPrices, getEffectivePrice, computeChainFromPublicTTC, loaded: pricingLoaded } = usePricingConfig();
 
   // KPIs
   const totalProducts = products.length;
@@ -231,7 +231,7 @@ export function TableauDeBordPage() {
           calculateProductCost={calculateProductCost}
           computeChainFromPublicTTC={computeChainFromPublicTTC}
           getEffectivePrice={getEffectivePrice}
-          editedOurPrices={editedOurPrices}
+          editedOurPrices={editedOurPrices[activeRuleId] || {}}
           pricingMode={pricingMode}
         />
       )}

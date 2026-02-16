@@ -9,6 +9,16 @@ import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { useCostFlowData } from '@/hooks/useCostFlowData';
 import { Settings2, Plus, Trash2, Tag, ChevronDown, ChevronRight, Package, Copy, Check, ArrowDown, ArrowUp, ArrowUpDown, Save, Loader2 } from 'lucide-react';
@@ -18,6 +28,10 @@ import { supabase } from '@/integrations/supabase/client';
 
 type PricingMode = 'from_public' | 'from_our_price';
 type MarginSort = 'none' | 'asc' | 'desc';
+
+// Per-rule price maps
+type PerRulePrices = Record<string, Record<string, number>>;
+type PerRuleCoefs = Record<string, Record<string, number[]>>;
 
 interface SalesRule {
   id: string;
@@ -32,14 +46,10 @@ const DEFAULT_TVA = 20;
 export function PricingPage() {
   const { products, productCategories, references, bom, calculateProductCost, updateProduct } = useCostFlowData();
 
-  // Pricing mode
   const [pricingMode, setPricingMode] = useState<PricingMode>('from_public');
-
-  // Global settings
   const [distributorCoef, setDistributorCoef] = useState(1.3);
   const [shopCoef, setShopCoef] = useState(1.8);
 
-  // Sales rules
   const [salesRules, setSalesRules] = useState<SalesRule[]>([
     {
       id: 'default-b2b',
@@ -68,28 +78,63 @@ export function PricingPage() {
   const [newRuleName, setNewRuleName] = useState('');
   const [newRuleType, setNewRuleType] = useState<'b2b' | 'oem' | 'b2c'>('b2b');
 
-  // Editable prices (local overrides before save) - for public TTC mode
-  const [editedPrices, setEditedPrices] = useState<Record<string, number>>({});
-  // Option 2: editable our B2B prices AND final TTC prices (both ends fixed)
-  const [editedOurPrices, setEditedOurPrices] = useState<Record<string, number>>({});
-  const [editedFinalPrices, setEditedFinalPrices] = useState<Record<string, number>>({});
-  // Option 2: per-product intermediary coef overrides (linked)
-  const [editedProductCoefs, setEditedProductCoefs] = useState<Record<string, number[]>>({});
+  // Per-rule edited prices
+  const [editedPrices, setEditedPrices] = useState<PerRulePrices>({});
+  const [editedOurPrices, setEditedOurPrices] = useState<PerRulePrices>({});
+  const [editedFinalPrices, setEditedFinalPrices] = useState<PerRulePrices>({});
+  const [editedProductCoefs, setEditedProductCoefs] = useState<PerRuleCoefs>({});
 
-  // Margin sort
   const [marginSort, setMarginSort] = useState<MarginSort>('none');
-
-  // Multi-select
   const [selectedProducts, setSelectedProducts] = useState<Set<string>>(new Set());
   const [bulkPrice, setBulkPrice] = useState('');
   const [bulkDialogOpen, setBulkDialogOpen] = useState(false);
-
   const [savingConfig, setSavingConfig] = useState(false);
   const [configLoaded, setConfigLoaded] = useState(false);
 
+  // Delete confirmation
+  const [ruleToDelete, setRuleToDelete] = useState<string | null>(null);
+
   const activeRule = salesRules.find(r => r.id === activeRuleId) || salesRules[0];
 
-  // Build config object to save — only persist numbers for the active option
+  // Helpers to get per-rule price for current active rule
+  const getRuleEditedPrices = () => editedPrices[activeRuleId] || {};
+  const getRuleEditedOurPrices = () => editedOurPrices[activeRuleId] || {};
+  const getRuleEditedFinalPrices = () => editedFinalPrices[activeRuleId] || {};
+  const getRuleEditedCoefs = () => editedProductCoefs[activeRuleId] || {};
+
+  const setRuleEditedPrice = (productId: string, value: number) => {
+    setEditedPrices(prev => ({
+      ...prev,
+      [activeRuleId]: { ...(prev[activeRuleId] || {}), [productId]: value },
+    }));
+  };
+
+  const setRuleEditedOurPrice = (productId: string, value: number) => {
+    setEditedOurPrices(prev => ({
+      ...prev,
+      [activeRuleId]: { ...(prev[activeRuleId] || {}), [productId]: value },
+    }));
+    // Reset custom coefs for this product in this rule
+    setEditedProductCoefs(prev => {
+      const rulePrices = { ...(prev[activeRuleId] || {}) };
+      delete rulePrices[productId];
+      return { ...prev, [activeRuleId]: rulePrices };
+    });
+  };
+
+  const setRuleEditedFinalPrice = (productId: string, value: number) => {
+    setEditedFinalPrices(prev => ({
+      ...prev,
+      [activeRuleId]: { ...(prev[activeRuleId] || {}), [productId]: value },
+    }));
+    setEditedProductCoefs(prev => {
+      const rulePrices = { ...(prev[activeRuleId] || {}) };
+      delete rulePrices[productId];
+      return { ...prev, [activeRuleId]: rulePrices };
+    });
+  };
+
+  // Build config to save
   const buildConfigData = () => {
     const base = {
       pricingMode,
@@ -100,15 +145,13 @@ export function PricingPage() {
     };
 
     if (pricingMode === 'from_public') {
-      // Option 1: only save edited public TTC prices
       return { ...base, editedPrices };
     } else {
-      // Option 2: only save our prices, final TTC prices & custom coefs
       return { ...base, editedOurPrices, editedFinalPrices, editedProductCoefs };
     }
   };
 
-  // Load config from Supabase on mount
+  // Load config
   useEffect(() => {
     const loadConfig = async () => {
       const { data: { user } } = await supabase.auth.getUser();
@@ -127,17 +170,53 @@ export function PricingPage() {
         if (cfg.shopCoef !== undefined) setShopCoef(cfg.shopCoef);
         if (cfg.salesRules?.length) setSalesRules(cfg.salesRules);
         if (cfg.activeRuleId) setActiveRuleId(cfg.activeRuleId);
-        if (cfg.editedPrices) setEditedPrices(cfg.editedPrices);
-        if (cfg.editedOurPrices) setEditedOurPrices(cfg.editedOurPrices);
-        if (cfg.editedFinalPrices) setEditedFinalPrices(cfg.editedFinalPrices);
-        if (cfg.editedProductCoefs) setEditedProductCoefs(cfg.editedProductCoefs);
+
+        // Handle both old flat format and new per-rule format
+        if (cfg.editedPrices) {
+          // Check if it's already per-rule (object of objects) or flat (old format)
+          const firstKey = Object.keys(cfg.editedPrices)[0];
+          if (firstKey && typeof cfg.editedPrices[firstKey] === 'object' && !Array.isArray(cfg.editedPrices[firstKey])) {
+            setEditedPrices(cfg.editedPrices);
+          } else if (firstKey && typeof cfg.editedPrices[firstKey] === 'number') {
+            // Migrate old flat format to per-rule under the first rule
+            const ruleId = cfg.activeRuleId || cfg.salesRules?.[0]?.id || 'default-b2b';
+            setEditedPrices({ [ruleId]: cfg.editedPrices });
+          }
+        }
+        if (cfg.editedOurPrices) {
+          const firstKey = Object.keys(cfg.editedOurPrices)[0];
+          if (firstKey && typeof cfg.editedOurPrices[firstKey] === 'object' && !Array.isArray(cfg.editedOurPrices[firstKey])) {
+            setEditedOurPrices(cfg.editedOurPrices);
+          } else if (firstKey && typeof cfg.editedOurPrices[firstKey] === 'number') {
+            const ruleId = cfg.activeRuleId || cfg.salesRules?.[0]?.id || 'default-b2b';
+            setEditedOurPrices({ [ruleId]: cfg.editedOurPrices });
+          }
+        }
+        if (cfg.editedFinalPrices) {
+          const firstKey = Object.keys(cfg.editedFinalPrices)[0];
+          if (firstKey && typeof cfg.editedFinalPrices[firstKey] === 'object' && !Array.isArray(cfg.editedFinalPrices[firstKey])) {
+            setEditedFinalPrices(cfg.editedFinalPrices);
+          } else if (firstKey && typeof cfg.editedFinalPrices[firstKey] === 'number') {
+            const ruleId = cfg.activeRuleId || cfg.salesRules?.[0]?.id || 'default-b2b';
+            setEditedFinalPrices({ [ruleId]: cfg.editedFinalPrices });
+          }
+        }
+        if (cfg.editedProductCoefs) {
+          const firstKey = Object.keys(cfg.editedProductCoefs)[0];
+          if (firstKey && Array.isArray(cfg.editedProductCoefs[firstKey])) {
+            // Old flat format
+            const ruleId = cfg.activeRuleId || cfg.salesRules?.[0]?.id || 'default-b2b';
+            setEditedProductCoefs({ [ruleId]: cfg.editedProductCoefs });
+          } else {
+            setEditedProductCoefs(cfg.editedProductCoefs);
+          }
+        }
       }
       setConfigLoaded(true);
     };
     loadConfig();
   }, []);
 
-  // Save config to Supabase
   const savePricingConfig = async () => {
     setSavingConfig(true);
     try {
@@ -165,7 +244,6 @@ export function PricingPage() {
     }
   };
 
-  // Update global coefficients in active rule
   const syncGlobalCoefs = () => {
     setSalesRules(prev => prev.map(rule => {
       if (rule.id !== activeRuleId) return rule;
@@ -176,7 +254,6 @@ export function PricingPage() {
     }));
   };
 
-  // Products grouped by category
   const productsByCategory = useMemo(() => {
     const grouped: Record<string, typeof products> = {};
     const uncategorized: typeof products = [];
@@ -200,13 +277,11 @@ export function PricingPage() {
     });
   };
 
-  // Get the effective price_ttc (edited or from DB)
   const getEffectivePrice = (prod: typeof products[0]) => {
-    return editedPrices[prod.id] !== undefined ? editedPrices[prod.id] : prod.price_ttc;
+    const rulePrices = getRuleEditedPrices();
+    return rulePrices[prod.id] !== undefined ? rulePrices[prod.id] : prod.price_ttc;
   };
 
-  // OPTION 1: From public TTC price, compute our B2B price (reverse)
-  // When called with a specific rule, uses that rule; otherwise uses activeRule
   const computeChainFromPublicTTC = (priceTTC: number, ruleOverride?: typeof activeRule) => {
     const rule = ruleOverride || activeRule;
     if (!rule || priceTTC <= 0) return null;
@@ -214,7 +289,6 @@ export function PricingPage() {
     const tvaRate = rule?.tvaRate ?? DEFAULT_TVA;
     const prixPublicHT = priceTTC / (1 + tvaRate / 100);
 
-    // Reverse the chain to find our B2B selling price
     let currentPrice = prixPublicHT;
     const intermediaries = [...rule.intermediaries].reverse();
     for (const inter of intermediaries) {
@@ -223,7 +297,6 @@ export function PricingPage() {
 
     const ourB2BPrice = currentPrice;
 
-    // Forward chain for display
     const chain: { label: string; buyPrice: number; coef: number; sellPrice: number; margin: number; marginPct: number }[] = [];
     let forwardPrice = ourB2BPrice;
     for (const inter of rule.intermediaries) {
@@ -237,7 +310,6 @@ export function PricingPage() {
     return { chain, ourB2BPrice, prixPublicHT, prixPublicTTC: priceTTC };
   };
 
-  // OPTION 2: Both ends fixed — compute intermediary coefs
   const computeChainBothEnds = (ourPrice: number, finalTTC: number, customCoefs?: number[]) => {
     if (!activeRule || ourPrice <= 0 || finalTTC <= 0) return null;
 
@@ -248,22 +320,18 @@ export function PricingPage() {
 
     if (totalCoef <= 0) return null;
 
-    // B2C / vente directe: no intermediaries, our price = public HT
     if (n === 0) {
       return { chain: [], ourB2BPrice: ourPrice, prixPublicHT, prixPublicTTC: finalTTC, totalCoef, coefs: [] };
     }
 
-    // Determine coefs: use custom if provided, otherwise split equally
     let coefs: number[];
     if (customCoefs && customCoefs.length === n) {
       coefs = customCoefs;
     } else {
-      // Equal split: each coef = totalCoef^(1/n)
       const equalCoef = Math.pow(totalCoef, 1 / n);
       coefs = Array(n).fill(equalCoef);
     }
 
-    // Build chain
     const chain: { label: string; buyPrice: number; coef: number; sellPrice: number; margin: number; marginPct: number }[] = [];
     let forwardPrice = ourPrice;
     for (let i = 0; i < n; i++) {
@@ -284,64 +352,59 @@ export function PricingPage() {
     return { chain, ourB2BPrice: ourPrice, prixPublicHT, prixPublicTTC: finalTTC, totalCoef, coefs };
   };
 
-  // When user edits one intermediary coef in Option 2, redistribute to maintain total
   const handleProductCoefChange = (productId: string, index: number, newCoef: number, totalCoef: number) => {
     const n = activeRule?.intermediaries.length || 1;
     if (n <= 1) {
-      // Single intermediary: coef = totalCoef (can't change)
-      setEditedProductCoefs(prev => ({ ...prev, [productId]: [totalCoef] }));
+      setEditedProductCoefs(prev => ({
+        ...prev,
+        [activeRuleId]: { ...(prev[activeRuleId] || {}), [productId]: [totalCoef] },
+      }));
       return;
     }
-    const clampedCoef = Math.max(1.01, Math.min(newCoef, totalCoef / 1.01)); // keep other > 1
+    const clampedCoef = Math.max(1.01, Math.min(newCoef, totalCoef / 1.01));
     const remainingCoef = totalCoef / clampedCoef;
     const newCoefs = index === 0 ? [clampedCoef, remainingCoef] : [remainingCoef, clampedCoef];
-    setEditedProductCoefs(prev => ({ ...prev, [productId]: newCoefs }));
+    setEditedProductCoefs(prev => ({
+      ...prev,
+      [activeRuleId]: { ...(prev[activeRuleId] || {}), [productId]: newCoefs },
+    }));
   };
 
-  // Save a single product price
   const saveProductPrice = useCallback(async (productId: string, priceTTC: number) => {
     await updateProduct(productId, { price_ttc: priceTTC });
+    // Clean up edits for this product in this rule
     setEditedPrices(prev => {
-      const next = { ...prev };
-      delete next[productId];
-      return next;
+      const rulePrices = { ...(prev[activeRuleId] || {}) };
+      delete rulePrices[productId];
+      return { ...prev, [activeRuleId]: rulePrices };
     });
     setEditedOurPrices(prev => {
-      const next = { ...prev };
-      delete next[productId];
-      return next;
+      const rulePrices = { ...(prev[activeRuleId] || {}) };
+      delete rulePrices[productId];
+      return { ...prev, [activeRuleId]: rulePrices };
     });
-  }, [updateProduct]);
+  }, [updateProduct, activeRuleId]);
 
-  // Bulk apply price
   const applyBulkPrice = async () => {
     const price = parseFloat(bulkPrice);
     if (isNaN(price) || price < 0) return;
 
-    if (pricingMode === 'from_public') {
-      const promises = Array.from(selectedProducts).map(id =>
-        updateProduct(id, { price_ttc: price })
-      );
-      await Promise.all(promises);
-      toast.success(`Prix ${price.toFixed(2)} € TTC appliqué à ${selectedProducts.size} produit(s)`);
-    } else {
-      // Option 2: bulk doesn't apply here easily, just save TTC directly
-      const promises = Array.from(selectedProducts).map(id =>
-        updateProduct(id, { price_ttc: price })
-      );
-      await Promise.all(promises);
-      toast.success(`Prix ${price.toFixed(2)} € appliqué à ${selectedProducts.size} produit(s)`);
-    }
+    const promises = Array.from(selectedProducts).map(id =>
+      updateProduct(id, { price_ttc: price })
+    );
+    await Promise.all(promises);
+    toast.success(`Prix ${price.toFixed(2)} € appliqué à ${selectedProducts.size} produit(s)`);
+
     setSelectedProducts(new Set());
     setBulkPrice('');
     setBulkDialogOpen(false);
-    setEditedPrices({});
-    setEditedOurPrices({});
-    setEditedFinalPrices({});
-    setEditedProductCoefs({});
+    // Clear edits for current rule
+    setEditedPrices(prev => ({ ...prev, [activeRuleId]: {} }));
+    setEditedOurPrices(prev => ({ ...prev, [activeRuleId]: {} }));
+    setEditedFinalPrices(prev => ({ ...prev, [activeRuleId]: {} }));
+    setEditedProductCoefs(prev => ({ ...prev, [activeRuleId]: {} }));
   };
 
-  // Toggle product selection
   const toggleSelect = (productId: string) => {
     setSelectedProducts(prev => {
       const next = new Set(prev);
@@ -351,7 +414,6 @@ export function PricingPage() {
     });
   };
 
-  // Select all in a category
   const toggleSelectCategory = (catId: string) => {
     const catProducts = catId === '__uncategorized'
       ? productsByCategory.uncategorized
@@ -368,7 +430,6 @@ export function PricingPage() {
     });
   };
 
-  // Sales rule management
   const addRule = () => {
     if (!newRuleName.trim()) return;
     const intermediaries = newRuleType === 'b2c'
@@ -389,9 +450,20 @@ export function PricingPage() {
     setNewRuleName('');
   };
 
-  const deleteRule = (ruleId: string) => {
-    setSalesRules(prev => prev.filter(r => r.id !== ruleId));
-    if (activeRuleId === ruleId) setActiveRuleId(salesRules[0]?.id || '');
+  const confirmDeleteRule = () => {
+    if (!ruleToDelete) return;
+    setSalesRules(prev => prev.filter(r => r.id !== ruleToDelete));
+    // Clean up per-rule data
+    setEditedPrices(prev => { const n = { ...prev }; delete n[ruleToDelete]; return n; });
+    setEditedOurPrices(prev => { const n = { ...prev }; delete n[ruleToDelete]; return n; });
+    setEditedFinalPrices(prev => { const n = { ...prev }; delete n[ruleToDelete]; return n; });
+    setEditedProductCoefs(prev => { const n = { ...prev }; delete n[ruleToDelete]; return n; });
+    if (activeRuleId === ruleToDelete) {
+      const remaining = salesRules.filter(r => r.id !== ruleToDelete);
+      setActiveRuleId(remaining[0]?.id || '');
+    }
+    setRuleToDelete(null);
+    toast.success('Règle supprimée');
   };
 
   const updateIntermediary = (ruleId: string, index: number, field: 'label' | 'coefficient', value: string | number) => {
@@ -423,7 +495,6 @@ export function PricingPage() {
 
   const fmt = (n: number) => n.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-  // Compute margin % for a product (used for sorting and display)
   const getProductMarginPct = (prod: typeof products[0]): number | null => {
     const costPrice = calculateProductCost(prod.id, prod.default_volume || 500);
     if (costPrice <= 0) return null;
@@ -436,8 +507,9 @@ export function PricingPage() {
     } else {
       const effectiveTTC = getEffectivePrice(prod);
       const reverseResult = computeChainFromPublicTTC(effectiveTTC);
-      const currentOurPrice = editedOurPrices[prod.id] !== undefined
-        ? editedOurPrices[prod.id]
+      const ruleOurPrices = getRuleEditedOurPrices();
+      const currentOurPrice = ruleOurPrices[prod.id] !== undefined
+        ? ruleOurPrices[prod.id]
         : (reverseResult?.ourB2BPrice || 0);
       if (currentOurPrice <= 0) return null;
       return ((currentOurPrice - costPrice) / costPrice) * 100;
@@ -445,17 +517,20 @@ export function PricingPage() {
   };
 
   const marginColorClass = (marginPct: number) =>
-    marginPct < 0 ? 'text-red-500 font-semibold' : 'text-muted-foreground';
+    marginPct < 0 ? 'text-destructive font-semibold' : 'text-muted-foreground';
 
   const renderProductRow = (prod: typeof products[0]) => {
     const costPrice = calculateProductCost(prod.id, prod.default_volume || 500);
     const isSelected = selectedProducts.has(prod.id);
+    const rulePrices = getRuleEditedPrices();
+    const ruleOurPrices = getRuleEditedOurPrices();
+    const ruleFinalPrices = getRuleEditedFinalPrices();
+    const ruleCoefs = getRuleEditedCoefs();
 
     if (pricingMode === 'from_public') {
-      // Option 1: fix public TTC → compute our price
       const effectivePrice = getEffectivePrice(prod);
       const result = computeChainFromPublicTTC(effectivePrice);
-      const isEdited = editedPrices[prod.id] !== undefined;
+      const isEdited = rulePrices[prod.id] !== undefined;
 
       return (
         <TableRow key={prod.id} className={isSelected ? 'bg-primary/5' : ''}>
@@ -490,7 +565,7 @@ export function PricingPage() {
                 value={effectivePrice || ''}
                 onChange={e => {
                   const val = parseFloat(e.target.value);
-                  setEditedPrices(prev => ({ ...prev, [prod.id]: isNaN(val) ? 0 : val }));
+                  setRuleEditedPrice(prod.id, isNaN(val) ? 0 : val);
                 }}
                 placeholder="0.00"
               />
@@ -508,7 +583,7 @@ export function PricingPage() {
           </TableCell>
           <TableCell className="w-10">
             {isEdited && (
-              <Button variant="ghost" size="icon" className="h-7 w-7 text-primary" onClick={() => saveProductPrice(prod.id, editedPrices[prod.id])} title="Enregistrer">
+              <Button variant="ghost" size="icon" className="h-7 w-7 text-primary" onClick={() => saveProductPrice(prod.id, rulePrices[prod.id])} title="Enregistrer">
                 <Check className="h-3.5 w-3.5" />
               </Button>
             )}
@@ -516,18 +591,17 @@ export function PricingPage() {
         </TableRow>
       );
     } else {
-      // Option 2: fix both our price AND final TTC, compute intermediary coefs
       const effectiveTTC = getEffectivePrice(prod);
-      const currentFinalTTC = editedFinalPrices[prod.id] !== undefined
-        ? editedFinalPrices[prod.id]
+      const currentFinalTTC = ruleFinalPrices[prod.id] !== undefined
+        ? ruleFinalPrices[prod.id]
         : (effectiveTTC || 0);
       const reverseResult = computeChainFromPublicTTC(effectiveTTC);
-      const currentOurPrice = editedOurPrices[prod.id] !== undefined
-        ? editedOurPrices[prod.id]
+      const currentOurPrice = ruleOurPrices[prod.id] !== undefined
+        ? ruleOurPrices[prod.id]
         : (reverseResult?.ourB2BPrice || 0);
-      const customCoefs = editedProductCoefs[prod.id];
+      const customCoefs = ruleCoefs[prod.id];
       const result = computeChainBothEnds(currentOurPrice, currentFinalTTC, customCoefs);
-      const isEdited = editedOurPrices[prod.id] !== undefined || editedFinalPrices[prod.id] !== undefined || editedProductCoefs[prod.id] !== undefined;
+      const isEdited = ruleOurPrices[prod.id] !== undefined || ruleFinalPrices[prod.id] !== undefined || ruleCoefs[prod.id] !== undefined;
 
       return (
         <TableRow key={prod.id} className={isSelected ? 'bg-primary/5' : ''}>
@@ -536,7 +610,6 @@ export function PricingPage() {
           </TableCell>
           <TableCell className="font-medium">{prod.name}</TableCell>
           <TableCell className="text-right font-mono text-sm">{costPrice > 0 ? `${fmt(costPrice)} €` : '–'}</TableCell>
-          {/* Notre prix HT - input */}
           <TableCell className="w-36">
             <div className="flex items-center gap-1">
               <Input
@@ -546,16 +619,13 @@ export function PricingPage() {
                 value={currentOurPrice || ''}
                 onChange={e => {
                   const val = parseFloat(e.target.value);
-                  setEditedOurPrices(prev => ({ ...prev, [prod.id]: isNaN(val) ? 0 : val }));
-                  // Reset custom coefs so they get recomputed
-                  setEditedProductCoefs(prev => { const n = { ...prev }; delete n[prod.id]; return n; });
+                  setRuleEditedOurPrice(prod.id, isNaN(val) ? 0 : val);
                 }}
                 placeholder="0.00"
               />
               <span className="text-xs text-muted-foreground">€</span>
             </div>
           </TableCell>
-          {/* Intermediary coefs - editable, linked */}
           {activeRule?.intermediaries.map((inter, i) => {
             const step = result?.chain[i];
             const coef = result?.coefs[i] || 1;
@@ -587,9 +657,7 @@ export function PricingPage() {
               </TableCell>
             );
           })}
-          {/* Prix Public HT */}
           <TableCell className="text-right font-mono text-sm">{result ? `${fmt(result.prixPublicHT)} €` : '–'}</TableCell>
-          {/* Prix Public TTC - input */}
           <TableCell className="w-36">
             <div className="flex items-center gap-1">
               <Input
@@ -599,20 +667,16 @@ export function PricingPage() {
                 value={currentFinalTTC || ''}
                 onChange={e => {
                   const val = parseFloat(e.target.value);
-                  setEditedFinalPrices(prev => ({ ...prev, [prod.id]: isNaN(val) ? 0 : val }));
-                  // Reset custom coefs so they get recomputed
-                  setEditedProductCoefs(prev => { const n = { ...prev }; delete n[prod.id]; return n; });
+                  setRuleEditedFinalPrice(prod.id, isNaN(val) ? 0 : val);
                 }}
                 placeholder="0.00"
               />
               <span className="text-xs text-muted-foreground">€</span>
             </div>
           </TableCell>
-          {/* Coef total */}
           <TableCell className="text-right font-mono text-sm text-muted-foreground">
             {result ? `×${result.totalCoef.toFixed(2)}` : '–'}
           </TableCell>
-          {/* Notre marge */}
           <TableCell className={`text-right font-mono text-sm ${(() => {
             if (!result || costPrice <= 0) return 'text-muted-foreground';
             const m = ((currentOurPrice - costPrice) / costPrice) * 100;
@@ -723,35 +787,67 @@ export function PricingPage() {
     );
   };
 
-  const hasEdits = pricingMode === 'from_public'
-    ? Object.keys(editedPrices).length > 0
-    : (Object.keys(editedOurPrices).length > 0 || Object.keys(editedFinalPrices).length > 0 || Object.keys(editedProductCoefs).length > 0);
+  const ruleHasEdits = () => {
+    const rp = getRuleEditedPrices();
+    const rop = getRuleEditedOurPrices();
+    const rfp = getRuleEditedFinalPrices();
+    const rpc = getRuleEditedCoefs();
+    if (pricingMode === 'from_public') {
+      return Object.keys(rp).length > 0;
+    }
+    return Object.keys(rop).length > 0 || Object.keys(rfp).length > 0 || Object.keys(rpc).length > 0;
+  };
 
   const saveAllEdits = async () => {
     if (pricingMode === 'from_public') {
-      const promises = Object.entries(editedPrices).map(([id, price]) =>
+      const rulePrices = getRuleEditedPrices();
+      const promises = Object.entries(rulePrices).map(([id, price]) =>
         updateProduct(id, { price_ttc: price })
       );
       await Promise.all(promises);
-      toast.success(`${Object.keys(editedPrices).length} prix mis à jour`);
-      setEditedPrices({});
+      toast.success(`${Object.keys(rulePrices).length} prix mis à jour pour "${activeRule?.name}"`);
+      setEditedPrices(prev => ({ ...prev, [activeRuleId]: {} }));
     } else {
-      // Collect all products that have any edit in option 2
+      const rop = getRuleEditedOurPrices();
+      const rfp = getRuleEditedFinalPrices();
+      const rpc = getRuleEditedCoefs();
       const allEditedIds = new Set([
-        ...Object.keys(editedOurPrices),
-        ...Object.keys(editedFinalPrices),
-        ...Object.keys(editedProductCoefs),
+        ...Object.keys(rop),
+        ...Object.keys(rfp),
+        ...Object.keys(rpc),
       ]);
       const promises = Array.from(allEditedIds).map(id => {
-        const finalTTC = editedFinalPrices[id] !== undefined ? editedFinalPrices[id] : (products.find(p => p.id === id)?.price_ttc || 0);
+        const finalTTC = rfp[id] !== undefined ? rfp[id] : (products.find(p => p.id === id)?.price_ttc || 0);
         return finalTTC > 0 ? updateProduct(id, { price_ttc: finalTTC }) : Promise.resolve();
       });
       await Promise.all(promises);
-      toast.success(`${allEditedIds.size} prix mis à jour`);
-      setEditedOurPrices({});
-      setEditedFinalPrices({});
-      setEditedProductCoefs({});
+      toast.success(`${allEditedIds.size} prix mis à jour pour "${activeRule?.name}"`);
+      setEditedOurPrices(prev => ({ ...prev, [activeRuleId]: {} }));
+      setEditedFinalPrices(prev => ({ ...prev, [activeRuleId]: {} }));
+      setEditedProductCoefs(prev => ({ ...prev, [activeRuleId]: {} }));
     }
+  };
+
+  // Count total edits across all rules for indicator
+  const totalEditsAllRules = useMemo(() => {
+    let count = 0;
+    for (const ruleId of Object.keys(editedPrices)) {
+      count += Object.keys(editedPrices[ruleId] || {}).length;
+    }
+    for (const ruleId of Object.keys(editedOurPrices)) {
+      count += Object.keys(editedOurPrices[ruleId] || {}).length;
+    }
+    for (const ruleId of Object.keys(editedFinalPrices)) {
+      count += Object.keys(editedFinalPrices[ruleId] || {}).length;
+    }
+    return count;
+  }, [editedPrices, editedOurPrices, editedFinalPrices]);
+
+  const ruleEditCount = (ruleId: string) => {
+    const ep = Object.keys(editedPrices[ruleId] || {}).length;
+    const eop = Object.keys(editedOurPrices[ruleId] || {}).length;
+    const efp = Object.keys(editedFinalPrices[ruleId] || {}).length;
+    return ep + eop + efp;
   };
 
   return (
@@ -899,7 +995,7 @@ export function PricingPage() {
           <div className="flex items-center justify-between">
             <div>
               <CardTitle className="text-lg">Règles de vente</CardTitle>
-              <CardDescription>Configurez les canaux de distribution et leurs intermédiaires</CardDescription>
+              <CardDescription>Configurez les canaux de distribution et leurs intermédiaires. Chaque règle a ses propres prix par catégorie.</CardDescription>
             </div>
             <Dialog open={ruleDialogOpen} onOpenChange={setRuleDialogOpen}>
               <DialogTrigger asChild>
@@ -936,17 +1032,25 @@ export function PricingPage() {
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex flex-wrap gap-2">
-            {salesRules.map(rule => (
-              <Badge
-                key={rule.id}
-                variant={rule.id === activeRuleId ? 'default' : 'outline'}
-                className="cursor-pointer text-sm py-1.5 px-3"
-                onClick={() => setActiveRuleId(rule.id)}
-              >
-                {rule.name}
-                <span className="ml-1 text-xs opacity-60">({rule.type.toUpperCase()})</span>
-              </Badge>
-            ))}
+            {salesRules.map(rule => {
+              const edits = ruleEditCount(rule.id);
+              return (
+                <Badge
+                  key={rule.id}
+                  variant={rule.id === activeRuleId ? 'default' : 'outline'}
+                  className="cursor-pointer text-sm py-1.5 px-3 relative"
+                  onClick={() => setActiveRuleId(rule.id)}
+                >
+                  {rule.name}
+                  <span className="ml-1 text-xs opacity-60">({rule.type.toUpperCase()})</span>
+                  {edits > 0 && (
+                    <span className="ml-1.5 inline-flex items-center justify-center h-4 w-4 rounded-full bg-primary text-primary-foreground text-[10px] font-bold">
+                      {edits}
+                    </span>
+                  )}
+                </Badge>
+              );
+            })}
           </div>
 
           {activeRule && (
@@ -960,9 +1064,9 @@ export function PricingPage() {
                   className="h-8 text-sm font-semibold w-48"
                 />
                 <div className="flex items-center gap-2">
-                  <Badge variant="secondary">{activeRule.type === 'oem' ? 'Max 1 intermédiaire' : 'Max 2 intermédiaires'}</Badge>
+                  <Badge variant="secondary">{activeRule.type === 'b2c' ? 'Vente directe' : activeRule.type === 'oem' ? 'Max 1 intermédiaire' : 'Max 2 intermédiaires'}</Badge>
                   {salesRules.length > 1 && (
-                    <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => deleteRule(activeRule.id)}>
+                    <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => setRuleToDelete(activeRule.id)}>
                       <Trash2 className="h-3.5 w-3.5" />
                     </Button>
                   )}
@@ -1021,7 +1125,7 @@ export function PricingPage() {
                     )}
                   </div>
                 ))}
-                {activeRule.intermediaries.length < (activeRule.type === 'oem' ? 1 : 2) && (
+                {activeRule.intermediaries.length < (activeRule.type === 'b2c' ? 0 : activeRule.type === 'oem' ? 1 : 2) && (
                   <Button variant="outline" size="sm" onClick={() => addIntermediary(activeRule.id)}>
                     <Plus className="h-3.5 w-3.5 mr-1" />
                     Ajouter intermédiaire
@@ -1041,7 +1145,7 @@ export function PricingPage() {
         calculateProductCost={calculateProductCost}
         computeChainFromPublicTTC={computeChainFromPublicTTC}
         getEffectivePrice={getEffectivePrice}
-        editedOurPrices={editedOurPrices}
+        editedOurPrices={getRuleEditedOurPrices()}
         pricingMode={pricingMode}
       />
 
@@ -1052,20 +1156,28 @@ export function PricingPage() {
             <div>
               <CardTitle className="text-lg flex items-center gap-2">
                 <Package className="h-5 w-5" />
-                Détail des prix par catégorie
+                Détail des prix par catégorie — <span className="text-primary">{activeRule?.name}</span>
               </CardTitle>
               <CardDescription>
                 {pricingMode === 'from_public'
                   ? `Fixez le prix public TTC → notre prix de vente est calculé via la chaîne "${activeRule?.name}"`
-                  : `Fixez notre prix HT et le prix client TTC → les coefficients intermédiaires sont répartis équitablement via "${activeRule?.name}"`
+                  : `Fixez notre prix HT et le prix client TTC → les coefficients intermédiaires sont répartis via "${activeRule?.name}"`
                 }
               </CardDescription>
             </div>
-            {selectedProducts.size > 0 && (
-              <div className="text-sm text-muted-foreground">
-                {selectedProducts.size} produit(s) sélectionné(s)
-              </div>
-            )}
+            <div className="flex items-center gap-2">
+              {ruleHasEdits() && (
+                <Button onClick={saveAllEdits} size="sm" variant="outline">
+                  <Check className="h-4 w-4 mr-1" />
+                  Enregistrer les prix ({activeRule?.name})
+                </Button>
+              )}
+              {selectedProducts.size > 0 && (
+                <div className="text-sm text-muted-foreground">
+                  {selectedProducts.size} produit(s) sélectionné(s)
+                </div>
+              )}
+            </div>
           </div>
         </CardHeader>
         <CardContent>
@@ -1114,6 +1226,24 @@ export function PricingPage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Delete rule confirmation */}
+      <AlertDialog open={!!ruleToDelete} onOpenChange={open => { if (!open) setRuleToDelete(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Supprimer cette règle de vente ?</AlertDialogTitle>
+            <AlertDialogDescription>
+              La règle « {salesRules.find(r => r.id === ruleToDelete)?.name} » et tous ses prix associés seront définitivement supprimés. Cette action est irréversible.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annuler</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDeleteRule} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Supprimer
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
