@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { SectionCard } from '@/components/ui/KPICard';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -5,8 +6,8 @@ import { Slider } from '@/components/ui/slider';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { formatCurrency, formatPercent } from '@/data/financialConfig';
-import { Trash2, Users, Download } from 'lucide-react';
+import { formatCurrency } from '@/data/financialConfig';
+import { Trash2, Users, Download, Plus } from 'lucide-react';
 import { ClientRevenueConfig, ClientRevenueEntry } from '@/context/FinancialContext';
 import { useB2BClientsData } from '@/hooks/useB2BClientsData';
 
@@ -16,9 +17,18 @@ interface ClientRevenueEditorProps {
   years: number[];
 }
 
+/** Derive channel from category name */
+function channelFromCategory(catName: string | null | undefined): 'B2B' | 'OEM' {
+  if (!catName) return 'B2B';
+  const lower = catName.toLowerCase();
+  if (lower.includes('oem')) return 'OEM';
+  return 'B2B';
+}
+
 export function ClientRevenueEditor({ config: rawConfig, onChange, years }: ClientRevenueEditorProps) {
   const { clients, categories, projections } = useB2BClientsData();
   const baseYear = years[0];
+  const [b2cName, setB2cName] = useState('');
 
   const config: ClientRevenueConfig = {
     entries: (rawConfig?.entries ?? []).map(e => ({
@@ -31,39 +41,63 @@ export function ClientRevenueEditor({ config: rawConfig, onChange, years }: Clie
     marginRate: rawConfig?.marginRate ?? 0.5,
   };
 
-  const handleAddClient = (clientId: string, channel: 'B2C' | 'B2B') => {
+  // Add a CRM client (channel derived from category)
+  const handleAddCRMClient = (clientId: string) => {
     const client = clients.find(c => c.id === clientId);
     if (!client) return;
-    if (config.entries.some(e => e.clientId === clientId && e.channel === channel)) return;
+    if (config.entries.some(e => e.clientId === clientId)) return;
     const cat = categories.find(c => c.id === client.category_id);
+    const channel = channelFromCategory(cat?.name);
+
+    // Auto-import historical CA from N-1
+    const n1Year = baseYear - 1;
+    const historicalProjection = projections?.find(p => p.client_id === clientId && p.year === n1Year);
+    const baseRevenue = historicalProjection?.projected_revenue ?? 0;
+
     const entry: ClientRevenueEntry = {
       clientId: client.id,
       clientName: client.company_name,
       categoryId: client.category_id,
       categoryName: cat?.name || null,
       channel,
-      baseRevenue: 0,
+      baseRevenue,
       individualGrowthRate: null,
       revenueByYear: {},
     };
     onChange({ ...config, entries: [...config.entries, entry] });
   };
 
-  const handleRemoveClient = (clientId: string, channel: string) => {
-    onChange({ ...config, entries: config.entries.filter(e => !(e.clientId === clientId && e.channel === channel)) });
+  // Add B2C entry (manual, not from CRM)
+  const handleAddB2C = () => {
+    if (!b2cName.trim()) return;
+    const id = `b2c_${Date.now()}`;
+    const entry: ClientRevenueEntry = {
+      clientId: id,
+      clientName: b2cName.trim(),
+      categoryId: null,
+      categoryName: 'B2C',
+      channel: 'B2C',
+      baseRevenue: 0,
+      individualGrowthRate: null,
+      revenueByYear: {},
+    };
+    onChange({ ...config, entries: [...config.entries, entry] });
+    setB2cName('');
   };
 
-  const handleEntryChange = (clientId: string, channel: string, patch: Partial<ClientRevenueEntry>) => {
+  const handleRemoveEntry = (clientId: string) => {
+    onChange({ ...config, entries: config.entries.filter(e => e.clientId !== clientId) });
+  };
+
+  const handleEntryChange = (clientId: string, patch: Partial<ClientRevenueEntry>) => {
     onChange({
       ...config,
-      entries: config.entries.map(e =>
-        e.clientId === clientId && e.channel === channel ? { ...e, ...patch } : e
-      ),
+      entries: config.entries.map(e => e.clientId === clientId ? { ...e, ...patch } : e),
     });
   };
 
-  const handleYearRevenueChange = (clientId: string, channel: string, year: number, value: number | null) => {
-    const entry = config.entries.find(e => e.clientId === clientId && e.channel === channel);
+  const handleYearRevenueChange = (clientId: string, year: number, value: number | null) => {
+    const entry = config.entries.find(e => e.clientId === clientId);
     if (!entry) return;
     const revenueByYear = { ...entry.revenueByYear };
     if (value === null || value === undefined || isNaN(value)) {
@@ -71,29 +105,29 @@ export function ClientRevenueEditor({ config: rawConfig, onChange, years }: Clie
     } else {
       revenueByYear[year] = value;
     }
-    handleEntryChange(clientId, channel, { revenueByYear });
+    handleEntryChange(clientId, { revenueByYear });
   };
 
-  const importHistorical = (clientId: string, channel: string) => {
+  // Import all historical projections for a client
+  const importHistorical = (clientId: string) => {
     const clientProjections = projections?.filter(p => p.client_id === clientId) ?? [];
     if (clientProjections.length === 0) return;
-    const entry = config.entries.find(e => e.clientId === clientId && e.channel === channel);
+    const entry = config.entries.find(e => e.clientId === clientId);
     if (!entry) return;
     const revenueByYear = { ...entry.revenueByYear };
-    let lastHistorical = entry.baseRevenue;
+    let newBase = entry.baseRevenue;
     clientProjections.forEach(p => {
-      if (years.includes(p.year)) {
-        revenueByYear[p.year] = p.projected_revenue ?? 0;
+      if (years.includes(p.year) && p.projected_revenue) {
+        revenueByYear[p.year] = p.projected_revenue;
       }
-      // Use last historical year before baseYear as baseRevenue
       if (p.year === baseYear - 1 && p.projected_revenue) {
-        lastHistorical = p.projected_revenue;
+        newBase = p.projected_revenue;
       }
     });
-    handleEntryChange(clientId, channel, { revenueByYear, baseRevenue: lastHistorical || entry.baseRevenue });
+    handleEntryChange(clientId, { revenueByYear, baseRevenue: newBase || entry.baseRevenue });
   };
 
-  // Calculate projected revenue for an entry for a given year
+  // Calculate projected revenue
   const getClientRevenue = (entry: ClientRevenueEntry, year: number) => {
     if (entry.revenueByYear?.[year] !== undefined && entry.revenueByYear[year] !== null) {
       return entry.revenueByYear[year];
@@ -110,7 +144,13 @@ export function ClientRevenueEditor({ config: rawConfig, onChange, years }: Clie
   );
   const totalRevenue = totalByYear.reduce((s, v) => s + v, 0);
 
-  const availableClients = clients.filter(c => c.is_active);
+  // Group by channel
+  const channels: Array<'B2B' | 'OEM' | 'B2C'> = ['B2B', 'OEM', 'B2C'];
+  const entriesByChannel = channels
+    .map(ch => ({ channel: ch, entries: config.entries.filter(e => e.channel === ch) }))
+    .filter(g => g.entries.length > 0);
+
+  const availableCRMClients = clients.filter(c => c.is_active && !config.entries.some(e => e.clientId === c.id));
 
   return (
     <div className="space-y-4">
@@ -143,33 +183,43 @@ export function ClientRevenueEditor({ config: rawConfig, onChange, years }: Clie
         </div>
       </SectionCard>
 
-      {/* Client Selection & Table */}
+      {/* Add clients */}
       <SectionCard title="Projection CA par Client">
-        <div className="flex flex-wrap items-center gap-2 mb-4">
-          <Select onValueChange={(val) => {
-            const [id, ch] = val.split('::');
-            handleAddClient(id, ch as 'B2C' | 'B2B');
-          }}>
-            <SelectTrigger className="w-72">
-              <SelectValue placeholder="Ajouter un client (canal)..." />
+        <div className="flex flex-wrap items-center gap-3 mb-4">
+          {/* CRM clients (B2B/OEM based on category) */}
+          <Select onValueChange={handleAddCRMClient}>
+            <SelectTrigger className="w-64">
+              <SelectValue placeholder="Ajouter un client CRM..." />
             </SelectTrigger>
             <SelectContent>
-              {availableClients.map(c => (
-                <>
-                  {!config.entries.some(e => e.clientId === c.id && e.channel === 'B2B') && (
-                    <SelectItem key={`${c.id}::B2B`} value={`${c.id}::B2B`}>
-                      {c.company_name} — B2B
-                    </SelectItem>
-                  )}
-                  {!config.entries.some(e => e.clientId === c.id && e.channel === 'B2C') && (
-                    <SelectItem key={`${c.id}::B2C`} value={`${c.id}::B2C`}>
-                      {c.company_name} — B2C
-                    </SelectItem>
-                  )}
-                </>
-              ))}
+              {availableCRMClients.map(c => {
+                const cat = categories.find(ct => ct.id === c.category_id);
+                const ch = channelFromCategory(cat?.name);
+                return (
+                  <SelectItem key={c.id} value={c.id}>
+                    {c.company_name}
+                    <span className="text-muted-foreground ml-1 text-xs">({ch}{cat ? ` — ${cat.name}` : ''})</span>
+                  </SelectItem>
+                );
+              })}
             </SelectContent>
           </Select>
+
+          {/* B2C manual entry */}
+          <div className="flex items-center gap-1">
+            <Input
+              value={b2cName}
+              onChange={e => setB2cName(e.target.value)}
+              placeholder="Nom canal B2C..."
+              className="h-9 w-40 text-xs"
+              onKeyDown={e => e.key === 'Enter' && handleAddB2C()}
+            />
+            <Button size="sm" variant="outline" onClick={handleAddB2C} disabled={!b2cName.trim()}>
+              <Plus className="h-3 w-3 mr-1" />
+              B2C
+            </Button>
+          </div>
+
           <Badge variant="secondary" className="text-xs">
             {config.entries.length} entrée(s)
           </Badge>
@@ -182,103 +232,110 @@ export function ClientRevenueEditor({ config: rawConfig, onChange, years }: Clie
                 <TableHead className="text-xs min-w-[130px]">Client</TableHead>
                 <TableHead className="text-xs w-14">Canal</TableHead>
                 <TableHead className="text-xs w-14">Catég.</TableHead>
-                <TableHead className="text-xs text-right w-20">Croiss.</TableHead>
+                <TableHead className="text-xs text-right w-16">Croiss. %</TableHead>
+                <TableHead className="text-xs text-right w-20">CA N-1</TableHead>
                 {years.map(y => (
-                  <TableHead key={y} className="text-xs text-right min-w-[90px]">{y}</TableHead>
+                  <TableHead key={y} className="text-xs text-right min-w-[85px]">{y}</TableHead>
                 ))}
-                <TableHead className="text-xs text-right min-w-[90px]">Total</TableHead>
+                <TableHead className="text-xs text-right min-w-[85px]">Total</TableHead>
                 <TableHead className="text-xs w-16"></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {config.entries.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={years.length + 6} className="text-center text-muted-foreground py-6">
+                  <TableCell colSpan={years.length + 7} className="text-center text-muted-foreground py-6">
                     <Users className="h-8 w-8 mx-auto mb-2 opacity-30" />
-                    <p className="text-sm">Ajoutez des clients pour projeter leur CA</p>
+                    <p className="text-sm">Ajoutez des clients CRM ou des canaux B2C</p>
                   </TableCell>
                 </TableRow>
               )}
-              {config.entries.map(entry => {
-                const key = `${entry.clientId}::${entry.channel}`;
-                const clientTotal = years.reduce((s, y) => s + getClientRevenue(entry, y), 0);
-                const hasIndividualGrowth = entry.individualGrowthRate !== null && entry.individualGrowthRate !== undefined;
-                const hasProjections = projections?.some(p => p.client_id === entry.clientId);
-
-                return (
-                  <TableRow key={key}>
-                    <TableCell className="font-medium text-xs">{entry.clientName}</TableCell>
-                    <TableCell>
-                      <Badge variant={entry.channel === 'B2C' ? 'default' : 'outline'} className="text-[10px]">
-                        {entry.channel}
+              {entriesByChannel.map(group => (
+                <>
+                  <TableRow key={`header-${group.channel}`} className="bg-muted/30">
+                    <TableCell colSpan={years.length + 7} className="py-1">
+                      <Badge variant={group.channel === 'B2C' ? 'default' : 'outline'} className="text-[10px]">
+                        {group.channel}
                       </Badge>
-                    </TableCell>
-                    <TableCell className="text-[10px] text-muted-foreground">
-                      {entry.categoryName || '—'}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <Input
-                        type="number"
-                        value={hasIndividualGrowth ? (entry.individualGrowthRate! * 100).toFixed(0) : ''}
-                        onChange={e => {
-                          const val = e.target.value;
-                          handleEntryChange(entry.clientId, entry.channel, {
-                            individualGrowthRate: val === '' ? null : Number(val) / 100,
-                          });
-                        }}
-                        className="h-7 w-16 text-right text-[10px] ml-auto"
-                        placeholder={`${(config.growthRate * 100).toFixed(0)}%`}
-                        title="Taux individuel (vide = global)"
-                      />
-                    </TableCell>
-                    {years.map((y, yi) => {
-                      const hasManual = entry.revenueByYear?.[y] !== undefined;
-                      const computed = getClientRevenue(entry, y);
-                      return (
-                        <TableCell key={y} className="text-right p-1">
-                          <Input
-                            type="number"
-                            value={hasManual ? entry.revenueByYear[y] : (yi === 0 ? (entry.baseRevenue || '') : '')}
-                            onChange={e => {
-                              const val = e.target.value;
-                              if (yi === 0 && !hasManual) {
-                                // First year = baseRevenue
-                                handleEntryChange(entry.clientId, entry.channel, { baseRevenue: Number(val) || 0 });
-                              } else {
-                                handleYearRevenueChange(entry.clientId, entry.channel, y, val === '' ? null : Number(val));
-                              }
-                            }}
-                            className={`h-7 w-20 text-right text-[10px] ml-auto ${hasManual && yi > 0 ? 'border-primary/50' : ''}`}
-                            placeholder={yi > 0 ? formatCurrency(computed, true) : '0'}
-                          />
-                        </TableCell>
-                      );
-                    })}
-                    <TableCell className="text-right font-mono text-xs font-medium">
-                      {formatCurrency(clientTotal, true)}
-                    </TableCell>
-                    <TableCell className="flex gap-1">
-                      {hasProjections && (
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => importHistorical(entry.clientId, entry.channel)}
-                          title="Importer l'historique CA"
-                        >
-                          <Download className="h-3 w-3 text-primary" />
-                        </Button>
-                      )}
-                      <Button size="sm" variant="ghost" onClick={() => handleRemoveClient(entry.clientId, entry.channel)}>
-                        <Trash2 className="h-3 w-3 text-destructive" />
-                      </Button>
+                      <span className="text-xs text-muted-foreground ml-2">
+                        {group.entries.length} client(s) — Total: {formatCurrency(
+                          years.reduce((s, y) => s + group.entries.reduce((s2, e) => s2 + getClientRevenue(e, y), 0), 0), true
+                        )}
+                      </span>
                     </TableCell>
                   </TableRow>
-                );
-              })}
+                  {group.entries.map(entry => {
+                    const clientTotal = years.reduce((s, y) => s + getClientRevenue(entry, y), 0);
+                    const hasIndividualGrowth = entry.individualGrowthRate !== null && entry.individualGrowthRate !== undefined;
+                    const hasProjections = projections?.some(p => p.client_id === entry.clientId);
+
+                    return (
+                      <TableRow key={entry.clientId}>
+                        <TableCell className="font-medium text-xs">{entry.clientName}</TableCell>
+                        <TableCell>
+                          <Badge variant="outline" className="text-[10px]">{entry.channel}</Badge>
+                        </TableCell>
+                        <TableCell className="text-[10px] text-muted-foreground">
+                          {entry.categoryName || '—'}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <Input
+                            type="number"
+                            value={hasIndividualGrowth ? (entry.individualGrowthRate! * 100).toFixed(0) : ''}
+                            onChange={e => {
+                              const val = e.target.value;
+                              handleEntryChange(entry.clientId, {
+                                individualGrowthRate: val === '' ? null : Number(val) / 100,
+                              });
+                            }}
+                            className="h-7 w-14 text-right text-[10px] ml-auto"
+                            placeholder={`${(config.growthRate * 100).toFixed(0)}`}
+                            title="Taux individuel (vide = global)"
+                          />
+                        </TableCell>
+                        <TableCell className="text-right font-mono text-[10px] text-muted-foreground">
+                          {entry.baseRevenue > 0 ? formatCurrency(entry.baseRevenue, true) : '—'}
+                        </TableCell>
+                        {years.map(y => {
+                          const hasManual = entry.revenueByYear?.[y] !== undefined;
+                          const computed = getClientRevenue(entry, y);
+                          return (
+                            <TableCell key={y} className="text-right p-1">
+                              <Input
+                                type="number"
+                                value={hasManual ? entry.revenueByYear[y] : ''}
+                                onChange={e => {
+                                  const val = e.target.value;
+                                  handleYearRevenueChange(entry.clientId, y, val === '' ? null : Number(val));
+                                }}
+                                className={`h-7 w-20 text-right text-[10px] ml-auto ${hasManual ? 'border-primary/50' : ''}`}
+                                placeholder={formatCurrency(computed, true)}
+                              />
+                            </TableCell>
+                          );
+                        })}
+                        <TableCell className="text-right font-mono text-xs font-medium">
+                          {formatCurrency(clientTotal, true)}
+                        </TableCell>
+                        <TableCell className="flex gap-0.5">
+                          {hasProjections && (
+                            <Button size="sm" variant="ghost" onClick={() => importHistorical(entry.clientId)} title="Importer historique CA">
+                              <Download className="h-3 w-3 text-primary" />
+                            </Button>
+                          )}
+                          <Button size="sm" variant="ghost" onClick={() => handleRemoveEntry(entry.clientId)}>
+                            <Trash2 className="h-3 w-3 text-destructive" />
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </>
+              ))}
               {config.entries.length > 0 && (
                 <>
                   <TableRow className="font-semibold border-t-2">
-                    <TableCell colSpan={4}>Total CA</TableCell>
+                    <TableCell colSpan={5}>Total CA</TableCell>
                     {years.map((y, i) => (
                       <TableCell key={y} className="text-right font-mono text-xs">
                         {formatCurrency(totalByYear[i], true)}
@@ -290,7 +347,7 @@ export function ClientRevenueEditor({ config: rawConfig, onChange, years }: Clie
                     <TableCell />
                   </TableRow>
                   <TableRow className="text-muted-foreground">
-                    <TableCell colSpan={4}>Marge Brute ({(config.marginRate * 100).toFixed(0)}%)</TableCell>
+                    <TableCell colSpan={5}>Marge Brute ({(config.marginRate * 100).toFixed(0)}%)</TableCell>
                     {years.map((y, i) => (
                       <TableCell key={y} className="text-right font-mono text-xs">
                         {formatCurrency(totalByYear[i] * config.marginRate, true)}
