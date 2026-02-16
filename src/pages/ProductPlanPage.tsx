@@ -8,6 +8,7 @@ import { SimplifiedPricingTable } from '@/components/product/SimplifiedPricingTa
 import { RevenueVisualization } from '@/components/product/RevenueVisualization';
 import { VolumesByChannelTable } from '@/components/product/VolumesByChannelTable';
 import { GlobalRevenueEditor, calculateGlobalRevenue } from '@/components/product/GlobalRevenueEditor';
+import { ClientRevenueEditor } from '@/components/product/ClientRevenueEditor';
 import { PageExportPDF, ExportableSection } from '@/components/export/PageExportPDF';
 import { ReadOnlyWrapper } from '@/components/auth/ReadOnlyWrapper';
 import { Button } from '@/components/ui/button';
@@ -33,7 +34,7 @@ import {
   ResponsiveContainer,
   Legend,
 } from 'recharts';
-import { Calculator, Package, PieChart, Layers, Target } from 'lucide-react';
+import { Calculator, Package, PieChart, Layers, Target, Users } from 'lucide-react';
 
 const EXPORT_SECTIONS: ExportableSection[] = [
   { id: 'kpis', label: 'KPIs Produits', elementId: 'product-kpis' },
@@ -53,6 +54,7 @@ export function ProductPlanPage() {
     saveAll,
     setRevenueMode,
     updateGlobalRevenueConfig,
+    updateClientRevenueConfig,
   } = useFinancial();
 
   const settings = state.scenarioSettings;
@@ -141,11 +143,19 @@ export function ProductPlanPage() {
               <Target className="h-4 w-4 mr-1" />
               CA Global par Canal
             </Button>
+            <Button
+              variant={state.revenueMode === 'by-client' ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setRevenueMode('by-client')}
+            >
+              <Users className="h-4 w-4 mr-1" />
+              Par Client
+            </Button>
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <Badge variant={state.revenueMode === 'by-product' ? 'default' : 'secondary'}>
-            {state.revenueMode === 'by-product' ? 'Détail produits' : 'Global canaux'}
+          <Badge variant={state.revenueMode === 'by-product' ? 'default' : state.revenueMode === 'by-channel-global' ? 'secondary' : 'outline'}>
+            {state.revenueMode === 'by-product' ? 'Détail produits' : state.revenueMode === 'by-channel-global' ? 'Global canaux' : 'Par client'}
           </Badge>
           <PageExportPDF
             pageTitle="Plan Produit"
@@ -226,6 +236,17 @@ export function ProductPlanPage() {
             <GlobalRevenueEditor
               config={state.globalRevenueConfig}
               onChange={updateGlobalRevenueConfig}
+              years={YEARS}
+            />
+          </TabsContent>
+        )}
+
+        {/* Mode Par Client */}
+        {state.revenueMode === 'by-client' && (
+          <TabsContent value="visualization">
+            <ClientRevenueEditor
+              config={state.clientRevenueConfig}
+              onChange={updateClientRevenueConfig}
               years={YEARS}
             />
           </TabsContent>
