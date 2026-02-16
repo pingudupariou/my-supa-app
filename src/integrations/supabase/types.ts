@@ -14,6 +14,200 @@ export type Database = {
   }
   public: {
     Tables: {
+      b2b_client_projections: {
+        Row: {
+          client_id: string
+          created_at: string
+          id: string
+          notes: string | null
+          projected_revenue: number | null
+          user_id: string
+          year: number
+        }
+        Insert: {
+          client_id: string
+          created_at?: string
+          id?: string
+          notes?: string | null
+          projected_revenue?: number | null
+          user_id: string
+          year: number
+        }
+        Update: {
+          client_id?: string
+          created_at?: string
+          id?: string
+          notes?: string | null
+          projected_revenue?: number | null
+          user_id?: string
+          year?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "b2b_client_projections_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "b2b_clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      b2b_clients: {
+        Row: {
+          client_type: string | null
+          company_name: string
+          contact_email: string | null
+          contract_exclusivity: boolean | null
+          contract_sign_date: string | null
+          country: string | null
+          created_at: string
+          delivery_fee_rule: string | null
+          delivery_method: string | null
+          eer_date: number | null
+          geographic_zone: string | null
+          id: string
+          is_active: boolean
+          last_purchase_date: number | null
+          moq: string | null
+          notes: string | null
+          payment_terms: string | null
+          pricing_rule: string | null
+          specific_advantages: string | null
+          termination_notice: string | null
+          transport_rules: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          client_type?: string | null
+          company_name: string
+          contact_email?: string | null
+          contract_exclusivity?: boolean | null
+          contract_sign_date?: string | null
+          country?: string | null
+          created_at?: string
+          delivery_fee_rule?: string | null
+          delivery_method?: string | null
+          eer_date?: number | null
+          geographic_zone?: string | null
+          id?: string
+          is_active?: boolean
+          last_purchase_date?: number | null
+          moq?: string | null
+          notes?: string | null
+          payment_terms?: string | null
+          pricing_rule?: string | null
+          specific_advantages?: string | null
+          termination_notice?: string | null
+          transport_rules?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          client_type?: string | null
+          company_name?: string
+          contact_email?: string | null
+          contract_exclusivity?: boolean | null
+          contract_sign_date?: string | null
+          country?: string | null
+          created_at?: string
+          delivery_fee_rule?: string | null
+          delivery_method?: string | null
+          eer_date?: number | null
+          geographic_zone?: string | null
+          id?: string
+          is_active?: boolean
+          last_purchase_date?: number | null
+          moq?: string | null
+          notes?: string | null
+          payment_terms?: string | null
+          pricing_rule?: string | null
+          specific_advantages?: string | null
+          termination_notice?: string | null
+          transport_rules?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      b2b_delivery_fee_tiers: {
+        Row: {
+          created_at: string
+          fee_amount: number
+          id: string
+          label: string
+          max_pieces: number | null
+          min_pieces: number | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          fee_amount?: number
+          id?: string
+          label: string
+          max_pieces?: number | null
+          min_pieces?: number | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          fee_amount?: number
+          id?: string
+          label?: string
+          max_pieces?: number | null
+          min_pieces?: number | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      b2b_delivery_methods: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          label: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          label: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          label?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      b2b_payment_terms_options: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          label: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          label: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          label?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       costflow_bom: {
         Row: {
           created_at: string

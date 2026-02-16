@@ -2,13 +2,15 @@ import { useState } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { KPICard } from '@/components/ui/KPICard';
-import { Users, MapPin, TrendingUp, Calendar, ShoppingCart } from 'lucide-react';
+import { Users, MapPin, TrendingUp, Calendar, Briefcase } from 'lucide-react';
 import { CustomerList } from '@/components/crm/CustomerList';
 import { CustomerDetail } from '@/components/crm/CustomerDetail';
 import { CustomerMap } from '@/components/crm/CustomerMap';
 import { PricingTiers } from '@/components/crm/PricingTiers';
 import { UpcomingAppointments } from '@/components/crm/UpcomingAppointments';
 import { useCRMData } from '@/hooks/useCRMData';
+import { B2BClientTable } from '@/components/b2b/B2BClientTable';
+import { useB2BClientsData } from '@/hooks/useB2BClientsData';
 
 export function CRMPage() {
   const { 
@@ -22,6 +24,8 @@ export function CRMPage() {
     updateCustomer,
     deleteCustomer,
   } = useCRMData();
+
+  const b2b = useB2BClientsData();
   
   const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
 
@@ -78,8 +82,12 @@ export function CRMPage() {
       </div>
 
       {/* Main content */}
-      <Tabs defaultValue="customers" className="space-y-4">
+      <Tabs defaultValue="b2b" className="space-y-4">
         <TabsList>
+          <TabsTrigger value="b2b">
+            <Briefcase className="h-4 w-4 mr-2" />
+            Clients B2B
+          </TabsTrigger>
           <TabsTrigger value="customers">
             <Users className="h-4 w-4 mr-2" />
             Clients
@@ -97,6 +105,27 @@ export function CRMPage() {
             Agenda
           </TabsTrigger>
         </TabsList>
+
+        <TabsContent value="b2b" className="space-y-4">
+          <B2BClientTable
+            clients={b2b.clients}
+            projections={b2b.projections}
+            deliveryFeeTiers={b2b.deliveryFeeTiers}
+            paymentTermsOptions={b2b.paymentTermsOptions}
+            deliveryMethods={b2b.deliveryMethods}
+            onUpsertClient={b2b.upsertClient}
+            onDeleteClient={b2b.deleteClient}
+            onBulkImport={b2b.bulkImportClients}
+            onUpsertProjection={b2b.upsertProjection}
+            getClientProjections={b2b.getClientProjections}
+            onAddDeliveryFee={b2b.addDeliveryFeeTier}
+            onDeleteDeliveryFee={b2b.deleteDeliveryFeeTier}
+            onAddPaymentTerm={b2b.addPaymentTerm}
+            onDeletePaymentTerm={b2b.deletePaymentTerm}
+            onAddDeliveryMethod={b2b.addDeliveryMethod}
+            onDeleteDeliveryMethod={b2b.deleteDeliveryMethod}
+          />
+        </TabsContent>
 
         <TabsContent value="customers" className="space-y-4">
           <div className="grid gap-6 lg:grid-cols-3">
