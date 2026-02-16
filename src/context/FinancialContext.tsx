@@ -20,7 +20,10 @@ export interface ClientRevenueEntry {
   clientName: string;
   categoryId: string | null;
   categoryName: string | null;
+  channel: 'B2C' | 'B2B';
   baseRevenue: number; // CA base year
+  individualGrowthRate: number | null; // null = use global
+  revenueByYear: Record<number, number>; // manual overrides per year
 }
 
 export interface ClientRevenueConfig {
@@ -341,7 +344,12 @@ export function FinancialProvider({ children }: { children: ReactNode }) {
         const baseYear = startYear;
         const elapsed = year - baseYear;
         const totalRevenue = cfg.entries.reduce((sum, e) => {
-          return sum + e.baseRevenue * Math.pow(1 + cfg.growthRate, elapsed);
+          // Use manual override if exists, otherwise calculate with growth
+          if (e.revenueByYear && e.revenueByYear[year] !== undefined && e.revenueByYear[year] !== null) {
+            return sum + e.revenueByYear[year];
+          }
+          const growth = e.individualGrowthRate !== null && e.individualGrowthRate !== undefined ? e.individualGrowthRate : cfg.growthRate;
+          return sum + e.baseRevenue * Math.pow(1 + growth, elapsed);
         }, 0);
         const cogs = totalRevenue * (1 - cfg.marginRate);
         return { year, revenue: totalRevenue, cogs };
