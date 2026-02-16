@@ -92,9 +92,17 @@ export function ClientRevenueEditor({ config: rawConfig, onChange, years }: Clie
     const growth = entry.individualGrowthRate ?? config.growthRate;
     return entry.baseRevenue * Math.pow(1 + growth, elapsed);
   };
+  // Get margin rate for an entry based on channel/category
+  const getMarginRate = (entry: ClientRevenueEntry) => {
+    if (entry.channel === 'B2C') return config.marginB2C;
+    if (entry.categoryId && config.marginByCategory[entry.categoryId] !== undefined) return config.marginByCategory[entry.categoryId];
+    return config.marginRate;
+  };
 
   const totalByYear = years.map(y => config.entries.reduce((s, e) => s + getRevenue(e, y), 0));
   const totalRevenue = totalByYear.reduce((s, v) => s + v, 0);
+  const marginByYear = years.map(y => config.entries.reduce((s, e) => s + getRevenue(e, y) * getMarginRate(e), 0));
+  const totalMargin = marginByYear.reduce((s, v) => s + v, 0);
 
   const channels: Array<'B2B' | 'OEM' | 'B2C'> = ['B2B', 'OEM', 'B2C'];
   const entriesByChannel = channels
@@ -195,6 +203,7 @@ export function ClientRevenueEditor({ config: rawConfig, onChange, years }: Clie
               <TableRow>
                 <TableHead className="text-xs min-w-[120px]">Client</TableHead>
                 <TableHead className="text-xs w-12">Canal</TableHead>
+                <TableHead className="text-xs text-right w-14">Marge</TableHead>
                 <TableHead className="text-xs text-right w-16">% Croiss.</TableHead>
                 <TableHead className="text-xs text-center w-10"></TableHead>
                 <TableHead className="text-xs text-right w-20">CA N-1</TableHead>
@@ -202,13 +211,14 @@ export function ClientRevenueEditor({ config: rawConfig, onChange, years }: Clie
                   <TableHead key={y} className="text-xs text-right min-w-[85px]">{y}</TableHead>
                 ))}
                 <TableHead className="text-xs text-right min-w-[85px]">Total</TableHead>
+                <TableHead className="text-xs text-right min-w-[70px]">Marge €</TableHead>
                 <TableHead className="text-xs w-10"></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {config.entries.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={years.length + 7} className="text-center text-muted-foreground py-6">
+                  <TableCell colSpan={years.length + 9} className="text-center text-muted-foreground py-6">
                     <Users className="h-8 w-8 mx-auto mb-2 opacity-30" />
                     <p className="text-sm">Ajoutez des clients CRM ou un canal B2C</p>
                   </TableCell>
@@ -217,7 +227,7 @@ export function ClientRevenueEditor({ config: rawConfig, onChange, years }: Clie
               {entriesByChannel.map(group => (
                 <>
                   <TableRow key={`h-${group.channel}`} className="bg-muted/30">
-                    <TableCell colSpan={years.length + 7} className="py-1">
+                    <TableCell colSpan={years.length + 9} className="py-1">
                       <Badge variant={group.channel === 'B2C' ? 'default' : 'outline'} className="text-[10px]">{group.channel}</Badge>
                       <span className="text-xs text-muted-foreground ml-2">
                         {formatCurrency(years.reduce((s, y) => s + group.entries.reduce((s2, e) => s2 + getRevenue(e, y), 0), 0), true)}
@@ -226,11 +236,16 @@ export function ClientRevenueEditor({ config: rawConfig, onChange, years }: Clie
                   </TableRow>
                   {group.entries.map(entry => {
                     const total = years.reduce((s, y) => s + getRevenue(entry, y), 0);
+                    const margin = getMarginRate(entry);
+                    const totalMarginEntry = total * margin;
                     const hasGrowth = entry.individualGrowthRate !== null && entry.individualGrowthRate !== undefined;
                     return (
                       <TableRow key={entry.clientId}>
                         <TableCell className="font-medium text-xs">{entry.clientName}</TableCell>
                         <TableCell><Badge variant="outline" className="text-[10px]">{entry.channel}</Badge></TableCell>
+                        <TableCell className="text-right font-mono text-[10px] text-muted-foreground">
+                          {(margin * 100).toFixed(0)}%
+                        </TableCell>
                         <TableCell className="text-right">
                           <Input
                             type="number"
@@ -241,12 +256,7 @@ export function ClientRevenueEditor({ config: rawConfig, onChange, years }: Clie
                           />
                         </TableCell>
                         <TableCell className="text-center">
-                          <Button
-                            size="sm" variant="ghost"
-                            onClick={() => applyGrowth(entry.clientId)}
-                            title="Appliquer la croissance sur toute la ligne"
-                            className="h-6 w-6 p-0"
-                          >
+                          <Button size="sm" variant="ghost" onClick={() => applyGrowth(entry.clientId)} title="Appliquer la croissance" className="h-6 w-6 p-0">
                             <ChevronRight className="h-3 w-3" />
                           </Button>
                         </TableCell>
@@ -280,6 +290,7 @@ export function ClientRevenueEditor({ config: rawConfig, onChange, years }: Clie
                           );
                         })}
                         <TableCell className="text-right font-mono text-xs font-medium">{formatCurrency(total, true)}</TableCell>
+                        <TableCell className="text-right font-mono text-xs text-muted-foreground">{formatCurrency(totalMarginEntry, true)}</TableCell>
                         <TableCell>
                           <Button size="sm" variant="ghost" onClick={() => update({ entries: config.entries.filter(e => e.clientId !== entry.clientId) })}>
                             <Trash2 className="h-3 w-3 text-destructive" />
@@ -293,19 +304,12 @@ export function ClientRevenueEditor({ config: rawConfig, onChange, years }: Clie
               {config.entries.length > 0 && (
                 <>
                   <TableRow className="font-semibold border-t-2">
-                    <TableCell colSpan={5}>Total CA</TableCell>
+                    <TableCell colSpan={6}>Total CA</TableCell>
                     {years.map((y, i) => (
                       <TableCell key={y} className="text-right font-mono text-xs">{formatCurrency(totalByYear[i], true)}</TableCell>
                     ))}
                     <TableCell className="text-right font-mono text-xs">{formatCurrency(totalRevenue, true)}</TableCell>
-                    <TableCell />
-                  </TableRow>
-                  <TableRow className="text-muted-foreground">
-                    <TableCell colSpan={5}>Marge ({(config.marginRate * 100).toFixed(0)}%)</TableCell>
-                    {years.map((y, i) => (
-                      <TableCell key={y} className="text-right font-mono text-xs">{formatCurrency(totalByYear[i] * config.marginRate, true)}</TableCell>
-                    ))}
-                    <TableCell className="text-right font-mono text-xs font-medium">{formatCurrency(totalRevenue * config.marginRate, true)}</TableCell>
+                    <TableCell className="text-right font-mono text-xs">{formatCurrency(totalMargin, true)}</TableCell>
                     <TableCell />
                   </TableRow>
                 </>
