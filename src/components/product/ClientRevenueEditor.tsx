@@ -35,6 +35,8 @@ export function ClientRevenueEditor({ config: rawConfig, onChange, years }: Clie
     })),
     growthRate: rawConfig?.growthRate ?? 0.1,
     marginRate: rawConfig?.marginRate ?? 0.5,
+    marginB2C: rawConfig?.marginB2C ?? 0.6,
+    marginByCategory: rawConfig?.marginByCategory ?? {},
   };
 
   // --- Handlers ---
@@ -101,12 +103,15 @@ export function ClientRevenueEditor({ config: rawConfig, onChange, years }: Clie
 
   const availableCRM = clients.filter(c => c.is_active && !config.entries.some(e => e.clientId === c.id));
   const hasB2C = config.entries.some(e => e.channel === 'B2C');
+  // Categories actually used by entries
+  const usedCatIds = [...new Set(config.entries.map(e => e.categoryId).filter(Boolean))] as string[];
+  const usedCategories = usedCatIds.map(id => categories.find(c => c.id === id)).filter(Boolean) as Array<{ id: string; name: string }>;
 
   return (
     <div className="space-y-4">
       {/* Parameters */}
       <SectionCard title="Paramètres globaux">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div className="space-y-2 p-3 rounded-lg border bg-muted/20">
             <div className="flex justify-between text-sm">
               <span className="font-medium">Croissance globale</span>
@@ -117,12 +122,45 @@ export function ClientRevenueEditor({ config: rawConfig, onChange, years }: Clie
           </div>
           <div className="space-y-2 p-3 rounded-lg border bg-muted/20">
             <div className="flex justify-between text-sm">
-              <span className="font-medium">Marge brute</span>
+              <span className="font-medium">Marge B2B/OEM</span>
               <span className="font-mono text-primary">{(config.marginRate * 100).toFixed(0)}%</span>
             </div>
             <Slider value={[config.marginRate * 100]} onValueChange={([v]) => update({ marginRate: v / 100 })} min={0} max={100} step={1} />
+            <p className="text-[10px] text-muted-foreground">Marge par défaut</p>
+          </div>
+          <div className="space-y-2 p-3 rounded-lg border bg-muted/20">
+            <div className="flex justify-between text-sm">
+              <span className="font-medium">Marge B2C</span>
+              <span className="font-mono text-primary">{(config.marginB2C * 100).toFixed(0)}%</span>
+            </div>
+            <Slider value={[config.marginB2C * 100]} onValueChange={([v]) => update({ marginB2C: v / 100 })} min={0} max={100} step={1} />
           </div>
         </div>
+
+        {/* Per-category margins */}
+        {usedCategories.length > 0 && (
+          <div className="mt-4 pt-4 border-t">
+            <p className="text-sm font-medium mb-3">Marge par catégorie</p>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              {usedCategories.map(cat => {
+                const catMargin = config.marginByCategory[cat.id] ?? config.marginRate;
+                return (
+                  <div key={cat.id} className="space-y-1 p-2 rounded border bg-muted/10">
+                    <div className="flex justify-between text-xs">
+                      <span>{cat.name}</span>
+                      <span className="font-mono text-primary">{(catMargin * 100).toFixed(0)}%</span>
+                    </div>
+                    <Slider
+                      value={[catMargin * 100]}
+                      onValueChange={([v]) => update({ marginByCategory: { ...config.marginByCategory, [cat.id]: v / 100 } })}
+                      min={0} max={100} step={1}
+                    />
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
       </SectionCard>
 
       {/* Table */}

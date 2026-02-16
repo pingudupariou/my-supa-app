@@ -29,7 +29,9 @@ export interface ClientRevenueEntry {
 export interface ClientRevenueConfig {
   entries: ClientRevenueEntry[];
   growthRate: number;
-  marginRate: number;
+  marginRate: number; // default margin
+  marginB2C: number; // B2C specific margin
+  marginByCategory: Record<string, number>; // categoryId -> margin rate
 }
 
 export interface ScenarioConfig {
@@ -188,7 +190,7 @@ function loadState(): FinancialState {
       }
       // Ensure clientRevenueConfig exists
       if (!parsed.clientRevenueConfig) {
-        parsed.clientRevenueConfig = { entries: [], growthRate: 0.15, marginRate: 0.5 };
+        parsed.clientRevenueConfig = { entries: [], growthRate: 0.15, marginRate: 0.5, marginB2C: 0.6, marginByCategory: {} };
       }
       return parsed;
     }
@@ -211,7 +213,7 @@ function getDefaultState(): FinancialState {
     activeScenarioId: 'base',
     revenueMode: 'by-product',
     globalRevenueConfig: defaultGlobalRevenueConfig,
-    clientRevenueConfig: { entries: [], growthRate: 0.15, marginRate: 0.5 },
+    clientRevenueConfig: { entries: [], growthRate: 0.15, marginRate: 0.5, marginB2C: 0.6, marginByCategory: {} },
     opexMode: 'detailed',
     simpleOpexConfig: { baseAmount: 200000, growthRate: 0.05 },
     hasUnsavedChanges: false,
@@ -264,7 +266,7 @@ export function FinancialProvider({ children }: { children: ReactNode }) {
             cloudState.monthlyTreasuryConfig.cogsPaymentTerms = [{ delayMonths: 0, percentage: 100 }];
           }
           // Ensure clientRevenueConfig exists
-          if (!cloudState.clientRevenueConfig) cloudState.clientRevenueConfig = { entries: [], growthRate: 0.15, marginRate: 0.5 };
+          if (!cloudState.clientRevenueConfig) cloudState.clientRevenueConfig = { entries: [], growthRate: 0.15, marginRate: 0.5, marginB2C: 0.6, marginByCategory: {} };
           setState({ ...cloudState, hasUnsavedChanges: false });
           localStorage.setItem(STATE_KEY, JSON.stringify(cloudState));
         }
@@ -340,19 +342,30 @@ export function FinancialProvider({ children }: { children: ReactNode }) {
         return { year, revenue, cogs };
       }
       if (state.revenueMode === 'by-client') {
-        const cfg = state.clientRevenueConfig || { entries: [], growthRate: 0.15, marginRate: 0.5 };
+        const cfg = state.clientRevenueConfig || { entries: [], growthRate: 0.15, marginRate: 0.5, marginB2C: 0.6, marginByCategory: {} };
         const baseYear = startYear;
         const elapsed = year - baseYear;
-        const totalRevenue = cfg.entries.reduce((sum, e) => {
-          // Use manual override if exists, otherwise calculate with growth
+        let totalRevenue = 0;
+        let totalCogs = 0;
+        cfg.entries.forEach(e => {
+          let rev: number;
           if (e.revenueByYear && e.revenueByYear[year] !== undefined && e.revenueByYear[year] !== null) {
-            return sum + e.revenueByYear[year];
+            rev = e.revenueByYear[year];
+          } else {
+            const growth = e.individualGrowthRate !== null && e.individualGrowthRate !== undefined ? e.individualGrowthRate : cfg.growthRate;
+            rev = e.baseRevenue * Math.pow(1 + growth, elapsed);
           }
-          const growth = e.individualGrowthRate !== null && e.individualGrowthRate !== undefined ? e.individualGrowthRate : cfg.growthRate;
-          return sum + e.baseRevenue * Math.pow(1 + growth, elapsed);
-        }, 0);
-        const cogs = totalRevenue * (1 - cfg.marginRate);
-        return { year, revenue: totalRevenue, cogs };
+          // Determine margin: B2C > category > default
+          let margin = cfg.marginRate;
+          if (e.channel === 'B2C') {
+            margin = cfg.marginB2C ?? cfg.marginRate;
+          } else if (e.categoryId && cfg.marginByCategory?.[e.categoryId] !== undefined) {
+            margin = cfg.marginByCategory[e.categoryId];
+          }
+          totalRevenue += rev;
+          totalCogs += rev * (1 - margin);
+        });
+        return { year, revenue: totalRevenue, cogs: totalCogs };
       }
       let revenue = 0, cogs = 0;
       products.forEach(p => {
