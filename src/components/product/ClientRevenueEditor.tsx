@@ -18,9 +18,16 @@ interface ClientRevenueEditorProps {
   years: number[];
 }
 
-export function ClientRevenueEditor({ config, onChange, years }: ClientRevenueEditorProps) {
+export function ClientRevenueEditor({ config: rawConfig, onChange, years }: ClientRevenueEditorProps) {
   const { clients, categories } = useB2BClientsData();
   const baseYear = years[0];
+
+  // Safe default if config is missing entries
+  const config: ClientRevenueConfig = {
+    entries: rawConfig?.entries ?? [],
+    growthRate: rawConfig?.growthRate ?? 0.1,
+    marginRate: rawConfig?.marginRate ?? 0.5,
+  };
 
   const handleAddClient = (client: B2BClient) => {
     if (config.entries.some(e => e.clientId === client.id)) return;
