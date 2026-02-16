@@ -20,7 +20,7 @@ export interface ClientRevenueEntry {
   clientName: string;
   categoryId: string | null;
   categoryName: string | null;
-  channel: 'B2C' | 'B2B';
+  channel: 'B2C' | 'B2B' | 'OEM';
   baseRevenue: number; // CA base year
   individualGrowthRate: number | null; // null = use global
   revenueByYear: Record<number, number>; // manual overrides per year
