@@ -186,7 +186,7 @@ export function ScenariosPage() {
       <div className="flex justify-between items-center">
         <div className="flex items-center gap-2">
           <Badge variant={state.revenueMode === 'by-product' ? 'outline' : 'secondary'} className="text-xs">
-            CA: {state.revenueMode === 'by-product' ? 'Par Produit' : 'Global Canaux'}
+            CA: {state.revenueMode === 'by-product' ? 'Par Produit' : state.revenueMode === 'by-channel-global' ? 'Global Canaux' : 'Par Client'}
           </Badge>
           <Badge variant="secondary" className="text-xs">
             {startYear} → {startYear + durationYears - 1} ({durationYears} ans)

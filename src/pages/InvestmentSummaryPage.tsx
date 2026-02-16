@@ -130,7 +130,7 @@ export function InvestmentSummaryPage() {
             {scenarioLabels[state.activeScenarioId]}
           </Badge>
           <Badge variant={state.revenueMode === 'by-product' ? 'outline' : 'secondary'} className="text-xs">
-            CA: {state.revenueMode === 'by-product' ? 'Par Produit' : 'Global Canaux'}
+            CA: {state.revenueMode === 'by-product' ? 'Par Produit' : state.revenueMode === 'by-channel-global' ? 'Global Canaux' : 'Par Client'}
           </Badge>
           <Badge variant="outline" className="text-xs">
             {startYear} → {lastYear} ({durationYears} ans)
