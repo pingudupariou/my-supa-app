@@ -12,13 +12,28 @@ import { ExportPDFDialog } from '@/components/summary/ExportPDFDialog';
 import { aggregateByYear } from '@/engine/monthlyTreasuryEngine';
 import {
   ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
-  BarChart,
+  BarChart, Area, AreaChart, PieChart, Pie, Cell,
 } from 'recharts';
 import { 
   Wallet, TrendingUp, TrendingDown, AlertTriangle, Users, Package,
   Building2, Target, PiggyBank, Calendar, Settings2, Briefcase, UserPlus,
+  BarChart3, LineChart as LineChartIcon,
 } from 'lucide-react';
 import { Department } from '@/engine/types';
+
+// ===== PALETTE HAUTE DISTINCTION pour graphiques multi-séries =====
+const CHART_COLORS = [
+  '#e11d48', // Rose/Rouge racing
+  '#2563eb', // Bleu vif
+  '#16a34a', // Vert émeraude
+  '#f59e0b', // Ambre/Or
+  '#8b5cf6', // Violet
+  '#06b6d4', // Cyan
+  '#ea580c', // Orange brûlé
+  '#64748b', // Gris ardoise
+  '#d946ef', // Fuchsia
+  '#0d9488', // Teal
+];
 
 const scenarioLabels = {
   conservative: 'Prudent',
@@ -32,11 +47,12 @@ const revenueModeLabels: Record<RevenueMode, string> = {
   'by-client': 'Par Client',
 };
 
-type SectionKey = 'cash' | 'needs' | 'projection' | 'valuation' | 'clientDeck' | 'payroll';
+type SectionKey = 'cash' | 'needs' | 'projection' | 'valuation' | 'clientDeck' | 'payroll' | 'evolution';
 
 const defaultSections: Record<SectionKey, boolean> = {
   cash: true,
   clientDeck: true,
+  evolution: true,
   needs: true,
   payroll: true,
   projection: true,
@@ -46,6 +62,7 @@ const defaultSections: Record<SectionKey, boolean> = {
 const sectionLabels: Record<SectionKey, string> = {
   cash: 'Approche Cash',
   clientDeck: 'Deck CA Clients',
+  evolution: 'Graphiques d\'Évolution',
   needs: 'Justification des Besoins',
   payroll: 'Masse Salariale',
   projection: 'Projection Détaillée',
@@ -124,6 +141,26 @@ export function InvestmentSummaryPage() {
   const postMoney = latestRound ? latestRound.preMoneyValuation + latestRound.amount : 0;
   const dilution = latestRound ? latestRound.amount / postMoney : 0;
 
+  // ===== Evolution chart data =====
+  const evolutionChartData = useMemo(() => yearlyData.map(d => ({
+    year: d.year,
+    'CA': d.revenue / 1000,
+    'Marge Brute': d.grossMargin / 1000,
+    'EBITDA': d.ebitda / 1000,
+    'Trésorerie': d.treasuryEnd / 1000,
+    'COGS': d.cogs / 1000,
+    'Masse Sal.': d.payroll / 1000,
+    'OPEX': d.opex / 1000,
+  })), [yearlyData]);
+
+  // Pie chart data for cost breakdown
+  const pieData = useMemo(() => [
+    { name: 'Masse Salariale', value: totalPayroll, color: CHART_COLORS[1] },
+    { name: 'COGS', value: totalCogs, color: CHART_COLORS[3] },
+    { name: 'OPEX', value: totalOpex, color: CHART_COLORS[4] },
+    { name: 'CAPEX', value: totalCapex, color: CHART_COLORS[0] },
+  ].filter(d => d.value > 0), [totalPayroll, totalCogs, totalOpex, totalCapex]);
+
   // Client revenue deck data
   const clientDeckData = useMemo(() => {
     if (state.revenueMode !== 'by-client') return null;
@@ -146,7 +183,6 @@ export function InvestmentSummaryPage() {
       return cfg.marginRate;
     };
 
-    // By channel
     const channels = ['B2C', 'B2B', 'OEM'] as const;
     const channelData = channels.map(ch => {
       const entries = cfg.entries.filter(e => e.channel === ch);
@@ -158,7 +194,6 @@ export function InvestmentSummaryPage() {
       };
     }).filter(c => c.count > 0);
 
-    // Top clients
     const clientTotals = cfg.entries.map(e => ({
       name: e.clientName,
       channel: e.channel,
@@ -168,7 +203,6 @@ export function InvestmentSummaryPage() {
       revenueByYear: years.map(y => getRevenue(e, y)),
     })).sort((a, b) => b.total - a.total);
 
-    // Chart data for stacked bar
     const stackedChartData = years.map((y, yi) => {
       const row: Record<string, any> = { year: y };
       channelData.forEach(c => { row[c.channel] = c.revenueByYear[yi] / 1000; });
@@ -179,10 +213,29 @@ export function InvestmentSummaryPage() {
   }, [state.revenueMode, state.clientRevenueConfig, years]);
 
   const channelColors: Record<string, string> = {
-    B2C: '#e11d48',    // Rouge racing (rose-600)
-    B2B: 'hsl(var(--primary))',
-    OEM: '#f59e0b',    // Amber-500
+    B2C: CHART_COLORS[0],
+    B2B: CHART_COLORS[1],
+    OEM: CHART_COLORS[3],
   };
+
+  // ===== Animated number helper =====
+  const BigKPI = ({ label, value, sub, icon: Icon, accent, className }: {
+    label: string; value: string; sub?: string; icon: any; accent?: string; className?: string;
+  }) => (
+    <div className={cn("relative overflow-hidden p-5 rounded-xl border-2 transition-all hover:shadow-lg", className)}>
+      <div className="absolute top-3 right-3 opacity-10">
+        <Icon className="h-12 w-12" />
+      </div>
+      <div className="flex items-center gap-2 text-sm text-muted-foreground mb-2">
+        <Icon className="h-4 w-4" style={accent ? { color: accent } : undefined} />
+        {label}
+      </div>
+      <div className="text-3xl font-bold font-mono-numbers tracking-tight" style={accent ? { color: accent } : undefined}>
+        {value}
+      </div>
+      {sub && <div className="text-xs text-muted-foreground mt-1">{sub}</div>}
+    </div>
+  );
 
   return (
     <div className="space-y-6">
@@ -193,61 +246,40 @@ export function InvestmentSummaryPage() {
         height="sm"
       />
 
-      {/* Header avec contexte + mode selector + section toggles */}
+      {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div className="flex items-center gap-2 flex-wrap">
-          <Badge variant="default">
-            {scenarioLabels[state.activeScenarioId]}
-          </Badge>
-
-          {/* Revenue mode selector */}
+          <Badge variant="default">{scenarioLabels[state.activeScenarioId]}</Badge>
           <Select value={state.revenueMode} onValueChange={(v) => setRevenueMode(v as RevenueMode)}>
-            <SelectTrigger className="h-8 w-[160px] text-xs">
-              <SelectValue />
-            </SelectTrigger>
+            <SelectTrigger className="h-8 w-[160px] text-xs"><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value="by-product">Par Produit</SelectItem>
               <SelectItem value="by-channel-global">Global Canaux</SelectItem>
               <SelectItem value="by-client">Par Client</SelectItem>
             </SelectContent>
           </Select>
-
-          <Badge variant="outline" className="text-xs">
-            {startYear} → {lastYear} ({durationYears} ans)
-          </Badge>
+          <Badge variant="outline" className="text-xs">{startYear} → {lastYear} ({durationYears} ans)</Badge>
           <Badge variant="secondary" className="text-xs gap-1">
-            <Calendar className="h-3 w-3" />
-            {state.products.length} produits
+            <Calendar className="h-3 w-3" />{state.products.length} produits
           </Badge>
         </div>
         <div className="flex items-center gap-2">
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => setShowSectionSettings(!showSectionSettings)}
-            className="gap-1"
-          >
-            <Settings2 className="h-4 w-4" />
-            Sections
+          <Button size="sm" variant="outline" onClick={() => setShowSectionSettings(!showSectionSettings)} className="gap-1">
+            <Settings2 className="h-4 w-4" />Sections
           </Button>
           <ExportPDFDialog />
         </div>
       </div>
 
-      {/* Section visibility toggles */}
+      {/* Section toggles */}
       {showSectionSettings && (
         <div className="p-4 bg-muted/30 border rounded-lg">
           <h4 className="text-sm font-semibold mb-3">Afficher / Masquer les sections du rapport</h4>
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             {(Object.keys(sectionLabels) as SectionKey[]).map(key => (
               <label key={key} className="flex items-center gap-2 text-sm cursor-pointer">
-                <Switch
-                  checked={visibleSections[key]}
-                  onCheckedChange={() => toggleSection(key)}
-                />
-                <span className={cn(!visibleSections[key] && 'text-muted-foreground line-through')}>
-                  {sectionLabels[key]}
-                </span>
+                <Switch checked={visibleSections[key]} onCheckedChange={() => toggleSection(key)} />
+                <span className={cn(!visibleSections[key] && 'text-muted-foreground line-through')}>{sectionLabels[key]}</span>
               </label>
             ))}
           </div>
@@ -272,63 +304,195 @@ export function InvestmentSummaryPage() {
       {visibleSections.cash && (
         <SectionCard title="Approche Cash" id="cash-approach">
           <div className="grid md:grid-cols-5 gap-4 mb-6">
-            <div className="p-4 rounded-lg bg-muted/50 border">
-              <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
-                <Wallet className="h-4 w-4" />
-                Cash Initial (T0)
-              </div>
-              <div className="text-2xl font-bold font-mono-numbers">
-                {formatCurrency(initialCash, true)}
-              </div>
-            </div>
-            <div className="p-4 rounded-lg bg-primary/10 border border-primary/30">
-              <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
-                <PiggyBank className="h-4 w-4" />
-                Montant Levé
-              </div>
-              <div className="text-2xl font-bold font-mono-numbers text-primary">
-                {formatCurrency(amountRaised, true)}
-              </div>
-              <div className="text-xs text-muted-foreground">{state.fundingRounds.length} tour(s)</div>
-            </div>
-            <div className="p-4 rounded-lg bg-accent/10 border border-accent/30">
-              <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
-                <Target className="h-4 w-4" />
-                Tréso Départ
-              </div>
-              <div className="text-2xl font-bold font-mono-numbers">{formatCurrency(startingCash, true)}</div>
-            </div>
-            <div className={cn("p-4 rounded-lg border", minTreasury < 0 ? "bg-destructive/10 border-destructive/30" : "bg-muted/50")}>
-              <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
-                {minTreasury < 0 ? <TrendingDown className="h-4 w-4" /> : <TrendingUp className="h-4 w-4" />}
-                Point Bas
-              </div>
-              <div className={cn("text-2xl font-bold font-mono-numbers", minTreasury < 0 && "text-destructive")}>
-                {formatCurrency(minTreasury, true)}
-              </div>
-            </div>
-            <div className="p-4 rounded-lg bg-muted/50 border">
-              <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
-                <Calendar className="h-4 w-4" />
-                Break-even
-              </div>
-              <div className="text-2xl font-bold font-mono-numbers">{breakEvenYear}</div>
-              <div className="text-xs text-muted-foreground">Runway: {runway > 60 ? '60+' : runway} mois</div>
-            </div>
+            <BigKPI label="Cash Initial (T0)" value={formatCurrency(initialCash, true)} icon={Wallet} className="bg-muted/30" />
+            <BigKPI label="Montant Levé" value={formatCurrency(amountRaised, true)} sub={`${state.fundingRounds.length} tour(s)`} icon={PiggyBank} accent={CHART_COLORS[1]} className="bg-blue-500/5 border-blue-500/20" />
+            <BigKPI label="Tréso Départ" value={formatCurrency(startingCash, true)} icon={Target} accent={CHART_COLORS[2]} className="bg-emerald-500/5 border-emerald-500/20" />
+            <BigKPI 
+              label="Point Bas" 
+              value={formatCurrency(minTreasury, true)} 
+              icon={minTreasury < 0 ? TrendingDown : TrendingUp}
+              accent={minTreasury < 0 ? CHART_COLORS[0] : CHART_COLORS[2]}
+              className={minTreasury < 0 ? "bg-destructive/5 border-destructive/30" : "bg-muted/30"}
+            />
+            <BigKPI label="Break-even" value={String(breakEvenYear)} sub={`Runway: ${runway > 60 ? '60+' : runway} mois`} icon={Calendar} className="bg-muted/30" />
           </div>
 
-          <div className="h-72">
-            <ResponsiveContainer width="100%" height="100%">
-              <ComposedChart data={chartData}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="year" />
-                <YAxis tickFormatter={(v) => `${v}k€`} />
-                <Tooltip formatter={(value: number) => `${value.toFixed(0)}k€`} />
-                <Legend />
-                <Bar dataKey="Cash Flow" fill="hsl(var(--accent))" />
-                <Line type="monotone" dataKey="Trésorerie" stroke="hsl(var(--primary))" strokeWidth={3} dot={{ r: 4 }} />
-              </ComposedChart>
-            </ResponsiveContainer>
+          <div className="grid lg:grid-cols-2 gap-6">
+            {/* Cash Flow & Treasury chart */}
+            <div className="h-72">
+              <h4 className="text-sm font-semibold mb-2 flex items-center gap-2">
+                <BarChart3 className="h-4 w-4" />
+                Cash Flow & Trésorerie
+              </h4>
+              <ResponsiveContainer width="100%" height="100%">
+                <ComposedChart data={chartData}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                  <XAxis dataKey="year" />
+                  <YAxis tickFormatter={(v) => `${v}k€`} />
+                  <Tooltip formatter={(value: number) => `${value.toFixed(0)}k€`} />
+                  <Legend />
+                  <Bar dataKey="Cash Flow" fill={CHART_COLORS[3]} radius={[4, 4, 0, 0]} />
+                  <Line type="monotone" dataKey="Trésorerie" stroke={CHART_COLORS[1]} strokeWidth={3} dot={{ r: 5, fill: CHART_COLORS[1] }} />
+                </ComposedChart>
+              </ResponsiveContainer>
+            </div>
+
+            {/* Burn rate metrics */}
+            <div className="space-y-4">
+              <h4 className="text-sm font-semibold flex items-center gap-2">
+                <TrendingDown className="h-4 w-4" />
+                Métriques de Burn
+              </h4>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="p-4 rounded-xl bg-muted/30 border">
+                  <div className="text-xs text-muted-foreground mb-1">Burn Max / mois</div>
+                  <div className="text-xl font-bold font-mono-numbers text-destructive">{formatCurrency(maxMonthlyBurn, true)}</div>
+                </div>
+                <div className="p-4 rounded-xl bg-muted/30 border">
+                  <div className="text-xs text-muted-foreground mb-1">Burn Moyen / mois</div>
+                  <div className="text-xl font-bold font-mono-numbers text-amber-500">{formatCurrency(avgMonthlyBurn, true)}</div>
+                </div>
+                <div className="p-4 rounded-xl bg-muted/30 border">
+                  <div className="text-xs text-muted-foreground mb-1">CA Total Période</div>
+                  <div className="text-xl font-bold font-mono-numbers" style={{ color: CHART_COLORS[2] }}>{formatCurrency(totalRevenue, true)}</div>
+                </div>
+                <div className="p-4 rounded-xl bg-muted/30 border">
+                  <div className="text-xs text-muted-foreground mb-1">Coûts Totaux</div>
+                  <div className="text-xl font-bold font-mono-numbers">{formatCurrency(totalCosts, true)}</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </SectionCard>
+      )}
+
+      {/* =============== SECTION: GRAPHIQUES D'ÉVOLUTION =============== */}
+      {visibleSections.evolution && (
+        <SectionCard title="Graphiques d'Évolution" id="evolution-charts">
+          <div className="grid lg:grid-cols-2 gap-6">
+            {/* Revenue & Margin evolution */}
+            <div>
+              <h4 className="text-sm font-semibold mb-3 flex items-center gap-2">
+                <LineChartIcon className="h-4 w-4" style={{ color: CHART_COLORS[0] }} />
+                Évolution CA, Marge & EBITDA
+              </h4>
+              <div className="h-64">
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={evolutionChartData}>
+                    <defs>
+                      <linearGradient id="gradCA" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor={CHART_COLORS[0]} stopOpacity={0.15} />
+                        <stop offset="95%" stopColor={CHART_COLORS[0]} stopOpacity={0} />
+                      </linearGradient>
+                      <linearGradient id="gradMargin" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor={CHART_COLORS[2]} stopOpacity={0.15} />
+                        <stop offset="95%" stopColor={CHART_COLORS[2]} stopOpacity={0} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                    <XAxis dataKey="year" />
+                    <YAxis tickFormatter={(v) => `${v}k€`} />
+                    <Tooltip formatter={(value: number) => `${value.toFixed(0)}k€`} />
+                    <Legend />
+                    <Area type="monotone" dataKey="CA" stroke={CHART_COLORS[0]} fill="url(#gradCA)" strokeWidth={2.5} dot={{ r: 4 }} />
+                    <Area type="monotone" dataKey="Marge Brute" stroke={CHART_COLORS[2]} fill="url(#gradMargin)" strokeWidth={2.5} dot={{ r: 4 }} />
+                    <Line type="monotone" dataKey="EBITDA" stroke={CHART_COLORS[4]} strokeWidth={2.5} dot={{ r: 4 }} strokeDasharray="6 3" />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+
+            {/* Costs stacked bar */}
+            <div>
+              <h4 className="text-sm font-semibold mb-3 flex items-center gap-2">
+                <BarChart3 className="h-4 w-4" style={{ color: CHART_COLORS[1] }} />
+                Répartition des Coûts par Année
+              </h4>
+              <div className="h-64">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={evolutionChartData}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                    <XAxis dataKey="year" />
+                    <YAxis tickFormatter={(v) => `${v}k€`} />
+                    <Tooltip formatter={(value: number) => `${value.toFixed(0)}k€`} />
+                    <Legend />
+                    <Bar dataKey="COGS" stackId="costs" fill={CHART_COLORS[3]} radius={[0, 0, 0, 0]} />
+                    <Bar dataKey="Masse Sal." stackId="costs" fill={CHART_COLORS[1]} />
+                    <Bar dataKey="OPEX" stackId="costs" fill={CHART_COLORS[4]} radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+
+            {/* Treasury monthly evolution */}
+            <div>
+              <h4 className="text-sm font-semibold mb-3 flex items-center gap-2">
+                <Wallet className="h-4 w-4" style={{ color: CHART_COLORS[5] }} />
+                Trésorerie Mensuelle
+              </h4>
+              <div className="h-64">
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={monthlyTreasuryProjection.months.map(m => ({
+                    label: `${m.month}/${m.year}`,
+                    Trésorerie: m.treasuryEnd / 1000,
+                  }))}>
+                    <defs>
+                      <linearGradient id="gradTreso" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor={CHART_COLORS[5]} stopOpacity={0.2} />
+                        <stop offset="95%" stopColor={CHART_COLORS[5]} stopOpacity={0} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                    <XAxis dataKey="label" tick={{ fontSize: 10 }} interval="preserveStartEnd" />
+                    <YAxis tickFormatter={(v) => `${v}k€`} />
+                    <Tooltip formatter={(value: number) => `${value.toFixed(0)}k€`} />
+                    <Area type="monotone" dataKey="Trésorerie" stroke={CHART_COLORS[5]} fill="url(#gradTreso)" strokeWidth={2} />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+
+            {/* Cost breakdown pie */}
+            <div>
+              <h4 className="text-sm font-semibold mb-3 flex items-center gap-2">
+                <Target className="h-4 w-4" />
+                Répartition des Coûts (Période)
+              </h4>
+              <div className="h-64 flex items-center">
+                <ResponsiveContainer width="50%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={pieData}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={50}
+                      outerRadius={90}
+                      paddingAngle={3}
+                      dataKey="value"
+                    >
+                      {pieData.map((entry, index) => (
+                        <Cell key={entry.name} fill={entry.color} />
+                      ))}
+                    </Pie>
+                    <Tooltip formatter={(value: number) => formatCurrency(value, true)} />
+                  </PieChart>
+                </ResponsiveContainer>
+                <div className="flex-1 space-y-2">
+                  {pieData.map(item => {
+                    const pct = totalCosts > 0 ? (item.value / totalCosts) * 100 : 0;
+                    return (
+                      <div key={item.name} className="flex items-center gap-2">
+                        <div className="w-3 h-3 rounded-sm flex-shrink-0" style={{ backgroundColor: item.color }} />
+                        <div className="flex-1 min-w-0">
+                          <div className="text-xs font-medium truncate">{item.name}</div>
+                          <div className="text-[10px] text-muted-foreground">{pct.toFixed(0)}% — {formatCurrency(item.value, true)}</div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
           </div>
         </SectionCard>
       )}
@@ -366,13 +530,13 @@ export function InvestmentSummaryPage() {
               <div className="h-64">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={clientDeckData.stackedChartData}>
-                    <CartesianGrid strokeDasharray="3 3" />
+                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                     <XAxis dataKey="year" />
                     <YAxis tickFormatter={(v) => `${v}k€`} />
                     <Tooltip formatter={(value: number) => `${value.toFixed(0)}k€`} />
                     <Legend />
                     {clientDeckData.channelData.map(ch => (
-                      <Bar key={ch.channel} dataKey={ch.channel} stackId="a" fill={channelColors[ch.channel]} />
+                      <Bar key={ch.channel} dataKey={ch.channel} stackId="a" fill={channelColors[ch.channel]} radius={[2, 2, 0, 0]} />
                     ))}
                   </BarChart>
                 </ResponsiveContainer>
@@ -448,10 +612,10 @@ export function InvestmentSummaryPage() {
               </h4>
               <div className="space-y-3">
                 {[
-                  { label: 'Masse Salariale', value: totalPayroll, icon: Users, color: 'hsl(var(--primary))' },
-                  { label: 'COGS (Coût des ventes)', value: totalCogs, icon: Package, color: 'hsl(var(--chart-4))' },
-                  { label: 'OPEX (Charges)', value: totalOpex, icon: Building2, color: 'hsl(var(--accent))' },
-                  { label: 'CAPEX (R&D)', value: totalCapex, icon: Target, color: 'hsl(var(--chart-1))' },
+                  { label: 'Masse Salariale', value: totalPayroll, icon: Users, color: CHART_COLORS[1] },
+                  { label: 'COGS (Coût des ventes)', value: totalCogs, icon: Package, color: CHART_COLORS[3] },
+                  { label: 'OPEX (Charges)', value: totalOpex, icon: Building2, color: CHART_COLORS[4] },
+                  { label: 'CAPEX (R&D)', value: totalCapex, icon: Target, color: CHART_COLORS[0] },
                 ].map(item => {
                   const Icon = item.icon;
                   const pct = totalCosts > 0 ? (item.value / totalCosts) * 100 : 0;
@@ -464,7 +628,7 @@ export function InvestmentSummaryPage() {
                         </div>
                         <span className="font-mono-numbers font-medium">{formatCurrency(item.value, true)}</span>
                       </div>
-                      <div className="h-2 bg-muted rounded-full overflow-hidden">
+                      <div className="h-2.5 bg-muted rounded-full overflow-hidden">
                         <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, backgroundColor: item.color }} />
                       </div>
                       <div className="text-xs text-muted-foreground text-right">{pct.toFixed(0)}%</div>
@@ -484,28 +648,28 @@ export function InvestmentSummaryPage() {
                 Adéquation Besoin / Financement
               </h4>
               <div className="space-y-4">
-                <div className="p-4 bg-muted/30 rounded-lg border">
+                <div className="p-5 bg-muted/30 rounded-xl border">
                   <div className="flex justify-between items-center mb-2">
                     <span className="text-sm">Besoin de Financement</span>
                     <Badge variant="secondary">Calculé</Badge>
                   </div>
-                  <div className="text-2xl font-bold font-mono-numbers">{formatCurrency(totalNeed, true)}</div>
+                  <div className="text-3xl font-bold font-mono-numbers">{formatCurrency(totalNeed, true)}</div>
                   <p className="text-xs text-muted-foreground mt-1">Somme des cash-flows négatifs sur la période</p>
                 </div>
-                <div className="p-4 bg-primary/10 rounded-lg border border-primary/30">
+                <div className="p-5 rounded-xl border-2" style={{ background: CHART_COLORS[1] + '08', borderColor: CHART_COLORS[1] + '30' }}>
                   <div className="flex justify-between items-center mb-2">
                     <span className="text-sm">Montant Levé</span>
                     <Badge variant="default">{latestRound?.name || 'Round'}</Badge>
                   </div>
-                  <div className="text-2xl font-bold font-mono-numbers text-primary">{formatCurrency(amountRaised, true)}</div>
+                  <div className="text-3xl font-bold font-mono-numbers" style={{ color: CHART_COLORS[1] }}>{formatCurrency(amountRaised, true)}</div>
                 </div>
                 <div className={cn(
-                  "p-4 rounded-lg border-2",
-                  surplus >= 0 ? "bg-chart-4/10 border-chart-4/30" : "bg-destructive/10 border-destructive/30"
+                  "p-5 rounded-xl border-2",
+                  surplus >= 0 ? "border-emerald-500/30 bg-emerald-500/5" : "bg-destructive/10 border-destructive/30"
                 )}>
                   <div className="flex justify-between items-center">
                     <span className="text-sm font-medium">{surplus >= 0 ? 'Marge de Sécurité' : 'Déficit'}</span>
-                    <span className={cn("text-xl font-bold font-mono-numbers", surplus >= 0 ? "text-chart-4" : "text-destructive")}>
+                    <span className={cn("text-2xl font-bold font-mono-numbers", surplus >= 0 ? "text-emerald-600" : "text-destructive")}>
                       {surplus >= 0 ? '+' : ''}{formatCurrency(surplus, true)}
                     </span>
                   </div>
@@ -551,7 +715,7 @@ export function InvestmentSummaryPage() {
                         <td className="py-2 px-3 text-right font-mono-numbers text-muted-foreground">{formatCurrency(row.opex, true)}</td>
                         <td className="py-2 px-3 text-right font-mono-numbers text-muted-foreground">{formatCurrency(row.capex, true)}</td>
                         <td className="py-2 px-3 text-right font-mono-numbers font-medium">{formatCurrency(yearCosts, true)}</td>
-                        <td className={cn("py-2 px-3 text-right font-mono-numbers font-medium", row.netCashFlow >= 0 ? "text-chart-4" : "text-destructive")}>
+                        <td className={cn("py-2 px-3 text-right font-mono-numbers font-medium", row.netCashFlow >= 0 ? "text-emerald-600" : "text-destructive")}>
                           {row.netCashFlow >= 0 ? '+' : ''}{formatCurrency(row.netCashFlow, true)}
                         </td>
                       </tr>
@@ -619,15 +783,14 @@ export function InvestmentSummaryPage() {
         <SectionCard title="Masse Salariale & Embauches" id="payroll-detail">
           {(() => {
             const roles = state.roles || [];
-            const deptColors: Record<string, string> = {
-              'R&D': 'hsl(var(--chart-1))',
-              'Production': 'hsl(var(--chart-4))',
-              'Sales': 'hsl(var(--accent))',
-              'Support': 'hsl(var(--chart-3))',
-              'Admin': 'hsl(var(--primary))',
+            const deptColorMap: Record<string, string> = {
+              'R&D': CHART_COLORS[0],
+              'Production': CHART_COLORS[2],
+              'Sales': CHART_COLORS[3],
+              'Support': CHART_COLORS[5],
+              'Admin': CHART_COLORS[1],
             };
 
-            // Payroll by year and department
             const payrollByYearDept = years.map(year => {
               const activeRoles = roles.filter(r => r.startYear <= year);
               const byDept: Record<string, number> = {};
@@ -637,13 +800,11 @@ export function InvestmentSummaryPage() {
               return { year, total: activeRoles.reduce((s, r) => s + r.annualCostLoaded, 0), byDept, headcount: activeRoles.length };
             });
 
-            // New hires by year
             const hiresByYear = years.map(year => ({
               year,
               hires: roles.filter(r => r.startYear === year),
             }));
 
-            // Chart data
             const depts = [...new Set(roles.map(r => r.department))];
             const payrollChartData = payrollByYearDept.map(d => {
               const row: Record<string, any> = { year: d.year, Effectif: d.headcount };
@@ -653,26 +814,24 @@ export function InvestmentSummaryPage() {
 
             return (
               <div className="space-y-6">
-                {/* KPIs */}
                 <div className="grid md:grid-cols-4 gap-4">
-                  <KPICard label="Effectif Final" value={payrollByYearDept[payrollByYearDept.length - 1]?.headcount || 0} subValue={`en ${lastYear}`} />
-                  <KPICard label="Masse Sal. Finale" value={formatCurrency(payrollByYearDept[payrollByYearDept.length - 1]?.total || 0, true)} subValue={`/an en ${lastYear}`} />
-                  <KPICard label="Coût Total Période" value={formatCurrency(totalPayroll, true)} subValue={`${startYear}–${lastYear}`} />
-                  <KPICard label="Coût Moyen / ETP" value={roles.length > 0 ? formatCurrency(totalPayroll / durationYears / (roles.length || 1), true) : '—'} subValue="/an moyen" />
+                  <BigKPI label="Effectif Final" value={String(payrollByYearDept[payrollByYearDept.length - 1]?.headcount || 0)} sub={`en ${lastYear}`} icon={Users} accent={CHART_COLORS[1]} className="bg-blue-500/5 border-blue-500/20" />
+                  <BigKPI label="Masse Sal. Finale" value={formatCurrency(payrollByYearDept[payrollByYearDept.length - 1]?.total || 0, true)} sub={`/an en ${lastYear}`} icon={Wallet} accent={CHART_COLORS[0]} className="bg-rose-500/5 border-rose-500/20" />
+                  <BigKPI label="Coût Total Période" value={formatCurrency(totalPayroll, true)} sub={`${startYear}–${lastYear}`} icon={Building2} className="bg-muted/30" />
+                  <BigKPI label="Coût Moyen / ETP" value={roles.length > 0 ? formatCurrency(totalPayroll / durationYears / (roles.length || 1), true) : '—'} sub="/an moyen" icon={Target} className="bg-muted/30" />
                 </div>
 
-                {/* Stacked bar chart payroll by dept */}
                 <div className="h-64">
                   <ResponsiveContainer width="100%" height="100%">
                     <ComposedChart data={payrollChartData}>
-                      <CartesianGrid strokeDasharray="3 3" />
+                      <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                       <XAxis dataKey="year" />
                       <YAxis yAxisId="left" tickFormatter={(v) => `${v}k€`} />
                       <YAxis yAxisId="right" orientation="right" />
                       <Tooltip formatter={(value: number, name: string) => name === 'Effectif' ? value : `${value.toFixed(0)}k€`} />
                       <Legend />
-                      {depts.map(dept => (
-                        <Bar key={dept} yAxisId="left" dataKey={dept} stackId="a" fill={deptColors[dept] || 'hsl(var(--muted-foreground))'} />
+                      {depts.map((dept, idx) => (
+                        <Bar key={dept} yAxisId="left" dataKey={dept} stackId="a" fill={deptColorMap[dept] || CHART_COLORS[idx % CHART_COLORS.length]} />
                       ))}
                       <Line yAxisId="right" type="monotone" dataKey="Effectif" stroke="hsl(var(--foreground))" strokeWidth={2} dot={{ r: 3 }} />
                     </ComposedChart>
@@ -698,7 +857,7 @@ export function InvestmentSummaryPage() {
                               <div>
                                 <div className="text-sm font-medium">{role.title}</div>
                                 <div className="flex items-center gap-1 mt-1">
-                                  <div className="w-2 h-2 rounded-full" style={{ backgroundColor: deptColors[role.department] || 'hsl(var(--muted-foreground))' }} />
+                                  <div className="w-2 h-2 rounded-full" style={{ backgroundColor: deptColorMap[role.department] || CHART_COLORS[0] }} />
                                   <span className="text-[10px] text-muted-foreground">{role.department}</span>
                                 </div>
                               </div>
@@ -736,7 +895,7 @@ export function InvestmentSummaryPage() {
                           <td className="py-2 px-3 font-medium">{role.title}</td>
                           <td className="py-2 px-3">
                             <div className="flex items-center gap-1">
-                              <div className="w-2 h-2 rounded-full" style={{ backgroundColor: deptColors[role.department] || 'hsl(var(--muted-foreground))' }} />
+                              <div className="w-2 h-2 rounded-full" style={{ backgroundColor: deptColorMap[role.department] || CHART_COLORS[0] }} />
                               {role.department}
                             </div>
                           </td>
@@ -802,12 +961,12 @@ export function InvestmentSummaryPage() {
                     <td className="py-3 px-3 text-right font-mono-numbers">{formatCurrency(row.grossMargin, true)}</td>
                     <td className="py-3 px-3 text-right font-mono-numbers text-muted-foreground">{formatCurrency(row.payroll, true)}</td>
                     <td className="py-3 px-3 text-right font-mono-numbers text-muted-foreground">{formatCurrency(row.opex, true)}</td>
-                    <td className={cn("py-3 px-3 text-right font-mono-numbers font-medium", row.ebitda >= 0 ? "text-chart-4" : "text-destructive")}>
+                    <td className={cn("py-3 px-3 text-right font-mono-numbers font-medium", row.ebitda >= 0 ? "text-emerald-600" : "text-destructive")}>
                       {formatCurrency(row.ebitda, true)}
                     </td>
                     <td className="py-3 px-3 text-right font-mono-numbers text-muted-foreground">-</td>
                     <td className="py-3 px-3 text-right font-mono-numbers text-muted-foreground">{formatCurrency(row.capex, true)}</td>
-                    <td className={cn("py-3 px-3 text-right font-mono-numbers font-medium", row.netCashFlow >= 0 ? "text-chart-4" : "text-accent")}>
+                    <td className={cn("py-3 px-3 text-right font-mono-numbers font-medium", row.netCashFlow >= 0 ? "text-emerald-600" : "text-destructive")}>
                       {row.netCashFlow >= 0 ? '+' : ''}{formatCurrency(row.netCashFlow, true)}
                     </td>
                     <td className={cn("py-3 px-3 text-right font-mono-numbers font-bold", row.treasuryEnd < 0 && "text-destructive")}>
@@ -840,26 +999,28 @@ export function InvestmentSummaryPage() {
       {visibleSections.valuation && (
         <SectionCard title="Valorisation & Tours" id="valuation">
           <div className="grid md:grid-cols-4 gap-4 mb-6">
-            <KPICard label="Pre-Money" value={formatCurrency(latestRound?.preMoneyValuation || 0, true)} subValue={latestRound?.name || '-'} />
-            <KPICard label="Post-Money" value={formatCurrency(postMoney, true)} subValue="Après levée" />
-            <KPICard label="Dilution" value={formatPercent(dilution)} subValue="Part cédée" trend={dilution > 0.25 ? 'down' : undefined} />
-            <KPICard
+            <BigKPI label="Pre-Money" value={formatCurrency(latestRound?.preMoneyValuation || 0, true)} sub={latestRound?.name || '-'} icon={Target} accent={CHART_COLORS[4]} className="bg-violet-500/5 border-violet-500/20" />
+            <BigKPI label="Post-Money" value={formatCurrency(postMoney, true)} sub="Après levée" icon={PiggyBank} accent={CHART_COLORS[1]} className="bg-blue-500/5 border-blue-500/20" />
+            <BigKPI label="Dilution" value={formatPercent(dilution)} sub="Part cédée" icon={TrendingDown} accent={dilution > 0.25 ? CHART_COLORS[0] : CHART_COLORS[2]} className={dilution > 0.25 ? "bg-rose-500/5 border-rose-500/20" : "bg-emerald-500/5 border-emerald-500/20"} />
+            <BigKPI
               label="Multiple CA"
               value={totalRevenue > 0 ? `${(postMoney / (yearlyData[yearlyData.length - 1]?.revenue || 1)).toFixed(1)}x` : '-'}
-              subValue={`sur CA ${lastYear}`}
+              sub={`sur CA ${lastYear}`}
+              icon={TrendingUp}
+              className="bg-muted/30"
             />
           </div>
 
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {state.fundingRounds.map(round => (
-              <div key={round.id} className="p-4 bg-muted/30 rounded-lg border">
+            {state.fundingRounds.map((round, idx) => (
+              <div key={round.id} className="p-5 rounded-xl border-2 transition-all hover:shadow-md" style={{ borderColor: CHART_COLORS[idx % CHART_COLORS.length] + '30' }}>
                 <div className="flex justify-between items-start mb-3">
                   <div>
                     <h5 className="font-semibold">{round.name}</h5>
                     <Badge variant="outline" className="text-xs mt-1">{round.year}</Badge>
                   </div>
                   <div className="text-right">
-                    <div className="text-xl font-bold font-mono-numbers text-primary">{formatCurrency(round.amount, true)}</div>
+                    <div className="text-xl font-bold font-mono-numbers" style={{ color: CHART_COLORS[idx % CHART_COLORS.length] }}>{formatCurrency(round.amount, true)}</div>
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-2 text-xs text-muted-foreground">
