@@ -9,6 +9,7 @@ import { Switch } from '@/components/ui/switch';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Plus, Trash2, Upload, Edit2, Save, X, Settings, ChevronDown, ChevronRight, FolderPlus, Download } from 'lucide-react';
 import { B2BClient, B2BClientProjection, B2BPaymentTermOption, B2BDeliveryMethod, B2BDeliveryFeeTier, B2BClientCategory } from '@/hooks/useB2BClientsData';
+import { getCountryFlag } from '@/lib/countryFlags';
 import { B2BClientImportDialog } from './B2BClientImportDialog';
 import { B2BSettingsPanel } from './B2BSettingsPanel';
 import { usePricingConfig } from '@/hooks/usePricingConfig';
@@ -189,7 +190,12 @@ export function B2BClientTable({
           {isEditing ? <Input className="h-7 text-xs w-32" value={d.company_name || ''} onChange={e => setEditData(p => ({ ...p, company_name: e.target.value }))} /> : c.company_name}
         </TableCell>
         <TableCell>
-          {isEditing ? <Input className="h-7 text-xs w-20" value={d.country || ''} onChange={e => setEditData(p => ({ ...p, country: e.target.value }))} /> : c.country}
+          {isEditing ? <Input className="h-7 text-xs w-20" value={d.country || ''} onChange={e => setEditData(p => ({ ...p, country: e.target.value }))} /> : (
+            <span className="flex items-center gap-1">
+              {getCountryFlag(c.country) && <span className="text-base leading-none">{getCountryFlag(c.country)}</span>}
+              {c.country}
+            </span>
+          )}
         </TableCell>
         <TableCell>
           {isEditing ? <Input className="h-7 text-xs w-20" value={d.geographic_zone || ''} onChange={e => setEditData(p => ({ ...p, geographic_zone: e.target.value }))} /> : c.geographic_zone}
