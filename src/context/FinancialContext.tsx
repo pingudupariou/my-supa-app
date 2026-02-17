@@ -357,7 +357,7 @@ export function FinancialProvider({ children }: { children: ReactNode }) {
       if (state.revenueMode === 'by-client') {
         const cfg = state.clientRevenueConfig || { entries: [], growthRate: 0.15, marginRate: 0.5, marginB2C: 0.6, marginByCategory: {} };
         const baseYear = startYear;
-        const elapsed = year - baseYear;
+        // baseRevenue = CA N-1, so growth applies from year 1 (startYear = N-1 + 1)
         let totalRevenue = 0;
         let totalCogs = 0;
         cfg.entries.forEach(e => {
@@ -366,6 +366,7 @@ export function FinancialProvider({ children }: { children: ReactNode }) {
             rev = e.revenueByYear[year];
           } else {
             const growth = e.individualGrowthRate !== null && e.individualGrowthRate !== undefined ? e.individualGrowthRate : cfg.growthRate;
+            const elapsed = year - baseYear + 1;
             rev = e.baseRevenue * Math.pow(1 + growth, elapsed);
           }
           // Determine margin: B2C > category > default
