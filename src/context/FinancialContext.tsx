@@ -40,9 +40,16 @@ export interface ScenarioConfig {
   opexAdjustment: number;
 }
 
+export interface StrategicOpexLine {
+  id: string;
+  name: string;
+  amount: number;
+}
+
 export interface SimpleOpexConfig {
   baseAmount: number;
   growthRate: number;
+  strategicOpex: StrategicOpexLine[];
 }
 
 interface ScenarioSettings {
@@ -192,6 +199,10 @@ function loadState(): FinancialState {
       if (!parsed.clientRevenueConfig) {
         parsed.clientRevenueConfig = { entries: [], growthRate: 0.15, marginRate: 0.5, marginB2C: 0.6, marginByCategory: {} };
       }
+      // Ensure strategicOpex exists in simpleOpexConfig
+      if (parsed.simpleOpexConfig && !parsed.simpleOpexConfig.strategicOpex) {
+        parsed.simpleOpexConfig.strategicOpex = [];
+      }
       return parsed;
     }
   } catch {}
@@ -215,7 +226,7 @@ function getDefaultState(): FinancialState {
     globalRevenueConfig: defaultGlobalRevenueConfig,
     clientRevenueConfig: { entries: [], growthRate: 0.15, marginRate: 0.5, marginB2C: 0.6, marginByCategory: {} },
     opexMode: 'detailed',
-    simpleOpexConfig: { baseAmount: 200000, growthRate: 0.05 },
+    simpleOpexConfig: { baseAmount: 200000, growthRate: 0.05, strategicOpex: [] },
     hasUnsavedChanges: false,
     lastSaved: null,
     historicalData: [
@@ -267,6 +278,8 @@ export function FinancialProvider({ children }: { children: ReactNode }) {
           }
           // Ensure clientRevenueConfig exists
           if (!cloudState.clientRevenueConfig) cloudState.clientRevenueConfig = { entries: [], growthRate: 0.15, marginRate: 0.5, marginB2C: 0.6, marginByCategory: {} };
+          // Ensure strategicOpex exists
+          if (cloudState.simpleOpexConfig && !cloudState.simpleOpexConfig.strategicOpex) cloudState.simpleOpexConfig.strategicOpex = [];
           setState({ ...cloudState, hasUnsavedChanges: false });
           localStorage.setItem(STATE_KEY, JSON.stringify(cloudState));
         }
@@ -395,7 +408,8 @@ export function FinancialProvider({ children }: { children: ReactNode }) {
       let opex = 0;
       const byCategory: Record<string, number> = {};
       if (opexMode === 'simple') {
-        opex = simpleOpexConfig.baseAmount * Math.pow(1 + simpleOpexConfig.growthRate, i);
+        const strategicTotal = (simpleOpexConfig.strategicOpex || []).reduce((s, l) => s + l.amount, 0);
+        opex = (simpleOpexConfig.baseAmount + strategicTotal) * Math.pow(1 + simpleOpexConfig.growthRate, i);
       } else {
         expenses.forEach(e => {
           if (e.startYear > year) return;

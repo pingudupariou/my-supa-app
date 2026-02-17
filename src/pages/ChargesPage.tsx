@@ -256,13 +256,90 @@ export function ChargesPage() {
               </p>
             </div>
           </div>
+
+          {/* OPEX Stratégiques */}
+          <div className="mt-6 border rounded-lg p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <h4 className="text-sm font-medium">OPEX Stratégiques</h4>
+              <Button variant="outline" size="sm" onClick={() => {
+                const lines = [...(state.simpleOpexConfig.strategicOpex || [])];
+                lines.push({ id: `strat-${Date.now()}`, name: 'Budget stratégique', amount: 0 });
+                updateSimpleOpexConfig({ strategicOpex: lines });
+              }}>
+                <Plus className="h-3.5 w-3.5 mr-1" /> Ajouter
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Lignes de budget additionnel qui s'ajoutent au montant de base et sont indexées par l'évolution annuelle.
+            </p>
+            {(state.simpleOpexConfig.strategicOpex || []).length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-3">Aucun OPEX stratégique ajouté.</p>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Libellé</TableHead>
+                    <TableHead className="text-right">Montant annuel (€)</TableHead>
+                    <TableHead className="w-10"></TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {(state.simpleOpexConfig.strategicOpex || []).map(line => (
+                    <TableRow key={line.id}>
+                      <TableCell>
+                        <Input
+                          value={line.name}
+                          onChange={e => {
+                            const updated = (state.simpleOpexConfig.strategicOpex || []).map(l =>
+                              l.id === line.id ? { ...l, name: e.target.value } : l
+                            );
+                            updateSimpleOpexConfig({ strategicOpex: updated });
+                          }}
+                          className="h-8 text-sm"
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <Input
+                          type="number"
+                          value={line.amount}
+                          onChange={e => {
+                            const updated = (state.simpleOpexConfig.strategicOpex || []).map(l =>
+                              l.id === line.id ? { ...l, amount: Number(e.target.value) || 0 } : l
+                            );
+                            updateSimpleOpexConfig({ strategicOpex: updated });
+                          }}
+                          className="h-8 text-sm font-mono-numbers text-right"
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => {
+                          const updated = (state.simpleOpexConfig.strategicOpex || []).filter(l => l.id !== line.id);
+                          updateSimpleOpexConfig({ strategicOpex: updated });
+                        }}>
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                  <TableRow>
+                    <TableCell className="font-medium">Total stratégique</TableCell>
+                    <TableCell className="text-right font-mono-numbers font-medium">
+                      {formatCurrency((state.simpleOpexConfig.strategicOpex || []).reduce((s, l) => s + l.amount, 0))}
+                    </TableCell>
+                    <TableCell />
+                  </TableRow>
+                </TableBody>
+              </Table>
+            )}
+          </div>
           
           {/* Preview de la projection */}
           <div className="mt-6 p-4 bg-muted/50 rounded-lg">
             <h4 className="text-sm font-medium mb-3">Projection sur la période</h4>
             <div className="flex gap-4 flex-wrap">
               {years.map((year, index) => {
-                const opex = state.simpleOpexConfig.baseAmount * Math.pow(1 + state.simpleOpexConfig.growthRate, index);
+                const strategicTotal = (state.simpleOpexConfig.strategicOpex || []).reduce((s, l) => s + l.amount, 0);
+                const opex = (state.simpleOpexConfig.baseAmount + strategicTotal) * Math.pow(1 + state.simpleOpexConfig.growthRate, index);
                 return (
                   <div key={year} className="text-center">
                     <div className="text-xs text-muted-foreground">{year}</div>
@@ -367,6 +444,14 @@ export function ChargesPage() {
                   <div className="text-sm text-muted-foreground">Montant de base</div>
                   <div className="text-3xl font-mono-numbers font-bold">{formatCurrency(state.simpleOpexConfig.baseAmount, true)}</div>
                 </div>
+                {(state.simpleOpexConfig.strategicOpex || []).length > 0 && (
+                  <div>
+                    <div className="text-sm text-muted-foreground">+ OPEX Stratégiques</div>
+                    <div className="text-xl font-mono-numbers font-medium text-primary">
+                      {formatCurrency((state.simpleOpexConfig.strategicOpex || []).reduce((s, l) => s + l.amount, 0), true)}
+                    </div>
+                  </div>
+                )}
                 <div>
                   <div className="text-sm text-muted-foreground">Évolution annuelle</div>
                   <div className="text-xl font-medium text-primary">+{(state.simpleOpexConfig.growthRate * 100).toFixed(0)}%</div>

@@ -561,6 +561,56 @@ export function InvestmentSummaryPage() {
               </table>
             </div>
           </div>
+
+          {/* Strategic OPEX detail */}
+          {state.opexMode === 'simple' && (state.simpleOpexConfig.strategicOpex || []).length > 0 && (
+            <div className="mt-6">
+              <h4 className="font-semibold mb-3 flex items-center gap-2 text-sm">
+                <Briefcase className="h-4 w-4" />
+                OPEX Stratégiques (inclus dans le budget)
+              </h4>
+              <div className="overflow-x-auto border rounded-lg">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b bg-muted/30">
+                      <th className="text-left py-2 px-3 font-semibold text-xs">Poste</th>
+                      <th className="text-right py-2 px-3 font-semibold text-xs">Montant Base</th>
+                      {years.map(y => (
+                        <th key={y} className="text-right py-2 px-3 font-semibold text-xs">{y}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(state.simpleOpexConfig.strategicOpex || []).map(line => (
+                      <tr key={line.id} className="border-b hover:bg-muted/20 text-xs">
+                        <td className="py-2 px-3 font-medium">{line.name}</td>
+                        <td className="py-2 px-3 text-right font-mono-numbers">{formatCurrency(line.amount, true)}</td>
+                        {years.map((y, i) => (
+                          <td key={y} className="py-2 px-3 text-right font-mono-numbers text-muted-foreground">
+                            {formatCurrency(line.amount * Math.pow(1 + state.simpleOpexConfig.growthRate, i), true)}
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                    <tr className="bg-muted/20 font-medium text-xs">
+                      <td className="py-2 px-3">Total Stratégique</td>
+                      <td className="py-2 px-3 text-right font-mono-numbers">
+                        {formatCurrency((state.simpleOpexConfig.strategicOpex || []).reduce((s, l) => s + l.amount, 0), true)}
+                      </td>
+                      {years.map((y, i) => {
+                        const total = (state.simpleOpexConfig.strategicOpex || []).reduce((s, l) => s + l.amount, 0);
+                        return (
+                          <td key={y} className="py-2 px-3 text-right font-mono-numbers">
+                            {formatCurrency(total * Math.pow(1 + state.simpleOpexConfig.growthRate, i), true)}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
         </SectionCard>
       )}
 
