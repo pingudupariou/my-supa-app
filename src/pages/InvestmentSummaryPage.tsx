@@ -171,8 +171,7 @@ export function InvestmentSummaryPage() {
       if (e.revenueByYear[year] !== undefined) return e.revenueByYear[year];
       const rate = e.individualGrowthRate ?? cfg.growthRate;
       const baseYear = years[0];
-      const diff = year - baseYear;
-      if (diff <= 0) return e.baseRevenue;
+      const diff = year - baseYear + 1; // baseRevenue = CA N-1, growth applies from year 1
       return e.baseRevenue * Math.pow(1 + rate, diff);
     };
 

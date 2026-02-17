@@ -81,14 +81,14 @@ export function ClientRevenueEditor({ config: rawConfig, onChange, years }: Clie
     const growth = entry.individualGrowthRate ?? config.growthRate;
     const revenueByYear: Record<number, number> = {};
     years.forEach((y, i) => {
-      revenueByYear[y] = Math.round(entry.baseRevenue * Math.pow(1 + growth, i));
+      revenueByYear[y] = Math.round(entry.baseRevenue * Math.pow(1 + growth, i + 1));
     });
     updateEntry(clientId, { revenueByYear });
   };
 
   const getRevenue = (entry: ClientRevenueEntry, year: number) => {
     if (entry.revenueByYear?.[year] !== undefined) return entry.revenueByYear[year];
-    const elapsed = year - baseYear;
+    const elapsed = year - baseYear + 1; // baseRevenue = CA N-1, growth starts at year 1
     const growth = entry.individualGrowthRate ?? config.growthRate;
     return entry.baseRevenue * Math.pow(1 + growth, elapsed);
   };
