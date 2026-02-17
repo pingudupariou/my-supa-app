@@ -46,7 +46,7 @@ const DEFAULT_TVA = 20;
 export function PricingPage() {
   const { products, productCategories, references, bom, calculateProductCost, updateProduct } = useCostFlowData();
 
-  const [pricingMode, setPricingMode] = useState<PricingMode>('from_public');
+  const [pricingMode] = useState<PricingMode>('from_our_price');
   const [distributorCoef, setDistributorCoef] = useState(1.3);
   const [shopCoef, setShopCoef] = useState(1.8);
 
@@ -90,6 +90,10 @@ export function PricingPage() {
   const [bulkDialogOpen, setBulkDialogOpen] = useState(false);
   const [savingConfig, setSavingConfig] = useState(false);
   const [configLoaded, setConfigLoaded] = useState(false);
+
+  // Category bulk price
+  const [catBulkTarget, setCatBulkTarget] = useState<{ catId: string; catName: string; field: 'our_price' | 'public_ttc' } | null>(null);
+  const [catBulkPrice, setCatBulkPrice] = useState('');
 
   // Delete confirmation
   const [ruleToDelete, setRuleToDelete] = useState<string | null>(null);
@@ -163,7 +167,7 @@ export function PricingPage() {
 
       if (data?.config_data) {
         const cfg = data.config_data as any;
-        if (cfg.pricingMode) setPricingMode(cfg.pricingMode);
+        // pricingMode is now always 'from_our_price'
         if (cfg.distributorCoef !== undefined) setDistributorCoef(cfg.distributorCoef);
         if (cfg.shopCoef !== undefined) setShopCoef(cfg.shopCoef);
         if (cfg.salesRules?.length) setSalesRules(cfg.salesRules);
@@ -370,13 +374,13 @@ export function PricingPage() {
 
   const saveProductPrice = useCallback(async (productId: string, priceTTC: number) => {
     await updateProduct(productId, { price_ttc: priceTTC });
-    // Clean up edits for this product in this rule
+    // Clean up final price edits but keep our price (rule-specific)
     setEditedPrices(prev => {
       const rulePrices = { ...(prev[activeRuleId] || {}) };
       delete rulePrices[productId];
       return { ...prev, [activeRuleId]: rulePrices };
     });
-    setEditedOurPrices(prev => {
+    setEditedFinalPrices(prev => {
       const rulePrices = { ...(prev[activeRuleId] || {}) };
       delete rulePrices[productId];
       return { ...prev, [activeRuleId]: rulePrices };
@@ -401,6 +405,32 @@ export function PricingPage() {
     setEditedOurPrices(prev => ({ ...prev, [activeRuleId]: {} }));
     setEditedFinalPrices(prev => ({ ...prev, [activeRuleId]: {} }));
     setEditedProductCoefs(prev => ({ ...prev, [activeRuleId]: {} }));
+  };
+
+  const applyCategoryPrice = () => {
+    if (!catBulkTarget) return;
+    const price = parseFloat(catBulkPrice);
+    if (isNaN(price) || price < 0) return;
+    const catProducts = catBulkTarget.catId === '__uncategorized'
+      ? productsByCategory.uncategorized
+      : (productsByCategory.grouped[catBulkTarget.catId] || []);
+
+    if (catBulkTarget.field === 'our_price') {
+      setEditedOurPrices(prev => {
+        const rulePrices = { ...(prev[activeRuleId] || {}) };
+        catProducts.forEach(p => { rulePrices[p.id] = price; });
+        return { ...prev, [activeRuleId]: rulePrices };
+      });
+    } else {
+      setEditedFinalPrices(prev => {
+        const rulePrices = { ...(prev[activeRuleId] || {}) };
+        catProducts.forEach(p => { rulePrices[p.id] = price; });
+        return { ...prev, [activeRuleId]: rulePrices };
+      });
+    }
+    toast.success(`Prix appliqué à ${catProducts.length} produit(s) de "${catBulkTarget.catName}"`);
+    setCatBulkTarget(null);
+    setCatBulkPrice('');
   };
 
   const toggleSelect = (productId: string) => {
@@ -820,10 +850,12 @@ export function PricingPage() {
       });
       await Promise.all(promises);
       toast.success(`${allEditedIds.size} prix mis à jour pour "${activeRule?.name}"`);
-      setEditedOurPrices(prev => ({ ...prev, [activeRuleId]: {} }));
+      // Keep editedOurPrices per rule (they are rule-specific, not stored on product)
       setEditedFinalPrices(prev => ({ ...prev, [activeRuleId]: {} }));
       setEditedProductCoefs(prev => ({ ...prev, [activeRuleId]: {} }));
     }
+    // Auto-save config to persist per-rule data
+    await savePricingConfig();
   };
 
   // Count total edits across all rules for indicator
@@ -905,35 +937,15 @@ export function PricingPage() {
         </div>
       </div>
 
-      {/* Pricing Mode Selector */}
+      {/* Pricing Mode Info */}
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="text-lg">Mode de tarification</CardTitle>
-          <CardDescription>Choisissez votre point de départ pour fixer les prix</CardDescription>
+          <CardTitle className="text-lg flex items-center gap-2">
+            <ArrowDown className="h-4 w-4 text-primary" />
+            Mode de tarification — Prix fixés aux deux extrémités
+          </CardTitle>
+          <CardDescription>Fixez notre prix HT + le prix client TTC → les coefficients intermédiaires sont calculés et liés</CardDescription>
         </CardHeader>
-        <CardContent>
-          <ToggleGroup
-            type="single"
-            value={pricingMode}
-            onValueChange={v => { if (v) setPricingMode(v as PricingMode); }}
-            className="justify-start"
-          >
-            <ToggleGroupItem value="from_public" className="flex items-center gap-2 px-4 py-3 h-auto data-[state=on]:bg-primary/10 data-[state=on]:border-primary">
-              <ArrowUp className="h-4 w-4" />
-              <div className="text-left">
-                <div className="font-semibold text-sm">Option 1 — Depuis le prix public</div>
-                <div className="text-xs text-muted-foreground">Fixer le prix TTC client final → notre prix de vente est calculé en remontant la chaîne</div>
-              </div>
-            </ToggleGroupItem>
-            <ToggleGroupItem value="from_our_price" className="flex items-center gap-2 px-4 py-3 h-auto data-[state=on]:bg-primary/10 data-[state=on]:border-primary">
-              <ArrowDown className="h-4 w-4" />
-              <div className="text-left">
-                <div className="font-semibold text-sm">Option 2 — Prix fixés aux deux extrémités</div>
-                <div className="text-xs text-muted-foreground">Fixer notre prix HT + le prix client TTC → les coefficients intermédiaires sont calculés et liés</div>
-              </div>
-            </ToggleGroupItem>
-          </ToggleGroup>
-        </CardContent>
       </Card>
 
       {/* Global coefficients & TVA */}
@@ -1187,15 +1199,25 @@ export function PricingPage() {
 
               return (
                 <div key={cat.id} className="border rounded-lg overflow-hidden">
-                  <button
-                    className="w-full flex items-center gap-3 px-4 py-3 hover:bg-muted/50 transition-colors text-left"
-                    onClick={() => toggleCategory(cat.id)}
-                  >
-                    {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-                    <div className="h-3 w-3 rounded-full" style={{ backgroundColor: cat.color }} />
-                    <span className="font-semibold">{cat.name}</span>
-                    <Badge variant="secondary" className="ml-auto">{catProducts.length} produit{catProducts.length > 1 ? 's' : ''}</Badge>
-                  </button>
+                  <div className="flex items-center">
+                    <button
+                      className="flex-1 flex items-center gap-3 px-4 py-3 hover:bg-muted/50 transition-colors text-left"
+                      onClick={() => toggleCategory(cat.id)}
+                    >
+                      {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                      <div className="h-3 w-3 rounded-full" style={{ backgroundColor: cat.color }} />
+                      <span className="font-semibold">{cat.name}</span>
+                      <Badge variant="secondary" className="ml-auto">{catProducts.length} produit{catProducts.length > 1 ? 's' : ''}</Badge>
+                    </button>
+                    <div className="flex items-center gap-1 pr-3">
+                      <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => { setCatBulkTarget({ catId: cat.id, catName: cat.name, field: 'our_price' }); setCatBulkPrice(''); }}>
+                        Appliquer notre prix
+                      </Button>
+                      <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => { setCatBulkTarget({ catId: cat.id, catName: cat.name, field: 'public_ttc' }); setCatBulkPrice(''); }}>
+                        Appliquer prix public
+                      </Button>
+                    </div>
+                  </div>
                   {isExpanded && renderCategoryTable(catProducts, cat.id)}
                 </div>
               );
@@ -1242,6 +1264,37 @@ export function PricingPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Category bulk price dialog */}
+      <Dialog open={!!catBulkTarget} onOpenChange={open => { if (!open) setCatBulkTarget(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              {catBulkTarget?.field === 'our_price' ? 'Appliquer notre prix HT' : 'Appliquer prix public TTC'} — {catBulkTarget?.catName}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Ce prix sera appliqué à tous les produits de la catégorie « {catBulkTarget?.catName} » pour la règle « {activeRule?.name} ».
+            </p>
+            <div>
+              <Label>{catBulkTarget?.field === 'our_price' ? 'Notre Prix HT (€)' : 'Prix Public TTC (€)'}</Label>
+              <Input
+                type="number"
+                step="0.01"
+                value={catBulkPrice}
+                onChange={e => setCatBulkPrice(e.target.value)}
+                placeholder="Ex: 299.00"
+                className="font-mono"
+                autoFocus
+              />
+            </div>
+            <Button onClick={applyCategoryPrice} className="w-full" disabled={!catBulkPrice || isNaN(parseFloat(catBulkPrice))}>
+              Appliquer
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
