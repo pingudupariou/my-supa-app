@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { formatCurrency } from '@/data/financialConfig';
-import { Trash2, Users, Plus, ChevronRight } from 'lucide-react';
+import { Trash2, Users, Plus, ChevronRight, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
 import { ClientRevenueConfig, ClientRevenueEntry } from '@/context/FinancialContext';
 import { useB2BClientsData } from '@/hooks/useB2BClientsData';
 
@@ -25,6 +25,7 @@ function channelFromCategory(catName: string | null | undefined): 'B2B' | 'OEM' 
 export function ClientRevenueEditor({ config: rawConfig, onChange, years }: ClientRevenueEditorProps) {
   const { clients, categories, projections } = useB2BClientsData();
   const baseYear = years[0];
+  const [sortOrder, setSortOrder] = useState<'none' | 'asc' | 'desc'>('none');
 
   const config: ClientRevenueConfig = {
     entries: (rawConfig?.entries ?? []).map(e => ({
@@ -105,8 +106,17 @@ export function ClientRevenueEditor({ config: rawConfig, onChange, years }: Clie
   const totalMargin = marginByYear.reduce((s, v) => s + v, 0);
 
   const channels: Array<'B2B' | 'OEM' | 'B2C'> = ['B2B', 'OEM', 'B2C'];
+  const sortEntries = (entries: ClientRevenueEntry[]) => {
+    if (sortOrder === 'none') return entries;
+    return [...entries].sort((a, b) => {
+      const totalA = years.reduce((s, y) => s + getRevenue(a, y), 0);
+      const totalB = years.reduce((s, y) => s + getRevenue(b, y), 0);
+      return sortOrder === 'desc' ? totalB - totalA : totalA - totalB;
+    });
+  };
+
   const entriesByChannel = channels
-    .map(ch => ({ channel: ch, entries: config.entries.filter(e => e.channel === ch) }))
+    .map(ch => ({ channel: ch, entries: sortEntries(config.entries.filter(e => e.channel === ch)) }))
     .filter(g => g.entries.length > 0);
 
   const availableCRM = clients.filter(c => c.is_active && !config.entries.some(e => e.clientId === c.id));
@@ -195,6 +205,15 @@ export function ClientRevenueEditor({ config: rawConfig, onChange, years }: Clie
             </Button>
           )}
           <Badge variant="secondary" className="text-xs">{config.entries.length} entrée(s)</Badge>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => setSortOrder(s => s === 'none' ? 'desc' : s === 'desc' ? 'asc' : 'none')}
+            className="ml-auto"
+          >
+            {sortOrder === 'desc' ? <ArrowDown className="h-3 w-3 mr-1" /> : sortOrder === 'asc' ? <ArrowUp className="h-3 w-3 mr-1" /> : <ArrowUpDown className="h-3 w-3 mr-1" />}
+            <span className="text-xs">Trier CA</span>
+          </Button>
         </div>
 
         <div className="overflow-x-auto">
