@@ -56,6 +56,7 @@ export function ProductPlanPage() {
     setRevenueMode,
     updateGlobalRevenueConfig,
     updateClientRevenueConfig,
+    updateRoadmapBlocks,
   } = useFinancial();
 
   const settings = state.scenarioSettings;
@@ -306,7 +307,12 @@ export function ProductPlanPage() {
 
         {/* Roadmap Produit */}
         <TabsContent value="roadmap">
-          <ProductRoadmap products={state.products} years={YEARS} />
+          <ProductRoadmap
+            products={state.products}
+            years={YEARS}
+            persistedBlocks={state.roadmapBlocks}
+            onBlocksChange={updateRoadmapBlocks}
+          />
         </TabsContent>
       </Tabs>
     </div>

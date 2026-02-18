@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { formatCurrency, formatPercent } from '@/data/financialConfig';
 import { cn } from '@/lib/utils';
 import { ExportPDFDialog } from '@/components/summary/ExportPDFDialog';
+import { ProductRoadmap } from '@/components/product/ProductRoadmap';
 import { aggregateByYear } from '@/engine/monthlyTreasuryEngine';
 import {
   ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
@@ -47,7 +48,7 @@ const revenueModeLabels: Record<RevenueMode, string> = {
   'by-client': 'Par Client',
 };
 
-type SectionKey = 'cash' | 'needs' | 'projection' | 'valuation' | 'clientDeck' | 'payroll' | 'evolution';
+type SectionKey = 'cash' | 'needs' | 'projection' | 'valuation' | 'clientDeck' | 'payroll' | 'evolution' | 'roadmap';
 
 const defaultSections: Record<SectionKey, boolean> = {
   cash: true,
@@ -56,6 +57,7 @@ const defaultSections: Record<SectionKey, boolean> = {
   needs: true,
   payroll: true,
   projection: true,
+  roadmap: true,
   valuation: true,
 };
 
@@ -66,6 +68,7 @@ const sectionLabels: Record<SectionKey, string> = {
   needs: 'Justification des Besoins',
   payroll: 'Masse Salariale',
   projection: 'Projection Détaillée',
+  roadmap: 'Roadmap Produit',
   valuation: 'Valorisation & Tours',
 };
 
@@ -992,6 +995,16 @@ export function InvestmentSummaryPage() {
             </table>
           </div>
         </SectionCard>
+      )}
+
+      {/* =============== SECTION: ROADMAP PRODUIT =============== */}
+      {visibleSections.roadmap && (
+        <ProductRoadmap
+          products={state.products}
+          years={years}
+          persistedBlocks={state.roadmapBlocks}
+          readOnly
+        />
       )}
 
       {/* =============== SECTION: VALORISATION =============== */}
