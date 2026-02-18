@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -7,7 +7,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Switch } from '@/components/ui/switch';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { Plus, Trash2, Upload, Edit2, Save, X, Settings, ChevronDown, ChevronRight, FolderPlus, Download } from 'lucide-react';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Plus, Trash2, Upload, Save, X, Settings, ChevronDown, ChevronRight, FolderPlus, Download, Columns3, Eye } from 'lucide-react';
 import { B2BClient, B2BClientProjection, B2BPaymentTermOption, B2BDeliveryMethod, B2BDeliveryFeeTier, B2BClientCategory } from '@/hooks/useB2BClientsData';
 import { getCountryFlag } from '@/lib/countryFlags';
 import { B2BClientImportDialog } from './B2BClientImportDialog';
@@ -40,6 +42,91 @@ interface Props {
 
 const revenueYears = [2022, 2023, 2024, 2025];
 
+type ColumnKey = 'is_active' | 'company_name' | 'country' | 'geographic_zone' | 'contact_email' | 'pricing_rule' | 'payment_terms' | 'delivery_method' | 'delivery_fee_rule' | 'moq' | 'ca_2022' | 'ca_2023' | 'ca_2024' | 'ca_2025' | 'category' | 'actions';
+
+const ALL_COLUMNS: { key: ColumnKey; label: string; minWidth: string; canHide: boolean }[] = [
+  { key: 'is_active', label: 'Actif', minWidth: '50px', canHide: true },
+  { key: 'company_name', label: 'Client', minWidth: '130px', canHide: false },
+  { key: 'country', label: 'Pays', minWidth: '80px', canHide: true },
+  { key: 'geographic_zone', label: 'Zone Géo', minWidth: '80px', canHide: true },
+  { key: 'contact_email', label: 'Mail contact', minWidth: '140px', canHide: true },
+  { key: 'pricing_rule', label: 'Pricing', minWidth: '100px', canHide: true },
+  { key: 'payment_terms', label: 'Délai paie.', minWidth: '90px', canHide: true },
+  { key: 'delivery_method', label: 'Livraison', minWidth: '80px', canHide: true },
+  { key: 'delivery_fee_rule', label: 'Frais liv.', minWidth: '80px', canHide: true },
+  { key: 'moq', label: 'MOQ', minWidth: '60px', canHide: true },
+  { key: 'ca_2022', label: 'CA 2022', minWidth: '80px', canHide: true },
+  { key: 'ca_2023', label: 'CA 2023', minWidth: '80px', canHide: true },
+  { key: 'ca_2024', label: 'CA 2024', minWidth: '80px', canHide: true },
+  { key: 'ca_2025', label: 'CA 2025', minWidth: '80px', canHide: true },
+  { key: 'category', label: 'Catégorie', minWidth: '90px', canHide: true },
+  { key: 'actions', label: 'Actions', minWidth: '70px', canHide: false },
+];
+
+// Inline editable cell component
+function EditableCell({ value, onSave, type = 'text', className = '' }: {
+  value: string;
+  onSave: (val: string) => void;
+  type?: 'text' | 'number';
+  className?: string;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(value);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => { if (editing) inputRef.current?.focus(); }, [editing]);
+  useEffect(() => { setDraft(value); }, [value]);
+
+  if (!editing) {
+    return (
+      <span
+        className={`cursor-pointer hover:bg-accent/40 px-1 py-0.5 rounded transition-colors inline-block min-w-[2rem] ${className}`}
+        onClick={() => setEditing(true)}
+        title="Cliquer pour modifier"
+      >
+        {value || '—'}
+      </span>
+    );
+  }
+
+  const commit = () => {
+    setEditing(false);
+    if (draft !== value) onSave(draft);
+  };
+
+  return (
+    <Input
+      ref={inputRef}
+      className="h-7 text-xs w-full"
+      type={type}
+      value={draft}
+      onChange={e => setDraft(e.target.value)}
+      onBlur={commit}
+      onKeyDown={e => { if (e.key === 'Enter') commit(); if (e.key === 'Escape') { setDraft(value); setEditing(false); } }}
+    />
+  );
+}
+
+// Inline select cell
+function EditableSelectCell({ value, options, onSave, placeholder = '—' }: {
+  value: string;
+  options: string[];
+  onSave: (val: string) => void;
+  placeholder?: string;
+}) {
+  return (
+    <Select value={value || 'none'} onValueChange={v => onSave(v === 'none' ? '' : v)}>
+      <SelectTrigger className="h-7 text-xs w-full border-dashed">
+        <SelectValue placeholder={placeholder} />
+      </SelectTrigger>
+      <SelectContent>
+        <SelectItem value="none">{placeholder}</SelectItem>
+        {options.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}
+      </SelectContent>
+    </Select>
+  );
+}
+
 export function B2BClientTable({
   clients, projections, deliveryFeeTiers, paymentTermsOptions, deliveryMethods, categories,
   onUpsertClient, onDeleteClient, onBulkImport, onUpsertProjection, getClientProjections,
@@ -51,15 +138,11 @@ export function B2BClientTable({
   const [showImport, setShowImport] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showAdd, setShowAdd] = useState(false);
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [editData, setEditData] = useState<Partial<B2BClient>>({});
   const [collapsedCategories, setCollapsedCategories] = useState<Set<string>>(new Set());
   const [newCategoryName, setNewCategoryName] = useState('');
   const [showCategoryDialog, setShowCategoryDialog] = useState(false);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
-
-  // Revenue inline editing
-  const [editingRevenue, setEditingRevenue] = useState<Record<string, Record<number, string>>>({});
+  const [hiddenColumns, setHiddenColumns] = useState<Set<ColumnKey>>(new Set());
 
   const { salesRules } = usePricingConfig();
 
@@ -69,15 +152,22 @@ export function B2BClientTable({
     delivery_method: '', delivery_fee_rule: '', moq: '', category_id: '',
   });
 
-  const startEdit = (c: B2BClient) => {
-    setEditingId(c.id);
-    setEditData({ ...c });
+  const visibleColumns = ALL_COLUMNS.filter(c => !hiddenColumns.has(c.key));
+  const hiddenList = ALL_COLUMNS.filter(c => hiddenColumns.has(c.key) && c.canHide);
+  const colSpan = visibleColumns.length;
+
+  const toggleColumn = (key: ColumnKey) => {
+    setHiddenColumns(prev => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key); else next.add(key);
+      return next;
+    });
   };
 
-  const saveEdit = async () => {
-    if (!editingId || !editData.company_name) return;
-    await onUpsertClient({ ...editData, id: editingId, company_name: editData.company_name! });
-    setEditingId(null);
+  const isVisible = (key: ColumnKey) => !hiddenColumns.has(key);
+
+  const saveField = async (client: B2BClient, field: keyof B2BClient, value: string) => {
+    await onUpsertClient({ ...client, [field]: value || null });
   };
 
   const handleCreate = async () => {
@@ -114,16 +204,9 @@ export function B2BClientTable({
     return proj ? Number(proj.projected_revenue) : 0;
   };
 
-  const handleRevenueBlur = async (clientId: string, year: number, value: string) => {
+  const handleRevenueSave = async (clientId: string, year: number, value: string) => {
     const val = parseFloat(value);
-    if (!isNaN(val)) {
-      await onUpsertProjection(clientId, year, val);
-    }
-    setEditingRevenue(prev => {
-      const copy = { ...prev };
-      if (copy[clientId]) { delete copy[clientId][year]; }
-      return copy;
-    });
+    if (!isNaN(val)) await onUpsertProjection(clientId, year, val);
   };
 
   const deliveryFeeLabels = deliveryFeeTiers.map(t => t.label);
@@ -133,187 +216,122 @@ export function B2BClientTable({
   const exportCSV = () => {
     const headers = ['Actif', 'Client', 'Pays', 'Zone Géo', 'Email', 'Pricing', 'Délai paiement', 'Livraison', 'Frais livraison', 'MOQ', ...revenueYears.map(y => `CA ${y}`), 'Catégorie'];
     const rows = clients.map(c => [
-      c.is_active ? 'Oui' : 'Non',
-      c.company_name,
-      c.country || '',
-      c.geographic_zone || '',
-      c.contact_email || '',
-      c.pricing_rule || '',
-      c.payment_terms || '',
-      c.delivery_method || '',
-      c.delivery_fee_rule || '',
-      c.moq || '',
-      ...revenueYears.map(y => String(getRevenue(c.id, y) || '')),
+      c.is_active ? 'Oui' : 'Non', c.company_name, c.country || '', c.geographic_zone || '',
+      c.contact_email || '', c.pricing_rule || '', c.payment_terms || '', c.delivery_method || '',
+      c.delivery_fee_rule || '', c.moq || '', ...revenueYears.map(y => String(getRevenue(c.id, y) || '')),
       categories.find(cat => cat.id === c.category_id)?.name || '',
     ]);
     const csv = [headers, ...rows].map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(';')).join('\n');
     const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
-    a.href = url;
-    a.download = `clients_b2b_${new Date().toISOString().slice(0, 10)}.csv`;
-    a.click();
+    a.href = url; a.download = `clients_b2b_${new Date().toISOString().slice(0, 10)}.csv`; a.click();
     URL.revokeObjectURL(url);
     toast.success('Fichier CSV exporté');
   };
 
   const handleDeleteConfirm = async () => {
-    if (deleteConfirmId) {
-      await onDeleteClient(deleteConfirmId);
-      setDeleteConfirmId(null);
-    }
+    if (deleteConfirmId) { await onDeleteClient(deleteConfirmId); setDeleteConfirmId(null); }
   };
 
-  // Group clients by category
   const uncategorized = clients.filter(c => !c.category_id);
-  const grouped = categories.map(cat => ({
-    category: cat,
-    clients: clients.filter(c => c.category_id === cat.id),
-  }));
+  const grouped = categories.map(cat => ({ category: cat, clients: clients.filter(c => c.category_id === cat.id) }));
 
-  const renderClientRow = (c: B2BClient) => {
-    const isEditing = editingId === c.id;
-    const d = isEditing ? editData : c;
-
-    return (
-      <TableRow key={c.id} className="text-xs">
+  const renderClientRow = (c: B2BClient) => (
+    <TableRow key={c.id} className="text-xs">
+      {isVisible('is_active') && (
         <TableCell>
-          {isEditing ? (
-            <Switch checked={d.is_active} onCheckedChange={v => setEditData(p => ({ ...p, is_active: v }))} />
-          ) : (
-            <Badge variant={c.is_active ? 'default' : 'secondary'} className="text-[9px]">
-              {c.is_active ? 'Oui' : 'Non'}
-            </Badge>
-          )}
+          <Switch checked={c.is_active} onCheckedChange={v => onUpsertClient({ ...c, is_active: v })} />
         </TableCell>
+      )}
+      {isVisible('company_name') && (
         <TableCell className="font-medium">
-          {isEditing ? <Input className="h-7 text-xs w-32" value={d.company_name || ''} onChange={e => setEditData(p => ({ ...p, company_name: e.target.value }))} /> : c.company_name}
+          <EditableCell value={c.company_name} onSave={v => saveField(c, 'company_name', v)} />
         </TableCell>
+      )}
+      {isVisible('country') && (
         <TableCell>
-          {isEditing ? <Input className="h-7 text-xs w-20" value={d.country || ''} onChange={e => setEditData(p => ({ ...p, country: e.target.value }))} /> : (
-            <span className="flex items-center gap-1">
-              {getCountryFlag(c.country) && <span className="text-base leading-none">{getCountryFlag(c.country)}</span>}
-              {c.country}
-            </span>
-          )}
+          <span className="flex items-center gap-1">
+            {getCountryFlag(c.country) && <span className="text-base leading-none">{getCountryFlag(c.country)}</span>}
+            <EditableCell value={c.country || ''} onSave={v => saveField(c, 'country', v)} />
+          </span>
         </TableCell>
+      )}
+      {isVisible('geographic_zone') && (
         <TableCell>
-          {isEditing ? <Input className="h-7 text-xs w-20" value={d.geographic_zone || ''} onChange={e => setEditData(p => ({ ...p, geographic_zone: e.target.value }))} /> : c.geographic_zone}
+          <EditableCell value={c.geographic_zone || ''} onSave={v => saveField(c, 'geographic_zone', v)} />
         </TableCell>
+      )}
+      {isVisible('contact_email') && (
         <TableCell>
-          {isEditing ? <Input className="h-7 text-xs w-36" value={d.contact_email || ''} onChange={e => setEditData(p => ({ ...p, contact_email: e.target.value }))} /> : (
-            c.contact_email ? <a href={`mailto:${c.contact_email}`} className="text-primary underline">{c.contact_email}</a> : '—'
-          )}
+          <EditableCell value={c.contact_email || ''} onSave={v => saveField(c, 'contact_email', v)} />
         </TableCell>
-        {/* Pricing rule dropdown */}
+      )}
+      {isVisible('pricing_rule') && (
         <TableCell>
-          {isEditing ? (
-            <Select value={d.pricing_rule || ''} onValueChange={v => setEditData(p => ({ ...p, pricing_rule: v }))}>
-              <SelectTrigger className="h-7 text-xs w-28"><SelectValue placeholder="—" /></SelectTrigger>
-              <SelectContent>
-                {salesRules.map(r => <SelectItem key={r.id} value={r.name}>{r.name}</SelectItem>)}
-              </SelectContent>
-            </Select>
-          ) : (
-            c.pricing_rule || '—'
-          )}
+          <EditableSelectCell value={c.pricing_rule || ''} options={salesRules.map(r => r.name)} onSave={v => saveField(c, 'pricing_rule', v)} />
         </TableCell>
-        {/* Délai paiement */}
+      )}
+      {isVisible('payment_terms') && (
         <TableCell>
-          {isEditing ? (
-            <Select value={d.payment_terms || ''} onValueChange={v => setEditData(p => ({ ...p, payment_terms: v }))}>
-              <SelectTrigger className="h-7 text-xs w-24"><SelectValue placeholder="—" /></SelectTrigger>
-              <SelectContent>
-                {paymentTermLabels.map(l => <SelectItem key={l} value={l}>{l}</SelectItem>)}
-              </SelectContent>
-            </Select>
-          ) : c.payment_terms || '—'}
+          <EditableSelectCell value={c.payment_terms || ''} options={paymentTermLabels} onSave={v => saveField(c, 'payment_terms', v)} />
         </TableCell>
-        {/* Livraison */}
+      )}
+      {isVisible('delivery_method') && (
         <TableCell>
-          {isEditing ? (
-            <Select value={d.delivery_method || ''} onValueChange={v => setEditData(p => ({ ...p, delivery_method: v }))}>
-              <SelectTrigger className="h-7 text-xs w-24"><SelectValue placeholder="—" /></SelectTrigger>
-              <SelectContent>
-                {deliveryMethodLabels.map(l => <SelectItem key={l} value={l}>{l}</SelectItem>)}
-              </SelectContent>
-            </Select>
-          ) : c.delivery_method || '—'}
+          <EditableSelectCell value={c.delivery_method || ''} options={deliveryMethodLabels} onSave={v => saveField(c, 'delivery_method', v)} />
         </TableCell>
-        {/* Frais livraison */}
+      )}
+      {isVisible('delivery_fee_rule') && (
         <TableCell>
-          {isEditing ? (
-            <Select value={d.delivery_fee_rule || ''} onValueChange={v => setEditData(p => ({ ...p, delivery_fee_rule: v }))}>
-              <SelectTrigger className="h-7 text-xs w-24"><SelectValue placeholder="—" /></SelectTrigger>
-              <SelectContent>
-                {deliveryFeeLabels.map(l => <SelectItem key={l} value={l}>{l}</SelectItem>)}
-              </SelectContent>
-            </Select>
-          ) : c.delivery_fee_rule || '—'}
+          <EditableSelectCell value={c.delivery_fee_rule || ''} options={deliveryFeeLabels} onSave={v => saveField(c, 'delivery_fee_rule', v)} />
         </TableCell>
-        {/* MOQ */}
+      )}
+      {isVisible('moq') && (
         <TableCell>
-          {isEditing ? <Input className="h-7 text-xs w-16" value={d.moq || ''} onChange={e => setEditData(p => ({ ...p, moq: e.target.value }))} /> : c.moq || '—'}
+          <EditableCell value={c.moq || ''} onSave={v => saveField(c, 'moq', v)} />
         </TableCell>
-        {/* CA 2022-2025 inline */}
-        {revenueYears.map(year => {
-          const rev = getRevenue(c.id, year);
-          const editVal = editingRevenue[c.id]?.[year];
-          return (
-            <TableCell key={year} className="text-right font-mono">
-              <Input
-                className="h-7 text-xs w-20 text-right"
-                type="number"
-                value={editVal !== undefined ? editVal : (rev || '')}
-                onChange={e => setEditingRevenue(prev => ({
-                  ...prev,
-                  [c.id]: { ...(prev[c.id] || {}), [year]: e.target.value },
-                }))}
-                onBlur={e => handleRevenueBlur(c.id, year, e.target.value)}
-                placeholder="0"
-              />
-            </TableCell>
-          );
-        })}
-        {/* Category */}
+      )}
+      {revenueYears.map((year, i) => {
+        const key = `ca_${year}` as ColumnKey;
+        if (!isVisible(key)) return null;
+        const rev = getRevenue(c.id, year);
+        return (
+          <TableCell key={year} className="text-right font-mono">
+            <EditableCell
+              value={rev ? String(rev) : ''}
+              type="number"
+              onSave={v => handleRevenueSave(c.id, year, v)}
+              className="text-right"
+            />
+          </TableCell>
+        );
+      })}
+      {isVisible('category') && (
         <TableCell>
-          {isEditing ? (
-            <Select value={d.category_id || 'none'} onValueChange={v => setEditData(p => ({ ...p, category_id: v === 'none' ? null : v }))}>
-              <SelectTrigger className="h-7 text-xs w-24"><SelectValue placeholder="—" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">Sans catégorie</SelectItem>
-                {categories.map(cat => <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>)}
-              </SelectContent>
-            </Select>
-          ) : (
-            categories.find(cat => cat.id === c.category_id)?.name || '—'
-          )}
+          <EditableSelectCell
+            value={c.category_id || ''}
+            options={categories.map(cat => cat.id)}
+            onSave={v => onUpsertClient({ ...c, category_id: v || null })}
+            placeholder="—"
+          />
         </TableCell>
-        {/* Actions */}
+      )}
+      {isVisible('actions') && (
         <TableCell>
-          <div className="flex gap-1">
-            {isEditing ? (
-              <>
-                <Button size="sm" variant="ghost" onClick={saveEdit}><Save className="h-3 w-3" /></Button>
-                <Button size="sm" variant="ghost" onClick={() => setEditingId(null)}><X className="h-3 w-3" /></Button>
-              </>
-            ) : (
-              <>
-                <Button size="sm" variant="ghost" onClick={() => startEdit(c)}><Edit2 className="h-3 w-3" /></Button>
-                <Button size="sm" variant="ghost" onClick={() => setDeleteConfirmId(c.id)}><Trash2 className="h-3 w-3 text-destructive" /></Button>
-              </>
-            )}
-          </div>
+          <Button size="sm" variant="ghost" onClick={() => setDeleteConfirmId(c.id)}>
+            <Trash2 className="h-3 w-3 text-destructive" />
+          </Button>
         </TableCell>
-      </TableRow>
-    );
-  };
+      )}
+    </TableRow>
+  );
 
   const renderCategoryHeader = (cat: B2BClientCategory, count: number) => {
     const isCollapsed = collapsedCategories.has(cat.id);
     return (
       <TableRow key={`cat-${cat.id}`} className="bg-muted/40 hover:bg-muted/60 cursor-pointer" onClick={() => toggleCategory(cat.id)}>
-        <TableCell colSpan={15} className="py-2">
+        <TableCell colSpan={colSpan} className="py-2">
           <div className="flex items-center gap-2">
             {isCollapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
             <div className="w-3 h-3 rounded-full" style={{ backgroundColor: cat.color || '#6366f1' }} />
@@ -334,8 +352,54 @@ export function B2BClientTable({
         <Button size="sm" variant="outline" onClick={() => setShowCategoryDialog(true)}><FolderPlus className="h-4 w-4 mr-1" /> Catégorie</Button>
         <Button size="sm" variant="outline" onClick={() => setShowSettings(!showSettings)}><Settings className="h-4 w-4 mr-1" /> Paramètres</Button>
         <Button size="sm" variant="outline" onClick={exportCSV}><Download className="h-4 w-4 mr-1" /> Export CSV</Button>
-        <span className="text-xs text-muted-foreground ml-auto">{clients.length} client(s)</span>
+
+        {/* Column visibility toggle */}
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button size="sm" variant="outline" className="ml-auto">
+              <Columns3 className="h-4 w-4 mr-1" />
+              Colonnes
+              {hiddenList.length > 0 && (
+                <Badge variant="secondary" className="ml-1 text-[9px] px-1.5">{hiddenList.length} masquée{hiddenList.length > 1 ? 's' : ''}</Badge>
+              )}
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-56 p-3" align="end">
+            <p className="text-xs font-medium mb-2 text-muted-foreground">Afficher / Masquer</p>
+            <div className="space-y-1.5">
+              {ALL_COLUMNS.filter(c => c.canHide).map(col => (
+                <label key={col.key} className="flex items-center gap-2 text-xs cursor-pointer hover:bg-accent/40 px-1.5 py-1 rounded">
+                  <Checkbox
+                    checked={!hiddenColumns.has(col.key)}
+                    onCheckedChange={() => toggleColumn(col.key)}
+                  />
+                  {col.label}
+                </label>
+              ))}
+            </div>
+          </PopoverContent>
+        </Popover>
+
+        <span className="text-xs text-muted-foreground">{clients.length} client(s)</span>
       </div>
+
+      {/* Hidden columns bar */}
+      {hiddenList.length > 0 && (
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <span className="text-[10px] text-muted-foreground">Colonnes masquées :</span>
+          {hiddenList.map(col => (
+            <Badge
+              key={col.key}
+              variant="outline"
+              className="text-[10px] cursor-pointer hover:bg-accent gap-1 px-2 py-0.5"
+              onClick={() => toggleColumn(col.key)}
+            >
+              <Eye className="h-3 w-3" />
+              {col.label}
+            </Badge>
+          ))}
+        </div>
+      )}
 
       {/* Settings panel */}
       {showSettings && (
@@ -352,7 +416,7 @@ export function B2BClientTable({
         />
       )}
 
-      {/* Categories management */}
+      {/* Categories */}
       {categories.length > 0 && (
         <div className="flex items-center gap-2 flex-wrap">
           {categories.map(cat => (
@@ -372,32 +436,21 @@ export function B2BClientTable({
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead className="text-[10px] min-w-[50px]">Actif</TableHead>
-              <TableHead className="text-[10px] min-w-[130px]">Client</TableHead>
-              <TableHead className="text-[10px] min-w-[80px]">Pays</TableHead>
-              <TableHead className="text-[10px] min-w-[80px]">Zone Géo</TableHead>
-              <TableHead className="text-[10px] min-w-[140px]">Mail contact</TableHead>
-              <TableHead className="text-[10px] min-w-[100px]">Pricing</TableHead>
-              <TableHead className="text-[10px] min-w-[90px]">Délai paie.</TableHead>
-              <TableHead className="text-[10px] min-w-[80px]">Livraison</TableHead>
-              <TableHead className="text-[10px] min-w-[80px]">Frais liv.</TableHead>
-              <TableHead className="text-[10px] min-w-[60px]">MOQ</TableHead>
-              {revenueYears.map(y => (
-                <TableHead key={y} className="text-[10px] text-right min-w-[80px] bg-accent/20">CA {y}</TableHead>
+              {visibleColumns.map(col => (
+                <TableHead key={col.key} className={`text-[10px] min-w-[${col.minWidth}] ${col.key.startsWith('ca_') ? 'text-right bg-accent/20' : ''}`}>
+                  {col.label}
+                </TableHead>
               ))}
-              <TableHead className="text-[10px] min-w-[90px]">Catégorie</TableHead>
-              <TableHead className="text-[10px] min-w-[70px]">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {clients.length === 0 && (
               <TableRow>
-                <TableCell colSpan={15} className="text-center text-muted-foreground py-8 text-sm">
+                <TableCell colSpan={colSpan} className="text-center text-muted-foreground py-8 text-sm">
                   Aucun client — Ajoutez-en ou importez via copier-coller
                 </TableCell>
               </TableRow>
             )}
-            {/* Categorized clients */}
             {grouped.map(({ category, clients: catClients }) => {
               if (catClients.length === 0) return null;
               const isCollapsed = collapsedCategories.has(category.id);
@@ -406,12 +459,11 @@ export function B2BClientTable({
                 ...(!isCollapsed ? catClients.map(renderClientRow) : []),
               ];
             })}
-            {/* Uncategorized */}
             {uncategorized.length > 0 && (
               <>
                 {categories.length > 0 && (
                   <TableRow className="bg-muted/20">
-                    <TableCell colSpan={15} className="py-2">
+                    <TableCell colSpan={colSpan} className="py-2">
                       <span className="text-xs text-muted-foreground font-medium">Sans catégorie ({uncategorized.length})</span>
                     </TableCell>
                   </TableRow>
@@ -478,6 +530,7 @@ export function B2BClientTable({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
       {/* Delete confirmation */}
       <AlertDialog open={!!deleteConfirmId} onOpenChange={open => !open && setDeleteConfirmId(null)}>
         <AlertDialogContent>
