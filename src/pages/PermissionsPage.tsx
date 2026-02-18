@@ -111,7 +111,7 @@ export function PermissionsPage() {
                                 <Badge className={permissionLabels.write.color}><Pencil className="h-3 w-3 mr-1" />{permissionLabels.write.label}</Badge>
                               ) : (
                                 <Select value={currentPerm} onValueChange={v => updatePermission(role, tab.key, v as TabPermission)} disabled={saving === cellKey}>
-                                  <SelectTrigger className="w-28"><SelectValue /></SelectTrigger>
+                                  <SelectTrigger className={`w-28 ${currentPerm === 'write' ? 'bg-green-50 border-green-300 text-green-800' : currentPerm === 'read' ? 'bg-yellow-50 border-yellow-300 text-yellow-800' : 'bg-red-50 border-red-300 text-red-800'}`}><SelectValue /></SelectTrigger>
                                   <SelectContent>{PERMISSIONS.map(perm => { const { label, icon: Icon } = permissionLabels[perm]; return <SelectItem key={perm} value={perm}><div className="flex items-center gap-2"><Icon className="h-3 w-3" />{label}</div></SelectItem>; })}</SelectContent>
                                 </Select>
                               )}
