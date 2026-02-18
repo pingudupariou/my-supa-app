@@ -716,6 +716,109 @@ export type Database = {
         }
         Relationships: []
       }
+      customer_interactions: {
+        Row: {
+          content: string | null
+          created_at: string
+          customer_id: string
+          id: string
+          interaction_date: string
+          interaction_type: string
+          subject: string
+          user_id: string
+        }
+        Insert: {
+          content?: string | null
+          created_at?: string
+          customer_id: string
+          id?: string
+          interaction_date?: string
+          interaction_type?: string
+          subject?: string
+          user_id: string
+        }
+        Update: {
+          content?: string | null
+          created_at?: string
+          customer_id?: string
+          id?: string
+          interaction_date?: string
+          interaction_type?: string
+          subject?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "customer_interactions_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      customer_opportunities: {
+        Row: {
+          contact_name: string | null
+          created_at: string
+          customer_id: string
+          estimated_amount: number | null
+          expected_close_date: string | null
+          id: string
+          next_action: string | null
+          next_action_date: string | null
+          priority: string | null
+          probability: number | null
+          responsible: string | null
+          sort_order: number | null
+          stage: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          contact_name?: string | null
+          created_at?: string
+          customer_id: string
+          estimated_amount?: number | null
+          expected_close_date?: string | null
+          id?: string
+          next_action?: string | null
+          next_action_date?: string | null
+          priority?: string | null
+          probability?: number | null
+          responsible?: string | null
+          sort_order?: number | null
+          stage?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          contact_name?: string | null
+          created_at?: string
+          customer_id?: string
+          estimated_amount?: number | null
+          expected_close_date?: string | null
+          id?: string
+          next_action?: string | null
+          next_action_date?: string | null
+          priority?: string | null
+          probability?: number | null
+          responsible?: string | null
+          sort_order?: number | null
+          stage?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "customer_opportunities_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       customer_orders: {
         Row: {
           created_at: string
@@ -779,12 +882,16 @@ export type Database = {
           created_at: string
           email: string | null
           id: string
+          last_interaction_date: string | null
           latitude: number | null
           longitude: number | null
+          next_action: string | null
+          next_action_date: string | null
           notes: string | null
           phone: string | null
           postal_code: string | null
           pricing_tier: string
+          priority: string | null
           status: string
           updated_at: string
           user_id: string
@@ -798,12 +905,16 @@ export type Database = {
           created_at?: string
           email?: string | null
           id?: string
+          last_interaction_date?: string | null
           latitude?: number | null
           longitude?: number | null
+          next_action?: string | null
+          next_action_date?: string | null
           notes?: string | null
           phone?: string | null
           postal_code?: string | null
           pricing_tier?: string
+          priority?: string | null
           status?: string
           updated_at?: string
           user_id: string
@@ -817,12 +928,16 @@ export type Database = {
           created_at?: string
           email?: string | null
           id?: string
+          last_interaction_date?: string | null
           latitude?: number | null
           longitude?: number | null
+          next_action?: string | null
+          next_action_date?: string | null
           notes?: string | null
           phone?: string | null
           postal_code?: string | null
           pricing_tier?: string
+          priority?: string | null
           status?: string
           updated_at?: string
           user_id?: string
