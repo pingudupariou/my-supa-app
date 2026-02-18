@@ -747,15 +747,7 @@ export type Database = {
           subject?: string
           user_id?: string
         }
-        Relationships: [
-          {
-            foreignKeyName: "customer_interactions_customer_id_fkey"
-            columns: ["customer_id"]
-            isOneToOne: false
-            referencedRelation: "customers"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       customer_opportunities: {
         Row: {
@@ -809,15 +801,7 @@ export type Database = {
           updated_at?: string
           user_id?: string
         }
-        Relationships: [
-          {
-            foreignKeyName: "customer_opportunities_customer_id_fkey"
-            columns: ["customer_id"]
-            isOneToOne: false
-            referencedRelation: "customers"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       customer_orders: {
         Row: {
@@ -862,15 +846,7 @@ export type Database = {
           updated_at?: string
           user_id?: string
         }
-        Relationships: [
-          {
-            foreignKeyName: "customer_orders_customer_id_fkey"
-            columns: ["customer_id"]
-            isOneToOne: false
-            referencedRelation: "customers"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       customers: {
         Row: {

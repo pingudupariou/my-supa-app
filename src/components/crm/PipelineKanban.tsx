@@ -8,11 +8,16 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Plus, GripVertical, Building2, User, DollarSign, Calendar, Trash2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { formatCurrency } from '@/data/financialConfig';
-import { CustomerOpportunity, Customer, PIPELINE_STAGES } from '@/hooks/useCRMData';
+import { CustomerOpportunity, PIPELINE_STAGES } from '@/hooks/useCRMData';
+
+interface PipelineCustomer {
+  id: string;
+  company_name: string;
+}
 
 interface PipelineKanbanProps {
   opportunities: CustomerOpportunity[];
-  customers: Customer[];
+  customers: PipelineCustomer[];
   onCreateOpportunity: (opp: any) => Promise<any>;
   onUpdateOpportunity: (id: string, updates: Partial<CustomerOpportunity>) => Promise<boolean>;
   onDeleteOpportunity: (id: string) => Promise<boolean>;

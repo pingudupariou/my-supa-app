@@ -13,7 +13,7 @@ import { useCRMData } from '@/hooks/useCRMData';
 export function CRMPage() {
   const b2b = useB2BClientsData();
   const crm = useCRMData();
-  const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
+  const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
 
   const totalClients = b2b.clients.length;
   const activeClients = b2b.clients.filter(c => c.is_active).length;
@@ -22,7 +22,7 @@ export function CRMPage() {
     .filter(p => p.year === currentYear)
     .reduce((sum, p) => sum + Number(p.projected_revenue || 0), 0);
 
-  const selectedCustomer = crm.customers.find(c => c.id === selectedCustomerId);
+  const selectedClient = b2b.clients.find(c => c.id === selectedClientId);
 
   const pipelineValue = crm.opportunities
     .filter(o => !['won', 'lost'].includes(o.stage))
@@ -95,38 +95,34 @@ export function CRMPage() {
           />
         </TabsContent>
 
-        {/* Pipeline Kanban */}
+        {/* Pipeline Kanban — uses b2b_clients for customer list */}
         <TabsContent value="pipeline">
           <PipelineKanban
             opportunities={crm.opportunities}
-            customers={crm.customers}
+            customers={b2b.clients.map(c => ({ id: c.id, company_name: c.company_name }))}
             onCreateOpportunity={crm.createOpportunity}
             onUpdateOpportunity={crm.updateOpportunity}
             onDeleteOpportunity={crm.deleteOpportunity}
           />
         </TabsContent>
 
-        {/* Customer Detail with interactions */}
+        {/* Customer Detail with interactions — linked to B2B clients */}
         <TabsContent value="fiches" className="space-y-4">
           <div className="grid gap-6 lg:grid-cols-3">
             <div className="lg:col-span-1">
               <CustomerList
-                customers={crm.customers}
-                selectedId={selectedCustomerId}
-                onSelect={setSelectedCustomerId}
-                onRefresh={crm.refreshData}
-                onCreate={crm.createCustomer}
+                clients={b2b.clients}
+                selectedId={selectedClientId}
+                onSelect={setSelectedClientId}
+                onRefresh={b2b.refreshData}
               />
             </div>
             <div className="lg:col-span-2">
-              {selectedCustomer ? (
+              {selectedClient ? (
                 <CustomerDetail
-                  customer={selectedCustomer}
-                  orders={crm.getCustomerOrders(selectedCustomer.id)}
-                  interactions={crm.getCustomerInteractions(selectedCustomer.id)}
-                  opportunities={crm.getCustomerOpportunities(selectedCustomer.id)}
-                  onRefresh={crm.refreshData}
-                  onUpdateCustomer={crm.updateCustomer}
+                  client={selectedClient}
+                  interactions={crm.getCustomerInteractions(selectedClient.id)}
+                  opportunities={crm.getCustomerOpportunities(selectedClient.id)}
                   onCreateInteraction={crm.createInteraction}
                 />
               ) : (
