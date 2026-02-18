@@ -57,7 +57,7 @@ export function CRMPage() {
         <TabsList>
           <TabsTrigger value="clients">
             <Users className="h-4 w-4 mr-2" />
-            Clients B2B
+            Clients
           </TabsTrigger>
           <TabsTrigger value="pipeline">
             <Kanban className="h-4 w-4 mr-2" />
