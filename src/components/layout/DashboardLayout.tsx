@@ -21,7 +21,7 @@ interface NavGroup {
 const navGroups: NavGroup[] = [
   {
     items: [
-      { to: '/', label: 'Tableau de bord', icon: LayoutDashboard, tabKey: 'costflow' },
+      { to: '/', label: 'Tableau de bord', icon: LayoutDashboard, tabKey: 'tableau-de-bord' },
     ],
   },
   {
@@ -47,7 +47,7 @@ const navGroups: NavGroup[] = [
       { to: '/crm', label: 'CRM', icon: MessageSquare, tabKey: 'crm' },
       { to: '/pricing', label: 'Pricing', icon: Tag, tabKey: 'pricing' },
       { to: '/costflow', label: 'Production et BE', icon: Cog, tabKey: 'costflow' },
-      { to: '/planning-dev', label: 'Planning Dev', icon: CalendarRange, tabKey: 'costflow' },
+      { to: '/planning-dev', label: 'Planning Dev', icon: CalendarRange, tabKey: 'planning-dev' },
       { to: '/timetracking', label: "Suivi d'activité", icon: Clock, tabKey: 'timetracking' },
       { to: '/snapshots', label: 'Sauvegardes', icon: Database, tabKey: 'snapshots' },
     ],
