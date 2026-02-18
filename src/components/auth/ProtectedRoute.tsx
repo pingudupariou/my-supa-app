@@ -26,7 +26,7 @@ export function ProtectedRoute({ children, tabKey }: ProtectedRouteProps) {
   if (tabKey) {
     const permission = getTabPermission(tabKey);
     if (permission === 'hidden') {
-      return <Navigate to="/" replace />;
+      return <Navigate to="/accueil" replace />;
     }
   }
 
