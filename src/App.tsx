@@ -42,7 +42,7 @@ const App = () => (
               
               {/* Dashboard - default landing */}
               <Route path="/" element={
-                <ProtectedRoute tabKey="costflow">
+                <ProtectedRoute tabKey="tableau-de-bord">
                   <DashboardLayout>
                     <TableauDeBordPage />
                   </DashboardLayout>
@@ -142,7 +142,7 @@ const App = () => (
               } />
               
               <Route path="/planning-dev" element={
-                <ProtectedRoute tabKey="costflow">
+                <ProtectedRoute tabKey="planning-dev">
                   <DashboardLayout>
                     <PlanningDevPage />
                   </DashboardLayout>

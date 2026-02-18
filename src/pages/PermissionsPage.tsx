@@ -28,6 +28,7 @@ const TAB_ITEMS = [
   { key: 'planning-dev', label: 'Planning Dev' },
   { key: 'costflow', label: 'Production et BE' },
   { key: 'crm', label: 'CRM' },
+  { key: 'pricing', label: 'Pricing' },
   { key: 'timetracking', label: "Suivi d'activité" },
   { key: 'snapshots', label: 'Sauvegardes' },
 ];
