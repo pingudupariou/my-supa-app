@@ -7,6 +7,7 @@ import { SaveButton } from '@/components/ui/SaveButton';
 import { SimplifiedPricingTable } from '@/components/product/SimplifiedPricingTable';
 import { RevenueVisualization } from '@/components/product/RevenueVisualization';
 import { VolumesByChannelTable } from '@/components/product/VolumesByChannelTable';
+import { ProductRoadmap } from '@/components/product/ProductRoadmap';
 import { GlobalRevenueEditor, calculateGlobalRevenue } from '@/components/product/GlobalRevenueEditor';
 import { ClientRevenueEditor } from '@/components/product/ClientRevenueEditor';
 import { PageExportPDF, ExportableSection } from '@/components/export/PageExportPDF';
@@ -34,7 +35,7 @@ import {
   ResponsiveContainer,
   Legend,
 } from 'recharts';
-import { Calculator, Package, PieChart, Layers, Target, Users } from 'lucide-react';
+import { Calculator, Package, PieChart, Layers, Target, Users, Map } from 'lucide-react';
 
 const EXPORT_SECTIONS: ExportableSection[] = [
   { id: 'kpis', label: 'KPIs Produits', elementId: 'product-kpis' },
@@ -230,6 +231,10 @@ export function ProductPlanPage() {
               Volumes par Année
             </TabsTrigger>
           )}
+          <TabsTrigger value="roadmap">
+            <Map className="h-4 w-4 mr-1" />
+            Roadmap Produit
+          </TabsTrigger>
         </TabsList>
 
         {/* Mode CA Global par Canal */}
@@ -297,6 +302,11 @@ export function ProductPlanPage() {
               onChannelVolumeChange={handleChannelVolumeChange}
             />
           </div>
+        </TabsContent>
+
+        {/* Roadmap Produit */}
+        <TabsContent value="roadmap">
+          <ProductRoadmap products={state.products} years={YEARS} />
         </TabsContent>
       </Tabs>
     </div>
