@@ -8,7 +8,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from '@/hooks/use-toast';
-import { Loader2, Shield, Eye, EyeOff, Pencil, Users, Settings } from 'lucide-react';
+import { Loader2, Shield, Eye, EyeOff, Pencil, Users, Settings, RefreshCw } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import { UserRolesManager } from '@/components/admin/UserRolesManager';
 
 const ROLES: AppRole[] = ['admin', 'finance', 'board', 'investisseur', 'lecteur', 'bureau_etude', 'production', 'marketing'];
@@ -91,7 +92,12 @@ export function PermissionsPage() {
         <TabsContent value="users"><UserRolesManager /></TabsContent>
         <TabsContent value="permissions" className="space-y-6">
           <Card>
-            <CardHeader><CardTitle>Matrice des Permissions</CardTitle><CardDescription>HIDDEN = invisible • READ = lecture seule • WRITE = modification</CardDescription></CardHeader>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div><CardTitle>Matrice des Permissions</CardTitle><CardDescription>HIDDEN = invisible • READ = lecture seule • WRITE = modification</CardDescription></div>
+                <Button variant="outline" size="sm" onClick={() => { setLoading(true); fetchPermissions(); }} disabled={loading}><RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />Mise à jour</Button>
+              </div>
+            </CardHeader>
             <CardContent>
               <div className="overflow-x-auto">
                 <Table>
