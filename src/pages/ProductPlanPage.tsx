@@ -224,10 +224,12 @@ export function ProductPlanPage() {
             <Calculator className="h-4 w-4 mr-1" />
             Pricing Produits
           </TabsTrigger>
-          <TabsTrigger value="volumes">
-            <Package className="h-4 w-4 mr-1" />
-            Volumes par Année
-          </TabsTrigger>
+          {state.revenueMode === 'by-product' && (
+            <TabsTrigger value="volumes">
+              <Package className="h-4 w-4 mr-1" />
+              Volumes par Année
+            </TabsTrigger>
+          )}
         </TabsList>
 
         {/* Mode CA Global par Canal */}
