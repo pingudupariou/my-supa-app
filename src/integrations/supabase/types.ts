@@ -944,6 +944,33 @@ export type Database = {
         }
         Relationships: []
       }
+      page_images: {
+        Row: {
+          id: string
+          image_url: string
+          page_key: string
+          slot_key: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          id?: string
+          image_url: string
+          page_key: string
+          slot_key: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          id?: string
+          image_url?: string
+          page_key?: string
+          slot_key?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
       pricing_config: {
         Row: {
           config_data: Json

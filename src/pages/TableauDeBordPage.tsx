@@ -6,22 +6,36 @@ import { useCostFlowData } from '@/hooks/useCostFlowData';
 import { usePlanningData } from '@/hooks/usePlanningData';
 import { useCRMData } from '@/hooks/useCRMData';
 import { usePricingConfig } from '@/hooks/usePricingConfig';
+import { usePageImages } from '@/hooks/usePageImages';
+import { useAuth } from '@/context/AuthContext';
 import { MarginChart } from '@/components/pricing/MarginChart';
+import { EditableImage } from '@/components/ui/EditableImage';
 import { Package, Layers, Factory, Users, CalendarRange, TrendingUp, Cog } from 'lucide-react';
-import heroImg from '@/assets/banner-nrc-udh.jpg';
-import visionImg from '@/assets/savoir-faire.jpg';
-import productImg from '@/assets/ccd-gold.jpg';
-import transmissionImg from '@/assets/pulley-wheels.jpg';
-import compImg from '@/assets/composants-hero.jpg';
-import actionImg from '@/assets/novaride-action.jpg';
+import defaultHeroImg from '@/assets/banner-nrc-udh.jpg';
+import defaultVisionImg from '@/assets/savoir-faire.jpg';
+import defaultProductImg from '@/assets/ccd-gold.jpg';
+import defaultTransmissionImg from '@/assets/pulley-wheels.jpg';
+import defaultCompImg from '@/assets/composants-hero.jpg';
+import defaultActionImg from '@/assets/novaride-action.jpg';
 
+const PAGE_KEY = 'dashboard';
 const ALL_MONTHS = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Jun', 'Jul', 'Aoû', 'Sep', 'Oct', 'Nov', 'Déc'];
+
+const stripSlots = [
+  { slotKey: 'strip-vision', label: 'Vision', defaultImg: defaultVisionImg },
+  { slotKey: 'strip-transmission', label: 'Transmission', defaultImg: defaultTransmissionImg },
+  { slotKey: 'strip-composants', label: 'Composants', defaultImg: defaultCompImg },
+  { slotKey: 'strip-performance', label: 'Performance', defaultImg: defaultActionImg },
+];
 
 export function TableauDeBordPage() {
   const { products, references, productCategories, suppliers, bom, calculateProductCost } = useCostFlowData();
   const { rows, blocks, colors } = usePlanningData();
   const { customers, orders } = useCRMData();
   const { salesRules, pricingMode, activeRuleId, editedOurPrices, getEffectivePrice, computeChainFromPublicTTC, loaded: pricingLoaded } = usePricingConfig();
+  const { images, setImage } = usePageImages(PAGE_KEY);
+  const { getTabPermission } = useAuth();
+  const canEdit = getTabPermission('tableau-de-bord') === 'write';
 
   // KPIs
   const totalProducts = products.length;
@@ -67,10 +81,15 @@ export function TableauDeBordPage() {
     <div className="space-y-6">
       {/* Hero banner */}
       <div className="relative rounded-xl overflow-hidden h-48 md:h-56">
-        <img
-          src={heroImg}
+        <EditableImage
+          pageKey={PAGE_KEY}
+          slotKey="hero"
+          defaultSrc={defaultHeroImg}
           alt="Novaride Engineering"
           className="w-full h-full object-cover"
+          canEdit={canEdit}
+          customUrl={images['hero']}
+          onUploaded={(url) => setImage('hero', url)}
         />
         <div className="absolute inset-0 bg-gradient-to-r from-black/80 via-black/50 to-transparent" />
         <div className="absolute inset-0 flex items-center px-8">
@@ -163,7 +182,16 @@ export function TableauDeBordPage() {
           {/* Photo card */}
           <Card className="overflow-hidden">
             <div className="relative h-36">
-              <img src={productImg} alt="CCD EVO" className="w-full h-full object-cover object-center" />
+              <EditableImage
+                pageKey={PAGE_KEY}
+                slotKey="side-photo"
+                defaultSrc={defaultProductImg}
+                alt="CCD EVO"
+                className="w-full h-full object-cover object-center"
+                canEdit={canEdit}
+                customUrl={images['side-photo']}
+                onUploaded={(url) => setImage('side-photo', url)}
+              />
               <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
               <div className="absolute bottom-3 left-4">
                 <p className="text-white text-sm font-semibold">Engineering Excellence</p>
@@ -238,26 +266,22 @@ export function TableauDeBordPage() {
 
       {/* Bottom visual strip */}
       <div className="grid grid-cols-4 gap-4 h-32 rounded-xl overflow-hidden">
-        <div className="relative">
-          <img src={visionImg} alt="Vision" className="w-full h-full object-cover rounded-lg" />
-          <div className="absolute inset-0 bg-black/30 rounded-lg" />
-          <div className="absolute bottom-2 left-3 text-white text-xs font-medium">Vision</div>
-        </div>
-        <div className="relative">
-          <img src={transmissionImg} alt="Transmission" className="w-full h-full object-cover rounded-lg" />
-          <div className="absolute inset-0 bg-black/30 rounded-lg" />
-          <div className="absolute bottom-2 left-3 text-white text-xs font-medium">Transmission</div>
-        </div>
-        <div className="relative">
-          <img src={compImg} alt="Composants" className="w-full h-full object-cover rounded-lg" />
-          <div className="absolute inset-0 bg-black/30 rounded-lg" />
-          <div className="absolute bottom-2 left-3 text-white text-xs font-medium">Composants</div>
-        </div>
-        <div className="relative">
-          <img src={actionImg} alt="Performance" className="w-full h-full object-cover rounded-lg" />
-          <div className="absolute inset-0 bg-black/30 rounded-lg" />
-          <div className="absolute bottom-2 left-3 text-white text-xs font-medium">Performance</div>
-        </div>
+        {stripSlots.map((slot) => (
+          <div key={slot.slotKey} className="relative">
+            <EditableImage
+              pageKey={PAGE_KEY}
+              slotKey={slot.slotKey}
+              defaultSrc={slot.defaultImg}
+              alt={slot.label}
+              className="w-full h-full object-cover rounded-lg"
+              canEdit={canEdit}
+              customUrl={images[slot.slotKey]}
+              onUploaded={(url) => setImage(slot.slotKey, url)}
+            />
+            <div className="absolute inset-0 bg-black/30 rounded-lg" />
+            <div className="absolute bottom-2 left-3 text-white text-xs font-medium">{slot.label}</div>
+          </div>
+        ))}
       </div>
     </div>
   );
