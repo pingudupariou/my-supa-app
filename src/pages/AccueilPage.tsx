@@ -1,12 +1,17 @@
-import heroImg from '@/assets/hero-novaride.jpg';
-import ccdEvoImg from '@/assets/ccd-evo-banner.jpg';
-import engineeringImg from '@/assets/novaride-engineering.jpg';
-import savoirFaireImg from '@/assets/savoir-faire.jpg';
-import pulleyImg from '@/assets/pulley-wheels.jpg';
-import actionImg from '@/assets/novaride-action.jpg';
-import fullBikeImg from '@/assets/full-bike-ccd.jpg';
+import defaultHeroImg from '@/assets/hero-novaride.jpg';
+import defaultCcdEvoImg from '@/assets/ccd-evo-banner.jpg';
+import defaultEngineeringImg from '@/assets/novaride-engineering.jpg';
+import defaultSavoirFaireImg from '@/assets/savoir-faire.jpg';
+import defaultPulleyImg from '@/assets/pulley-wheels.jpg';
+import defaultActionImg from '@/assets/novaride-action.jpg';
+import defaultFullBikeImg from '@/assets/full-bike-ccd.jpg';
 import { ExternalLink, Award, Truck, ShieldCheck, HeadphonesIcon } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
+import { EditableImage } from '@/components/ui/EditableImage';
+import { usePageImages } from '@/hooks/usePageImages';
+import { useAuth } from '@/context/AuthContext';
+
+const PAGE_KEY = 'accueil';
 
 const features = [
   { icon: Award, title: 'Qualité / Prix', desc: 'Optimisation des processus de fabrication pour le meilleur rapport qualité-prix.' },
@@ -15,18 +20,37 @@ const features = [
   { icon: HeadphonesIcon, title: 'Support client', desc: 'Nous sommes là pour vous renseigner et vous aider.' },
 ];
 
-const products = [
-  { name: 'CCD EVO', desc: 'Chapes de dérailleur carbone céramique', img: ccdEvoImg },
-  { name: 'Pulley Wheels EVO', desc: 'Galets de dérailleur céramique', img: pulleyImg },
-  { name: 'Savoir-faire', desc: 'Conception et fabrication en France', img: savoirFaireImg },
+const productSlots = [
+  { slotKey: 'product-1', name: 'CCD EVO', desc: 'Chapes de dérailleur carbone céramique', defaultImg: defaultCcdEvoImg },
+  { slotKey: 'product-2', name: 'Pulley Wheels EVO', desc: 'Galets de dérailleur céramique', defaultImg: defaultPulleyImg },
+  { slotKey: 'product-3', name: 'Savoir-faire', desc: 'Conception et fabrication en France', defaultImg: defaultSavoirFaireImg },
+];
+
+const gallerySlots = [
+  { slotKey: 'gallery-1', defaultImg: defaultActionImg },
+  { slotKey: 'gallery-2', defaultImg: defaultFullBikeImg },
+  { slotKey: 'gallery-3', defaultImg: defaultCcdEvoImg },
 ];
 
 export function AccueilPage() {
+  const { images, setImage } = usePageImages(PAGE_KEY);
+  const { getTabPermission } = useAuth();
+  const canEdit = getTabPermission('home') === 'write';
+
   return (
     <div className="space-y-10 -mt-6">
       {/* Hero */}
       <div className="relative rounded-xl overflow-hidden h-[340px]">
-        <img src={heroImg} alt="Nova Ride" className="absolute inset-0 w-full h-full object-cover" />
+        <EditableImage
+          pageKey={PAGE_KEY}
+          slotKey="hero"
+          defaultSrc={defaultHeroImg}
+          alt="Nova Ride"
+          className="absolute inset-0 w-full h-full object-cover"
+          canEdit={canEdit}
+          customUrl={images['hero']}
+          onUploaded={(url) => setImage('hero', url)}
+        />
         <div className="absolute inset-0 bg-gradient-to-r from-black/80 via-black/50 to-transparent" />
         <div className="relative z-10 flex flex-col justify-center h-full px-8 md:px-12 max-w-2xl">
           <h1 className="text-3xl md:text-4xl font-bold text-white mb-3">Nova Ride</h1>
@@ -48,10 +72,19 @@ export function AccueilPage() {
       <section>
         <h2 className="text-xl font-semibold mb-4">Nos produits</h2>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-          {products.map((p) => (
-            <Card key={p.name} className="overflow-hidden group">
+          {productSlots.map((p) => (
+            <Card key={p.slotKey} className="overflow-hidden group">
               <div className="h-44 overflow-hidden">
-                <img src={p.img} alt={p.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+                <EditableImage
+                  pageKey={PAGE_KEY}
+                  slotKey={p.slotKey}
+                  defaultSrc={p.defaultImg}
+                  alt={p.name}
+                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                  canEdit={canEdit}
+                  customUrl={images[p.slotKey]}
+                  onUploaded={(url) => setImage(p.slotKey, url)}
+                />
               </div>
               <CardContent className="p-4">
                 <h3 className="font-semibold text-foreground">{p.name}</h3>
@@ -77,15 +110,33 @@ export function AccueilPage() {
           </p>
         </div>
         <div className="rounded-xl overflow-hidden h-60">
-          <img src={engineeringImg} alt="Engineering Nova Ride" className="w-full h-full object-cover" />
+          <EditableImage
+            pageKey={PAGE_KEY}
+            slotKey="about"
+            defaultSrc={defaultEngineeringImg}
+            alt="Engineering Nova Ride"
+            className="w-full h-full object-cover"
+            canEdit={canEdit}
+            customUrl={images['about']}
+            onUploaded={(url) => setImage('about', url)}
+          />
         </div>
       </section>
 
       {/* Galerie */}
       <section className="grid grid-cols-2 md:grid-cols-3 gap-3">
-        {[actionImg, fullBikeImg, ccdEvoImg].map((img, i) => (
-          <div key={i} className="rounded-lg overflow-hidden h-40">
-            <img src={img} alt={`Nova Ride ${i + 1}`} className="w-full h-full object-cover hover:scale-105 transition-transform duration-300" />
+        {gallerySlots.map((slot) => (
+          <div key={slot.slotKey} className="rounded-lg overflow-hidden h-40">
+            <EditableImage
+              pageKey={PAGE_KEY}
+              slotKey={slot.slotKey}
+              defaultSrc={slot.defaultImg}
+              alt={`Nova Ride ${slot.slotKey}`}
+              className="w-full h-full object-cover hover:scale-105 transition-transform duration-300"
+              canEdit={canEdit}
+              customUrl={images[slot.slotKey]}
+              onUploaded={(url) => setImage(slot.slotKey, url)}
+            />
           </div>
         ))}
       </section>
