@@ -24,6 +24,7 @@ import { SnapshotsPage } from "@/pages/SnapshotsPage";
 import { PricingPage } from "@/pages/PricingPage";
 import { PlanningDevPage } from "@/pages/PlanningDevPage";
 import { TableauDeBordPage } from "@/pages/TableauDeBordPage";
+import { AccueilPage } from "@/pages/AccueilPage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -40,7 +41,16 @@ const App = () => (
               {/* Auth route - public */}
               <Route path="/auth" element={<AuthPage />} />
               
-              {/* Dashboard - default landing */}
+              {/* Accueil - accessible to everyone */}
+              <Route path="/accueil" element={
+                <ProtectedRoute tabKey="home">
+                  <DashboardLayout>
+                    <AccueilPage />
+                  </DashboardLayout>
+                </ProtectedRoute>
+              } />
+              
+              {/* Dashboard */}
               <Route path="/" element={
                 <ProtectedRoute tabKey="tableau-de-bord">
                   <DashboardLayout>

@@ -21,6 +21,7 @@ interface NavGroup {
 const navGroups: NavGroup[] = [
   {
     items: [
+      { to: '/accueil', label: 'Accueil', icon: Home, tabKey: 'home' },
       { to: '/', label: 'Tableau de bord', icon: LayoutDashboard, tabKey: 'tableau-de-bord' },
     ],
   },
