@@ -125,6 +125,7 @@ interface FinancialState {
   excludeFundingFromTreasury: boolean;
   monthlyTreasuryConfig: MonthlyTreasuryConfig;
   valuationConfig: ValuationConfig;
+  roadmapBlocks: Record<string, { startQ: number; durationQ: number }>;
 }
 
 interface ComputedValues {
@@ -164,6 +165,7 @@ interface FinancialContextType {
   updateHistoricalData: (data: HistoricalYearData[]) => void;
   updateMonthlyTreasuryConfig: (config: MonthlyTreasuryConfig) => void;
   updateValuationConfig: (config: Partial<ValuationConfig>) => void;
+  updateRoadmapBlocks: (blocks: Record<string, { startQ: number; durationQ: number }>) => void;
   saveAll: () => void;
 }
 
@@ -236,6 +238,7 @@ function getDefaultState(): FinancialState {
     excludeFundingFromTreasury: false,
     monthlyTreasuryConfig: getDefaultMonthlyTreasuryConfig(),
     valuationConfig: { ...defaultValuationConfig },
+    roadmapBlocks: {},
   };
 }
 
@@ -319,6 +322,7 @@ export function FinancialProvider({ children }: { children: ReactNode }) {
   const updateHistoricalData = useCallback((historicalData: HistoricalYearData[]) => { setState(prev => ({ ...prev, historicalData, hasUnsavedChanges: true })); }, []);
   const updateMonthlyTreasuryConfig = useCallback((monthlyTreasuryConfig: MonthlyTreasuryConfig) => { setState(prev => ({ ...prev, monthlyTreasuryConfig, hasUnsavedChanges: true })); }, []);
   const updateValuationConfig = useCallback((config: Partial<ValuationConfig>) => { setState(prev => ({ ...prev, valuationConfig: { ...prev.valuationConfig, ...config }, hasUnsavedChanges: true })); }, []);
+  const updateRoadmapBlocks = useCallback((roadmapBlocks: Record<string, { startQ: number; durationQ: number }>) => { setState(prev => ({ ...prev, roadmapBlocks, hasUnsavedChanges: true })); }, []);
 
   const saveAll = useCallback(async () => {
     try {
@@ -478,6 +482,7 @@ export function FinancialProvider({ children }: { children: ReactNode }) {
       setExcludeFundingFromTreasury, updateHistoricalData,
       updateMonthlyTreasuryConfig,
       updateValuationConfig,
+      updateRoadmapBlocks,
       saveAll,
     }}>
       {children}

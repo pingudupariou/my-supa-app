@@ -9,12 +9,15 @@ import { GripHorizontal, Calendar, CircleDollarSign, Wrench } from 'lucide-react
 interface ProductRoadmapProps {
   products: Product[];
   years: number[];
+  persistedBlocks?: Record<string, { startQ: number; durationQ: number }>;
+  onBlocksChange?: (blocks: Record<string, { startQ: number; durationQ: number }>) => void;
+  readOnly?: boolean;
 }
 
 interface RoadmapBlock {
   productId: string;
-  startQ: number; // quarter index from timeline start (0-based)
-  durationQ: number; // duration in quarters
+  startQ: number;
+  durationQ: number;
 }
 
 const QUARTER_LABELS = ['T1', 'T2', 'T3', 'T4'];
@@ -27,23 +30,26 @@ const PRODUCT_COLORS = [
   { bg: 'from-cyan-500/90 to-cyan-700/90', border: 'border-cyan-400', text: 'text-cyan-100', badge: 'bg-cyan-900/60' },
 ];
 
-export function ProductRoadmap({ products, years }: ProductRoadmapProps) {
+function computeDefaultBlock(p: Product, years: number[], totalQuarters: number): RoadmapBlock {
+  const devYears = p.devAmortizationYears || 1;
+  const launchYearIdx = years.indexOf(p.launchYear);
+  const effectiveLaunch = launchYearIdx >= 0 ? launchYearIdx : 0;
+  const startQ = Math.max(0, effectiveLaunch * 4 - devYears * 4);
+  const endQ = Math.min(totalQuarters, effectiveLaunch * 4 + 2);
+  return { productId: p.id, startQ, durationQ: Math.max(2, endQ - startQ) };
+}
+
+export function ProductRoadmap({ products, years, persistedBlocks, onBlocksChange, readOnly }: ProductRoadmapProps) {
   const totalQuarters = years.length * 4;
   const timelineRef = useRef<HTMLDivElement>(null);
 
-  // Initialize blocks from product data
+  // Initialize blocks from persisted data or defaults
   const [blocks, setBlocks] = useState<RoadmapBlock[]>(() =>
     products.map(p => {
-      const devYears = p.devAmortizationYears || 1;
-      const launchYearIdx = years.indexOf(p.launchYear);
-      const effectiveLaunch = launchYearIdx >= 0 ? launchYearIdx : 0;
-      const startQ = Math.max(0, effectiveLaunch * 4 - devYears * 4);
-      const endQ = Math.min(totalQuarters, effectiveLaunch * 4 + 2); // launch + 2 quarters
-      return {
-        productId: p.id,
-        startQ,
-        durationQ: Math.max(2, endQ - startQ),
-      };
+      if (persistedBlocks?.[p.id]) {
+        return { productId: p.id, ...persistedBlocks[p.id] };
+      }
+      return computeDefaultBlock(p, years, totalQuarters);
     })
   );
 
@@ -53,15 +59,11 @@ export function ProductRoadmap({ products, years }: ProductRoadmapProps) {
       const existing = new Map(prev.map(b => [b.productId, b]));
       return products.map(p => {
         if (existing.has(p.id)) return existing.get(p.id)!;
-        const devYears = p.devAmortizationYears || 1;
-        const launchYearIdx = years.indexOf(p.launchYear);
-        const effectiveLaunch = launchYearIdx >= 0 ? launchYearIdx : 0;
-        const startQ = Math.max(0, effectiveLaunch * 4 - devYears * 4);
-        const endQ = Math.min(totalQuarters, effectiveLaunch * 4 + 2);
-        return { productId: p.id, startQ, durationQ: Math.max(2, endQ - startQ) };
+        if (persistedBlocks?.[p.id]) return { productId: p.id, ...persistedBlocks[p.id] };
+        return computeDefaultBlock(p, years, totalQuarters);
       });
     });
-  }, [products, years, totalQuarters]);
+  }, [products, years, totalQuarters, persistedBlocks]);
 
   // Drag state
   const [dragging, setDragging] = useState<{ productId: string; mode: 'move' | 'resize-right'; offsetQ: number } | null>(null);
@@ -75,13 +77,14 @@ export function ProductRoadmap({ products, years }: ProductRoadmapProps) {
   }, [totalQuarters]);
 
   const handleMouseDown = useCallback((e: React.MouseEvent, productId: string, mode: 'move' | 'resize-right') => {
+    if (readOnly) return;
     e.preventDefault();
     e.stopPropagation();
     const q = getQuarterFromX(e.clientX);
     const block = blocks.find(b => b.productId === productId);
     if (!block) return;
     setDragging({ productId, mode, offsetQ: mode === 'move' ? q - block.startQ : 0 });
-  }, [blocks, getQuarterFromX]);
+  }, [blocks, getQuarterFromX, readOnly]);
 
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
     if (!dragging) return;
@@ -99,16 +102,33 @@ export function ProductRoadmap({ products, years }: ProductRoadmapProps) {
   }, [dragging, getQuarterFromX, totalQuarters]);
 
   const handleMouseUp = useCallback(() => {
+    if (dragging && onBlocksChange) {
+      // Persist current blocks
+      const blocksMap: Record<string, { startQ: number; durationQ: number }> = {};
+      blocks.forEach(b => {
+        // Use the latest state - we need to get it from the current blocks
+        blocksMap[b.productId] = { startQ: b.startQ, durationQ: b.durationQ };
+      });
+      // We need to use a ref or setState callback to get latest blocks
+      setBlocks(current => {
+        const map: Record<string, { startQ: number; durationQ: number }> = {};
+        current.forEach(b => { map[b.productId] = { startQ: b.startQ, durationQ: b.durationQ }; });
+        onBlocksChange(map);
+        return current;
+      });
+    }
     setDragging(null);
-  }, []);
+  }, [dragging, onBlocksChange, blocks]);
 
   const qWidth = 100 / totalQuarters;
 
   return (
     <SectionCard title="🗺️ Roadmap Produit">
-      <div className="text-xs text-muted-foreground mb-3">
-        Glissez les blocs pour ajuster la timeline · Étirez le bord droit pour modifier la durée
-      </div>
+      {!readOnly && (
+        <div className="text-xs text-muted-foreground mb-3">
+          Glissez les blocs pour ajuster la timeline · Étirez le bord droit pour modifier la durée
+        </div>
+      )}
 
       <div
         ref={timelineRef}
@@ -153,10 +173,8 @@ export function ProductRoadmap({ products, years }: ProductRoadmapProps) {
             const colors = PRODUCT_COLORS[idx % PRODUCT_COLORS.length];
             const isDragging = dragging?.productId === product.id;
 
-            // Compute phase labels
             const launchYearIdx = years.indexOf(product.launchYear);
             const launchQ = launchYearIdx >= 0 ? launchYearIdx * 4 : null;
-            const isLaunchVisible = launchQ !== null && launchQ >= block.startQ && launchQ <= block.startQ + block.durationQ;
 
             return (
               <div
@@ -189,7 +207,7 @@ export function ProductRoadmap({ products, years }: ProductRoadmapProps) {
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <div
-                      className={`absolute top-2 h-[56px] rounded-lg border ${colors.border} bg-gradient-to-r ${colors.bg} shadow-lg backdrop-blur-sm transition-shadow ${isDragging ? 'shadow-xl ring-2 ring-primary/40 z-20' : 'hover:shadow-xl z-10'} cursor-grab active:cursor-grabbing`}
+                      className={`absolute top-2 h-[56px] rounded-lg border ${colors.border} bg-gradient-to-r ${colors.bg} shadow-lg backdrop-blur-sm transition-shadow ${isDragging ? 'shadow-xl ring-2 ring-primary/40 z-20' : 'hover:shadow-xl z-10'} ${readOnly ? 'cursor-default' : 'cursor-grab active:cursor-grabbing'}`}
                       style={{
                         left: `${block.startQ * qWidth}%`,
                         width: `${block.durationQ * qWidth}%`,
@@ -222,12 +240,14 @@ export function ProductRoadmap({ products, years }: ProductRoadmapProps) {
                       </div>
 
                       {/* Resize handle */}
-                      <div
-                        className={`absolute right-0 top-0 bottom-0 w-2.5 cursor-col-resize rounded-r-lg hover:bg-white/20 transition-colors`}
-                        onMouseDown={e => handleMouseDown(e, product.id, 'resize-right')}
-                      >
-                        <div className="absolute right-0.5 top-1/2 -translate-y-1/2 w-0.5 h-6 bg-white/40 rounded-full" />
-                      </div>
+                      {!readOnly && (
+                        <div
+                          className="absolute right-0 top-0 bottom-0 w-2.5 cursor-col-resize rounded-r-lg hover:bg-white/20 transition-colors"
+                          onMouseDown={e => handleMouseDown(e, product.id, 'resize-right')}
+                        >
+                          <div className="absolute right-0.5 top-1/2 -translate-y-1/2 w-0.5 h-6 bg-white/40 rounded-full" />
+                        </div>
+                      )}
                     </div>
                   </TooltipTrigger>
                   <TooltipContent side="bottom" className="max-w-xs">
