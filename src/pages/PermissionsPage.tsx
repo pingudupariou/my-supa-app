@@ -48,6 +48,7 @@ export function PermissionsPage() {
   const navigate = useNavigate();
   const [matrix, setMatrix] = useState<PermissionMatrix>({});
   const [loading, setLoading] = useState(true);
+  const [syncing, setSyncing] = useState(false);
   const [saving, setSaving] = useState<string | null>(null);
 
   useEffect(() => { if (!authLoading && !isAdmin) navigate('/'); }, [isAdmin, authLoading, navigate]);
@@ -63,6 +64,46 @@ export function PermissionsPage() {
       (data as any[])?.forEach((p: any) => { if (newMatrix[p.role]) newMatrix[p.role][p.tab_key] = p.permission; });
       setMatrix(newMatrix);
     } catch { } finally { setLoading(false); }
+  };
+
+  const syncPermissions = async () => {
+    setSyncing(true);
+    try {
+      // Fetch existing rows from DB
+      const { data, error } = await supabase.from('tab_permissions' as any).select('role, tab_key');
+      if (error) throw error;
+      const existing = new Set((data as any[])?.map((p: any) => `${p.role}:${p.tab_key}`) || []);
+
+      // Find missing combinations (non-admin roles only)
+      const missing: { role: string; tab_key: string; permission: string }[] = [];
+      ROLES.filter(r => r !== 'admin').forEach(role => {
+        TAB_ITEMS.forEach(tab => {
+          if (!existing.has(`${role}:${tab.key}`)) {
+            missing.push({ role, tab_key: tab.key, permission: 'hidden' });
+          }
+        });
+      });
+
+      // Remove DB rows for tabs that no longer exist in config
+      const validKeys = new Set(TAB_ITEMS.map(t => t.key));
+      const obsolete = (data as any[])?.filter((p: any) => !validKeys.has(p.tab_key)) || [];
+      if (obsolete.length > 0) {
+        const obsoleteKeys = [...new Set(obsolete.map((p: any) => p.tab_key))];
+        for (const key of obsoleteKeys) {
+          await supabase.from('tab_permissions' as any).delete().eq('tab_key', key);
+        }
+      }
+
+      if (missing.length > 0) {
+        const { error: insertError } = await supabase.from('tab_permissions' as any).insert(missing as any);
+        if (insertError) throw insertError;
+      }
+
+      await fetchPermissions();
+      toast({ title: 'Synchronisation terminée', description: `${missing.length} permission(s) ajoutée(s), ${obsolete.length} obsolète(s) supprimée(s)` });
+    } catch {
+      toast({ title: 'Erreur de synchronisation', variant: 'destructive' });
+    } finally { setSyncing(false); }
   };
 
   const updatePermission = async (role: AppRole, tabKey: string, permission: TabPermission) => {
@@ -95,7 +136,7 @@ export function PermissionsPage() {
             <CardHeader>
               <div className="flex items-center justify-between">
                 <div><CardTitle>Matrice des Permissions</CardTitle><CardDescription>HIDDEN = invisible • READ = lecture seule • WRITE = modification</CardDescription></div>
-                <Button variant="outline" size="sm" onClick={() => { setLoading(true); fetchPermissions(); }} disabled={loading}><RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />Mise à jour</Button>
+                <Button variant="outline" size="sm" onClick={syncPermissions} disabled={syncing}><RefreshCw className={`h-4 w-4 mr-2 ${syncing ? 'animate-spin' : ''}`} />Synchroniser avec la base</Button>
               </div>
             </CardHeader>
             <CardContent>
