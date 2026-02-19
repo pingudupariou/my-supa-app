@@ -1,22 +1,37 @@
 import { useState, useMemo } from 'react';
 import { useFinancial } from '@/context/FinancialContext';
-import { Role } from '@/engine/types';
 import { SectionCard, KPICard } from '@/components/ui/KPICard';
 import { Slider } from '@/components/ui/slider';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
+import { Switch } from '@/components/ui/switch';
 import { formatCurrency, formatPercent } from '@/data/financialConfig';
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
 import {
-  BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, ReferenceLine,
+  BarChart, Bar, LineChart, Line, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, ReferenceLine,
 } from 'recharts';
-import { TrendingUp, TrendingDown, Users, DollarSign, AlertTriangle, CheckCircle } from 'lucide-react';
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
+
+// Revenue mode label map
+const REVENUE_MODE_LABELS: Record<string, string> = {
+  'by-product': 'Par Produit',
+  'by-channel-global': 'Global Canaux',
+  'by-client': 'Par Client',
+};
+
+type VariableBasis = 'ca' | 'marge_brute';
+type DisplayMode = 'annual_loaded' | 'monthly_loaded' | 'monthly_net';
+
+interface VariableComp {
+  enabled: boolean;
+  name: string;
+  basis: VariableBasis;
+  percentOfSalary: number; // % of annual loaded salary
+}
 
 export function HiringSimulator() {
   const { state, computed } = useFinancial();
@@ -25,10 +40,22 @@ export function HiringSimulator() {
 
   const [selectedRoleId, setSelectedRoleId] = useState<string>(state.roles[0]?.id || '');
   const [salaryOverride, setSalaryOverride] = useState<number | null>(null);
+  const [displayMode, setDisplayMode] = useState<DisplayMode>('annual_loaded');
+
+  // Coefficients for conversion
+  const [coefCharges, setCoefCharges] = useState(1.45); // brut -> chargé
+  const [coefNet, setCoefNet] = useState(0.78); // brut -> net
+
+  // Variable compensation
+  const [variableComp, setVariableComp] = useState<VariableComp>({
+    enabled: false,
+    name: 'PER',
+    basis: 'ca',
+    percentOfSalary: 10,
+  });
 
   const selectedRole = state.roles.find(r => r.id === selectedRoleId);
 
-  // When role changes, reset salary override
   const handleRoleChange = (id: string) => {
     setSelectedRoleId(id);
     setSalaryOverride(null);
@@ -36,9 +63,23 @@ export function HiringSimulator() {
 
   const simSalary = salaryOverride ?? (selectedRole?.annualCostLoaded || 50000);
 
+  // Conversion helpers
+  const annualLoaded = simSalary;
+  const annualBrut = annualLoaded / coefCharges;
+  const monthlyLoaded = annualLoaded / 12;
+  const monthlyBrut = annualBrut / 12;
+  const monthlyNet = monthlyBrut * coefNet;
+  const annualNet = monthlyNet * 12;
+
+  // Display value based on mode
+  const displayValue = displayMode === 'annual_loaded' ? annualLoaded
+    : displayMode === 'monthly_loaded' ? monthlyLoaded
+    : monthlyNet;
+  const displayLabel = displayMode === 'annual_loaded' ? 'Annuel brut chargé'
+    : displayMode === 'monthly_loaded' ? 'Mensuel brut chargé'
+    : 'Mensuel net';
+
   // ========== LOCAL SIMULATION ==========
-  // Take external data from computed (revenue, opex, capex) as-is
-  // Recompute payroll locally with salary override for the selected role
   const simulation = useMemo(() => {
     if (!selectedRole) return null;
 
@@ -46,99 +87,85 @@ export function HiringSimulator() {
       const rev = computed.revenueByYear[i]?.revenue || 0;
       const cogs = computed.revenueByYear[i]?.cogs || 0;
       const opex = computed.opexByYear[i]?.opex || 0;
-      const capex = computed.capexByYear[i]?.capex || 0;
       const depreciation = computed.capexByYear[i]?.depreciation || 0;
-
-      // Base payroll (unchanged)
       const basePayroll = computed.payrollByYear[i]?.payroll || 0;
-
-      // Simulated payroll: replace the selected role's cost
-      const roleActive = selectedRole.startYear <= year;
-      const delta = roleActive ? (simSalary - selectedRole.annualCostLoaded) : 0;
-      const simPayroll = basePayroll + delta;
-
       const grossMargin = rev - cogs;
-      const grossMarginRate = rev > 0 ? grossMargin / rev : 0;
 
+      const roleActive = selectedRole.startYear <= year;
+      const fixedDelta = roleActive ? (simSalary - selectedRole.annualCostLoaded) : 0;
+
+      // Variable compensation cost
+      let variableCost = 0;
+      if (variableComp.enabled && roleActive) {
+        const basis = variableComp.basis === 'ca' ? rev : grossMargin;
+        // Variable = % of salary, but indexed on basis growth
+        // Simple: flat % of annual salary paid as bonus
+        variableCost = simSalary * (variableComp.percentOfSalary / 100);
+      }
+
+      const totalDelta = fixedDelta + variableCost;
+      const simPayroll = basePayroll + totalDelta;
+
+      const grossMarginRate = rev > 0 ? grossMargin / rev : 0;
       const baseEbitda = grossMargin - basePayroll - opex;
       const simEbitda = grossMargin - simPayroll - opex;
-
       const baseOpResult = baseEbitda - depreciation;
       const simOpResult = simEbitda - depreciation;
-
       const baseEbitdaMargin = rev > 0 ? baseEbitda / rev : 0;
       const simEbitdaMargin = rev > 0 ? simEbitda / rev : 0;
 
       return {
-        year,
-        revenue: rev,
-        grossMargin,
-        grossMarginRate,
-        basePayroll,
-        simPayroll,
-        opex,
-        capex,
-        baseEbitda,
-        simEbitda,
-        baseOpResult,
-        simOpResult,
-        baseEbitdaMargin,
-        simEbitdaMargin,
-        delta,
-        depreciation,
+        year, revenue: rev, grossMargin, grossMarginRate,
+        basePayroll, simPayroll, opex,
+        baseEbitda, simEbitda, baseOpResult, simOpResult,
+        baseEbitdaMargin, simEbitdaMargin,
+        delta: totalDelta, fixedDelta, variableCost, depreciation,
       };
     });
 
-    // Cash flow projection
     let baseCash = state.scenarioSettings.initialCash;
     let simCash = state.scenarioSettings.initialCash;
     const withCash = baseData.map(d => {
-      // Add funding rounds
-      const fundingThisYear = state.fundingRounds
-        .filter(r => r.year === d.year)
-        .reduce((s, r) => s + r.amount, 0);
-      baseCash += fundingThisYear + d.baseEbitda * 0.7;
-      simCash += fundingThisYear + d.simEbitda * 0.7;
-      return {
-        ...d,
-        baseCash,
-        simCash,
-        cashDelta: simCash - baseCash,
-      };
+      const funding = state.fundingRounds.filter(r => r.year === d.year).reduce((s, r) => s + r.amount, 0);
+      baseCash += funding + d.baseEbitda * 0.7;
+      simCash += funding + d.simEbitda * 0.7;
+      return { ...d, baseCash, simCash, cashDelta: simCash - baseCash };
     });
-
-    // Summary KPIs
-    const totalDeltaCost = withCash.reduce((s, d) => s + d.delta, 0);
-    const baseBreakEven = withCash.find(d => d.baseEbitda > 0)?.year || null;
-    const simBreakEven = withCash.find(d => d.simEbitda > 0)?.year || null;
-    const endCashDelta = withCash[withCash.length - 1]?.cashDelta || 0;
-    const minSimCash = Math.min(...withCash.map(d => d.simCash));
 
     return {
       data: withCash,
-      totalDeltaCost,
-      baseBreakEven,
-      simBreakEven,
-      endCashDelta,
-      minSimCash,
+      totalDeltaCost: withCash.reduce((s, d) => s + d.delta, 0),
+      baseBreakEven: withCash.find(d => d.baseEbitda > 0)?.year || null,
+      simBreakEven: withCash.find(d => d.simEbitda > 0)?.year || null,
+      endCashDelta: withCash[withCash.length - 1]?.cashDelta || 0,
+      minSimCash: Math.min(...withCash.map(d => d.simCash)),
     };
-  }, [selectedRole, simSalary, computed, years, state.scenarioSettings, state.fundingRounds]);
+  }, [selectedRole, simSalary, variableComp, computed, years, state.scenarioSettings, state.fundingRounds]);
 
   if (state.roles.length === 0) {
     return (
       <SectionCard title="Simulation d'embauche">
-        <p className="text-muted-foreground text-center py-8">
-          Aucun poste défini. Ajoutez des postes dans l'onglet Organisation.
-        </p>
+        <p className="text-muted-foreground text-center py-8">Aucun poste défini. Ajoutez des postes dans l'onglet Organisation.</p>
       </SectionCard>
     );
   }
 
   return (
     <div className="space-y-6">
+      {/* Revenue mode badge */}
+      <div className="flex items-center gap-2">
+        <Badge variant="secondary" className="text-xs">
+          Mode CA : {REVENUE_MODE_LABELS[state.revenueMode] || state.revenueMode}
+        </Badge>
+        <Badge variant="outline" className="text-xs">
+          Scénario : {state.activeScenarioId}
+        </Badge>
+      </div>
+
       {/* Controls */}
       <SectionCard title="Paramètres de simulation">
         <div className="grid md:grid-cols-2 gap-8">
+          {/* LEFT: Role selection + info */}
           <div className="space-y-4">
             <div className="space-y-2">
               <Label className="text-sm font-medium">Poste à simuler</Label>
@@ -178,10 +205,22 @@ export function HiringSimulator() {
             )}
           </div>
 
+          {/* RIGHT: Salary slider + display mode + coefficients */}
           <div className="space-y-4">
+            {/* Display mode toggle */}
+            <div className="space-y-2">
+              <Label className="text-xs text-muted-foreground">Affichage</Label>
+              <ToggleGroup type="single" value={displayMode} onValueChange={(v) => v && setDisplayMode(v as DisplayMode)} className="justify-start">
+                <ToggleGroupItem value="annual_loaded" className="text-xs">Annuel chargé</ToggleGroupItem>
+                <ToggleGroupItem value="monthly_loaded" className="text-xs">Mensuel chargé</ToggleGroupItem>
+                <ToggleGroupItem value="monthly_net" className="text-xs">Mensuel net</ToggleGroupItem>
+              </ToggleGroup>
+            </div>
+
+            {/* Salary slider */}
             <div className="space-y-3">
               <Label className="text-sm font-medium">
-                Salaire annuel brut chargé simulé : <span className="text-primary font-mono-numbers">{formatCurrency(simSalary)}</span>
+                {displayLabel} : <span className="text-primary font-mono-numbers">{formatCurrency(displayValue)}</span>
               </Label>
               <Slider
                 value={[simSalary]}
@@ -196,10 +235,54 @@ export function HiringSimulator() {
               </div>
             </div>
 
+            {/* Conversion coefficients */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs text-muted-foreground">Coef. charges (brut→chargé)</Label>
+                <Input
+                  type="number"
+                  value={coefCharges}
+                  onChange={(e) => setCoefCharges(Number(e.target.value) || 1)}
+                  step={0.01}
+                  min={1}
+                  max={2}
+                  className="h-8 text-sm"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs text-muted-foreground">Coef. net (brut→net)</Label>
+                <Input
+                  type="number"
+                  value={coefNet}
+                  onChange={(e) => setCoefNet(Number(e.target.value) || 0.78)}
+                  step={0.01}
+                  min={0.5}
+                  max={1}
+                  className="h-8 text-sm"
+                />
+              </div>
+            </div>
+
+            {/* Conversion summary */}
+            <div className="grid grid-cols-3 gap-2">
+              <div className="p-2.5 rounded-lg bg-primary/5 border border-primary/20 text-center">
+                <div className="text-[10px] text-muted-foreground uppercase tracking-wider">Annuel chargé</div>
+                <div className="text-sm font-bold font-mono-numbers text-primary">{formatCurrency(annualLoaded, true)}</div>
+              </div>
+              <div className="p-2.5 rounded-lg bg-accent/50 border border-border text-center">
+                <div className="text-[10px] text-muted-foreground uppercase tracking-wider">Mensuel brut</div>
+                <div className="text-sm font-bold font-mono-numbers">{formatCurrency(monthlyBrut)}</div>
+              </div>
+              <div className="p-2.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-center">
+                <div className="text-[10px] text-muted-foreground uppercase tracking-wider">Mensuel net</div>
+                <div className="text-sm font-bold font-mono-numbers text-emerald-700 dark:text-emerald-400">{formatCurrency(monthlyNet)}</div>
+              </div>
+            </div>
+
             {selectedRole && (
-              <div className="p-4 rounded-lg border border-border bg-muted/20">
+              <div className="p-3 rounded-lg border border-border bg-muted/20">
                 <div className="text-sm text-muted-foreground mb-1">Écart vs. plan</div>
-                <div className={`text-2xl font-bold font-mono-numbers ${simSalary > selectedRole.annualCostLoaded ? 'text-destructive' : simSalary < selectedRole.annualCostLoaded ? 'text-emerald-600' : 'text-muted-foreground'}`}>
+                <div className={`text-xl font-bold font-mono-numbers ${simSalary > selectedRole.annualCostLoaded ? 'text-destructive' : simSalary < selectedRole.annualCostLoaded ? 'text-emerald-600' : 'text-muted-foreground'}`}>
                   {simSalary >= selectedRole.annualCostLoaded ? '+' : ''}{formatCurrency(simSalary - selectedRole.annualCostLoaded)}
                   <span className="text-sm font-normal text-muted-foreground ml-1">/ an</span>
                 </div>
@@ -209,9 +292,65 @@ export function HiringSimulator() {
         </div>
       </SectionCard>
 
+      {/* Variable Compensation */}
+      <SectionCard title="Rémunération variable">
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="space-y-0.5">
+              <Label className="text-sm font-medium">Activer une part variable</Label>
+              <p className="text-xs text-muted-foreground">Bonus indexé sur le CA ou la marge brute</p>
+            </div>
+            <Switch checked={variableComp.enabled} onCheckedChange={(v) => setVariableComp(prev => ({ ...prev, enabled: v }))} />
+          </div>
+
+          {variableComp.enabled && (
+            <div className="grid md:grid-cols-3 gap-4 p-4 rounded-lg border border-border bg-muted/10">
+              <div className="space-y-2">
+                <Label className="text-xs text-muted-foreground">Nom du dispositif</Label>
+                <Input
+                  value={variableComp.name}
+                  onChange={(e) => setVariableComp(prev => ({ ...prev, name: e.target.value }))}
+                  placeholder="ex: PER, Bonus, Commission"
+                  className="h-8 text-sm"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-xs text-muted-foreground">Indexé sur</Label>
+                <ToggleGroup
+                  type="single"
+                  value={variableComp.basis}
+                  onValueChange={(v) => v && setVariableComp(prev => ({ ...prev, basis: v as VariableBasis }))}
+                  className="justify-start"
+                >
+                  <ToggleGroupItem value="ca" className="text-xs">Chiffre d'affaires</ToggleGroupItem>
+                  <ToggleGroupItem value="marge_brute" className="text-xs">Marge brute</ToggleGroupItem>
+                </ToggleGroup>
+              </div>
+              <div className="space-y-2">
+                <Label className="text-xs text-muted-foreground">
+                  % du salaire annuel : <span className="font-mono-numbers text-primary">{variableComp.percentOfSalary}%</span>
+                </Label>
+                <Slider
+                  value={[variableComp.percentOfSalary]}
+                  onValueChange={([v]) => setVariableComp(prev => ({ ...prev, percentOfSalary: v }))}
+                  min={0}
+                  max={100}
+                  step={1}
+                />
+                <div className="flex justify-between text-[10px] text-muted-foreground">
+                  <span>0%</span>
+                  <span>Montant: {formatCurrency(simSalary * variableComp.percentOfSalary / 100, true)} / an</span>
+                  <span>100%</span>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      </SectionCard>
+
       {simulation && (
         <>
-          {/* Impact KPIs */}
+          {/* KPIs */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <KPICard
               label="Impact cumulé sur la période"
@@ -236,22 +375,36 @@ export function HiringSimulator() {
             />
           </div>
 
-          {/* EBITDA Comparison Chart */}
+          {/* EBITDA Chart */}
           <SectionCard title="Impact sur l'EBITDA">
             <div className="h-72">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={simulation.data} barGap={2}>
-                  <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
-                  <XAxis dataKey="year" />
-                  <YAxis tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} />
+                <BarChart data={simulation.data} barGap={4}>
+                  <defs>
+                    <linearGradient id="gradPlan" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="hsl(var(--muted-foreground))" stopOpacity={0.6} />
+                      <stop offset="100%" stopColor="hsl(var(--muted-foreground))" stopOpacity={0.2} />
+                    </linearGradient>
+                    <linearGradient id="gradSim" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="hsl(210, 100%, 55%)" stopOpacity={0.9} />
+                      <stop offset="100%" stopColor="hsl(210, 100%, 70%)" stopOpacity={0.5} />
+                    </linearGradient>
+                    <linearGradient id="gradSimNeg" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="hsl(var(--destructive))" stopOpacity={0.7} />
+                      <stop offset="100%" stopColor="hsl(var(--destructive))" stopOpacity={0.3} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" className="opacity-20" />
+                  <XAxis dataKey="year" tick={{ fontSize: 12 }} />
+                  <YAxis tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} tick={{ fontSize: 11 }} />
                   <Tooltip
                     formatter={(value: number, name: string) => [formatCurrency(value, true), name]}
-                    contentStyle={{ borderRadius: 8, border: '1px solid hsl(var(--border))' }}
+                    contentStyle={{ borderRadius: 8, border: '1px solid hsl(var(--border))', background: 'hsl(var(--popover))' }}
                   />
                   <Legend />
-                  <ReferenceLine y={0} stroke="hsl(var(--muted-foreground))" strokeDasharray="3 3" />
-                  <Bar dataKey="baseEbitda" name="EBITDA Plan" fill="hsl(var(--muted-foreground))" radius={[4, 4, 0, 0]} opacity={0.5} />
-                  <Bar dataKey="simEbitda" name="EBITDA Simulé" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
+                  <ReferenceLine y={0} stroke="hsl(var(--muted-foreground))" strokeDasharray="3 3" strokeOpacity={0.5} />
+                  <Bar dataKey="baseEbitda" name="EBITDA Plan" fill="url(#gradPlan)" radius={[6, 6, 0, 0]} />
+                  <Bar dataKey="simEbitda" name="EBITDA Simulé" fill="url(#gradSim)" radius={[6, 6, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -261,24 +414,34 @@ export function HiringSimulator() {
           <SectionCard title="Impact sur la Trésorerie">
             <div className="h-72">
               <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={simulation.data}>
-                  <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
-                  <XAxis dataKey="year" />
-                  <YAxis tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} />
+                <AreaChart data={simulation.data}>
+                  <defs>
+                    <linearGradient id="gradCashPlan" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="hsl(var(--muted-foreground))" stopOpacity={0.15} />
+                      <stop offset="100%" stopColor="hsl(var(--muted-foreground))" stopOpacity={0} />
+                    </linearGradient>
+                    <linearGradient id="gradCashSim" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="hsl(160, 70%, 45%)" stopOpacity={0.3} />
+                      <stop offset="100%" stopColor="hsl(160, 70%, 45%)" stopOpacity={0.02} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" className="opacity-20" />
+                  <XAxis dataKey="year" tick={{ fontSize: 12 }} />
+                  <YAxis tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} tick={{ fontSize: 11 }} />
                   <Tooltip
                     formatter={(value: number, name: string) => [formatCurrency(value, true), name]}
-                    contentStyle={{ borderRadius: 8, border: '1px solid hsl(var(--border))' }}
+                    contentStyle={{ borderRadius: 8, border: '1px solid hsl(var(--border))', background: 'hsl(var(--popover))' }}
                   />
                   <Legend />
-                  <ReferenceLine y={0} stroke="hsl(var(--destructive))" strokeDasharray="3 3" />
-                  <Line type="monotone" dataKey="baseCash" name="Cash Plan" stroke="hsl(var(--muted-foreground))" strokeWidth={2} strokeDasharray="5 5" dot={false} />
-                  <Line type="monotone" dataKey="simCash" name="Cash Simulé" stroke="hsl(var(--primary))" strokeWidth={2.5} dot={{ r: 4 }} />
-                </LineChart>
+                  <ReferenceLine y={0} stroke="hsl(var(--destructive))" strokeDasharray="4 4" strokeOpacity={0.6} />
+                  <Area type="monotone" dataKey="baseCash" name="Cash Plan" stroke="hsl(var(--muted-foreground))" strokeWidth={2} strokeDasharray="5 5" fill="url(#gradCashPlan)" dot={false} />
+                  <Area type="monotone" dataKey="simCash" name="Cash Simulé" stroke="hsl(160, 70%, 45%)" strokeWidth={2.5} fill="url(#gradCashSim)" dot={{ r: 4, fill: 'hsl(160, 70%, 45%)', strokeWidth: 2, stroke: 'hsl(var(--background))' }} />
+                </AreaChart>
               </ResponsiveContainer>
             </div>
           </SectionCard>
 
-          {/* Detailed P&L Table */}
+          {/* P&L Table */}
           <SectionCard title="Synthèse P&L Simulé">
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
@@ -325,6 +488,18 @@ export function HiringSimulator() {
                       </td>
                     ))}
                   </tr>
+                  {variableComp.enabled && (
+                    <tr className="bg-amber-500/5">
+                      <td className="py-2.5 px-2 text-amber-700 dark:text-amber-400">
+                        └ dont {variableComp.name}
+                      </td>
+                      {simulation.data.map(d => (
+                        <td key={d.year} className="text-right py-2.5 px-2 font-mono-numbers text-amber-700 dark:text-amber-400 text-xs">
+                          {formatCurrency(d.variableCost, true)}
+                        </td>
+                      ))}
+                    </tr>
+                  )}
                   <tr>
                     <td className="py-2.5 px-2">OPEX</td>
                     {simulation.data.map(d => (
