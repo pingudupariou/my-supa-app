@@ -106,6 +106,12 @@ export const defaultValuationConfig: ValuationConfig = {
   },
 };
 
+export interface VariableThreshold {
+  id: string;
+  thresholdAmount: number; // seuil en €
+  percentOfBasis: number;  // % appliqué au-dessus de ce seuil
+}
+
 export interface HiringSimulationConfig {
   selectedRoleId: string;
   salaryOverride: number | null;
@@ -117,6 +123,8 @@ export interface HiringSimulationConfig {
     name: string;
     basis: 'ca' | 'marge_brute';
     percentOfBasis: number;
+    useThresholds: boolean;
+    thresholds: VariableThreshold[];
   };
 }
 
@@ -126,7 +134,14 @@ export const defaultHiringSimulation: HiringSimulationConfig = {
   displayMode: 'annual_loaded',
   coefCharges: 1.45,
   coefNet: 0.78,
-  variableComp: { enabled: false, name: 'PER', basis: 'ca', percentOfBasis: 2 },
+  variableComp: {
+    enabled: false, name: 'PER', basis: 'ca', percentOfBasis: 2,
+    useThresholds: false,
+    thresholds: [
+      { id: 'th-1', thresholdAmount: 100000, percentOfBasis: 1 },
+      { id: 'th-2', thresholdAmount: 200000, percentOfBasis: 2 },
+    ],
+  },
 };
 
 interface FinancialState {
