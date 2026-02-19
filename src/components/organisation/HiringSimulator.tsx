@@ -430,6 +430,7 @@ export function HiringSimulator() {
 
       {/* Total salary recap (fixe + variable) */}
       {variableComp.enabled && (
+        <>
         <SectionCard title="Récapitulatif rémunération totale (fixe + variable)">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
@@ -463,7 +464,54 @@ export function HiringSimulator() {
               </tbody>
             </table>
           </div>
+          {/* Reference basis indicator */}
+          <div className="mt-4 p-3 rounded-lg border border-border bg-muted/20 flex items-center justify-between">
+            <span className="text-sm text-muted-foreground">
+              Base de calcul variable ({variableComp.basis === 'ca' ? 'CA' : 'Marge brute'} — {years[0]})
+            </span>
+            <span className="text-lg font-bold font-mono-numbers text-primary">
+              {formatCurrency(variableBasisValue, true)}
+            </span>
+          </div>
         </SectionCard>
+
+        {/* Chart: Total remuneration vs CA evolution */}
+        <SectionCard title={`Évolution rémunération totale vs ${variableComp.basis === 'ca' ? 'CA' : 'Marge brute'}`}>
+          <div className="h-72">
+            <ResponsiveContainer width="100%" height="100%">
+              <ComposedChart data={(() => {
+                return years.map((year, i) => {
+                  const rev = computed.revenueByYear[i]?.revenue || 0;
+                  const cogs = computed.revenueByYear[i]?.cogs || 0;
+                  const gm = rev - cogs;
+                  const basis = variableComp.basis === 'ca' ? rev : gm;
+                  const varAnnual = variableComp.enabled ? basis * (variableComp.percentOfBasis / 100) : 0;
+                  return {
+                    year,
+                    basis: basis / 1000,
+                    fixe: annualLoaded / 1000,
+                    variable: varAnnual / 1000,
+                    total: (annualLoaded + varAnnual) / 1000,
+                  };
+                });
+              })()}>
+                <CartesianGrid strokeDasharray="3 3" className="opacity-20" />
+                <XAxis dataKey="year" tick={{ fontSize: 12 }} />
+                <YAxis yAxisId="rem" tickFormatter={(v) => `${v.toFixed(0)}k€`} tick={{ fontSize: 11 }} />
+                <YAxis yAxisId="basis" orientation="right" tickFormatter={(v) => `${v.toFixed(0)}k€`} tick={{ fontSize: 11 }} />
+                <Tooltip
+                  formatter={(value: number, name: string) => [`${value.toFixed(1)}k€`, name]}
+                  contentStyle={{ borderRadius: 8, border: '1px solid hsl(var(--border))', background: 'hsl(var(--popover))' }}
+                />
+                <Legend />
+                <Bar yAxisId="rem" dataKey="fixe" name="Fixe chargé" stackId="rem" fill="hsl(var(--primary))" radius={[0, 0, 0, 0]} opacity={0.7} />
+                <Bar yAxisId="rem" dataKey="variable" name={variableComp.name} stackId="rem" fill="hsl(35, 90%, 55%)" radius={[4, 4, 0, 0]} opacity={0.85} />
+                <Area yAxisId="basis" type="monotone" dataKey="basis" name={variableComp.basis === 'ca' ? 'CA' : 'Marge brute'} stroke="hsl(var(--muted-foreground))" strokeWidth={2} strokeDasharray="5 5" fill="none" dot={{ r: 3, fill: 'hsl(var(--muted-foreground))' }} />
+              </ComposedChart>
+            </ResponsiveContainer>
+          </div>
+        </SectionCard>
+        </>
       )}
 
       {simulation && (
