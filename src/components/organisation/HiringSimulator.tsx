@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { formatCurrency, formatPercent } from '@/data/financialConfig';
-import { MONTHS } from '@/engine/monthlyTreasuryEngine';
+import { MONTHS, aggregateByYear } from '@/engine/monthlyTreasuryEngine';
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
@@ -104,13 +104,20 @@ export function HiringSimulator() {
   const simulation = useMemo(() => {
     if (!selectedRole) return null;
 
-    const baseData = years.map((year, i) => {
-      const rev = computed.revenueByYear[i]?.revenue || 0;
-      const cogs = computed.revenueByYear[i]?.cogs || 0;
-      const opex = computed.opexByYear[i]?.opex || 0;
-      const depreciation = computed.capexByYear[i]?.depreciation || 0;
-      const basePayroll = computed.payrollByYear[i]?.payroll || 0;
-      const grossMargin = rev - cogs;
+    // Use monthly treasury engine as single source of truth (same as Prévisionnel)
+    const baseMonthly = computed.monthlyTreasuryProjection.months;
+    const aggregated = aggregateByYear(baseMonthly);
+    const treasuryYears = computed.treasuryProjection.years;
+
+    const baseData = years.map((year) => {
+      const agg = aggregated.get(year);
+      const tYear = treasuryYears.find(y => y.year === year);
+      const rev = agg?.revenue || 0;
+      const cogs = agg?.cogs || 0;
+      const grossMargin = agg?.grossMargin || 0;
+      const basePayroll = agg?.payroll || 0;
+      const opex = agg?.opex || 0;
+      const depreciation = tYear?.depreciation || 0;
 
       const roleActive = selectedRole.startYear <= year;
       const fixedDelta = roleActive ? (simSalary - selectedRole.annualCostLoaded) : 0;
@@ -124,9 +131,9 @@ export function HiringSimulator() {
       const totalDelta = fixedDelta + variableCost;
       const simPayroll = basePayroll + totalDelta;
 
+      const baseEbitda = agg?.ebitda || 0;
+      const simEbitda = baseEbitda - totalDelta;
       const grossMarginRate = rev > 0 ? grossMargin / rev : 0;
-      const baseEbitda = grossMargin - basePayroll - opex;
-      const simEbitda = grossMargin - simPayroll - opex;
       const baseOpResult = baseEbitda - depreciation;
       const simOpResult = simEbitda - depreciation;
       const baseEbitdaMargin = rev > 0 ? baseEbitda / rev : 0;
@@ -138,29 +145,33 @@ export function HiringSimulator() {
         baseEbitda, simEbitda, baseOpResult, simOpResult,
         baseEbitdaMargin, simEbitdaMargin,
         delta: totalDelta, fixedDelta, variableCost, depreciation,
+        baseTreasuryEnd: agg?.treasuryEnd || 0,
+        baseCashFlow: agg?.netCashFlow || 0,
+        fundingInjection: agg?.fundingInjection || 0,
       };
     });
 
-    let baseCash = state.scenarioSettings.initialCash;
-    let simCash = state.scenarioSettings.initialCash;
+    // Cash: start from monthly treasury base and apply delta cumulatively
+    let cumDelta = 0;
     const withCash = baseData.map(d => {
-      const funding = state.fundingRounds.filter(r => r.year === d.year).reduce((s, r) => s + r.amount, 0);
-      baseCash += funding + d.baseEbitda * 0.7;
-      simCash += funding + d.simEbitda * 0.7;
-      return { ...d, baseCash, simCash, cashDelta: simCash - baseCash };
+      cumDelta += d.delta;
+      return {
+        ...d,
+        baseCash: d.baseTreasuryEnd,
+        simCash: d.baseTreasuryEnd - cumDelta,
+        cashDelta: -cumDelta,
+      };
     });
 
-    // Monthly treasury simulation
-    const baseMonthly = computed.monthlyTreasuryProjection.months;
+    // Monthly treasury simulation (reuse baseMonthly from above)
     const monthlyData = baseMonthly.map(m => {
       const roleActive = selectedRole.startYear <= m.year;
       const annualDelta = roleActive ? (simSalary - selectedRole.annualCostLoaded) : 0;
       let monthlyVariable = 0;
       if (variableComp.enabled && roleActive) {
-        const yearIndex = years.indexOf(m.year);
-        const yearRev = computed.revenueByYear[yearIndex]?.revenue || 0;
-        const yearCogs = computed.revenueByYear[yearIndex]?.cogs || 0;
-        const yearGM = yearRev - yearCogs;
+        const agg = aggregated.get(m.year);
+        const yearRev = agg?.revenue || 0;
+        const yearGM = agg?.grossMargin || 0;
         const basis = variableComp.basis === 'ca' ? yearRev : yearGM;
         monthlyVariable = (basis * (variableComp.percentOfBasis / 100)) / 12;
       }
@@ -177,12 +188,12 @@ export function HiringSimulator() {
     });
 
     // Recalculate cumulative sim treasury
-    let cumDelta = 0;
+    let cumDeltaMonthly = 0;
     const monthlyWithSim = monthlyData.map(m => {
-      cumDelta += m.monthlyDelta;
+      cumDeltaMonthly += m.monthlyDelta;
       return {
         ...m,
-        simTreasury: m.baseTreasury - cumDelta,
+        simTreasury: m.baseTreasury - cumDeltaMonthly,
         simCashFlow: m.baseCashFlow - m.monthlyDelta,
       };
     });
