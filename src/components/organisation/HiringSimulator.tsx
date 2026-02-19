@@ -30,7 +30,7 @@ interface VariableComp {
   enabled: boolean;
   name: string;
   basis: VariableBasis;
-  percentOfSalary: number; // % of annual loaded salary
+  percentOfBasis: number; // % of CA or gross margin
 }
 
 export function HiringSimulator() {
@@ -51,7 +51,7 @@ export function HiringSimulator() {
     enabled: false,
     name: 'PER',
     basis: 'ca',
-    percentOfSalary: 10,
+    percentOfBasis: 2,
   });
 
   const selectedRole = state.roles.find(r => r.id === selectedRoleId);
@@ -71,9 +71,14 @@ export function HiringSimulator() {
   const monthlyNet = monthlyBrut * coefNet;
   const annualNet = monthlyNet * 12;
 
-  // Variable comp breakdown (brut -> chargé -> net)
-  const variableAnnualBrut = variableComp.enabled ? simSalary * (variableComp.percentOfSalary / 100) / coefCharges : 0;
-  const variableAnnualLoaded = variableAnnualBrut * coefCharges;
+  // Variable comp: indexed on current year CA or gross margin
+  // We use year 0 (current/first year) as reference for the summary display
+  const currentYearRev = computed.revenueByYear[0]?.revenue || 0;
+  const currentYearCogs = computed.revenueByYear[0]?.cogs || 0;
+  const currentYearGM = currentYearRev - currentYearCogs;
+  const variableBasisValue = variableComp.basis === 'ca' ? currentYearRev : currentYearGM;
+  const variableAnnualLoaded = variableComp.enabled ? variableBasisValue * (variableComp.percentOfBasis / 100) : 0;
+  const variableAnnualBrut = variableAnnualLoaded / coefCharges;
   const variableAnnualNet = variableAnnualBrut * coefNet;
   const variableMonthlyBrut = variableAnnualBrut / 12;
   const variableMonthlyLoaded = variableAnnualLoaded / 12;
@@ -112,7 +117,8 @@ export function HiringSimulator() {
 
       let variableCost = 0;
       if (variableComp.enabled && roleActive) {
-        variableCost = simSalary * (variableComp.percentOfSalary / 100);
+        const basis = variableComp.basis === 'ca' ? rev : grossMargin;
+        variableCost = basis * (variableComp.percentOfBasis / 100);
       }
 
       const totalDelta = fixedDelta + variableCost;
@@ -151,7 +157,12 @@ export function HiringSimulator() {
       const annualDelta = roleActive ? (simSalary - selectedRole.annualCostLoaded) : 0;
       let monthlyVariable = 0;
       if (variableComp.enabled && roleActive) {
-        monthlyVariable = (simSalary * (variableComp.percentOfSalary / 100)) / 12;
+        const yearIndex = years.indexOf(m.year);
+        const yearRev = computed.revenueByYear[yearIndex]?.revenue || 0;
+        const yearCogs = computed.revenueByYear[yearIndex]?.cogs || 0;
+        const yearGM = yearRev - yearCogs;
+        const basis = variableComp.basis === 'ca' ? yearRev : yearGM;
+        monthlyVariable = (basis * (variableComp.percentOfBasis / 100)) / 12;
       }
       const monthlyDelta = (annualDelta / 12) + monthlyVariable;
       return {
@@ -374,18 +385,18 @@ export function HiringSimulator() {
                 </div>
                 <div className="space-y-2">
                   <Label className="text-xs text-muted-foreground">
-                    % du salaire annuel : <span className="font-mono-numbers text-primary">{variableComp.percentOfSalary}%</span>
+                    % {variableComp.basis === 'ca' ? 'du CA' : 'de la marge brute'} : <span className="font-mono-numbers text-primary">{variableComp.percentOfBasis}%</span>
                   </Label>
                   <Slider
-                    value={[variableComp.percentOfSalary]}
-                    onValueChange={([v]) => setVariableComp(prev => ({ ...prev, percentOfSalary: v }))}
+                    value={[variableComp.percentOfBasis]}
+                    onValueChange={([v]) => setVariableComp(prev => ({ ...prev, percentOfBasis: v }))}
                     min={0}
-                    max={100}
-                    step={1}
+                    max={20}
+                    step={0.5}
                   />
                   <div className="flex justify-between text-[10px] text-muted-foreground">
                     <span>0%</span>
-                    <span>100%</span>
+                    <span>20%</span>
                   </div>
                 </div>
               </div>
