@@ -106,6 +106,29 @@ export const defaultValuationConfig: ValuationConfig = {
   },
 };
 
+export interface HiringSimulationConfig {
+  selectedRoleId: string;
+  salaryOverride: number | null;
+  displayMode: 'annual_loaded' | 'monthly_loaded' | 'monthly_net';
+  coefCharges: number;
+  coefNet: number;
+  variableComp: {
+    enabled: boolean;
+    name: string;
+    basis: 'ca' | 'marge_brute';
+    percentOfBasis: number;
+  };
+}
+
+export const defaultHiringSimulation: HiringSimulationConfig = {
+  selectedRoleId: '',
+  salaryOverride: null,
+  displayMode: 'annual_loaded',
+  coefCharges: 1.45,
+  coefNet: 0.78,
+  variableComp: { enabled: false, name: 'PER', basis: 'ca', percentOfBasis: 2 },
+};
+
 interface FinancialState {
   products: Product[];
   roles: Role[];
@@ -126,6 +149,7 @@ interface FinancialState {
   monthlyTreasuryConfig: MonthlyTreasuryConfig;
   valuationConfig: ValuationConfig;
   roadmapBlocks: Record<string, { startQ: number; durationQ: number }>;
+  hiringSimulation: HiringSimulationConfig;
 }
 
 interface ComputedValues {
@@ -166,6 +190,7 @@ interface FinancialContextType {
   updateMonthlyTreasuryConfig: (config: MonthlyTreasuryConfig) => void;
   updateValuationConfig: (config: Partial<ValuationConfig>) => void;
   updateRoadmapBlocks: (blocks: Record<string, { startQ: number; durationQ: number }>) => void;
+  updateHiringSimulation: (config: Partial<HiringSimulationConfig>) => void;
   saveAll: () => void;
 }
 
@@ -205,6 +230,10 @@ function loadState(): FinancialState {
       if (parsed.simpleOpexConfig && !parsed.simpleOpexConfig.strategicOpex) {
         parsed.simpleOpexConfig.strategicOpex = [];
       }
+      // Ensure hiringSimulation exists
+      if (!parsed.hiringSimulation) {
+        parsed.hiringSimulation = { ...defaultHiringSimulation };
+      }
       return parsed;
     }
   } catch {}
@@ -239,6 +268,7 @@ function getDefaultState(): FinancialState {
     monthlyTreasuryConfig: getDefaultMonthlyTreasuryConfig(),
     valuationConfig: { ...defaultValuationConfig },
     roadmapBlocks: {},
+    hiringSimulation: { ...defaultHiringSimulation },
   };
 }
 
@@ -282,7 +312,9 @@ export function FinancialProvider({ children }: { children: ReactNode }) {
           // Ensure clientRevenueConfig exists
           if (!cloudState.clientRevenueConfig) cloudState.clientRevenueConfig = { entries: [], growthRate: 0.15, marginRate: 0.5, marginB2C: 0.6, marginByCategory: {} };
           // Ensure strategicOpex exists
-          if (cloudState.simpleOpexConfig && !cloudState.simpleOpexConfig.strategicOpex) cloudState.simpleOpexConfig.strategicOpex = [];
+           if (cloudState.simpleOpexConfig && !cloudState.simpleOpexConfig.strategicOpex) cloudState.simpleOpexConfig.strategicOpex = [];
+           // Ensure hiringSimulation exists
+           if (!cloudState.hiringSimulation) cloudState.hiringSimulation = { ...defaultHiringSimulation };
           setState({ ...cloudState, hasUnsavedChanges: false });
           localStorage.setItem(STATE_KEY, JSON.stringify(cloudState));
         }
@@ -323,6 +355,7 @@ export function FinancialProvider({ children }: { children: ReactNode }) {
   const updateMonthlyTreasuryConfig = useCallback((monthlyTreasuryConfig: MonthlyTreasuryConfig) => { setState(prev => ({ ...prev, monthlyTreasuryConfig, hasUnsavedChanges: true })); }, []);
   const updateValuationConfig = useCallback((config: Partial<ValuationConfig>) => { setState(prev => ({ ...prev, valuationConfig: { ...prev.valuationConfig, ...config }, hasUnsavedChanges: true })); }, []);
   const updateRoadmapBlocks = useCallback((roadmapBlocks: Record<string, { startQ: number; durationQ: number }>) => { setState(prev => ({ ...prev, roadmapBlocks, hasUnsavedChanges: true })); }, []);
+  const updateHiringSimulation = useCallback((config: Partial<HiringSimulationConfig>) => { setState(prev => ({ ...prev, hiringSimulation: { ...prev.hiringSimulation, ...config }, hasUnsavedChanges: true })); }, []);
 
   const saveAll = useCallback(async () => {
     try {
@@ -483,6 +516,7 @@ export function FinancialProvider({ children }: { children: ReactNode }) {
       updateMonthlyTreasuryConfig,
       updateValuationConfig,
       updateRoadmapBlocks,
+      updateHiringSimulation,
       saveAll,
     }}>
       {children}
