@@ -44,7 +44,7 @@ function calcVariableLoaded(vc: VariableComp, basisValue: number): number {
   if (!vc.useThresholds) return basisValue * (vc.percentOfBasis / 100);
 
   // Threshold mode: sorted ascending. For each tier, apply % to the slice of basis above that threshold (up to next threshold).
-  const sorted = [...vc.thresholds].sort((a, b) => a.thresholdAmount - b.thresholdAmount);
+  const sorted = [...(vc.thresholds ?? [])].sort((a, b) => a.thresholdAmount - b.thresholdAmount);
   let total = 0;
   for (let i = 0; i < sorted.length; i++) {
     const lower = sorted[i].thresholdAmount;
