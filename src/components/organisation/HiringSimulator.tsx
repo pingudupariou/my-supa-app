@@ -71,6 +71,22 @@ export function HiringSimulator() {
   const monthlyNet = monthlyBrut * coefNet;
   const annualNet = monthlyNet * 12;
 
+  // Variable comp breakdown (brut -> chargé -> net)
+  const variableAnnualBrut = variableComp.enabled ? simSalary * (variableComp.percentOfSalary / 100) / coefCharges : 0;
+  const variableAnnualLoaded = variableAnnualBrut * coefCharges;
+  const variableAnnualNet = variableAnnualBrut * coefNet;
+  const variableMonthlyBrut = variableAnnualBrut / 12;
+  const variableMonthlyLoaded = variableAnnualLoaded / 12;
+  const variableMonthlyNet = variableAnnualNet / 12;
+
+  // Total (fixe + variable)
+  const totalAnnualLoaded = annualLoaded + variableAnnualLoaded;
+  const totalAnnualBrut = annualBrut + variableAnnualBrut;
+  const totalAnnualNet = annualNet + variableAnnualNet;
+  const totalMonthlyLoaded = totalAnnualLoaded / 12;
+  const totalMonthlyBrut = totalAnnualBrut / 12;
+  const totalMonthlyNet = totalAnnualNet / 12;
+
   // Display value based on mode
   const displayValue = displayMode === 'annual_loaded' ? annualLoaded
     : displayMode === 'monthly_loaded' ? monthlyLoaded
@@ -333,49 +349,107 @@ export function HiringSimulator() {
           </div>
 
           {variableComp.enabled && (
-            <div className="grid md:grid-cols-3 gap-4 p-4 rounded-lg border border-border bg-muted/10">
-              <div className="space-y-2">
-                <Label className="text-xs text-muted-foreground">Nom du dispositif</Label>
-                <Input
-                  value={variableComp.name}
-                  onChange={(e) => setVariableComp(prev => ({ ...prev, name: e.target.value }))}
-                  placeholder="ex: PER, Bonus, Commission"
-                  className="h-8 text-sm"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label className="text-xs text-muted-foreground">Indexé sur</Label>
-                <ToggleGroup
-                  type="single"
-                  value={variableComp.basis}
-                  onValueChange={(v) => v && setVariableComp(prev => ({ ...prev, basis: v as VariableBasis }))}
-                  className="justify-start"
-                >
-                  <ToggleGroupItem value="ca" className="text-xs">Chiffre d'affaires</ToggleGroupItem>
-                  <ToggleGroupItem value="marge_brute" className="text-xs">Marge brute</ToggleGroupItem>
-                </ToggleGroup>
-              </div>
-              <div className="space-y-2">
-                <Label className="text-xs text-muted-foreground">
-                  % du salaire annuel : <span className="font-mono-numbers text-primary">{variableComp.percentOfSalary}%</span>
-                </Label>
-                <Slider
-                  value={[variableComp.percentOfSalary]}
-                  onValueChange={([v]) => setVariableComp(prev => ({ ...prev, percentOfSalary: v }))}
-                  min={0}
-                  max={100}
-                  step={1}
-                />
-                <div className="flex justify-between text-[10px] text-muted-foreground">
-                  <span>0%</span>
-                  <span>Montant: {formatCurrency(simSalary * variableComp.percentOfSalary / 100, true)} / an</span>
-                  <span>100%</span>
+            <>
+              <div className="grid md:grid-cols-3 gap-4 p-4 rounded-lg border border-border bg-muted/10">
+                <div className="space-y-2">
+                  <Label className="text-xs text-muted-foreground">Nom du dispositif</Label>
+                  <Input
+                    value={variableComp.name}
+                    onChange={(e) => setVariableComp(prev => ({ ...prev, name: e.target.value }))}
+                    placeholder="ex: PER, Bonus, Commission"
+                    className="h-8 text-sm"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-xs text-muted-foreground">Indexé sur</Label>
+                  <ToggleGroup
+                    type="single"
+                    value={variableComp.basis}
+                    onValueChange={(v) => v && setVariableComp(prev => ({ ...prev, basis: v as VariableBasis }))}
+                    className="justify-start"
+                  >
+                    <ToggleGroupItem value="ca" className="text-xs">Chiffre d'affaires</ToggleGroupItem>
+                    <ToggleGroupItem value="marge_brute" className="text-xs">Marge brute</ToggleGroupItem>
+                  </ToggleGroup>
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-xs text-muted-foreground">
+                    % du salaire annuel : <span className="font-mono-numbers text-primary">{variableComp.percentOfSalary}%</span>
+                  </Label>
+                  <Slider
+                    value={[variableComp.percentOfSalary]}
+                    onValueChange={([v]) => setVariableComp(prev => ({ ...prev, percentOfSalary: v }))}
+                    min={0}
+                    max={100}
+                    step={1}
+                  />
+                  <div className="flex justify-between text-[10px] text-muted-foreground">
+                    <span>0%</span>
+                    <span>100%</span>
+                  </div>
                 </div>
               </div>
-            </div>
+
+              {/* Variable breakdown */}
+              <div className="p-4 rounded-lg border border-border bg-muted/10 space-y-3">
+                <div className="text-sm font-medium">{variableComp.name} — Décomposition</div>
+                <div className="grid grid-cols-3 gap-2">
+                  <div className="p-2.5 rounded-lg bg-primary/5 border border-primary/20 text-center">
+                    <div className="text-[10px] text-muted-foreground uppercase tracking-wider">Brut chargé / an</div>
+                    <div className="text-sm font-bold font-mono-numbers text-primary">{formatCurrency(variableAnnualLoaded, true)}</div>
+                  </div>
+                  <div className="p-2.5 rounded-lg bg-accent/50 border border-border text-center">
+                    <div className="text-[10px] text-muted-foreground uppercase tracking-wider">Brut / mois</div>
+                    <div className="text-sm font-bold font-mono-numbers">{formatCurrency(variableMonthlyBrut)}</div>
+                  </div>
+                  <div className="p-2.5 rounded-lg bg-secondary/50 border border-border text-center">
+                    <div className="text-[10px] text-muted-foreground uppercase tracking-wider">Net / mois</div>
+                    <div className="text-sm font-bold font-mono-numbers">{formatCurrency(variableMonthlyNet)}</div>
+                  </div>
+                </div>
+              </div>
+            </>
           )}
         </div>
       </SectionCard>
+
+      {/* Total salary recap (fixe + variable) */}
+      {variableComp.enabled && (
+        <SectionCard title="Récapitulatif rémunération totale (fixe + variable)">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-border">
+                  <th className="text-left p-2 text-muted-foreground font-medium"></th>
+                  <th className="text-right p-2 text-muted-foreground font-medium">Annuel chargé</th>
+                  <th className="text-right p-2 text-muted-foreground font-medium">Mensuel brut</th>
+                  <th className="text-right p-2 text-muted-foreground font-medium">Mensuel net</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr className="border-b border-border/50">
+                  <td className="p-2 font-medium">Fixe</td>
+                  <td className="p-2 text-right font-mono-numbers">{formatCurrency(annualLoaded)}</td>
+                  <td className="p-2 text-right font-mono-numbers">{formatCurrency(monthlyBrut)}</td>
+                  <td className="p-2 text-right font-mono-numbers">{formatCurrency(monthlyNet)}</td>
+                </tr>
+                <tr className="border-b border-border/50">
+                  <td className="p-2 font-medium">{variableComp.name}</td>
+                  <td className="p-2 text-right font-mono-numbers">{formatCurrency(variableAnnualLoaded)}</td>
+                  <td className="p-2 text-right font-mono-numbers">{formatCurrency(variableMonthlyBrut)}</td>
+                  <td className="p-2 text-right font-mono-numbers">{formatCurrency(variableMonthlyNet)}</td>
+                </tr>
+                <tr className="bg-primary/5 font-bold">
+                  <td className="p-2">Total</td>
+                  <td className="p-2 text-right font-mono-numbers text-primary">{formatCurrency(totalAnnualLoaded)}</td>
+                  <td className="p-2 text-right font-mono-numbers">{formatCurrency(totalMonthlyBrut)}</td>
+                  <td className="p-2 text-right font-mono-numbers">{formatCurrency(totalMonthlyNet)}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </SectionCard>
+      )}
 
       {simulation && (
         <>
