@@ -43,17 +43,14 @@ function calcVariableLoaded(vc: VariableComp, basisValue: number): number {
   if (!vc.enabled) return 0;
   if (!vc.useThresholds) return basisValue * (vc.percentOfBasis / 100);
 
-  // Threshold mode: sorted ascending. For each tier, apply % to the slice of basis above that threshold (up to next threshold).
+  // Threshold mode: sorted ascending. Find the highest threshold where CA <= thresholdAmount, apply its % to the entire basis.
   const sorted = [...(vc.thresholds ?? [])].sort((a, b) => a.thresholdAmount - b.thresholdAmount);
-  let total = 0;
-  for (let i = 0; i < sorted.length; i++) {
-    const lower = sorted[i].thresholdAmount;
-    const upper = i < sorted.length - 1 ? sorted[i + 1].thresholdAmount : Infinity;
-    if (basisValue <= lower) break;
-    const slice = Math.min(basisValue, upper) - lower;
-    total += slice * (sorted[i].percentOfBasis / 100);
-  }
-  return total;
+  if (sorted.length === 0) return 0;
+  // Find the first threshold whose amount >= basisValue (i.e. basisValue <= threshold)
+  const matched = sorted.find(t => basisValue <= t.thresholdAmount);
+  // If CA exceeds all thresholds, use the last (highest) one
+  const tier = matched ?? sorted[sorted.length - 1];
+  return basisValue * (tier.percentOfBasis / 100);
 }
 
 export function HiringSimulator() {
