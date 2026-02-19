@@ -507,7 +507,7 @@ export function HiringSimulator() {
                   const varNet = varBrut * coefNet;
                   const totLoaded = annualLoaded + varLoaded;
                   const totBrut = (annualBrut + varBrut) / 12;
-                  const totNet = (annualNet + varNet * 12) / 12;
+                  const totNet = (annualNet + varNet) / 12;
                   return (
                     <tr key={year} className="border-b border-border/50 hover:bg-muted/20">
                       <td className="p-2 font-semibold">{year}</td>
