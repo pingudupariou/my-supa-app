@@ -5,14 +5,14 @@ import { Slider } from '@/components/ui/slider';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
-import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { formatCurrency, formatPercent } from '@/data/financialConfig';
+import { MONTHS } from '@/engine/monthlyTreasuryEngine';
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
 import {
-  BarChart, Bar, LineChart, Line, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, ReferenceLine,
+  BarChart, Bar, AreaChart, Area, ComposedChart, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, ReferenceLine,
 } from 'recharts';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 
@@ -94,12 +94,8 @@ export function HiringSimulator() {
       const roleActive = selectedRole.startYear <= year;
       const fixedDelta = roleActive ? (simSalary - selectedRole.annualCostLoaded) : 0;
 
-      // Variable compensation cost
       let variableCost = 0;
       if (variableComp.enabled && roleActive) {
-        const basis = variableComp.basis === 'ca' ? rev : grossMargin;
-        // Variable = % of salary, but indexed on basis growth
-        // Simple: flat % of annual salary paid as bonus
         variableCost = simSalary * (variableComp.percentOfSalary / 100);
       }
 
@@ -132,13 +128,46 @@ export function HiringSimulator() {
       return { ...d, baseCash, simCash, cashDelta: simCash - baseCash };
     });
 
+    // Monthly treasury simulation
+    const baseMonthly = computed.monthlyTreasuryProjection.months;
+    const monthlyData = baseMonthly.map(m => {
+      const roleActive = selectedRole.startYear <= m.year;
+      const annualDelta = roleActive ? (simSalary - selectedRole.annualCostLoaded) : 0;
+      let monthlyVariable = 0;
+      if (variableComp.enabled && roleActive) {
+        monthlyVariable = (simSalary * (variableComp.percentOfSalary / 100)) / 12;
+      }
+      const monthlyDelta = (annualDelta / 12) + monthlyVariable;
+      return {
+        monthKey: `${MONTHS[m.month].slice(0, 3)} ${m.year}`,
+        year: m.year,
+        month: m.month,
+        baseTreasury: m.treasuryEnd,
+        basePayroll: m.payroll,
+        baseCashFlow: m.netCashFlow,
+        monthlyDelta,
+      };
+    });
+
+    // Recalculate cumulative sim treasury
+    let cumDelta = 0;
+    const monthlyWithSim = monthlyData.map(m => {
+      cumDelta += m.monthlyDelta;
+      return {
+        ...m,
+        simTreasury: m.baseTreasury - cumDelta,
+        simCashFlow: m.baseCashFlow - m.monthlyDelta,
+      };
+    });
+
     return {
       data: withCash,
+      monthlyData: monthlyWithSim,
       totalDeltaCost: withCash.reduce((s, d) => s + d.delta, 0),
       baseBreakEven: withCash.find(d => d.baseEbitda > 0)?.year || null,
       simBreakEven: withCash.find(d => d.simEbitda > 0)?.year || null,
       endCashDelta: withCash[withCash.length - 1]?.cashDelta || 0,
-      minSimCash: Math.min(...withCash.map(d => d.simCash)),
+      minSimCash: Math.min(...monthlyWithSim.map(d => d.simTreasury)),
     };
   }, [selectedRole, simSalary, variableComp, computed, years, state.scenarioSettings, state.fundingRounds]);
 
@@ -441,7 +470,59 @@ export function HiringSimulator() {
             </div>
           </SectionCard>
 
-          {/* P&L Table */}
+          {/* Monthly Treasury Projection */}
+          <SectionCard title="Prévisionnel de Trésorerie Mensuel (impact simulation)">
+            <div className="h-96">
+              <ResponsiveContainer width="100%" height="100%">
+                <ComposedChart data={simulation.monthlyData}>
+                  <defs>
+                    <linearGradient id="gradMonthlyBase" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="hsl(var(--muted-foreground))" stopOpacity={0.12} />
+                      <stop offset="100%" stopColor="hsl(var(--muted-foreground))" stopOpacity={0} />
+                    </linearGradient>
+                    <linearGradient id="gradMonthlySim" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="hsl(210, 100%, 55%)" stopOpacity={0.25} />
+                      <stop offset="100%" stopColor="hsl(210, 100%, 55%)" stopOpacity={0.02} />
+                    </linearGradient>
+                    <linearGradient id="gradCfBar" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="hsl(160, 70%, 45%)" stopOpacity={0.7} />
+                      <stop offset="100%" stopColor="hsl(160, 70%, 45%)" stopOpacity={0.3} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" className="opacity-15" />
+                  <XAxis
+                    dataKey="monthKey"
+                    tick={{ fontSize: 9 }}
+                    interval={2}
+                    angle={-45}
+                    textAnchor="end"
+                    height={50}
+                  />
+                  <YAxis
+                    yAxisId="treasury"
+                    tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`}
+                    tick={{ fontSize: 11 }}
+                  />
+                  <YAxis
+                    yAxisId="cashflow"
+                    orientation="right"
+                    tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`}
+                    tick={{ fontSize: 11 }}
+                  />
+                  <Tooltip
+                    formatter={(value: number, name: string) => [formatCurrency(value, true), name]}
+                    contentStyle={{ borderRadius: 8, border: '1px solid hsl(var(--border))', background: 'hsl(var(--popover))', fontSize: 12 }}
+                    labelStyle={{ fontSize: 11, fontWeight: 600 }}
+                  />
+                  <Legend wrapperStyle={{ fontSize: 11 }} />
+                  <ReferenceLine yAxisId="treasury" y={0} stroke="hsl(var(--destructive))" strokeDasharray="4 4" strokeOpacity={0.5} />
+                  <Area yAxisId="treasury" type="monotone" dataKey="baseTreasury" name="Trésorerie Plan" stroke="hsl(var(--muted-foreground))" strokeWidth={1.5} strokeDasharray="4 4" fill="url(#gradMonthlyBase)" dot={false} />
+                  <Area yAxisId="treasury" type="monotone" dataKey="simTreasury" name="Trésorerie Simulée" stroke="hsl(210, 100%, 55%)" strokeWidth={2} fill="url(#gradMonthlySim)" dot={false} />
+                  <Bar yAxisId="cashflow" dataKey="simCashFlow" name="Cash Flow Simulé" fill="url(#gradCfBar)" radius={[2, 2, 0, 0]} opacity={0.6} />
+                </ComposedChart>
+              </ResponsiveContainer>
+            </div>
+          </SectionCard>
           <SectionCard title="Synthèse P&L Simulé">
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
