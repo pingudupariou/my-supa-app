@@ -12,7 +12,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
 import {
-  BarChart, Bar, AreaChart, Area, ComposedChart, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, ReferenceLine,
+  BarChart, Bar, AreaChart, Area, ComposedChart, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, ReferenceLine, LabelList,
 } from 'recharts';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 
@@ -477,7 +477,7 @@ export function HiringSimulator() {
 
         {/* Chart: Total remuneration vs CA evolution */}
         <SectionCard title={`Évolution rémunération totale vs ${variableComp.basis === 'ca' ? 'CA' : 'Marge brute'}`}>
-          <div className="h-72">
+          <div className="h-80">
             <ResponsiveContainer width="100%" height="100%">
               <ComposedChart data={(() => {
                 return years.map((year, i) => {
@@ -494,7 +494,7 @@ export function HiringSimulator() {
                     total: (annualLoaded + varAnnual) / 1000,
                   };
                 });
-              })()}>
+              })()} margin={{ top: 25, right: 10, left: 10, bottom: 5 }}>
                 <CartesianGrid strokeDasharray="3 3" className="opacity-20" />
                 <XAxis dataKey="year" tick={{ fontSize: 12 }} />
                 <YAxis yAxisId="rem" tickFormatter={(v) => `${v.toFixed(0)}k€`} tick={{ fontSize: 11 }} />
@@ -504,9 +504,16 @@ export function HiringSimulator() {
                   contentStyle={{ borderRadius: 8, border: '1px solid hsl(var(--border))', background: 'hsl(var(--popover))' }}
                 />
                 <Legend />
-                <Bar yAxisId="rem" dataKey="fixe" name="Fixe chargé" stackId="rem" fill="hsl(var(--primary))" radius={[0, 0, 0, 0]} opacity={0.7} />
-                <Bar yAxisId="rem" dataKey="variable" name={variableComp.name} stackId="rem" fill="hsl(35, 90%, 55%)" radius={[4, 4, 0, 0]} opacity={0.85} />
-                <Area yAxisId="basis" type="monotone" dataKey="basis" name={variableComp.basis === 'ca' ? 'CA' : 'Marge brute'} stroke="hsl(var(--muted-foreground))" strokeWidth={2} strokeDasharray="5 5" fill="none" dot={{ r: 3, fill: 'hsl(var(--muted-foreground))' }} />
+                <Bar yAxisId="rem" dataKey="fixe" name="Fixe chargé" stackId="rem" fill="hsl(var(--primary))" radius={[0, 0, 0, 0]} opacity={0.7}>
+                  <LabelList dataKey="fixe" position="center" formatter={(v: number) => `${v.toFixed(0)}k€`} style={{ fontSize: 10, fill: 'white', fontWeight: 600 }} />
+                </Bar>
+                <Bar yAxisId="rem" dataKey="variable" name={variableComp.name} stackId="rem" fill="hsl(35, 90%, 55%)" radius={[4, 4, 0, 0]} opacity={0.85}>
+                  <LabelList dataKey="variable" position="center" formatter={(v: number) => v > 0 ? `${v.toFixed(0)}k€` : ''} style={{ fontSize: 10, fill: 'white', fontWeight: 600 }} />
+                  <LabelList dataKey="total" position="top" formatter={(v: number) => `Total: ${v.toFixed(0)}k€`} style={{ fontSize: 9, fill: 'hsl(var(--muted-foreground))', fontWeight: 500 }} />
+                </Bar>
+                <Area yAxisId="basis" type="monotone" dataKey="basis" name={variableComp.basis === 'ca' ? 'CA' : 'Marge brute'} stroke="hsl(var(--muted-foreground))" strokeWidth={2} strokeDasharray="5 5" fill="none" dot={{ r: 3, fill: 'hsl(var(--muted-foreground))' }}>
+                  <LabelList dataKey="basis" position="top" formatter={(v: number) => `${v.toFixed(0)}k€`} style={{ fontSize: 9, fill: 'hsl(var(--muted-foreground))', fontWeight: 500 }} />
+                </Area>
               </ComposedChart>
             </ResponsiveContainer>
           </div>
