@@ -1,5 +1,8 @@
-import { useMemo } from 'react';
-import { useFinancial, HiringSimulationConfig } from '@/context/FinancialContext';
+import { useMemo, useCallback } from 'react';
+import { useFinancial, HiringSimulationConfig, VariableThreshold } from '@/context/FinancialContext';
+import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Plus, Trash2 } from 'lucide-react';
 import { SectionCard, KPICard } from '@/components/ui/KPICard';
 import { Slider } from '@/components/ui/slider';
 import { Label } from '@/components/ui/label';
@@ -30,7 +33,27 @@ interface VariableComp {
   enabled: boolean;
   name: string;
   basis: VariableBasis;
-  percentOfBasis: number; // % of CA or gross margin
+  percentOfBasis: number;
+  useThresholds: boolean;
+  thresholds: VariableThreshold[];
+}
+
+/** Calculate variable loaded amount based on thresholds or flat % */
+function calcVariableLoaded(vc: VariableComp, basisValue: number): number {
+  if (!vc.enabled) return 0;
+  if (!vc.useThresholds) return basisValue * (vc.percentOfBasis / 100);
+
+  // Threshold mode: sorted ascending. For each tier, apply % to the slice of basis above that threshold (up to next threshold).
+  const sorted = [...vc.thresholds].sort((a, b) => a.thresholdAmount - b.thresholdAmount);
+  let total = 0;
+  for (let i = 0; i < sorted.length; i++) {
+    const lower = sorted[i].thresholdAmount;
+    const upper = i < sorted.length - 1 ? sorted[i + 1].thresholdAmount : Infinity;
+    if (basisValue <= lower) break;
+    const slice = Math.min(basisValue, upper) - lower;
+    total += slice * (sorted[i].percentOfBasis / 100);
+  }
+  return total;
 }
 
 export function HiringSimulator() {
@@ -64,13 +87,12 @@ export function HiringSimulator() {
   const monthlyNet = monthlyBrut * coefNet;
   const annualNet = monthlyNet * 12;
 
-  // Variable comp: indexed on current year CA or gross margin
-  // We use year 0 (current/first year) as reference for the summary display
+  // Variable comp
   const currentYearRev = computed.revenueByYear[0]?.revenue || 0;
   const currentYearCogs = computed.revenueByYear[0]?.cogs || 0;
   const currentYearGM = currentYearRev - currentYearCogs;
   const variableBasisValue = variableComp.basis === 'ca' ? currentYearRev : currentYearGM;
-  const variableAnnualLoaded = variableComp.enabled ? variableBasisValue * (variableComp.percentOfBasis / 100) : 0;
+  const variableAnnualLoaded = calcVariableLoaded(variableComp, variableBasisValue);
   const variableAnnualBrut = variableAnnualLoaded / coefCharges;
   const variableAnnualNet = variableAnnualBrut * coefNet;
   const variableMonthlyBrut = variableAnnualBrut / 12;
@@ -116,9 +138,9 @@ export function HiringSimulator() {
       const fixedDelta = roleActive ? (simSalary - selectedRole.annualCostLoaded) : 0;
 
       let variableCost = 0;
-      if (variableComp.enabled && roleActive) {
+      if (roleActive) {
         const basis = variableComp.basis === 'ca' ? rev : grossMargin;
-        variableCost = basis * (variableComp.percentOfBasis / 100);
+        variableCost = calcVariableLoaded(variableComp, basis);
       }
 
       const totalDelta = fixedDelta + variableCost;
@@ -161,12 +183,12 @@ export function HiringSimulator() {
       const roleActive = selectedRole.startYear <= m.year;
       const annualDelta = roleActive ? (simSalary - selectedRole.annualCostLoaded) : 0;
       let monthlyVariable = 0;
-      if (variableComp.enabled && roleActive) {
+      if (roleActive) {
         const agg = aggregated.get(m.year);
         const yearRev = agg?.revenue || 0;
         const yearGM = agg?.grossMargin || 0;
         const basis = variableComp.basis === 'ca' ? yearRev : yearGM;
-        monthlyVariable = (basis * (variableComp.percentOfBasis / 100)) / 12;
+        monthlyVariable = calcVariableLoaded(variableComp, basis) / 12;
       }
       const monthlyDelta = (annualDelta / 12) + monthlyVariable;
       return {
@@ -416,7 +438,7 @@ export function HiringSimulator() {
 
           {variableComp.enabled && (
             <>
-              <div className="grid md:grid-cols-3 gap-4 p-4 rounded-lg border border-border bg-muted/10">
+              <div className="grid md:grid-cols-2 gap-4 p-4 rounded-lg border border-border bg-muted/10">
                 <div className="space-y-2">
                   <Label className="text-xs text-muted-foreground">Nom du dispositif</Label>
                   <Input
@@ -438,7 +460,24 @@ export function HiringSimulator() {
                     <ToggleGroupItem value="marge_brute" className="text-xs">Marge brute</ToggleGroupItem>
                   </ToggleGroup>
                 </div>
-                <div className="space-y-2">
+              </div>
+
+              {/* Mode toggle: flat % vs thresholds */}
+              <div className="flex items-center gap-3 p-3 rounded-lg border border-border bg-muted/10">
+                <Checkbox
+                  id="use-thresholds"
+                  checked={variableComp.useThresholds}
+                  onCheckedChange={(v) => update({ variableComp: { ...variableComp, useThresholds: !!v } })}
+                />
+                <label htmlFor="use-thresholds" className="text-sm cursor-pointer">
+                  <span className="font-medium">Mode par seuils</span>
+                  <span className="text-muted-foreground ml-1 text-xs">— % variable différent selon le niveau de {variableComp.basis === 'ca' ? 'CA' : 'marge'} atteint</span>
+                </label>
+              </div>
+
+              {/* Flat % mode */}
+              {!variableComp.useThresholds && (
+                <div className="p-4 rounded-lg border border-border bg-muted/10 space-y-2">
                   <Label className="text-xs text-muted-foreground">
                     % {variableComp.basis === 'ca' ? 'du CA' : 'de la marge brute'} : <span className="font-mono-numbers text-primary">{variableComp.percentOfBasis}%</span>
                   </Label>
@@ -454,11 +493,95 @@ export function HiringSimulator() {
                     <span>20%</span>
                   </div>
                 </div>
-              </div>
+              )}
+
+              {/* Threshold mode */}
+              {variableComp.useThresholds && (
+                <div className="p-4 rounded-lg border border-border bg-muted/10 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-sm font-medium">Paliers de rémunération variable</Label>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        const newTh: VariableThreshold = {
+                          id: `th-${Date.now()}`,
+                          thresholdAmount: (variableComp.thresholds.length > 0
+                            ? Math.max(...variableComp.thresholds.map(t => t.thresholdAmount)) + 100000
+                            : 100000),
+                          percentOfBasis: 1,
+                        };
+                        update({ variableComp: { ...variableComp, thresholds: [...variableComp.thresholds, newTh] } });
+                      }}
+                    >
+                      <Plus className="h-3.5 w-3.5 mr-1" />
+                      Ajouter un seuil
+                    </Button>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Chaque seuil définit un % appliqué sur la tranche de {variableComp.basis === 'ca' ? 'CA' : 'marge'} entre ce seuil et le suivant.
+                  </p>
+                  <div className="space-y-2">
+                    {[...variableComp.thresholds]
+                      .sort((a, b) => a.thresholdAmount - b.thresholdAmount)
+                      .map((th, idx) => (
+                      <div key={th.id} className="flex items-center gap-3 p-2 rounded border border-border/50 bg-background">
+                        <span className="text-xs text-muted-foreground w-6 text-center font-medium">{idx + 1}</span>
+                        <div className="flex-1 space-y-1">
+                          <Label className="text-[10px] text-muted-foreground">Seuil (€)</Label>
+                          <Input
+                            type="number"
+                            value={th.thresholdAmount}
+                            onChange={(e) => {
+                              const updated = variableComp.thresholds.map(t =>
+                                t.id === th.id ? { ...t, thresholdAmount: Number(e.target.value) } : t
+                              );
+                              update({ variableComp: { ...variableComp, thresholds: updated } });
+                            }}
+                            className="h-7 text-sm"
+                            step={10000}
+                          />
+                        </div>
+                        <div className="w-24 space-y-1">
+                          <Label className="text-[10px] text-muted-foreground">% variable</Label>
+                          <Input
+                            type="number"
+                            value={th.percentOfBasis}
+                            onChange={(e) => {
+                              const updated = variableComp.thresholds.map(t =>
+                                t.id === th.id ? { ...t, percentOfBasis: Number(e.target.value) } : t
+                              );
+                              update({ variableComp: { ...variableComp, thresholds: updated } });
+                            }}
+                            className="h-7 text-sm"
+                            step={0.5}
+                            min={0}
+                            max={50}
+                          />
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 w-7 p-0 text-destructive hover:text-destructive"
+                          onClick={() => {
+                            const updated = variableComp.thresholds.filter(t => t.id !== th.id);
+                            update({ variableComp: { ...variableComp, thresholds: updated } });
+                          }}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    ))}
+                    {variableComp.thresholds.length === 0 && (
+                      <p className="text-xs text-muted-foreground text-center py-3">Aucun seuil défini. Ajoutez-en un pour commencer.</p>
+                    )}
+                  </div>
+                </div>
+              )}
 
               {/* Variable breakdown */}
               <div className="p-4 rounded-lg border border-border bg-muted/10 space-y-3">
-                <div className="text-sm font-medium">{variableComp.name} — Décomposition</div>
+                <div className="text-sm font-medium">{variableComp.name} — Décomposition (année 1)</div>
                 <div className="grid grid-cols-3 gap-2">
                   <div className="p-2.5 rounded-lg bg-primary/5 border border-primary/20 text-center">
                     <div className="text-[10px] text-muted-foreground uppercase tracking-wider">Brut chargé / an</div>
@@ -502,7 +625,7 @@ export function HiringSimulator() {
                   const cogs = computed.revenueByYear[i]?.cogs || 0;
                   const gm = rev - cogs;
                   const basis = variableComp.basis === 'ca' ? rev : gm;
-                  const varLoaded = basis * (variableComp.percentOfBasis / 100);
+                  const varLoaded = calcVariableLoaded(variableComp, basis);
                   const varBrut = varLoaded / coefCharges;
                   const varNet = varBrut * coefNet;
                   const totLoaded = annualLoaded + varLoaded;
@@ -535,7 +658,7 @@ export function HiringSimulator() {
                   const cogs = computed.revenueByYear[i]?.cogs || 0;
                   const gm = rev - cogs;
                   const basis = variableComp.basis === 'ca' ? rev : gm;
-                  const varAnnual = variableComp.enabled ? basis * (variableComp.percentOfBasis / 100) : 0;
+                  const varAnnual = calcVariableLoaded(variableComp, basis);
                   return {
                     year,
                     basis: basis / 1000,
