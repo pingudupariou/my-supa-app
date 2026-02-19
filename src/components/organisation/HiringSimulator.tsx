@@ -506,12 +506,12 @@ export function HiringSimulator() {
                       onClick={() => {
                         const newTh: VariableThreshold = {
                           id: `th-${Date.now()}`,
-                          thresholdAmount: (variableComp.thresholds.length > 0
-                            ? Math.max(...variableComp.thresholds.map(t => t.thresholdAmount)) + 100000
+                        thresholdAmount: ((variableComp.thresholds ?? []).length > 0
+                            ? Math.max(...(variableComp.thresholds ?? []).map(t => t.thresholdAmount)) + 100000
                             : 100000),
                           percentOfBasis: 1,
                         };
-                        update({ variableComp: { ...variableComp, thresholds: [...variableComp.thresholds, newTh] } });
+                        update({ variableComp: { ...variableComp, thresholds: [...(variableComp.thresholds ?? []), newTh] } });
                       }}
                     >
                       <Plus className="h-3.5 w-3.5 mr-1" />
@@ -522,7 +522,7 @@ export function HiringSimulator() {
                     Chaque seuil définit un % appliqué sur la tranche de {variableComp.basis === 'ca' ? 'CA' : 'marge'} entre ce seuil et le suivant.
                   </p>
                   <div className="space-y-2">
-                    {[...variableComp.thresholds]
+                    {[...(variableComp.thresholds ?? [])]
                       .sort((a, b) => a.thresholdAmount - b.thresholdAmount)
                       .map((th, idx) => (
                       <div key={th.id} className="flex items-center gap-3 p-2 rounded border border-border/50 bg-background">
@@ -533,7 +533,7 @@ export function HiringSimulator() {
                             type="number"
                             value={th.thresholdAmount}
                             onChange={(e) => {
-                              const updated = variableComp.thresholds.map(t =>
+                              const updated = (variableComp.thresholds ?? []).map(t =>
                                 t.id === th.id ? { ...t, thresholdAmount: Number(e.target.value) } : t
                               );
                               update({ variableComp: { ...variableComp, thresholds: updated } });
@@ -548,7 +548,7 @@ export function HiringSimulator() {
                             type="number"
                             value={th.percentOfBasis}
                             onChange={(e) => {
-                              const updated = variableComp.thresholds.map(t =>
+                              const updated = (variableComp.thresholds ?? []).map(t =>
                                 t.id === th.id ? { ...t, percentOfBasis: Number(e.target.value) } : t
                               );
                               update({ variableComp: { ...variableComp, thresholds: updated } });
@@ -564,7 +564,7 @@ export function HiringSimulator() {
                           size="sm"
                           className="h-7 w-7 p-0 text-destructive hover:text-destructive"
                           onClick={() => {
-                            const updated = variableComp.thresholds.filter(t => t.id !== th.id);
+                            const updated = (variableComp.thresholds ?? []).filter(t => t.id !== th.id);
                             update({ variableComp: { ...variableComp, thresholds: updated } });
                           }}
                         >
@@ -572,7 +572,7 @@ export function HiringSimulator() {
                         </Button>
                       </div>
                     ))}
-                    {variableComp.thresholds.length === 0 && (
+                    {(variableComp.thresholds ?? []).length === 0 && (
                       <p className="text-xs text-muted-foreground text-center py-3">Aucun seuil défini. Ajoutez-en un pour commencer.</p>
                     )}
                   </div>
