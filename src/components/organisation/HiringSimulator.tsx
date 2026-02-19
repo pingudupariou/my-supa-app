@@ -222,6 +222,57 @@ export function HiringSimulator() {
         </Badge>
       </div>
 
+      {/* Plan Produit — CA & Marge overview */}
+      <SectionCard title="Plan Produit — Évolution CA & Marge Brute">
+        <div className="grid md:grid-cols-2 gap-6">
+          {/* KPIs row */}
+          <div className="grid grid-cols-2 gap-3">
+            {years.map((year, i) => {
+              const rev = computed.revenueByYear[i]?.revenue || 0;
+              const cogs = computed.revenueByYear[i]?.cogs || 0;
+              const gm = rev - cogs;
+              const gmRate = rev > 0 ? (gm / rev) * 100 : 0;
+              return (
+                <div key={year} className="p-3 rounded-lg border border-border bg-muted/20 text-center">
+                  <div className="text-xs text-muted-foreground font-medium">{year}</div>
+                  <div className="text-sm font-bold font-mono-numbers">{formatCurrency(rev, true)}</div>
+                  <div className="text-xs text-muted-foreground">
+                    Marge : <span className="font-mono-numbers font-semibold">{formatCurrency(gm, true)}</span>
+                    <span className="ml-1">({gmRate.toFixed(1)}%)</span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          {/* Chart */}
+          <div className="h-56">
+            <ResponsiveContainer width="100%" height="100%">
+              <ComposedChart data={years.map((year, i) => {
+                const rev = computed.revenueByYear[i]?.revenue || 0;
+                const cogs = computed.revenueByYear[i]?.cogs || 0;
+                const gm = rev - cogs;
+                return { year, ca: rev / 1000, marge: gm / 1000 };
+              })} margin={{ top: 15, right: 10, left: 10, bottom: 5 }}>
+                <CartesianGrid strokeDasharray="3 3" className="opacity-20" />
+                <XAxis dataKey="year" tick={{ fontSize: 12 }} />
+                <YAxis tickFormatter={(v) => `${v.toFixed(0)}k€`} tick={{ fontSize: 11 }} />
+                <Tooltip
+                  formatter={(value: number, name: string) => [`${value.toFixed(0)}k€`, name]}
+                  contentStyle={{ borderRadius: 8, border: '1px solid hsl(var(--border))', background: 'hsl(var(--popover))' }}
+                />
+                <Legend />
+                <Bar dataKey="ca" name="Chiffre d'affaires" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} opacity={0.7}>
+                  <LabelList dataKey="ca" position="top" formatter={(v: number) => `${v.toFixed(0)}k€`} style={{ fontSize: 10, fill: 'hsl(var(--foreground))', fontWeight: 600 }} />
+                </Bar>
+                <Area type="monotone" dataKey="marge" name="Marge brute" stroke="hsl(160, 70%, 45%)" strokeWidth={2.5} fill="hsl(160, 70%, 45%)" fillOpacity={0.1} dot={{ r: 4, fill: 'hsl(160, 70%, 45%)' }}>
+                  <LabelList dataKey="marge" position="top" formatter={(v: number) => `${v.toFixed(0)}k€`} style={{ fontSize: 10, fill: 'hsl(160, 70%, 45%)', fontWeight: 600 }} />
+                </Area>
+              </ComposedChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      </SectionCard>
+
       {/* Controls */}
       <SectionCard title="Paramètres de simulation">
         <div className="grid md:grid-cols-2 gap-8">
