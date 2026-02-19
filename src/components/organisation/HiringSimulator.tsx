@@ -1,5 +1,5 @@
-import { useState, useMemo } from 'react';
-import { useFinancial } from '@/context/FinancialContext';
+import { useMemo } from 'react';
+import { useFinancial, HiringSimulationConfig } from '@/context/FinancialContext';
 import { SectionCard, KPICard } from '@/components/ui/KPICard';
 import { Slider } from '@/components/ui/slider';
 import { Label } from '@/components/ui/label';
@@ -34,31 +34,24 @@ interface VariableComp {
 }
 
 export function HiringSimulator() {
-  const { state, computed } = useFinancial();
+  const { state, computed, updateHiringSimulation } = useFinancial();
   const { startYear, durationYears } = state.scenarioSettings;
   const years = Array.from({ length: durationYears }, (_, i) => startYear + i);
 
-  const [selectedRoleId, setSelectedRoleId] = useState<string>(state.roles[0]?.id || '');
-  const [salaryOverride, setSalaryOverride] = useState<number | null>(null);
-  const [displayMode, setDisplayMode] = useState<DisplayMode>('annual_loaded');
+  const sim = state.hiringSimulation;
+  const selectedRoleId = sim.selectedRoleId || state.roles[0]?.id || '';
+  const salaryOverride = sim.salaryOverride;
+  const displayMode = sim.displayMode;
+  const coefCharges = sim.coefCharges;
+  const coefNet = sim.coefNet;
+  const variableComp = sim.variableComp;
 
-  // Coefficients for conversion
-  const [coefCharges, setCoefCharges] = useState(1.45); // brut -> chargé
-  const [coefNet, setCoefNet] = useState(0.78); // brut -> net
-
-  // Variable compensation
-  const [variableComp, setVariableComp] = useState<VariableComp>({
-    enabled: false,
-    name: 'PER',
-    basis: 'ca',
-    percentOfBasis: 2,
-  });
+  const update = (patch: Partial<HiringSimulationConfig>) => updateHiringSimulation(patch);
 
   const selectedRole = state.roles.find(r => r.id === selectedRoleId);
 
   const handleRoleChange = (id: string) => {
-    setSelectedRoleId(id);
-    setSalaryOverride(null);
+    update({ selectedRoleId: id, salaryOverride: null });
   };
 
   const simSalary = salaryOverride ?? (selectedRole?.annualCostLoaded || 50000);
@@ -277,7 +270,7 @@ export function HiringSimulator() {
             {/* Display mode toggle */}
             <div className="space-y-2">
               <Label className="text-xs text-muted-foreground">Affichage</Label>
-              <ToggleGroup type="single" value={displayMode} onValueChange={(v) => v && setDisplayMode(v as DisplayMode)} className="justify-start">
+              <ToggleGroup type="single" value={displayMode} onValueChange={(v) => v && update({ displayMode: v as DisplayMode })} className="justify-start">
                 <ToggleGroupItem value="annual_loaded" className="text-xs">Annuel chargé</ToggleGroupItem>
                 <ToggleGroupItem value="monthly_loaded" className="text-xs">Mensuel chargé</ToggleGroupItem>
                 <ToggleGroupItem value="monthly_net" className="text-xs">Mensuel net</ToggleGroupItem>
@@ -291,7 +284,7 @@ export function HiringSimulator() {
               </Label>
               <Slider
                 value={[simSalary]}
-                onValueChange={([v]) => setSalaryOverride(v)}
+                onValueChange={([v]) => update({ salaryOverride: v })}
                 min={20000}
                 max={200000}
                 step={1000}
@@ -309,7 +302,7 @@ export function HiringSimulator() {
                 <Input
                   type="number"
                   value={coefCharges}
-                  onChange={(e) => setCoefCharges(Number(e.target.value) || 1)}
+                  onChange={(e) => update({ coefCharges: Number(e.target.value) || 1 })}
                   step={0.01}
                   min={1}
                   max={2}
@@ -321,7 +314,7 @@ export function HiringSimulator() {
                 <Input
                   type="number"
                   value={coefNet}
-                  onChange={(e) => setCoefNet(Number(e.target.value) || 0.78)}
+                  onChange={(e) => update({ coefNet: Number(e.target.value) || 0.78 })}
                   step={0.01}
                   min={0.5}
                   max={1}
@@ -367,7 +360,7 @@ export function HiringSimulator() {
               <Label className="text-sm font-medium">Activer une part variable</Label>
               <p className="text-xs text-muted-foreground">Bonus indexé sur le CA ou la marge brute</p>
             </div>
-            <Switch checked={variableComp.enabled} onCheckedChange={(v) => setVariableComp(prev => ({ ...prev, enabled: v }))} />
+            <Switch checked={variableComp.enabled} onCheckedChange={(v) => update({ variableComp: { ...variableComp, enabled: v } })} />
           </div>
 
           {variableComp.enabled && (
@@ -377,7 +370,7 @@ export function HiringSimulator() {
                   <Label className="text-xs text-muted-foreground">Nom du dispositif</Label>
                   <Input
                     value={variableComp.name}
-                    onChange={(e) => setVariableComp(prev => ({ ...prev, name: e.target.value }))}
+                    onChange={(e) => update({ variableComp: { ...variableComp, name: e.target.value } })}
                     placeholder="ex: PER, Bonus, Commission"
                     className="h-8 text-sm"
                   />
@@ -387,7 +380,7 @@ export function HiringSimulator() {
                   <ToggleGroup
                     type="single"
                     value={variableComp.basis}
-                    onValueChange={(v) => v && setVariableComp(prev => ({ ...prev, basis: v as VariableBasis }))}
+                    onValueChange={(v) => v && update({ variableComp: { ...variableComp, basis: v as VariableBasis } })}
                     className="justify-start"
                   >
                     <ToggleGroupItem value="ca" className="text-xs">Chiffre d'affaires</ToggleGroupItem>
@@ -400,7 +393,7 @@ export function HiringSimulator() {
                   </Label>
                   <Slider
                     value={[variableComp.percentOfBasis]}
-                    onValueChange={([v]) => setVariableComp(prev => ({ ...prev, percentOfBasis: v }))}
+                    onValueChange={([v]) => update({ variableComp: { ...variableComp, percentOfBasis: v } })}
                     min={0}
                     max={20}
                     step={0.5}
