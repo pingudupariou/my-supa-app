@@ -482,47 +482,46 @@ export function HiringSimulator() {
       {/* Total salary recap (fixe + variable) */}
       {variableComp.enabled && (
         <>
-        <SectionCard title="Récapitulatif rémunération totale (fixe + variable)">
+        <SectionCard title="Récapitulatif rémunération totale (fixe + variable) par année">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border">
-                  <th className="text-left p-2 text-muted-foreground font-medium"></th>
-                  <th className="text-right p-2 text-muted-foreground font-medium">Annuel chargé</th>
+                  <th className="text-left p-2 text-muted-foreground font-medium">Année</th>
+                  <th className="text-right p-2 text-muted-foreground font-medium">{variableComp.basis === 'ca' ? 'CA' : 'Marge brute'}</th>
+                  <th className="text-right p-2 text-muted-foreground font-medium">Fixe chargé</th>
+                  <th className="text-right p-2 text-muted-foreground font-medium">{variableComp.name}</th>
+                  <th className="text-right p-2 text-muted-foreground font-medium">Total chargé</th>
                   <th className="text-right p-2 text-muted-foreground font-medium">Mensuel brut</th>
                   <th className="text-right p-2 text-muted-foreground font-medium">Mensuel net</th>
                 </tr>
               </thead>
               <tbody>
-                <tr className="border-b border-border/50">
-                  <td className="p-2 font-medium">Fixe</td>
-                  <td className="p-2 text-right font-mono-numbers">{formatCurrency(annualLoaded)}</td>
-                  <td className="p-2 text-right font-mono-numbers">{formatCurrency(monthlyBrut)}</td>
-                  <td className="p-2 text-right font-mono-numbers">{formatCurrency(monthlyNet)}</td>
-                </tr>
-                <tr className="border-b border-border/50">
-                  <td className="p-2 font-medium">{variableComp.name}</td>
-                  <td className="p-2 text-right font-mono-numbers">{formatCurrency(variableAnnualLoaded)}</td>
-                  <td className="p-2 text-right font-mono-numbers">{formatCurrency(variableMonthlyBrut)}</td>
-                  <td className="p-2 text-right font-mono-numbers">{formatCurrency(variableMonthlyNet)}</td>
-                </tr>
-                <tr className="bg-primary/5 font-bold">
-                  <td className="p-2">Total</td>
-                  <td className="p-2 text-right font-mono-numbers text-primary">{formatCurrency(totalAnnualLoaded)}</td>
-                  <td className="p-2 text-right font-mono-numbers">{formatCurrency(totalMonthlyBrut)}</td>
-                  <td className="p-2 text-right font-mono-numbers">{formatCurrency(totalMonthlyNet)}</td>
-                </tr>
+                {years.map((year, i) => {
+                  const rev = computed.revenueByYear[i]?.revenue || 0;
+                  const cogs = computed.revenueByYear[i]?.cogs || 0;
+                  const gm = rev - cogs;
+                  const basis = variableComp.basis === 'ca' ? rev : gm;
+                  const varLoaded = basis * (variableComp.percentOfBasis / 100);
+                  const varBrut = varLoaded / coefCharges;
+                  const varNet = varBrut * coefNet;
+                  const totLoaded = annualLoaded + varLoaded;
+                  const totBrut = (annualBrut + varBrut) / 12;
+                  const totNet = (annualNet + varNet * 12) / 12;
+                  return (
+                    <tr key={year} className="border-b border-border/50 hover:bg-muted/20">
+                      <td className="p-2 font-semibold">{year}</td>
+                      <td className="p-2 text-right font-mono-numbers text-muted-foreground">{formatCurrency(basis, true)}</td>
+                      <td className="p-2 text-right font-mono-numbers">{formatCurrency(annualLoaded, true)}</td>
+                      <td className="p-2 text-right font-mono-numbers text-amber-700 dark:text-amber-400">{formatCurrency(varLoaded, true)}</td>
+                      <td className="p-2 text-right font-mono-numbers font-bold text-primary">{formatCurrency(totLoaded, true)}</td>
+                      <td className="p-2 text-right font-mono-numbers">{formatCurrency(totBrut)}</td>
+                      <td className="p-2 text-right font-mono-numbers">{formatCurrency(totNet)}</td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
-          </div>
-          {/* Reference basis indicator */}
-          <div className="mt-4 p-3 rounded-lg border border-border bg-muted/20 flex items-center justify-between">
-            <span className="text-sm text-muted-foreground">
-              Base de calcul variable ({variableComp.basis === 'ca' ? 'CA' : 'Marge brute'} — {years[0]})
-            </span>
-            <span className="text-lg font-bold font-mono-numbers text-primary">
-              {formatCurrency(variableBasisValue, true)}
-            </span>
           </div>
         </SectionCard>
 
