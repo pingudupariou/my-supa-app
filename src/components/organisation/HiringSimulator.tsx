@@ -505,14 +505,14 @@ export function HiringSimulator() {
                 />
                 <Legend />
                 <Bar yAxisId="rem" dataKey="fixe" name="Fixe chargé" stackId="rem" fill="hsl(var(--primary))" radius={[0, 0, 0, 0]} opacity={0.7}>
-                  <LabelList dataKey="fixe" position="center" formatter={(v: number) => `${v.toFixed(0)}k€`} style={{ fontSize: 10, fill: 'white', fontWeight: 600 }} />
+                  <LabelList dataKey="fixe" position="center" formatter={(v: number) => `${v.toFixed(0)}k€`} style={{ fontSize: 11, fill: 'white', fontWeight: 700 }} />
                 </Bar>
                 <Bar yAxisId="rem" dataKey="variable" name={variableComp.name} stackId="rem" fill="hsl(35, 90%, 55%)" radius={[4, 4, 0, 0]} opacity={0.85}>
-                  <LabelList dataKey="variable" position="center" formatter={(v: number) => v > 0 ? `${v.toFixed(0)}k€` : ''} style={{ fontSize: 10, fill: 'white', fontWeight: 600 }} />
-                  <LabelList dataKey="total" position="top" formatter={(v: number) => `Total: ${v.toFixed(0)}k€`} style={{ fontSize: 9, fill: 'hsl(var(--muted-foreground))', fontWeight: 500 }} />
+                  <LabelList dataKey="variable" position="center" formatter={(v: number) => v > 0 ? `${v.toFixed(0)}k€` : ''} style={{ fontSize: 11, fill: 'white', fontWeight: 700 }} />
+                  <LabelList dataKey="total" position="top" formatter={(v: number) => `Total: ${v.toFixed(0)}k€`} style={{ fontSize: 11, fill: 'hsl(var(--foreground))', fontWeight: 700 }} />
                 </Bar>
-                <Area yAxisId="basis" type="monotone" dataKey="basis" name={variableComp.basis === 'ca' ? 'CA' : 'Marge brute'} stroke="hsl(var(--muted-foreground))" strokeWidth={2} strokeDasharray="5 5" fill="none" dot={{ r: 3, fill: 'hsl(var(--muted-foreground))' }}>
-                  <LabelList dataKey="basis" position="top" formatter={(v: number) => `${v.toFixed(0)}k€`} style={{ fontSize: 9, fill: 'hsl(var(--muted-foreground))', fontWeight: 500 }} />
+                <Area yAxisId="basis" type="monotone" dataKey="basis" name={variableComp.basis === 'ca' ? 'CA' : 'Marge brute'} stroke="hsl(var(--muted-foreground))" strokeWidth={2} strokeDasharray="5 5" fill="none" dot={{ r: 4, fill: 'hsl(var(--foreground))' }}>
+                  <LabelList dataKey="basis" position="top" formatter={(v: number) => `${v.toFixed(0)}k€`} style={{ fontSize: 12, fill: 'hsl(var(--foreground))', fontWeight: 700 }} />
                 </Area>
               </ComposedChart>
             </ResponsiveContainer>
