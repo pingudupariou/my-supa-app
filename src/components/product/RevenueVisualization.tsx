@@ -4,6 +4,7 @@ import { SectionCard } from '@/components/ui/KPICard';
 import { formatCurrency } from '@/data/financialConfig';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, PieChart, Pie, Cell } from 'recharts';
 import { Button } from '@/components/ui/button';
+import { useFinancial } from '@/context/FinancialContext';
 
 type ViewMode = 'by-product' | 'by-channel';
 
@@ -21,17 +22,20 @@ const PRODUCT_COLORS = ['hsl(var(--primary))', 'hsl(var(--accent))', 'hsl(150, 6
 
 export function RevenueVisualization({ products, years }: RevenueVisualizationProps) {
   const [viewMode, setViewMode] = useState<ViewMode>('by-product');
+  const { computed, state } = useFinancial();
+  const config = state.scenarioConfigs[state.activeScenarioId];
 
   const dataByProduct = years.map(year => {
     const entry: Record<string, any> = { year };
     products.forEach(p => {
       if (p.volumesByChannel) {
-        const volB2C = p.volumesByChannel.B2C[year] || 0;
-        const volB2B = p.volumesByChannel.B2B[year] || 0;
-        const volOEM = p.volumesByChannel.OEM[year] || 0;
-        entry[p.name] = (volB2C * p.priceHT + volB2B * (p.priceHT_B2B || p.priceHT) + volOEM * (p.priceHT_OEM || p.priceHT)) / 1000;
+        const volB2C = Math.round((p.volumesByChannel.B2C[year] || 0) * (1 + config.volumeAdjustment));
+        const volB2B = Math.round((p.volumesByChannel.B2B[year] || 0) * (1 + config.volumeAdjustment));
+        const volOEM = Math.round((p.volumesByChannel.OEM[year] || 0) * (1 + config.volumeAdjustment));
+        entry[p.name] = (volB2C * p.priceHT * (1 + config.priceAdjustment) + volB2B * (p.priceHT_B2B || p.priceHT) * (1 + config.priceAdjustment) + volOEM * (p.priceHT_OEM || p.priceHT) * (1 + config.priceAdjustment)) / 1000;
       } else {
-        entry[p.name] = ((p.volumesByYear[year] || 0) * p.priceHT) / 1000;
+        const vol = Math.round((p.volumesByYear[year] || 0) * (1 + config.volumeAdjustment));
+        entry[p.name] = (vol * p.priceHT * (1 + config.priceAdjustment)) / 1000;
       }
     });
     return entry;
@@ -41,9 +45,12 @@ export function RevenueVisualization({ products, years }: RevenueVisualizationPr
     let b2c = 0, b2b = 0, oem = 0;
     products.forEach(p => {
       const ch = p.volumesByChannel || { B2C: {}, B2B: {}, OEM: {} };
-      b2c += (ch.B2C[year] || 0) * p.priceHT;
-      b2b += (ch.B2B[year] || 0) * (p.priceHT_B2B || p.priceHT);
-      oem += (ch.OEM[year] || 0) * (p.priceHT_OEM || p.priceHT);
+      const volB2C = Math.round((ch.B2C[year] || 0) * (1 + config.volumeAdjustment));
+      const volB2B = Math.round((ch.B2B[year] || 0) * (1 + config.volumeAdjustment));
+      const volOEM = Math.round((ch.OEM[year] || 0) * (1 + config.volumeAdjustment));
+      b2c += volB2C * p.priceHT * (1 + config.priceAdjustment);
+      b2b += volB2B * (p.priceHT_B2B || p.priceHT) * (1 + config.priceAdjustment);
+      oem += volOEM * (p.priceHT_OEM || p.priceHT) * (1 + config.priceAdjustment);
     });
     return { year, B2C: b2c / 1000, B2B: b2b / 1000, OEM: oem / 1000 };
   });
@@ -52,9 +59,12 @@ export function RevenueVisualization({ products, years }: RevenueVisualizationPr
   products.forEach(p => {
     const ch = p.volumesByChannel || { B2C: {}, B2B: {}, OEM: {} };
     years.forEach(year => {
-      totalByChannel.B2C += (ch.B2C[year] || 0) * p.priceHT;
-      totalByChannel.B2B += (ch.B2B[year] || 0) * (p.priceHT_B2B || p.priceHT);
-      totalByChannel.OEM += (ch.OEM[year] || 0) * (p.priceHT_OEM || p.priceHT);
+      const volB2C = Math.round((ch.B2C[year] || 0) * (1 + config.volumeAdjustment));
+      const volB2B = Math.round((ch.B2B[year] || 0) * (1 + config.volumeAdjustment));
+      const volOEM = Math.round((ch.OEM[year] || 0) * (1 + config.volumeAdjustment));
+      totalByChannel.B2C += volB2C * p.priceHT * (1 + config.priceAdjustment);
+      totalByChannel.B2B += volB2B * (p.priceHT_B2B || p.priceHT) * (1 + config.priceAdjustment);
+      totalByChannel.OEM += volOEM * (p.priceHT_OEM || p.priceHT) * (1 + config.priceAdjustment);
     });
   });
   const pieData = (['B2C', 'B2B', 'OEM'] as const).map(ch => ({
