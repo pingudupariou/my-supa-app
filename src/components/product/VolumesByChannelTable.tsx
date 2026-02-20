@@ -7,6 +7,7 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
 import { TrendingUp } from 'lucide-react';
+import { useFinancial } from '@/context/FinancialContext';
 
 interface Props {
   products: Product[];
@@ -17,6 +18,11 @@ interface Props {
 const CHANNELS = ['B2C', 'B2B', 'OEM'] as const;
 
 export function VolumesByChannelTable({ products, years, onChannelVolumeChange }: Props) {
+  const { state } = useFinancial();
+  const config = state.scenarioConfigs[state.activeScenarioId];
+  const volAdj = 1 + config.volumeAdjustment;
+  const priceAdj = 1 + config.priceAdjustment;
+
   // Growth rates per channel (local state, used to auto-fill)
   const [growthRates, setGrowthRates] = useState<Record<string, number>>({
     B2C: 0, B2B: 0, OEM: 0,
@@ -30,7 +36,6 @@ export function VolumesByChannelTable({ products, years, onChannelVolumeChange }
 
     years.forEach((year, i) => {
       if (year < product.launchYear) return;
-      // First eligible year: keep existing volume (user-set base), don't overwrite
       if (i === 0 || years[i - 1] < product.launchYear) return;
       const prevVol = channels[channel][years[i - 1]] || 0;
       const newVol = Math.round(prevVol * (1 + rate));
@@ -41,18 +46,18 @@ export function VolumesByChannelTable({ products, years, onChannelVolumeChange }
     });
   };
 
-  // Compute totals per year per channel
+  // Compute totals per year per channel (with scenario adjustments)
   const yearTotals = years.map(year => {
     let b2c = 0, b2b = 0, oem = 0, caB2C = 0, caB2B = 0, caOEM = 0;
     products.forEach(p => {
       const ch = p.volumesByChannel || { B2C: {}, B2B: {}, OEM: {} };
-      const vB2C = ch.B2C[year] || 0;
-      const vB2B = ch.B2B[year] || 0;
-      const vOEM = ch.OEM[year] || 0;
+      const vB2C = Math.round((ch.B2C[year] || 0) * volAdj);
+      const vB2B = Math.round((ch.B2B[year] || 0) * volAdj);
+      const vOEM = Math.round((ch.OEM[year] || 0) * volAdj);
       b2c += vB2C; b2b += vB2B; oem += vOEM;
-      caB2C += vB2C * p.priceHT;
-      caB2B += vB2B * (p.priceHT_B2B || p.priceHT);
-      caOEM += vOEM * (p.priceHT_OEM || p.priceHT);
+      caB2C += vB2C * p.priceHT * priceAdj;
+      caB2B += vB2B * (p.priceHT_B2B || p.priceHT) * priceAdj;
+      caOEM += vOEM * (p.priceHT_OEM || p.priceHT) * priceAdj;
     });
     return { year, b2c, b2b, oem, caB2C, caB2B, caOEM, caTotal: caB2C + caB2B + caOEM };
   });
@@ -105,10 +110,10 @@ export function VolumesByChannelTable({ products, years, onChannelVolumeChange }
             {products.map((product) => {
               const channels = product.volumesByChannel || { B2C: {}, B2B: {}, OEM: {} };
               const totalRevenue = years.reduce((sum, year) => {
-                const vB2C = channels.B2C[year] || 0;
-                const vB2B = channels.B2B[year] || 0;
-                const vOEM = channels.OEM[year] || 0;
-                return sum + vB2C * product.priceHT + vB2B * (product.priceHT_B2B || product.priceHT) + vOEM * (product.priceHT_OEM || product.priceHT);
+                const vB2C = Math.round((channels.B2C[year] || 0) * volAdj);
+                const vB2B = Math.round((channels.B2B[year] || 0) * volAdj);
+                const vOEM = Math.round((channels.OEM[year] || 0) * volAdj);
+                return sum + vB2C * product.priceHT * priceAdj + vB2B * (product.priceHT_B2B || product.priceHT) * priceAdj + vOEM * (product.priceHT_OEM || product.priceHT) * priceAdj;
               }, 0);
 
               return (
