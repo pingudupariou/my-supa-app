@@ -295,7 +295,7 @@ export function ProductPlanPage() {
                         const volB2C = channels.B2C[year] || 0;
                         const volB2B = channels.B2B[year] || 0;
                         const volOEM = channels.OEM[year] || 0;
-                        return sum + volB2C * product.priceHT + volB2B * (product.priceHT_B2B || 0) + volOEM * (product.priceHT_OEM || 0);
+                        return sum + volB2C * product.priceHT + volB2B * (product.priceHT_B2B || product.priceHT) + volOEM * (product.priceHT_OEM || product.priceHT);
                       }, 0);
 
                       const handleChannelVolume = (channel: 'B2C' | 'B2B' | 'OEM', year: number, volume: number) => {
