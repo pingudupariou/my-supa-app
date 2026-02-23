@@ -414,7 +414,209 @@ export function InvestmentSummaryPage() {
         </div>
       </SectionCard>
 
-      {/* =============== SECTION 4: VALORISATION =============== */}
+      {/* =============== SECTION 4: DÉTAIL CAPEX PRODUITS =============== */}
+      <SectionCard title="Plan d'Investissement CAPEX — Détail par Produit" id="capex-detail">
+        {(() => {
+          const capexProducts = state.products.filter(p => p.devCost > 0);
+          const capexPayments = state.monthlyTreasuryConfig?.capexPayments || [];
+          const years = Array.from({ length: durationYears }, (_, i) => startYear + i);
+          const MONTH_LABELS = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Jun', 'Jul', 'Aoû', 'Sep', 'Oct', 'Nov', 'Déc'];
+
+          if (capexProducts.length === 0) {
+            return (
+              <p className="text-center text-muted-foreground py-6">Aucun produit avec coût de développement (CAPEX R&D).</p>
+            );
+          }
+
+          // Build timeline data per product
+          const productTimelines = capexProducts.map(product => {
+            const payments = capexPayments.filter(p => p.productId === product.id);
+            const totalScheduled = payments.reduce((s, p) => s + p.amount, 0);
+            const scheduledPercent = payments.reduce((s, p) => s + p.percentageOfTotal, 0);
+            const unscheduled = product.devCost - totalScheduled;
+            return { product, payments, totalScheduled, scheduledPercent, unscheduled };
+          });
+
+          const grandTotal = capexProducts.reduce((s, p) => s + p.devCost, 0);
+
+          // Aggregate CAPEX by year
+          const capexByYear = years.map(year => {
+            let total = 0;
+            productTimelines.forEach(({ product, payments }) => {
+              const yearPayments = payments.filter(p => p.year === year);
+              if (yearPayments.length > 0) {
+                total += yearPayments.reduce((s, p) => s + p.amount, 0);
+              } else if (payments.length === 0 && product.launchYear === year) {
+                total += product.devCost;
+              }
+            });
+            return { year, total };
+          });
+
+          return (
+            <div className="space-y-6">
+              {/* Summary bar */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="p-3 rounded-lg bg-muted/50 border text-center">
+                  <div className="text-xs text-muted-foreground mb-1">Nb Projets</div>
+                  <div className="text-2xl font-bold font-mono-numbers">{capexProducts.length}</div>
+                </div>
+                <div className="p-3 rounded-lg bg-primary/10 border border-primary/30 text-center">
+                  <div className="text-xs text-muted-foreground mb-1">Budget Total R&D</div>
+                  <div className="text-2xl font-bold font-mono-numbers text-primary">{formatCurrency(grandTotal, true)}</div>
+                </div>
+                <div className="p-3 rounded-lg bg-muted/50 border text-center">
+                  <div className="text-xs text-muted-foreground mb-1">Planifié</div>
+                  <div className="text-2xl font-bold font-mono-numbers">
+                    {formatCurrency(productTimelines.reduce((s, t) => s + t.totalScheduled, 0), true)}
+                  </div>
+                </div>
+                <div className="p-3 rounded-lg bg-muted/50 border text-center">
+                  <div className="text-xs text-muted-foreground mb-1">Non planifié</div>
+                  <div className="text-2xl font-bold font-mono-numbers text-muted-foreground">
+                    {formatCurrency(productTimelines.reduce((s, t) => s + t.unscheduled, 0), true)}
+                  </div>
+                </div>
+              </div>
+
+              {/* Product detail cards */}
+              <div className="space-y-4">
+                {productTimelines.map(({ product, payments, totalScheduled, scheduledPercent, unscheduled }) => (
+                  <div key={product.id} className="border rounded-lg overflow-hidden">
+                    {/* Product header */}
+                    <div className="flex items-center justify-between px-4 py-3 bg-muted/30">
+                      <div className="flex items-center gap-3">
+                        <div className="h-8 w-8 rounded-md bg-primary/10 flex items-center justify-center">
+                          <Package className="h-4 w-4 text-primary" />
+                        </div>
+                        <div>
+                          <span className="font-semibold">{product.name}</span>
+                          <span className="text-xs text-muted-foreground ml-2">Lancement {product.launchYear}</span>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <span className="text-lg font-bold font-mono-numbers">{formatCurrency(product.devCost, true)}</span>
+                        <Badge variant={scheduledPercent >= 100 ? 'default' : 'secondary'} className="text-xs">
+                          {scheduledPercent.toFixed(0)}% planifié
+                        </Badge>
+                      </div>
+                    </div>
+
+                    {/* Payment schedule */}
+                    {payments.length > 0 ? (
+                      <div className="px-4 py-3">
+                        <table className="w-full text-sm">
+                          <thead>
+                            <tr className="text-xs text-muted-foreground border-b">
+                              <th className="text-left py-2 font-medium">Échéance</th>
+                              <th className="text-right py-2 font-medium">% du total</th>
+                              <th className="text-right py-2 font-medium">Montant</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {payments
+                              .sort((a, b) => a.year - b.year || a.month - b.month)
+                              .map((p, i) => (
+                              <tr key={p.id} className="border-b last:border-0">
+                                <td className="py-2">
+                                  <div className="flex items-center gap-2">
+                                    <div className="h-2 w-2 rounded-full bg-primary" />
+                                    <span className="font-medium">{MONTH_LABELS[p.month]} {p.year}</span>
+                                  </div>
+                                </td>
+                                <td className="py-2 text-right font-mono-numbers">{p.percentageOfTotal}%</td>
+                                <td className="py-2 text-right font-mono-numbers font-medium">{formatCurrency(p.amount, true)}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                          <tfoot>
+                            <tr className="border-t font-semibold text-xs">
+                              <td className="py-2">Total planifié</td>
+                              <td className="py-2 text-right font-mono-numbers">{scheduledPercent.toFixed(0)}%</td>
+                              <td className="py-2 text-right font-mono-numbers">{formatCurrency(totalScheduled, true)}</td>
+                            </tr>
+                          </tfoot>
+                        </table>
+                        {/* Progress bar */}
+                        <div className="mt-2 h-2 bg-muted rounded-full overflow-hidden">
+                          <div
+                            className="h-full bg-primary rounded-full transition-all"
+                            style={{ width: `${Math.min(100, scheduledPercent)}%` }}
+                          />
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="px-4 py-3 text-sm text-muted-foreground italic">
+                        Pas de calendrier défini — CAPEX affecté à l'année de lancement ({product.launchYear})
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              {/* CAPEX par année - tableau récapitulatif */}
+              <div>
+                <h4 className="font-semibold mb-3 text-sm">Répartition CAPEX par Année</h4>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b bg-muted/30">
+                        <th className="text-left py-2 px-3 font-semibold">Année</th>
+                        {years.map(y => (
+                          <th key={y} className="text-right py-2 px-3 font-semibold">{y}</th>
+                        ))}
+                        <th className="text-right py-2 px-3 font-semibold">Total</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {productTimelines.map(({ product, payments }) => (
+                        <tr key={product.id} className="border-b">
+                          <td className="py-2 px-3 font-medium">{product.name}</td>
+                          {years.map(year => {
+                            const yearPayments = payments.filter(p => p.year === year);
+                            let amount = 0;
+                            if (yearPayments.length > 0) {
+                              amount = yearPayments.reduce((s, p) => s + p.amount, 0);
+                            } else if (payments.length === 0 && product.launchYear === year) {
+                              amount = product.devCost;
+                            }
+                            return (
+                              <td key={year} className={cn(
+                                "py-2 px-3 text-right font-mono-numbers",
+                                amount > 0 ? "font-medium" : "text-muted-foreground"
+                              )}>
+                                {amount > 0 ? formatCurrency(amount, true) : '—'}
+                              </td>
+                            );
+                          })}
+                          <td className="py-2 px-3 text-right font-mono-numbers font-semibold">
+                            {formatCurrency(product.devCost, true)}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    <tfoot>
+                      <tr className="border-t-2 bg-muted/30 font-semibold">
+                        <td className="py-2 px-3">TOTAL</td>
+                        {capexByYear.map(({ year, total }) => (
+                          <td key={year} className="py-2 px-3 text-right font-mono-numbers">
+                            {total > 0 ? formatCurrency(total, true) : '—'}
+                          </td>
+                        ))}
+                        <td className="py-2 px-3 text-right font-mono-numbers text-primary">
+                          {formatCurrency(grandTotal, true)}
+                        </td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
+      </SectionCard>
+
+      {/* =============== SECTION 5: VALORISATION =============== */}
       <SectionCard title="Valorisation & Tours" id="valuation">
         <div className="grid md:grid-cols-4 gap-4 mb-6">
           <KPICard
