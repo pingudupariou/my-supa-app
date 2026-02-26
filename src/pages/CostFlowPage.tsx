@@ -10,6 +10,7 @@ import { CostAnalysis } from '@/components/costflow/CostAnalysis';
 import { SupplierManager } from '@/components/costflow/SupplierManager';
 import { MeetingManager } from '@/components/costflow/MeetingManager';
 import { ProductPlanningGantt } from '@/components/costflow/ProductPlanningGantt';
+import { TrashManager } from '@/components/costflow/TrashManager';
 import { ReadOnlyWrapper } from '@/components/auth/ReadOnlyWrapper';
 import { Loader2 } from 'lucide-react';
 
@@ -43,6 +44,14 @@ export function CostFlowPage() {
           <TabsTrigger value="costs">💰 Coûts & Export</TabsTrigger>
           <TabsTrigger value="meetings">📋 Réunions BE</TabsTrigger>
           <TabsTrigger value="planning">📅 Planning Dev</TabsTrigger>
+          <TabsTrigger value="trash" className="relative">
+            🗑️ Corbeille
+            {(data.trashedProducts.length + data.trashedReferences.length) > 0 && (
+              <span className="ml-1 inline-flex items-center justify-center h-4 min-w-[1rem] rounded-full bg-destructive text-destructive-foreground text-[10px] font-bold px-1">
+                {data.trashedProducts.length + data.trashedReferences.length}
+              </span>
+            )}
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="references">
@@ -127,6 +136,16 @@ export function CostFlowPage() {
 
         <TabsContent value="planning">
           <ProductPlanningGantt />
+        </TabsContent>
+        <TabsContent value="trash">
+          <TrashManager
+            trashedProducts={data.trashedProducts}
+            trashedReferences={data.trashedReferences}
+            onRestoreProduct={data.restoreProduct}
+            onPermanentDeleteProduct={data.permanentDeleteProduct}
+            onRestoreReference={data.restoreReference}
+            onPermanentDeleteReference={data.permanentDeleteReference}
+          />
         </TabsContent>
       </Tabs>
     </div>

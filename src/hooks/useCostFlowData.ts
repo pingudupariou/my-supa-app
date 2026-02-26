@@ -15,6 +15,7 @@ export interface CostFlowReference {
   comments: string;
   created_at: string;
   updated_at: string;
+  deleted_at: string | null;
 }
 
 export interface CostFlowReferenceFile {
@@ -43,6 +44,7 @@ export interface CostFlowProduct {
   manual_unit_cost: number;
   created_at: string;
   updated_at: string;
+  deleted_at: string | null;
 }
 
 export interface CostFlowBomEntry {
@@ -97,20 +99,27 @@ function rowToReference(row: any): CostFlowReference {
     comments: row.comments || '',
     created_at: row.created_at,
     updated_at: row.updated_at,
+    deleted_at: row.deleted_at || null,
   };
 }
 
 export function useCostFlowData() {
   const { user } = useAuth();
-  const [references, setReferences] = useState<CostFlowReference[]>([]);
-  const [products, setProducts] = useState<CostFlowProduct[]>([]);
+  const [allReferences, setAllReferences] = useState<CostFlowReference[]>([]);
+  const [allProducts, setAllProducts] = useState<CostFlowProduct[]>([]);
   const [bom, setBom] = useState<CostFlowBomEntry[]>([]);
   const [referenceFiles, setReferenceFiles] = useState<CostFlowReferenceFile[]>([]);
   const [suppliers, setSuppliers] = useState<CostFlowSupplier[]>([]);
   const [productCategories, setProductCategories] = useState<CostFlowProductCategory[]>([]);
   const [loading, setLoading] = useState(true);
-
   const [initialLoaded, setInitialLoaded] = useState(false);
+
+  // Active items (not in trash) — used everywhere in the app
+  const references = allReferences.filter(r => !r.deleted_at);
+  const products = allProducts.filter(p => !p.deleted_at);
+  // Trashed items
+  const trashedReferences = allReferences.filter(r => !!r.deleted_at);
+  const trashedProducts = allProducts.filter(p => !!p.deleted_at);
   
   const fetchAll = useCallback(async () => {
     if (!user) return;
@@ -124,8 +133,8 @@ export function useCostFlowData() {
         supabase.from('costflow_suppliers' as any).select('*').order('name'),
         supabase.from('costflow_product_categories' as any).select('*').order('name'),
       ]);
-      if (refsRes.data) setReferences((refsRes.data as any[]).map(rowToReference));
-      if (prodsRes.data) setProducts((prodsRes.data as any[]).map((r: any) => ({
+      if (refsRes.data) setAllReferences((refsRes.data as any[]).map(rowToReference));
+      if (prodsRes.data) setAllProducts((prodsRes.data as any[]).map((r: any) => ({
         id: r.id, name: r.name, family: r.family || 'Standard',
         main_supplier: r.main_supplier || '', coefficient: Number(r.coefficient) || 1.3,
         price_ttc: Number(r.price_ttc) || 0, default_volume: r.default_volume || 500,
@@ -133,6 +142,7 @@ export function useCostFlowData() {
         cost_mode: (r.cost_mode as CostMode) || 'bom',
         manual_unit_cost: Number(r.manual_unit_cost) || 0,
         created_at: r.created_at, updated_at: r.updated_at,
+        deleted_at: r.deleted_at || null,
       })));
       if (bomRes.data) setBom((bomRes.data as any[]).map((r: any) => ({
         id: r.id, product_id: r.product_id, reference_id: r.reference_id,
@@ -206,9 +216,22 @@ export function useCostFlowData() {
   };
 
   const deleteReference = async (id: string) => {
-    const { error } = await supabase.from('costflow_references' as any).delete().eq('id', id);
+    // Soft delete — move to trash
+    const { error } = await supabase.from('costflow_references' as any).update({ deleted_at: new Date().toISOString() } as any).eq('id', id);
     if (error) { toast.error('Erreur suppression'); console.error(error); }
-    else { toast.success('Référence supprimée'); fetchAll(); }
+    else { toast.success('Référence déplacée dans la corbeille'); fetchAll(); }
+  };
+
+  const restoreReference = async (id: string) => {
+    const { error } = await supabase.from('costflow_references' as any).update({ deleted_at: null } as any).eq('id', id);
+    if (error) { toast.error('Erreur restauration'); console.error(error); }
+    else { toast.success('Référence restaurée'); fetchAll(); }
+  };
+
+  const permanentDeleteReference = async (id: string) => {
+    const { error } = await supabase.from('costflow_references' as any).delete().eq('id', id);
+    if (error) { toast.error('Erreur suppression définitive'); console.error(error); }
+    else { toast.success('Référence supprimée définitivement'); fetchAll(); }
   };
 
   const bulkCreateReferences = async (refs: Partial<CostFlowReference>[], duplicateAction: 'skip' | 'overwrite' = 'skip') => {
@@ -289,9 +312,24 @@ export function useCostFlowData() {
   };
 
   const deleteProduct = async (id: string) => {
-    const { error } = await supabase.from('costflow_products' as any).delete().eq('id', id);
+    // Soft delete — move to trash
+    const { error } = await supabase.from('costflow_products' as any).update({ deleted_at: new Date().toISOString() } as any).eq('id', id);
     if (error) { toast.error('Erreur suppression'); console.error(error); }
-    else { toast.success('Produit supprimé'); fetchAll(); }
+    else { toast.success('Produit déplacé dans la corbeille'); fetchAll(); }
+  };
+
+  const restoreProduct = async (id: string) => {
+    const { error } = await supabase.from('costflow_products' as any).update({ deleted_at: null } as any).eq('id', id);
+    if (error) { toast.error('Erreur restauration'); console.error(error); }
+    else { toast.success('Produit restauré'); fetchAll(); }
+  };
+
+  const permanentDeleteProduct = async (id: string) => {
+    // Delete BOM entries first
+    await supabase.from('costflow_bom' as any).delete().eq('product_id', id);
+    const { error } = await supabase.from('costflow_products' as any).delete().eq('id', id);
+    if (error) { toast.error('Erreur suppression définitive'); console.error(error); }
+    else { toast.success('Produit supprimé définitivement'); fetchAll(); }
   };
 
   // === BOM CRUD ===
@@ -464,8 +502,11 @@ export function useCostFlowData() {
 
   return {
     references, products, bom, referenceFiles, suppliers, productCategories, loading,
+    trashedReferences, trashedProducts,
     createReference, updateReference, deleteReference, bulkCreateReferences,
+    restoreReference, permanentDeleteReference,
     createProduct, updateProduct, deleteProduct, createProductWithBom,
+    restoreProduct, permanentDeleteProduct,
     addBomEntry, updateBomEntry, removeBomEntry,
     uploadFile, deleteFile, getFileUrl, getSignedUrl,
     createSupplier, updateSupplier, deleteSupplier,
