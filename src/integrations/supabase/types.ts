@@ -525,6 +525,7 @@ export type Database = {
           cost_mode: string
           created_at: string
           default_volume: number | null
+          deleted_at: string | null
           family: string | null
           id: string
           main_supplier: string | null
@@ -541,6 +542,7 @@ export type Database = {
           cost_mode?: string
           created_at?: string
           default_volume?: number | null
+          deleted_at?: string | null
           family?: string | null
           id?: string
           main_supplier?: string | null
@@ -557,6 +559,7 @@ export type Database = {
           cost_mode?: string
           created_at?: string
           default_volume?: number | null
+          deleted_at?: string | null
           family?: string | null
           id?: string
           main_supplier?: string | null
@@ -624,6 +627,7 @@ export type Database = {
           comments: string | null
           created_at: string
           currency: string | null
+          deleted_at: string | null
           id: string
           name: string
           price_vol_100: number | null
@@ -645,6 +649,7 @@ export type Database = {
           comments?: string | null
           created_at?: string
           currency?: string | null
+          deleted_at?: string | null
           id?: string
           name: string
           price_vol_100?: number | null
@@ -666,6 +671,7 @@ export type Database = {
           comments?: string | null
           created_at?: string
           currency?: string | null
+          deleted_at?: string | null
           id?: string
           name?: string
           price_vol_100?: number | null
