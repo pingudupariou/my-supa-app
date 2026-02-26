@@ -522,11 +522,13 @@ export type Database = {
           category_id: string | null
           coefficient: number | null
           comments: string | null
+          cost_mode: string
           created_at: string
           default_volume: number | null
           family: string | null
           id: string
           main_supplier: string | null
+          manual_unit_cost: number | null
           name: string
           price_ttc: number | null
           updated_at: string
@@ -536,11 +538,13 @@ export type Database = {
           category_id?: string | null
           coefficient?: number | null
           comments?: string | null
+          cost_mode?: string
           created_at?: string
           default_volume?: number | null
           family?: string | null
           id?: string
           main_supplier?: string | null
+          manual_unit_cost?: number | null
           name: string
           price_ttc?: number | null
           updated_at?: string
@@ -550,11 +554,13 @@ export type Database = {
           category_id?: string | null
           coefficient?: number | null
           comments?: string | null
+          cost_mode?: string
           created_at?: string
           default_volume?: number | null
           family?: string | null
           id?: string
           main_supplier?: string | null
+          manual_unit_cost?: number | null
           name?: string
           price_ttc?: number | null
           updated_at?: string

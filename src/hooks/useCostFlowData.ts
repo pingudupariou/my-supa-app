@@ -27,6 +27,8 @@ export interface CostFlowReferenceFile {
   uploaded_at: string;
 }
 
+export type CostMode = 'bom' | 'manual';
+
 export interface CostFlowProduct {
   id: string;
   name: string;
@@ -37,6 +39,8 @@ export interface CostFlowProduct {
   default_volume: number;
   comments: string;
   category_id: string | null;
+  cost_mode: CostMode;
+  manual_unit_cost: number;
   created_at: string;
   updated_at: string;
 }
@@ -126,6 +130,8 @@ export function useCostFlowData() {
         main_supplier: r.main_supplier || '', coefficient: Number(r.coefficient) || 1.3,
         price_ttc: Number(r.price_ttc) || 0, default_volume: r.default_volume || 500,
         comments: r.comments || '', category_id: r.category_id || null,
+        cost_mode: (r.cost_mode as CostMode) || 'bom',
+        manual_unit_cost: Number(r.manual_unit_cost) || 0,
         created_at: r.created_at, updated_at: r.updated_at,
       })));
       if (bomRes.data) setBom((bomRes.data as any[]).map((r: any) => ({
@@ -349,10 +355,16 @@ export function useCostFlowData() {
 
   // === COST CALCULATIONS ===
   const calculateProductCost = (productId: string, volume: number): number => {
-    const productBom = bom.filter(b => b.product_id === productId);
     const product = products.find(p => p.id === productId);
     if (!product) return 0;
 
+    // Mode manuel : retourne directement le coût saisi
+    if (product.cost_mode === 'manual') {
+      return product.manual_unit_cost;
+    }
+
+    // Mode BOM : calcul depuis la nomenclature
+    const productBom = bom.filter(b => b.product_id === productId);
     const nearestVolume = VOLUME_TIERS.reduce((prev, curr) =>
       Math.abs(curr - volume) < Math.abs(prev - volume) ? curr : prev
     );
@@ -368,6 +380,7 @@ export function useCostFlowData() {
   };
 
   const calculateProductCosts = (productId: string): Record<number, number> => {
+    const product = products.find(p => p.id === productId);
     const costs: Record<number, number> = {};
     for (const vol of VOLUME_TIERS) {
       costs[vol] = calculateProductCost(productId, vol);
