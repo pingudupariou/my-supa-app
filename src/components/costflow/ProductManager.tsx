@@ -6,10 +6,11 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
-import { Plus, Trash2, Edit, Search, Upload } from 'lucide-react';
+import { Plus, Trash2, Edit, Search, Upload, Calculator, PenLine } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { ProductImportDialog } from './ProductImportDialog';
-import type { CostFlowProduct, CostFlowReference, CostFlowProductCategory } from '@/hooks/useCostFlowData';
+import type { CostFlowProduct, CostFlowReference, CostFlowProductCategory, CostMode } from '@/hooks/useCostFlowData';
 
 interface Props {
   products: CostFlowProduct[];
@@ -136,9 +137,10 @@ export function ProductManager({ products, references, categories, onCreateProdu
             <TableRow>
               <TableHead>Produit</TableHead>
               <TableHead>Catégorie</TableHead>
+              <TableHead className="text-center">Mode coût</TableHead>
               <TableHead>Fournisseur</TableHead>
               <TableHead className="text-right">Coef.</TableHead>
-              <TableHead className="text-right">Coût @500</TableHead>
+              <TableHead className="text-right">Coût</TableHead>
               <TableHead className="text-right">Prix TTC</TableHead>
               <TableHead className="text-right">Marge</TableHead>
               <TableHead></TableHead>
@@ -146,12 +148,12 @@ export function ProductManager({ products, references, categories, onCreateProdu
           </TableHeader>
           <TableBody>
             {filtered.length === 0 && (
-              <TableRow><TableCell colSpan={8} className="text-center text-muted-foreground py-8">Aucun produit. Cliquez sur "Nouveau produit" pour commencer.</TableCell></TableRow>
+              <TableRow><TableCell colSpan={9} className="text-center text-muted-foreground py-8">Aucun produit. Cliquez sur "Nouveau produit" pour commencer.</TableCell></TableRow>
             )}
             {filtered.map(prod => {
               const costs = calculateProductCosts(prod.id);
-              const cost500 = costs[500] || 0;
-              const margin = prod.price_ttc > 0 ? ((prod.price_ttc / 1.2 - cost500) / (prod.price_ttc / 1.2)) * 100 : 0;
+              const displayCost = prod.cost_mode === 'manual' ? prod.manual_unit_cost : (costs[500] || 0);
+              const margin = prod.price_ttc > 0 ? ((prod.price_ttc / 1.2 - displayCost) / (prod.price_ttc / 1.2)) * 100 : 0;
               return (
                 <TableRow key={prod.id} className="cursor-pointer hover:bg-muted/50" onClick={() => onSelectProduct(prod)}>
                   <TableCell className="font-medium">{prod.name}</TableCell>
@@ -166,9 +168,40 @@ export function ProductManager({ products, references, categories, onCreateProdu
                       ) : <span className="text-muted-foreground text-xs">—</span>;
                     })()}
                   </TableCell>
+                  <TableCell className="text-center" onClick={e => e.stopPropagation()}>
+                    <div className="flex items-center justify-center gap-1">
+                      <button
+                        className={`p-1.5 rounded transition-colors ${prod.cost_mode === 'bom' ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:bg-muted/80'}`}
+                        title="Calcul BOM (nomenclature)"
+                        onClick={() => onUpdateProduct(prod.id, { cost_mode: 'bom' } as any)}
+                      >
+                        <Calculator className="h-3.5 w-3.5" />
+                      </button>
+                      <button
+                        className={`p-1.5 rounded transition-colors ${prod.cost_mode === 'manual' ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:bg-muted/80'}`}
+                        title="Coût manuel"
+                        onClick={() => onUpdateProduct(prod.id, { cost_mode: 'manual' } as any)}
+                      >
+                        <PenLine className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  </TableCell>
                   <TableCell>{prod.main_supplier || '-'}</TableCell>
                   <TableCell className="text-right font-mono-numbers">{prod.coefficient.toFixed(2)}</TableCell>
-                  <TableCell className="text-right font-mono-numbers">{cost500 > 0 ? `${cost500.toFixed(2)} €` : '-'}</TableCell>
+                  <TableCell className="text-right font-mono-numbers" onClick={e => e.stopPropagation()}>
+                    {prod.cost_mode === 'manual' ? (
+                      <Input
+                        type="number"
+                        step="0.01"
+                        value={prod.manual_unit_cost}
+                        onChange={e => onUpdateProduct(prod.id, { manual_unit_cost: parseFloat(e.target.value) || 0 } as any)}
+                        className="h-7 w-24 text-right font-mono-numbers inline-block"
+                        title="Coût moyen pondéré (€)"
+                      />
+                    ) : (
+                      <span>{displayCost > 0 ? `${displayCost.toFixed(2)} €` : '-'}</span>
+                    )}
+                  </TableCell>
                   <TableCell className="text-right font-mono-numbers">{prod.price_ttc > 0 ? `${prod.price_ttc.toFixed(2)} €` : '-'}</TableCell>
                   <TableCell className={`text-right font-mono-numbers font-medium ${margin > 0 ? 'positive-value' : 'negative-value'}`}>
                     {prod.price_ttc > 0 ? `${margin.toFixed(1)}%` : '-'}
