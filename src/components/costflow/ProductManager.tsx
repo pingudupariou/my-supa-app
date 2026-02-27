@@ -140,7 +140,8 @@ export function ProductManager({ products, references, categories, onCreateProdu
               <TableHead className="text-center">Mode coût</TableHead>
               <TableHead>Fournisseur</TableHead>
               <TableHead className="text-right">Coef.</TableHead>
-              <TableHead className="text-right">Coût</TableHead>
+              <TableHead className="text-right">Coût unitaire</TableHead>
+              <TableHead className="text-right">Coût pondéré</TableHead>
               <TableHead className="text-right">Prix TTC</TableHead>
               <TableHead className="text-right">Marge</TableHead>
               <TableHead></TableHead>
@@ -148,12 +149,13 @@ export function ProductManager({ products, references, categories, onCreateProdu
           </TableHeader>
           <TableBody>
             {filtered.length === 0 && (
-              <TableRow><TableCell colSpan={9} className="text-center text-muted-foreground py-8">Aucun produit. Cliquez sur "Nouveau produit" pour commencer.</TableCell></TableRow>
+              <TableRow><TableCell colSpan={10} className="text-center text-muted-foreground py-8">Aucun produit. Cliquez sur "Nouveau produit" pour commencer.</TableCell></TableRow>
             )}
             {filtered.map(prod => {
               const costs = calculateProductCosts(prod.id);
-              const displayCost = prod.cost_mode === 'manual' ? prod.manual_unit_cost : (costs[500] || 0);
-              const margin = prod.price_ttc > 0 ? ((prod.price_ttc / 1.2 - displayCost) / (prod.price_ttc / 1.2)) * 100 : 0;
+              const unitCost = prod.cost_mode === 'manual' ? prod.manual_unit_cost : (costs[500] || 0) / (prod.coefficient || 1);
+              const weightedCost = prod.cost_mode === 'manual' ? prod.manual_unit_cost * prod.coefficient : (costs[500] || 0);
+              const margin = prod.price_ttc > 0 ? ((prod.price_ttc / 1.2 - weightedCost) / (prod.price_ttc / 1.2)) * 100 : 0;
               return (
                 <TableRow key={prod.id} className="cursor-pointer hover:bg-muted/50" onClick={() => onSelectProduct(prod)}>
                   <TableCell className="font-medium">{prod.name}</TableCell>
@@ -196,11 +198,14 @@ export function ProductManager({ products, references, categories, onCreateProdu
                         value={prod.manual_unit_cost}
                         onChange={e => onUpdateProduct(prod.id, { manual_unit_cost: parseFloat(e.target.value) || 0 } as any)}
                         className="h-7 w-24 text-right font-mono-numbers inline-block"
-                        title="Coût moyen pondéré (€)"
+                        title="Coût unitaire saisi (€)"
                       />
                     ) : (
-                      <span>{displayCost > 0 ? `${displayCost.toFixed(2)} €` : '-'}</span>
+                      <span>{unitCost > 0 ? `${unitCost.toFixed(2)} €` : '-'}</span>
                     )}
+                  </TableCell>
+                  <TableCell className="text-right font-mono-numbers font-medium">
+                    {weightedCost > 0 ? `${weightedCost.toFixed(2)} €` : '-'}
                   </TableCell>
                   <TableCell className="text-right font-mono-numbers">{prod.price_ttc > 0 ? `${prod.price_ttc.toFixed(2)} €` : '-'}</TableCell>
                   <TableCell className={`text-right font-mono-numbers font-medium ${margin > 0 ? 'positive-value' : 'negative-value'}`}>
