@@ -396,9 +396,9 @@ export function useCostFlowData() {
     const product = products.find(p => p.id === productId);
     if (!product) return 0;
 
-    // Mode manuel : retourne directement le coût saisi
+    // Mode manuel : coût saisi × coefficient
     if (product.cost_mode === 'manual') {
-      return product.manual_unit_cost;
+      return product.manual_unit_cost * product.coefficient;
     }
 
     // Mode BOM : calcul depuis la nomenclature
