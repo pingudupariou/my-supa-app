@@ -5,6 +5,8 @@ import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { ChevronDown, ChevronRight } from 'lucide-react';
 import {
   BarChart,
   Bar,
@@ -66,6 +68,7 @@ export function MarginChart({
   // Threshold feature
   const [thresholdEnabled, setThresholdEnabled] = useState(false);
   const [thresholdValue, setThresholdValue] = useState(20);
+  const [thresholdListView, setThresholdListView] = useState<'below' | 'above' | null>(null);
 
   const toggleRule = (id: string) => {
     setSelectedRuleIds(prev => {
@@ -130,6 +133,23 @@ export function MarginChart({
   }, [filteredProducts, selectedRuleIds, salesRules, calculateProductCost, getEffectivePrice, computeChainFromPublicTTC, editedOurPrices, chartPricingMode]);
 
   const activeRules = salesRules.filter(r => selectedRuleIds.has(r.id));
+
+  // Threshold stats
+  const thresholdStats = useMemo(() => {
+    if (!thresholdEnabled || activeRules.length === 0) return { below: [], above: [] };
+    const below: { name: string; margin: number; category: string }[] = [];
+    const above: { name: string; margin: number; category: string }[] = [];
+    for (const entry of chartData) {
+      // Use first active rule for classification
+      const val = entry[`margin_${activeRules[0].id}`] ?? 0;
+      const item = { name: entry.fullName, margin: val, category: entry.categoryName };
+      if (val < thresholdValue) below.push(item);
+      else above.push(item);
+    }
+    below.sort((a, b) => a.margin - b.margin);
+    above.sort((a, b) => b.margin - a.margin);
+    return { below, above };
+  }, [chartData, thresholdEnabled, thresholdValue, activeRules]);
 
   const getBarColor = (value: number, catColor: string) => {
     if (value < 0) return 'hsl(var(--destructive))';
@@ -224,6 +244,65 @@ export function MarginChart({
             </div>
           </div>
         </div>
+
+        {/* Threshold stats & product list */}
+        {thresholdEnabled && chartData.length > 0 && activeRules.length > 0 && (
+          <div className="flex flex-wrap gap-3 items-start">
+            <Badge
+              variant={thresholdListView === 'below' ? 'default' : 'outline'}
+              className="cursor-pointer text-sm py-1.5 px-3"
+              style={thresholdListView !== 'below' ? { borderColor: BELOW_THRESHOLD_COLOR, color: BELOW_THRESHOLD_COLOR } : { backgroundColor: BELOW_THRESHOLD_COLOR }}
+              onClick={() => setThresholdListView(prev => prev === 'below' ? null : 'below')}
+            >
+              ▼ Sous le seuil : {thresholdStats.below.length} produit{thresholdStats.below.length > 1 ? 's' : ''}
+            </Badge>
+            <Badge
+              variant={thresholdListView === 'above' ? 'default' : 'outline'}
+              className="cursor-pointer text-sm py-1.5 px-3"
+              onClick={() => setThresholdListView(prev => prev === 'above' ? null : 'above')}
+            >
+              ▲ Au-dessus : {thresholdStats.above.length} produit{thresholdStats.above.length > 1 ? 's' : ''}
+            </Badge>
+          </div>
+        )}
+
+        {thresholdEnabled && thresholdListView && (
+          <Collapsible open={true}>
+            <CollapsibleContent>
+              <div className="border rounded-lg overflow-hidden">
+                <div className="px-4 py-2 bg-muted/50 text-sm font-medium flex items-center gap-2">
+                  {thresholdListView === 'below' ? (
+                    <>
+                      <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ backgroundColor: BELOW_THRESHOLD_COLOR }} />
+                      Produits sous {thresholdValue}% de marge
+                    </>
+                  ) : (
+                    <>
+                      <span className="inline-block h-2.5 w-2.5 rounded-full bg-primary" />
+                      Produits au-dessus de {thresholdValue}% de marge
+                    </>
+                  )}
+                </div>
+                <div className="divide-y max-h-60 overflow-y-auto">
+                  {(thresholdListView === 'below' ? thresholdStats.below : thresholdStats.above).map((item, i) => (
+                    <div key={i} className="flex items-center justify-between px-4 py-2 text-sm">
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium">{item.name}</span>
+                        <span className="text-xs text-muted-foreground">{item.category}</span>
+                      </div>
+                      <span className={`font-mono text-sm font-medium ${item.margin < 0 ? 'text-destructive' : item.margin < thresholdValue ? 'text-orange-500' : 'text-foreground'}`}>
+                        {item.margin.toFixed(1)}%
+                      </span>
+                    </div>
+                  ))}
+                  {(thresholdListView === 'below' ? thresholdStats.below : thresholdStats.above).length === 0 && (
+                    <div className="px-4 py-4 text-sm text-muted-foreground text-center">Aucun produit</div>
+                  )}
+                </div>
+              </div>
+            </CollapsibleContent>
+          </Collapsible>
+        )}
 
         {/* Chart */}
         {chartData.length > 0 && activeRules.length > 0 ? (
