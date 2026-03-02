@@ -1160,17 +1160,31 @@ export function PricingPage() {
         </CardContent>
       </Card>
 
-      {/* Multi-channel margin detail - moved up */}
-      {productCategories.length > 0 && salesRules.length > 0 && (
+      {/* Multi-channel margin detail - uses same activeRule selector */}
+      {salesRules.length > 0 && (
         <Card>
           <CardHeader>
-            <CardTitle className="text-lg flex items-center gap-2">
-              <Layers className="h-5 w-5" />
-              Détail des marges par déclinaison (catégorie × canal)
-            </CardTitle>
-            <CardDescription>
-              Coût ajusté et marge pour chaque combinaison produit / catégorie / canal de vente
-            </CardDescription>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <Layers className="h-5 w-5" />
+                  Détail des marges par déclinaison — <span className="text-primary">{activeRule?.name}</span>
+                </CardTitle>
+                <CardDescription>
+                  Coût ajusté et marge pour les produits associés au canal sélectionné
+                </CardDescription>
+              </div>
+              <Select value={activeRuleId} onValueChange={setActiveRuleId}>
+                <SelectTrigger className="w-[220px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {salesRules.map(r => (
+                    <SelectItem key={r.id} value={r.id}>{r.name} ({r.type.toUpperCase()})</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </CardHeader>
           <CardContent>
             <div className="overflow-x-auto">
@@ -1179,130 +1193,129 @@ export function PricingPage() {
                   <TableRow>
                     <TableHead>Produit</TableHead>
                     <TableHead>Catégorie</TableHead>
+                    <TableHead>Déclinaison</TableHead>
                     <TableHead className="text-right">Coût base</TableHead>
-                    {salesRules.map(rule => (
-                      <TableHead key={rule.id} className="text-center" colSpan={2}>
-                        <div className="flex flex-col items-center">
-                          <span className="font-semibold">{rule.name}</span>
-                          <span className="text-xs opacity-60">({rule.type.toUpperCase()})</span>
-                        </div>
-                      </TableHead>
-                    ))}
-                  </TableRow>
-                  <TableRow>
-                    <TableHead></TableHead>
-                    <TableHead></TableHead>
-                    <TableHead></TableHead>
-                    {salesRules.map(rule => (
-                      <Fragment key={rule.id}>
-                        <TableHead className="text-right text-xs">Coût ajusté</TableHead>
-                        <TableHead className="text-right text-xs">Marge</TableHead>
-                      </Fragment>
-                    ))}
+                    <TableHead className="text-right">Coût ajusté</TableHead>
+                    <TableHead className="text-right">Notre Prix HT</TableHead>
+                    <TableHead className="text-right">Marge</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {productCategories.map(cat => {
-                    const catProducts = products.filter(p => p.category_id === cat.id);
-                    if (catProducts.length === 0) return null;
+                  {(() => {
+                    const rule = activeRule;
+                    if (!rule) return null;
+                    const rows: React.ReactNode[] = [];
 
-                    return catProducts.map((prod, idx) => {
+                    productCategories.forEach(cat => {
+                      const catProducts = products.filter(p => p.category_id === cat.id);
+                      if (catProducts.length === 0) return;
+
+                      catProducts.forEach((prod, idx) => {
+                        const baseCost = calculateProductCost(prod.id, prod.default_volume || 500);
+                        const key = makeDeclinationKey(cat.id, rule.id);
+                        const decl = declinations[key];
+                        const adjustedCost = applyDeclinationAdjustment(baseCost, decl);
+                        const declName = getDeclinationName(decl?.prefix || '', cat.name, rule.name);
+
+                        const ruleOurPrices = editedOurPrices[rule.id] || {};
+                        const effectiveTTC = (editedPrices[rule.id] || {})[prod.id] !== undefined
+                          ? (editedPrices[rule.id] || {})[prod.id]
+                          : prod.price_ttc;
+                        const reverseResult = computeChainFromPublicTTC(effectiveTTC, rule);
+                        const ourPrice = ruleOurPrices[prod.id] !== undefined
+                          ? ruleOurPrices[prod.id]
+                          : (reverseResult?.ourB2BPrice || 0);
+
+                        const margin = ourPrice > 0 && adjustedCost > 0
+                          ? ((ourPrice - adjustedCost) / adjustedCost) * 100
+                          : null;
+
+                        rows.push(
+                          <TableRow key={`${prod.id}-${rule.id}`} className={idx === 0 ? 'border-t-2' : ''}>
+                            <TableCell className="font-medium">{prod.name}</TableCell>
+                            <TableCell>
+                              <div className="flex items-center gap-1.5">
+                                <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ backgroundColor: cat.color }} />
+                                <span className="text-sm">{cat.name}</span>
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <span className="text-sm italic text-muted-foreground">{declName}</span>
+                            </TableCell>
+                            <TableCell className="text-right font-mono text-sm">
+                              {baseCost > 0 ? `${fmt(baseCost)} €` : '–'}
+                            </TableCell>
+                            <TableCell className="text-right font-mono text-sm">
+                              <div className="flex flex-col items-end">
+                                <span>{adjustedCost > 0 ? `${fmt(adjustedCost)} €` : '–'}</span>
+                                {decl && decl.adjustmentValue !== 0 && (
+                                  <span className="text-[10px] text-muted-foreground">
+                                    {decl.adjustmentType === 'percent'
+                                      ? `${decl.adjustmentValue > 0 ? '+' : ''}${decl.adjustmentValue}%`
+                                      : `${decl.adjustmentValue > 0 ? '+' : ''}${fmt(decl.adjustmentValue)} €`}
+                                  </span>
+                                )}
+                              </div>
+                            </TableCell>
+                            <TableCell className="text-right font-mono text-sm">
+                              {ourPrice > 0 ? `${fmt(ourPrice)} €` : '–'}
+                            </TableCell>
+                            <TableCell className={`text-right font-mono text-sm font-medium ${margin !== null ? (margin < 0 ? 'text-destructive' : 'text-emerald-600') : 'text-muted-foreground'}`}>
+                              {margin !== null ? `${fmt(margin)}%` : '–'}
+                            </TableCell>
+                          </TableRow>
+                        );
+                      });
+                    });
+
+                    // Uncategorized products
+                    products.filter(p => !p.category_id).forEach(prod => {
                       const baseCost = calculateProductCost(prod.id, prod.default_volume || 500);
+                      const ruleOurPrices = editedOurPrices[rule.id] || {};
+                      const effectiveTTC = (editedPrices[rule.id] || {})[prod.id] !== undefined
+                        ? (editedPrices[rule.id] || {})[prod.id]
+                        : prod.price_ttc;
+                      const reverseResult = computeChainFromPublicTTC(effectiveTTC, rule);
+                      const ourPrice = ruleOurPrices[prod.id] !== undefined
+                        ? ruleOurPrices[prod.id]
+                        : (reverseResult?.ourB2BPrice || 0);
+                      const margin = ourPrice > 0 && baseCost > 0
+                        ? ((ourPrice - baseCost) / baseCost) * 100
+                        : null;
 
-                      return (
-                        <TableRow key={prod.id} className={idx === 0 ? 'border-t-2' : ''}>
+                      rows.push(
+                        <TableRow key={`${prod.id}-${rule.id}`}>
                           <TableCell className="font-medium">{prod.name}</TableCell>
-                          <TableCell>
-                            <div className="flex items-center gap-1.5">
-                              <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ backgroundColor: cat.color }} />
-                              <span className="text-sm">{cat.name}</span>
-                            </div>
+                          <TableCell className="text-muted-foreground text-sm italic">Sans catégorie</TableCell>
+                          <TableCell className="text-sm text-muted-foreground">—</TableCell>
+                          <TableCell className="text-right font-mono text-sm">
+                            {baseCost > 0 ? `${fmt(baseCost)} €` : '–'}
                           </TableCell>
                           <TableCell className="text-right font-mono text-sm">
                             {baseCost > 0 ? `${fmt(baseCost)} €` : '–'}
                           </TableCell>
-                          {salesRules.map(rule => {
-                            const key = makeDeclinationKey(cat.id, rule.id);
-                            const decl = declinations[key];
-                            const adjustedCost = applyDeclinationAdjustment(baseCost, decl);
-                            const declName = getDeclinationName(decl?.prefix || '', cat.name, rule.name);
-
-                            const ruleOurPrices = editedOurPrices[rule.id] || {};
-                            const effectiveTTC = (editedPrices[rule.id] || {})[prod.id] !== undefined
-                              ? (editedPrices[rule.id] || {})[prod.id]
-                              : prod.price_ttc;
-                            const reverseResult = computeChainFromPublicTTC(effectiveTTC, rule);
-                            const ourPrice = ruleOurPrices[prod.id] !== undefined
-                              ? ruleOurPrices[prod.id]
-                              : (reverseResult?.ourB2BPrice || 0);
-
-                            const margin = ourPrice > 0 && adjustedCost > 0
-                              ? ((ourPrice - adjustedCost) / adjustedCost) * 100
-                              : null;
-
-                            return (
-                              <Fragment key={rule.id}>
-                                <TableCell className="text-right font-mono text-sm">
-                                  <div className="flex flex-col items-end">
-                                    <span>{adjustedCost > 0 ? `${fmt(adjustedCost)} €` : '–'}</span>
-                                    {decl && decl.adjustmentValue !== 0 && (
-                                      <span className="text-[10px] text-muted-foreground">
-                                        {decl.adjustmentType === 'percent'
-                                          ? `${decl.adjustmentValue > 0 ? '+' : ''}${decl.adjustmentValue}%`
-                                          : `${decl.adjustmentValue > 0 ? '+' : ''}${fmt(decl.adjustmentValue)} €`}
-                                      </span>
-                                    )}
-                                  </div>
-                                </TableCell>
-                                <TableCell className={`text-right font-mono text-sm font-medium ${margin !== null ? (margin < 0 ? 'text-destructive' : 'text-emerald-600') : 'text-muted-foreground'}`}>
-                                  <div className="flex flex-col items-end">
-                                    <span>{margin !== null ? `${fmt(margin)}%` : '–'}</span>
-                                    <span className="text-[10px] text-muted-foreground font-normal italic">{declName}</span>
-                                  </div>
-                                </TableCell>
-                              </Fragment>
-                            );
-                          })}
+                          <TableCell className="text-right font-mono text-sm">
+                            {ourPrice > 0 ? `${fmt(ourPrice)} €` : '–'}
+                          </TableCell>
+                          <TableCell className={`text-right font-mono text-sm font-medium ${margin !== null ? (margin < 0 ? 'text-destructive' : 'text-emerald-600') : 'text-muted-foreground'}`}>
+                            {margin !== null ? `${fmt(margin)}%` : '–'}
+                          </TableCell>
                         </TableRow>
                       );
                     });
-                  })}
-                  {products.filter(p => !p.category_id).map(prod => {
-                    const baseCost = calculateProductCost(prod.id, prod.default_volume || 500);
-                    return (
-                      <TableRow key={prod.id}>
-                        <TableCell className="font-medium">{prod.name}</TableCell>
-                        <TableCell className="text-muted-foreground text-sm italic">Sans catégorie</TableCell>
-                        <TableCell className="text-right font-mono text-sm">
-                          {baseCost > 0 ? `${fmt(baseCost)} €` : '–'}
-                        </TableCell>
-                        {salesRules.map(rule => {
-                          const ruleOurPrices = editedOurPrices[rule.id] || {};
-                          const effectiveTTC = (editedPrices[rule.id] || {})[prod.id] !== undefined
-                            ? (editedPrices[rule.id] || {})[prod.id]
-                            : prod.price_ttc;
-                          const reverseResult = computeChainFromPublicTTC(effectiveTTC, rule);
-                          const ourPrice = ruleOurPrices[prod.id] !== undefined
-                            ? ruleOurPrices[prod.id]
-                            : (reverseResult?.ourB2BPrice || 0);
-                          const margin = ourPrice > 0 && baseCost > 0
-                            ? ((ourPrice - baseCost) / baseCost) * 100
-                            : null;
 
-                          return (
-                            <Fragment key={rule.id}>
-                              <TableCell className="text-right font-mono text-sm">
-                                {baseCost > 0 ? `${fmt(baseCost)} €` : '–'}
-                              </TableCell>
-                              <TableCell className={`text-right font-mono text-sm font-medium ${margin !== null ? (margin < 0 ? 'text-destructive' : 'text-emerald-600') : 'text-muted-foreground'}`}>
-                                {margin !== null ? `${fmt(margin)}%` : '–'}
-                              </TableCell>
-                            </Fragment>
-                          );
-                        })}
-                      </TableRow>
-                    );
-                  })}
+                    if (rows.length === 0) {
+                      rows.push(
+                        <TableRow key="empty">
+                          <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
+                            Aucun produit associé à ce canal. Associez des produits dans l'onglet Production & BE.
+                          </TableCell>
+                        </TableRow>
+                      );
+                    }
+
+                    return rows;
+                  })()}
                 </TableBody>
               </Table>
             </div>
