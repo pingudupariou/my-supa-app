@@ -102,10 +102,9 @@ export function PricingPage() {
 
   const activeRule = salesRules.find(r => r.id === activeRuleId) || salesRules[0];
 
-  // Filter products by channel association for the active rule
+  // Filter products by channel association for the active rule — show only assigned products
   const products = useMemo(() => {
     const channelProductIds = getProductsForChannel(activeRuleId);
-    if (channelProductIds.length === 0) return allProducts; // Show all if none assigned
     return allProducts.filter(p => channelProductIds.includes(p.id));
   }, [allProducts, activeRuleId, getProductsForChannel]);
 
