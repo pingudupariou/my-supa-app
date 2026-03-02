@@ -93,6 +93,11 @@ export function PricingPage() {
   const [configLoaded, setConfigLoaded] = useState(false);
   const [declinations, setDeclinations] = useState<DeclinationMap>({});
 
+  // Margin table selection
+  const [selectedMarginRows, setSelectedMarginRows] = useState<Set<string>>(new Set());
+  const [copiedMargins, setCopiedMargins] = useState(false);
+  const [copiedPricing, setCopiedPricing] = useState(false);
+
   // Category bulk price
   const [catBulkTarget, setCatBulkTarget] = useState<{ catId: string; catName: string; field: 'our_price' | 'public_ttc' } | null>(null);
   const [catBulkPrice, setCatBulkPrice] = useState('');
@@ -892,6 +897,113 @@ export function PricingPage() {
     return ep + eop + efp;
   };
 
+  // --- Copy margins table to clipboard ---
+  const copyMarginsToClipboard = () => {
+    const rule = activeRule;
+    if (!rule) return;
+    const header = ['Produit', 'Catégorie', 'Déclinaison', 'Coût base', 'Coût ajusté', 'Notre Prix HT', 'Marge %'].join('\t');
+    const rows: string[] = [];
+
+    const addRow = (prod: typeof products[0], catName: string, catColor: string | null, catId: string | null) => {
+      const rowKey = `${prod.id}-${rule.id}`;
+      if (selectedMarginRows.size > 0 && !selectedMarginRows.has(rowKey)) return;
+      const baseCost = calculateProductCost(prod.id, prod.default_volume || 500);
+      let adjustedCost = baseCost;
+      let declName = '—';
+      if (catId) {
+        const key = makeDeclinationKey(catId, rule.id);
+        const decl = declinations[key];
+        adjustedCost = applyDeclinationAdjustment(baseCost, decl);
+        declName = getDeclinationName(decl?.prefix || '', catName, rule.name);
+      }
+      const ruleOurPrices = editedOurPrices[rule.id] || {};
+      const effectiveTTC = (editedPrices[rule.id] || {})[prod.id] !== undefined
+        ? (editedPrices[rule.id] || {})[prod.id] : prod.price_ttc;
+      const reverseResult = computeChainFromPublicTTC(effectiveTTC, rule);
+      const ourPrice = ruleOurPrices[prod.id] !== undefined ? ruleOurPrices[prod.id] : (reverseResult?.ourB2BPrice || 0);
+      const margin = ourPrice > 0 && adjustedCost > 0 ? ((ourPrice - adjustedCost) / adjustedCost) * 100 : null;
+      rows.push([prod.name, catName, declName, baseCost > 0 ? baseCost.toFixed(2) : '', adjustedCost > 0 ? adjustedCost.toFixed(2) : '', ourPrice > 0 ? ourPrice.toFixed(2) : '', margin !== null ? margin.toFixed(1) + '%' : ''].join('\t'));
+    };
+
+    productCategories.forEach(cat => {
+      products.filter(p => p.category_id === cat.id).forEach(prod => addRow(prod, cat.name, cat.color, cat.id));
+    });
+    products.filter(p => !p.category_id).forEach(prod => addRow(prod, 'Sans catégorie', null, null));
+
+    navigator.clipboard.writeText([header, ...rows].join('\n'));
+    setCopiedMargins(true);
+    setTimeout(() => setCopiedMargins(false), 2000);
+    toast.success(`${rows.length} ligne(s) copiée(s)`);
+  };
+
+  // --- Copy pricing table to clipboard ---
+  const copyPricingToClipboard = () => {
+    if (!activeRule) return;
+    const interLabels = activeRule.intermediaries.map(i => i.label);
+    const header = ['Produit', 'Catégorie', 'Coût revient', 'Notre prix HT', ...interLabels.map(l => `${l} (achat→vente)`), 'Prix Public HT', 'Prix Public TTC', pricingMode === 'from_our_price' ? 'Coef total' : '', 'Notre marge'].filter(Boolean).join('\t');
+    const rows: string[] = [];
+
+    const addProductRow = (prod: typeof products[0], catName: string) => {
+      if (selectedProducts.size > 0 && !selectedProducts.has(prod.id)) return;
+      const costPrice = calculateProductCost(prod.id, prod.default_volume || 500);
+      const ruleOurPrices = getRuleEditedOurPrices();
+      const ruleFinalPrices = getRuleEditedFinalPrices();
+      const ruleCoefs = getRuleEditedCoefs();
+      const effectiveTTC = getEffectivePrice(prod);
+      const currentFinalTTC = ruleFinalPrices[prod.id] !== undefined ? ruleFinalPrices[prod.id] : (effectiveTTC || 0);
+      const reverseResult = computeChainFromPublicTTC(effectiveTTC);
+      const currentOurPrice = ruleOurPrices[prod.id] !== undefined ? ruleOurPrices[prod.id] : (reverseResult?.ourB2BPrice || 0);
+      const customCoefs = ruleCoefs[prod.id];
+      const result = computeChainBothEnds(currentOurPrice, currentFinalTTC, customCoefs);
+      const marginPct = costPrice > 0 ? ((currentOurPrice - costPrice) / costPrice) * 100 : null;
+      const interCols = activeRule!.intermediaries.map((_, i) => {
+        const step = result?.chain[i];
+        return step ? `${step.buyPrice.toFixed(2)}→${step.sellPrice.toFixed(2)}` : '';
+      });
+      const cols = [prod.name, catName, costPrice > 0 ? costPrice.toFixed(2) : '', currentOurPrice > 0 ? currentOurPrice.toFixed(2) : '', ...interCols, result ? result.prixPublicHT.toFixed(2) : '', currentFinalTTC > 0 ? currentFinalTTC.toFixed(2) : ''];
+      if (pricingMode === 'from_our_price') cols.push(result ? result.totalCoef.toFixed(2) : '');
+      cols.push(marginPct !== null ? marginPct.toFixed(1) + '%' : '');
+      rows.push(cols.join('\t'));
+    };
+
+    productCategories.forEach(cat => {
+      (productsByCategory.grouped[cat.id] || []).forEach(prod => addProductRow(prod, cat.name));
+    });
+    productsByCategory.uncategorized.forEach(prod => addProductRow(prod, 'Sans catégorie'));
+
+    navigator.clipboard.writeText([header, ...rows].join('\n'));
+    setCopiedPricing(true);
+    setTimeout(() => setCopiedPricing(false), 2000);
+    toast.success(`${rows.length} ligne(s) copiée(s)`);
+  };
+
+  const toggleMarginRow = (key: string) => {
+    setSelectedMarginRows(prev => {
+      const next = new Set(prev);
+      next.has(key) ? next.delete(key) : next.add(key);
+      return next;
+    });
+  };
+
+  const allMarginRowKeys = useMemo(() => {
+    const keys: string[] = [];
+    const rule = activeRule;
+    if (!rule) return keys;
+    productCategories.forEach(cat => {
+      products.filter(p => p.category_id === cat.id).forEach(prod => keys.push(`${prod.id}-${rule.id}`));
+    });
+    products.filter(p => !p.category_id).forEach(prod => keys.push(`${prod.id}-${rule.id}`));
+    return keys;
+  }, [products, productCategories, activeRule]);
+
+  const toggleAllMarginRows = () => {
+    if (selectedMarginRows.size === allMarginRowKeys.length) {
+      setSelectedMarginRows(new Set());
+    } else {
+      setSelectedMarginRows(new Set(allMarginRowKeys));
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -1173,16 +1285,25 @@ export function PricingPage() {
                   Coût ajusté et marge pour les produits associés au canal sélectionné
                 </CardDescription>
               </div>
-              <Select value={activeRuleId} onValueChange={setActiveRuleId}>
-                <SelectTrigger className="w-[220px]">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {salesRules.map(r => (
-                    <SelectItem key={r.id} value={r.id}>{r.name} ({r.type.toUpperCase()})</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <div className="flex items-center gap-2">
+                <p className="text-xs text-muted-foreground">
+                  {selectedMarginRows.size > 0 ? `${selectedMarginRows.size} sélectionné(s)` : 'Tous'}
+                </p>
+                <Button variant="outline" size="sm" onClick={copyMarginsToClipboard}>
+                  {copiedMargins ? <Check className="h-4 w-4 mr-1" /> : <Copy className="h-4 w-4 mr-1" />}
+                  Copier vers Excel
+                </Button>
+                <Select value={activeRuleId} onValueChange={setActiveRuleId}>
+                  <SelectTrigger className="w-[220px]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {salesRules.map(r => (
+                      <SelectItem key={r.id} value={r.id}>{r.name} ({r.type.toUpperCase()})</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
           </CardHeader>
           <CardContent>
@@ -1190,6 +1311,13 @@ export function PricingPage() {
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead className="w-10">
+                      <Checkbox
+                        checked={allMarginRowKeys.length > 0 && selectedMarginRows.size === allMarginRowKeys.length}
+                        onCheckedChange={toggleAllMarginRows}
+                        className={selectedMarginRows.size > 0 && selectedMarginRows.size < allMarginRowKeys.length ? 'opacity-50' : ''}
+                      />
+                    </TableHead>
                     <TableHead>Produit</TableHead>
                     <TableHead>Catégorie</TableHead>
                     <TableHead>Déclinaison</TableHead>
@@ -1229,8 +1357,10 @@ export function PricingPage() {
                           ? ((ourPrice - adjustedCost) / adjustedCost) * 100
                           : null;
 
+                        const rowKey = `${prod.id}-${rule.id}`;
                         rows.push(
-                          <TableRow key={`${prod.id}-${rule.id}`} className={idx === 0 ? 'border-t-2' : ''}>
+                          <TableRow key={rowKey} className={`${idx === 0 ? 'border-t-2' : ''} ${selectedMarginRows.has(rowKey) ? 'bg-primary/5' : ''} cursor-pointer`} onClick={() => toggleMarginRow(rowKey)}>
+                            <TableCell className="w-10"><Checkbox checked={selectedMarginRows.has(rowKey)} onCheckedChange={() => toggleMarginRow(rowKey)} /></TableCell>
                             <TableCell className="font-medium">{prod.name}</TableCell>
                             <TableCell>
                               <div className="flex items-center gap-1.5">
@@ -1282,8 +1412,10 @@ export function PricingPage() {
                         ? ((ourPrice - baseCost) / baseCost) * 100
                         : null;
 
+                      const uncatRowKey = `${prod.id}-${rule.id}`;
                       rows.push(
-                        <TableRow key={`${prod.id}-${rule.id}`}>
+                        <TableRow key={uncatRowKey} className={`${selectedMarginRows.has(uncatRowKey) ? 'bg-primary/5' : ''} cursor-pointer`} onClick={() => toggleMarginRow(uncatRowKey)}>
+                          <TableCell className="w-10"><Checkbox checked={selectedMarginRows.has(uncatRowKey)} onCheckedChange={() => toggleMarginRow(uncatRowKey)} /></TableCell>
                           <TableCell className="font-medium">{prod.name}</TableCell>
                           <TableCell className="text-muted-foreground text-sm italic">Sans catégorie</TableCell>
                           <TableCell className="text-sm text-muted-foreground">—</TableCell>
@@ -1306,7 +1438,7 @@ export function PricingPage() {
                     if (rows.length === 0) {
                       rows.push(
                         <TableRow key="empty">
-                          <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
+                          <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
                             Aucun produit associé à ce canal. Associez des produits dans l'onglet Production & BE.
                           </TableCell>
                         </TableRow>
@@ -1359,16 +1491,18 @@ export function PricingPage() {
               </CardDescription>
             </div>
             <div className="flex items-center gap-2">
+              <p className="text-xs text-muted-foreground">
+                {selectedProducts.size > 0 ? `${selectedProducts.size} sélectionné(s)` : 'Tous'}
+              </p>
+              <Button variant="outline" size="sm" onClick={copyPricingToClipboard}>
+                {copiedPricing ? <Check className="h-4 w-4 mr-1" /> : <Copy className="h-4 w-4 mr-1" />}
+                Copier vers Excel
+              </Button>
               {ruleHasEdits() && (
                 <Button onClick={saveAllEdits} size="sm" variant="outline">
                   <Check className="h-4 w-4 mr-1" />
                   Enregistrer les prix ({activeRule?.name})
                 </Button>
-              )}
-              {selectedProducts.size > 0 && (
-                <div className="text-sm text-muted-foreground">
-                  {selectedProducts.size} produit(s) sélectionné(s)
-                </div>
               )}
             </div>
           </div>
