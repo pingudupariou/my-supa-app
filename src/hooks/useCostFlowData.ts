@@ -298,7 +298,9 @@ export function useCostFlowData() {
       user_id: user.id, name: prod.name, family: prod.family || 'Standard',
       main_supplier: prod.main_supplier || '', coefficient: prod.coefficient || 1.3,
       price_ttc: prod.price_ttc || 0, default_volume: prod.default_volume || 500,
-      comments: prod.comments || '',
+      comments: prod.comments || '', category_id: prod.category_id || null,
+      cost_mode: prod.cost_mode || 'bom',
+      manual_unit_cost: prod.manual_unit_cost || 0,
     } as any);
     if (error) { toast.error('Erreur création produit'); console.error(error); }
     else { toast.success('Produit créé'); fetchAll(); }
