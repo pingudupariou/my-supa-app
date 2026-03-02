@@ -2,6 +2,9 @@ import { useMemo, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
+import { Switch } from '@/components/ui/switch';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import {
   BarChart,
   Bar,
@@ -40,6 +43,7 @@ interface MarginChartProps {
 }
 
 const DEFAULT_CATEGORY_COLOR = 'hsl(var(--muted-foreground))';
+const BELOW_THRESHOLD_COLOR = 'hsl(30 90% 55%)'; // orange warning
 
 export function MarginChart({
   products,
@@ -58,6 +62,10 @@ export function MarginChart({
   const [selectedCategoryIds, setSelectedCategoryIds] = useState<Set<string>>(
     new Set(productCategories.map(c => c.id))
   );
+
+  // Threshold feature
+  const [thresholdEnabled, setThresholdEnabled] = useState(false);
+  const [thresholdValue, setThresholdValue] = useState(20);
 
   const toggleRule = (id: string) => {
     setSelectedRuleIds(prev => {
@@ -123,6 +131,18 @@ export function MarginChart({
 
   const activeRules = salesRules.filter(r => selectedRuleIds.has(r.id));
 
+  const getBarColor = (value: number, catColor: string) => {
+    if (value < 0) return 'hsl(var(--destructive))';
+    if (thresholdEnabled && value < thresholdValue) return BELOW_THRESHOLD_COLOR;
+    return catColor;
+  };
+
+  const getBarOpacity = (value: number) => {
+    if (value < 0) return 0.8;
+    if (thresholdEnabled && value < thresholdValue) return 0.9;
+    return 1;
+  };
+
   return (
     <Card>
       <CardHeader>
@@ -172,6 +192,37 @@ export function MarginChart({
               )}
             </div>
           </div>
+
+          {/* Threshold control */}
+          <div className="space-y-2">
+            <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Seuil de marge</span>
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2">
+                <Switch
+                  checked={thresholdEnabled}
+                  onCheckedChange={setThresholdEnabled}
+                  id="threshold-toggle"
+                />
+                <Label htmlFor="threshold-toggle" className="text-sm cursor-pointer">
+                  {thresholdEnabled ? 'Actif' : 'Inactif'}
+                </Label>
+              </div>
+              {thresholdEnabled && (
+                <div className="flex items-center gap-1.5">
+                  <Input
+                    type="number"
+                    step="1"
+                    min="0"
+                    max="100"
+                    value={thresholdValue}
+                    onChange={e => setThresholdValue(Number(e.target.value) || 0)}
+                    className="h-8 w-20 text-sm font-mono text-right"
+                  />
+                  <span className="text-sm text-muted-foreground">%</span>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
 
         {/* Chart */}
@@ -202,6 +253,15 @@ export function MarginChart({
                   }}
                 />
                 <ReferenceLine y={0} stroke="hsl(var(--destructive))" strokeDasharray="3 3" strokeWidth={1.5} />
+                {thresholdEnabled && (
+                  <ReferenceLine
+                    y={thresholdValue}
+                    stroke={BELOW_THRESHOLD_COLOR}
+                    strokeDasharray="6 3"
+                    strokeWidth={1.5}
+                    label={{ value: `Seuil ${thresholdValue}%`, position: 'right', fontSize: 11, fill: BELOW_THRESHOLD_COLOR }}
+                  />
+                )}
                 {activeRules.map((rule) => (
                   <Bar
                     key={rule.id}
@@ -216,8 +276,8 @@ export function MarginChart({
                       return (
                         <Cell
                           key={idx}
-                          fill={val < 0 ? 'hsl(var(--destructive))' : entry.catColor}
-                          fillOpacity={val < 0 ? 0.8 : 1}
+                          fill={getBarColor(val, entry.catColor)}
+                          fillOpacity={getBarOpacity(val)}
                         />
                       );
                     })}
@@ -241,6 +301,12 @@ export function MarginChart({
                 <span>{cat.name}</span>
               </div>
             ))}
+            {thresholdEnabled && (
+              <div className="flex items-center gap-1.5">
+                <div className="h-3 w-3 rounded-sm" style={{ backgroundColor: BELOW_THRESHOLD_COLOR }} />
+                <span>Sous le seuil ({thresholdValue}%)</span>
+              </div>
+            )}
             <div className="flex items-center gap-1.5">
               <div className="h-3 w-3 rounded-sm bg-destructive opacity-80" />
               <span>Marge négative</span>
