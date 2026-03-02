@@ -1160,27 +1160,7 @@ export function PricingPage() {
         </CardContent>
       </Card>
 
-      {/* Declination Config */}
-      <DeclinationConfigManager
-        declinations={declinations}
-        onUpdate={setDeclinations}
-        categories={productCategories}
-        salesRules={salesRules.map(r => ({ id: r.id, name: r.name, type: r.type }))}
-      />
-
-      {/* Margin Analysis Chart */}
-      <MarginChart
-        products={products}
-        productCategories={productCategories}
-        salesRules={salesRules}
-        calculateProductCost={calculateProductCost}
-        computeChainFromPublicTTC={computeChainFromPublicTTC}
-        getEffectivePrice={getEffectivePrice}
-        editedOurPrices={getRuleEditedOurPrices()}
-        pricingMode={pricingMode}
-      />
-
-      {/* Multi-channel margin detail */}
+      {/* Multi-channel margin detail - moved up */}
       {productCategories.length > 0 && salesRules.length > 0 && (
         <Card>
           <CardHeader>
@@ -1247,7 +1227,6 @@ export function PricingPage() {
                             const adjustedCost = applyDeclinationAdjustment(baseCost, decl);
                             const declName = getDeclinationName(decl?.prefix || '', cat.name, rule.name);
 
-                            // Get our price for this rule
                             const ruleOurPrices = editedOurPrices[rule.id] || {};
                             const effectiveTTC = (editedPrices[rule.id] || {})[prod.id] !== undefined
                               ? (editedPrices[rule.id] || {})[prod.id]
@@ -1288,7 +1267,6 @@ export function PricingPage() {
                       );
                     });
                   })}
-                  {/* Uncategorized products */}
                   {products.filter(p => !p.category_id).map(prod => {
                     const baseCost = calculateProductCost(prod.id, prod.default_volume || 500);
                     return (
@@ -1331,6 +1309,26 @@ export function PricingPage() {
           </CardContent>
         </Card>
       )}
+
+      {/* Declination Config */}
+      <DeclinationConfigManager
+        declinations={declinations}
+        onUpdate={setDeclinations}
+        categories={productCategories}
+        salesRules={salesRules.map(r => ({ id: r.id, name: r.name, type: r.type }))}
+      />
+
+      {/* Margin Analysis Chart */}
+      <MarginChart
+        products={products}
+        productCategories={productCategories}
+        salesRules={salesRules}
+        calculateProductCost={calculateProductCost}
+        computeChainFromPublicTTC={computeChainFromPublicTTC}
+        getEffectivePrice={getEffectivePrice}
+        editedOurPrices={getRuleEditedOurPrices()}
+        pricingMode={pricingMode}
+      />
 
       {/* Pricing table by category */}
       <Card>
