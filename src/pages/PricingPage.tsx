@@ -44,7 +44,7 @@ interface SalesRule {
 const DEFAULT_TVA = 20;
 
 export function PricingPage() {
-  const { products, productCategories, references, bom, calculateProductCost, updateProduct } = useCostFlowData();
+  const { products: allProducts, productCategories, references, bom, calculateProductCost, updateProduct, getProductsForChannel } = useCostFlowData();
 
   const [pricingMode] = useState<PricingMode>('from_our_price');
   const [distributorCoef, setDistributorCoef] = useState(1.3);
@@ -99,6 +99,13 @@ export function PricingPage() {
   const [ruleToDelete, setRuleToDelete] = useState<string | null>(null);
 
   const activeRule = salesRules.find(r => r.id === activeRuleId) || salesRules[0];
+
+  // Filter products by channel association for the active rule
+  const products = useMemo(() => {
+    const channelProductIds = getProductsForChannel(activeRuleId);
+    if (channelProductIds.length === 0) return allProducts; // Show all if none assigned
+    return allProducts.filter(p => channelProductIds.includes(p.id));
+  }, [allProducts, activeRuleId, getProductsForChannel]);
 
   // Helpers to get per-rule price for current active rule
   const getRuleEditedPrices = () => editedPrices[activeRuleId] || {};

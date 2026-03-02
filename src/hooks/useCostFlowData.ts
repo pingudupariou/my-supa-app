@@ -75,6 +75,12 @@ export interface CostFlowProductCategory {
   created_at: string;
 }
 
+export interface CostFlowProductChannel {
+  id: string;
+  product_id: string;
+  sales_rule_id: string;
+}
+
 const VOLUME_TIERS = [50, 100, 200, 500, 1000, 2000, 5000, 10000] as const;
 
 function rowToReference(row: any): CostFlowReference {
@@ -111,6 +117,7 @@ export function useCostFlowData() {
   const [referenceFiles, setReferenceFiles] = useState<CostFlowReferenceFile[]>([]);
   const [suppliers, setSuppliers] = useState<CostFlowSupplier[]>([]);
   const [productCategories, setProductCategories] = useState<CostFlowProductCategory[]>([]);
+  const [productChannels, setProductChannels] = useState<CostFlowProductChannel[]>([]);
   const [loading, setLoading] = useState(true);
   const [initialLoaded, setInitialLoaded] = useState(false);
 
@@ -125,13 +132,14 @@ export function useCostFlowData() {
     if (!user) return;
     if (!initialLoaded) setLoading(true);
     try {
-      const [refsRes, prodsRes, bomRes, filesRes, suppRes, catRes] = await Promise.all([
+      const [refsRes, prodsRes, bomRes, filesRes, suppRes, catRes, chanRes] = await Promise.all([
         supabase.from('costflow_references' as any).select('*').order('code'),
         supabase.from('costflow_products' as any).select('*').order('name'),
         supabase.from('costflow_bom' as any).select('*'),
         supabase.from('costflow_reference_files' as any).select('*').order('uploaded_at', { ascending: false }),
         supabase.from('costflow_suppliers' as any).select('*').order('name'),
         supabase.from('costflow_product_categories' as any).select('*').order('name'),
+        supabase.from('costflow_product_channels' as any).select('*'),
       ]);
       if (refsRes.data) setAllReferences((refsRes.data as any[]).map(rowToReference));
       if (prodsRes.data) setAllProducts((prodsRes.data as any[]).map((r: any) => ({
@@ -161,6 +169,9 @@ export function useCostFlowData() {
       if (catRes.data) setProductCategories((catRes.data as any[]).map((r: any) => ({
         id: r.id, name: r.name, description: r.description || '',
         color: r.color || '#6366f1', created_at: r.created_at,
+      })));
+      if (chanRes.data) setProductChannels((chanRes.data as any[]).map((r: any) => ({
+        id: r.id, product_id: r.product_id, sales_rule_id: r.sales_rule_id,
       })));
     } catch (err) {
       console.error('CostFlow fetch error:', err);
@@ -502,8 +513,34 @@ export function useCostFlowData() {
     else { toast.success('Fournisseur supprimé'); fetchAll(); }
   };
 
+  // === PRODUCT CHANNELS CRUD ===
+  const setProductChannel = async (productId: string, salesRuleId: string, enabled: boolean) => {
+    if (!user) return;
+    if (enabled) {
+      const { error } = await supabase.from('costflow_product_channels' as any).insert({
+        user_id: user.id, product_id: productId, sales_rule_id: salesRuleId,
+      } as any);
+      if (error && !error.message.includes('duplicate')) { toast.error('Erreur association canal'); console.error(error); return; }
+    } else {
+      const { error } = await supabase.from('costflow_product_channels' as any)
+        .delete()
+        .eq('product_id', productId)
+        .eq('sales_rule_id', salesRuleId);
+      if (error) { toast.error('Erreur suppression canal'); console.error(error); return; }
+    }
+    fetchAll();
+  };
+
+  const getProductChannels = (productId: string): string[] => {
+    return productChannels.filter(c => c.product_id === productId).map(c => c.sales_rule_id);
+  };
+
+  const getProductsForChannel = (salesRuleId: string): string[] => {
+    return productChannels.filter(c => c.sales_rule_id === salesRuleId).map(c => c.product_id);
+  };
+
   return {
-    references, products, bom, referenceFiles, suppliers, productCategories, loading,
+    references, products, bom, referenceFiles, suppliers, productCategories, productChannels, loading,
     trashedReferences, trashedProducts,
     createReference, updateReference, deleteReference, bulkCreateReferences,
     restoreReference, permanentDeleteReference,
@@ -513,6 +550,7 @@ export function useCostFlowData() {
     uploadFile, deleteFile, getFileUrl, getSignedUrl,
     createSupplier, updateSupplier, deleteSupplier,
     createProductCategory, updateProductCategory, deleteProductCategory,
+    setProductChannel, getProductChannels, getProductsForChannel,
     calculateProductCost, calculateProductCosts,
     VOLUME_TIERS,
     refresh: fetchAll,
