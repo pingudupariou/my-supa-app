@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useCostFlowData, CostFlowReference, CostFlowProduct } from '@/hooks/useCostFlowData';
 import { ReferenceManager } from '@/components/costflow/ReferenceManager';
 import { ReferenceDetail } from '@/components/costflow/ReferenceDetail';
+import { supabase } from '@/integrations/supabase/client';
 import { ProductManager } from '@/components/costflow/ProductManager';
 import { ProductDetail } from '@/components/costflow/ProductDetail';
 import { ProductCategoryManager } from '@/components/costflow/ProductCategoryManager';
@@ -19,6 +20,27 @@ export function CostFlowPage() {
   const [selectedRef, setSelectedRef] = useState<CostFlowReference | null>(null);
   const [selectedProduct, setSelectedProduct] = useState<CostFlowProduct | null>(null);
   const [activeTab, setActiveTab] = useState('references');
+  const [salesRules, setSalesRules] = useState<{ id: string; name: string; type: string }[]>([]);
+
+  // Load sales rules from pricing_config
+  useEffect(() => {
+    const load = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      const { data: cfg } = await supabase
+        .from('pricing_config')
+        .select('config_data')
+        .eq('user_id', user.id)
+        .maybeSingle();
+      if (cfg?.config_data) {
+        const c = cfg.config_data as any;
+        if (c.salesRules?.length) {
+          setSalesRules(c.salesRules.map((r: any) => ({ id: r.id, name: r.name, type: r.type })));
+        }
+      }
+    };
+    load();
+  }, []);
 
   if (data.loading) {
     return (
@@ -95,6 +117,9 @@ export function CostFlowPage() {
                 products={data.products}
                 references={data.references}
                 categories={data.productCategories}
+                salesRules={salesRules}
+                getProductChannels={data.getProductChannels}
+                onSetProductChannel={data.setProductChannel}
                 onCreateProduct={data.createProduct}
                 onUpdateProduct={data.updateProduct}
                 onDeleteProduct={data.deleteProduct}

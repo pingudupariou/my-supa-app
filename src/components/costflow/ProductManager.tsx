@@ -8,14 +8,24 @@ import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Plus, Trash2, Edit, Search, Upload, Calculator, PenLine } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Checkbox } from '@/components/ui/checkbox';
 import { ProductImportDialog } from './ProductImportDialog';
 import type { CostFlowProduct, CostFlowReference, CostFlowProductCategory, CostMode } from '@/hooks/useCostFlowData';
+
+interface SalesRuleInfo {
+  id: string;
+  name: string;
+  type: string;
+}
 
 interface Props {
   products: CostFlowProduct[];
   references: CostFlowReference[];
   categories: CostFlowProductCategory[];
+  salesRules: SalesRuleInfo[];
+  getProductChannels: (productId: string) => string[];
+  onSetProductChannel: (productId: string, salesRuleId: string, enabled: boolean) => Promise<void>;
   onCreateProduct: (prod: Partial<CostFlowProduct>) => Promise<void>;
   onUpdateProduct: (id: string, prod: Partial<CostFlowProduct>) => Promise<void>;
   onDeleteProduct: (id: string) => Promise<void>;
@@ -24,7 +34,7 @@ interface Props {
   calculateProductCosts: (productId: string) => Record<number, number>;
 }
 
-export function ProductManager({ products, references, categories, onCreateProduct, onUpdateProduct, onDeleteProduct, onSelectProduct, onImportProduct, calculateProductCosts }: Props) {
+export function ProductManager({ products, references, categories, salesRules, getProductChannels, onSetProductChannel, onCreateProduct, onUpdateProduct, onDeleteProduct, onSelectProduct, onImportProduct, calculateProductCosts }: Props) {
   const [search, setSearch] = useState('');
   const [importOpen, setImportOpen] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -137,6 +147,7 @@ export function ProductManager({ products, references, categories, onCreateProdu
             <TableRow>
               <TableHead>Produit</TableHead>
               <TableHead>Catégorie</TableHead>
+              <TableHead>Canaux de vente</TableHead>
               <TableHead className="text-center">Mode coût</TableHead>
               <TableHead>Fournisseur</TableHead>
               <TableHead className="text-right">Coef.</TableHead>
@@ -149,7 +160,7 @@ export function ProductManager({ products, references, categories, onCreateProdu
           </TableHeader>
           <TableBody>
             {filtered.length === 0 && (
-              <TableRow><TableCell colSpan={10} className="text-center text-muted-foreground py-8">Aucun produit. Cliquez sur "Nouveau produit" pour commencer.</TableCell></TableRow>
+              <TableRow><TableCell colSpan={12} className="text-center text-muted-foreground py-8">Aucun produit. Cliquez sur "Nouveau produit" pour commencer.</TableCell></TableRow>
             )}
             {filtered.map(prod => {
               const costs = calculateProductCosts(prod.id);
@@ -169,6 +180,40 @@ export function ProductManager({ products, references, categories, onCreateProdu
                         </Badge>
                       ) : <span className="text-muted-foreground text-xs">—</span>;
                     })()}
+                  </TableCell>
+                  <TableCell onClick={e => e.stopPropagation()}>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button variant="outline" size="sm" className="h-7 text-xs">
+                          {(() => {
+                            const channels = getProductChannels(prod.id);
+                            if (channels.length === 0) return 'Aucun';
+                            return channels.map(ch => salesRules.find(r => r.id === ch)?.name || ch).join(', ');
+                          })()}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-56 p-3" align="start">
+                        <div className="space-y-2">
+                          <p className="text-xs font-medium text-muted-foreground">Canaux de vente</p>
+                          {salesRules.map(rule => {
+                            const channels = getProductChannels(prod.id);
+                            const isChecked = channels.includes(rule.id);
+                            return (
+                              <label key={rule.id} className="flex items-center gap-2 text-sm cursor-pointer">
+                                <Checkbox
+                                  checked={isChecked}
+                                  onCheckedChange={(checked) => onSetProductChannel(prod.id, rule.id, !!checked)}
+                                />
+                                {rule.name}
+                              </label>
+                            );
+                          })}
+                          {salesRules.length === 0 && (
+                            <p className="text-xs text-muted-foreground">Aucune règle de vente définie dans l'onglet Pricing</p>
+                          )}
+                        </div>
+                      </PopoverContent>
+                    </Popover>
                   </TableCell>
                   <TableCell className="text-center" onClick={e => e.stopPropagation()}>
                     <div className="flex items-center justify-center gap-1">
