@@ -26,6 +26,7 @@ export interface B2BClient {
   specific_advantages: string | null;
   notes: string | null;
   category_id: string | null;
+  deleted_at: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -69,13 +70,18 @@ export interface B2BClientCategory {
 export function useB2BClientsData() {
   const { toast } = useToast();
   const { user } = useAuth();
-  const [clients, setClients] = useState<B2BClient[]>([]);
+  const [allClients, setAllClients] = useState<B2BClient[]>([]);
   const [projections, setProjections] = useState<B2BClientProjection[]>([]);
   const [deliveryFeeTiers, setDeliveryFeeTiers] = useState<B2BDeliveryFeeTier[]>([]);
   const [paymentTermsOptions, setPaymentTermsOptions] = useState<B2BPaymentTermOption[]>([]);
   const [deliveryMethods, setDeliveryMethods] = useState<B2BDeliveryMethod[]>([]);
   const [categories, setCategories] = useState<B2BClientCategory[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+
+  // Active clients (not deleted)
+  const clients = allClients.filter(c => !c.deleted_at);
+  // Trashed clients
+  const trashedClients = allClients.filter(c => !!c.deleted_at);
 
   const fetchAll = useCallback(async () => {
     if (!user) return;
@@ -95,7 +101,7 @@ export function useB2BClientsData() {
       if (ptRes.error) throw ptRes.error;
       if (dmRes.error) throw dmRes.error;
       if (catRes.error) throw catRes.error;
-      setClients(cRes.data as B2BClient[]);
+      setAllClients(cRes.data as B2BClient[]);
       setProjections(pRes.data as B2BClientProjection[]);
       setDeliveryFeeTiers(dfRes.data as B2BDeliveryFeeTier[]);
       setPaymentTermsOptions(ptRes.data as B2BPaymentTermOption[]);
@@ -127,9 +133,27 @@ export function useB2BClientsData() {
     }
   }, [user, toast, fetchAll]);
 
+  // Soft delete — moves to trash
   const deleteClient = useCallback(async (id: string) => {
+    const { error } = await supabase.from('b2b_clients').update({ deleted_at: new Date().toISOString() } as any).eq('id', id);
+    if (error) { toast({ title: 'Erreur', description: error.message, variant: 'destructive' }); return; }
+    toast({ title: 'Client déplacé dans la corbeille' });
+    await fetchAll();
+  }, [toast, fetchAll]);
+
+  // Restore from trash
+  const restoreClient = useCallback(async (id: string) => {
+    const { error } = await supabase.from('b2b_clients').update({ deleted_at: null } as any).eq('id', id);
+    if (error) { toast({ title: 'Erreur', description: error.message, variant: 'destructive' }); return; }
+    toast({ title: 'Client restauré' });
+    await fetchAll();
+  }, [toast, fetchAll]);
+
+  // Permanent delete — admin only (checked in UI)
+  const permanentDeleteClient = useCallback(async (id: string) => {
     const { error } = await supabase.from('b2b_clients').delete().eq('id', id);
     if (error) { toast({ title: 'Erreur', description: error.message, variant: 'destructive' }); return; }
+    toast({ title: 'Client supprimé définitivement' });
     await fetchAll();
   }, [toast, fetchAll]);
 
@@ -207,9 +231,9 @@ export function useB2BClientsData() {
   }, [projections]);
 
   return {
-    clients, projections, deliveryFeeTiers, paymentTermsOptions, deliveryMethods, categories,
+    clients, trashedClients, projections, deliveryFeeTiers, paymentTermsOptions, deliveryMethods, categories,
     isLoading, refreshData: fetchAll,
-    upsertClient, deleteClient, bulkImportClients,
+    upsertClient, deleteClient, restoreClient, permanentDeleteClient, bulkImportClients,
     upsertProjection, getClientProjections,
     addDeliveryFeeTier, deleteDeliveryFeeTier,
     addPaymentTerm, deletePaymentTerm,

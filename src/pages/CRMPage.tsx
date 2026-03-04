@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent } from '@/components/ui/card';
 import { KPICard } from '@/components/ui/KPICard';
-import { Users, Kanban, Bell, Calendar } from 'lucide-react';
+import { Users, Kanban, Bell, Calendar, Trash2 } from 'lucide-react';
 import { CustomerList } from '@/components/crm/CustomerList';
 import { CustomerDetail } from '@/components/crm/CustomerDetail';
 import { PipelineKanban } from '@/components/crm/PipelineKanban';
@@ -10,11 +10,14 @@ import { ReminderBanner } from '@/components/crm/ReminderBanner';
 import { CrmReminderManager } from '@/components/crm/CrmReminderManager';
 import { useB2BClientsData } from '@/hooks/useB2BClientsData';
 import { B2BClientTable } from '@/components/b2b/B2BClientTable';
+import { B2BTrashBin } from '@/components/b2b/B2BTrashBin';
 import { useCRMData } from '@/hooks/useCRMData';
+import { useAuth } from '@/context/AuthContext';
 
 export function CRMPage() {
   const b2b = useB2BClientsData();
   const crm = useCRMData();
+  const { isAdmin } = useAuth();
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
 
   const totalClients = b2b.clients.length;
@@ -91,6 +94,15 @@ export function CRMPage() {
               </span>
             )}
           </TabsTrigger>
+          {b2b.trashedClients.length > 0 && (
+            <TabsTrigger value="corbeille">
+              <Trash2 className="h-4 w-4 mr-2" />
+              Corbeille
+              <span className="ml-1.5 inline-flex items-center justify-center h-5 min-w-5 px-1 rounded-full bg-muted text-muted-foreground text-[10px] font-bold">
+                {b2b.trashedClients.length}
+              </span>
+            </TabsTrigger>
+          )}
         </TabsList>
 
         {/* B2B Client Table (existing) */}
@@ -186,6 +198,16 @@ export function CRMPage() {
               />
             </CardContent>
           </Card>
+        </TabsContent>
+
+        {/* Trash bin */}
+        <TabsContent value="corbeille" className="space-y-4">
+          <B2BTrashBin
+            trashedClients={b2b.trashedClients}
+            onRestore={b2b.restoreClient}
+            onPermanentDelete={b2b.permanentDeleteClient}
+            isAdmin={isAdmin}
+          />
         </TabsContent>
       </Tabs>
     </div>
