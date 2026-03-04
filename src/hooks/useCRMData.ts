@@ -76,6 +76,39 @@ export interface PricingTier {
   description: string | null;
 }
 
+export interface CrmMeeting {
+  id: string;
+  user_id: string;
+  customer_id: string;
+  title: string;
+  meeting_date: string;
+  duration_minutes: number | null;
+  location: string | null;
+  participants: string | null;
+  notes: string | null;
+  action_items: string | null;
+  status: 'planned' | 'completed' | 'cancelled';
+  responsible: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CrmReminder {
+  id: string;
+  user_id: string;
+  customer_id: string;
+  title: string;
+  description: string | null;
+  due_date: string;
+  reminder_type: 'follow_up' | 'call_back' | 'send_doc' | 'meeting' | 'other';
+  priority: 'haute' | 'moyenne' | 'basse';
+  is_completed: boolean;
+  assigned_to: string | null;
+  completed_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 export const PIPELINE_STAGES = [
   { key: 'prospect', label: 'Prospect', color: 'bg-muted' },
   { key: 'contacted', label: 'Contacté', color: 'bg-blue-500/10' },
@@ -84,6 +117,14 @@ export const PIPELINE_STAGES = [
   { key: 'negotiation', label: 'Négociation', color: 'bg-orange-500/10' },
   { key: 'won', label: 'Gagné', color: 'bg-green-500/10' },
   { key: 'lost', label: 'Perdu', color: 'bg-destructive/10' },
+];
+
+export const REMINDER_TYPES = [
+  { key: 'follow_up', label: 'Relance' },
+  { key: 'call_back', label: 'Rappeler' },
+  { key: 'send_doc', label: 'Envoyer document' },
+  { key: 'meeting', label: 'Planifier RDV' },
+  { key: 'other', label: 'Autre' },
 ];
 
 export function useCRMData() {
@@ -95,22 +136,28 @@ export function useCRMData() {
   const [orders, setOrders] = useState<CustomerOrder[]>([]);
   const [appointments, setAppointments] = useState<any[]>([]);
   const [pricingTiers, setPricingTiers] = useState<PricingTier[]>([]);
+  const [meetings, setMeetings] = useState<CrmMeeting[]>([]);
+  const [reminders, setReminders] = useState<CrmReminder[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   const fetchData = useCallback(async () => {
     if (!user) { setIsLoading(false); return; }
     try {
       setIsLoading(true);
-      const [customersRes, ordersRes, oppsRes, interactionsRes] = await Promise.all([
+      const [customersRes, ordersRes, oppsRes, interactionsRes, meetingsRes, remindersRes] = await Promise.all([
         supabase.from('customers').select('*').order('company_name'),
         supabase.from('customer_orders').select('*').order('order_date', { ascending: false }),
         supabase.from('customer_opportunities').select('*').order('sort_order'),
         supabase.from('customer_interactions').select('*').order('interaction_date', { ascending: false }),
+        supabase.from('crm_meetings' as any).select('*').order('meeting_date', { ascending: false }),
+        supabase.from('crm_reminders' as any).select('*').order('due_date'),
       ]);
       if (customersRes.data) setCustomers(customersRes.data as any);
       if (ordersRes.data) setOrders(ordersRes.data as any);
       if (oppsRes.data) setOpportunities(oppsRes.data as any);
       if (interactionsRes.data) setInteractions(interactionsRes.data as any);
+      if (meetingsRes.data) setMeetings(meetingsRes.data as any);
+      if (remindersRes.data) setReminders(remindersRes.data as any);
     } catch {
       // Tables may not be ready
     } finally {
@@ -221,7 +268,6 @@ export function useCRMData() {
       if (error) throw error;
       const newInt = data as unknown as CustomerInteraction;
       setInteractions(prev => [newInt, ...prev]);
-      // Update last_interaction_date on customer
       await supabase.from('customers').update({ last_interaction_date: newInt.interaction_date } as any).eq('id', interaction.customer_id);
       setCustomers(prev => prev.map(c => c.id === interaction.customer_id ? { ...c, last_interaction_date: newInt.interaction_date } : c));
       toast({ title: 'Interaction ajoutée' });
@@ -251,16 +297,110 @@ export function useCRMData() {
     }
   }, [user, toast]);
 
+  // Meeting CRUD
+  const createMeeting = useCallback(async (meeting: Partial<CrmMeeting> & { customer_id: string }) => {
+    if (!user) return null;
+    try {
+      const { data, error } = await supabase
+        .from('crm_meetings' as any)
+        .insert({ ...meeting, user_id: user.id })
+        .select().single();
+      if (error) throw error;
+      const m = data as unknown as CrmMeeting;
+      setMeetings(prev => [m, ...prev]);
+      toast({ title: 'RDV créé' });
+      return m;
+    } catch {
+      toast({ title: 'Erreur', variant: 'destructive' });
+      return null;
+    }
+  }, [user, toast]);
+
+  const updateMeeting = useCallback(async (id: string, updates: Partial<CrmMeeting>) => {
+    if (!user) return false;
+    try {
+      const { error } = await supabase.from('crm_meetings' as any).update(updates as any).eq('id', id);
+      if (error) throw error;
+      setMeetings(prev => prev.map(m => m.id === id ? { ...m, ...updates } : m));
+      return true;
+    } catch {
+      toast({ title: 'Erreur', variant: 'destructive' });
+      return false;
+    }
+  }, [user, toast]);
+
+  const deleteMeeting = useCallback(async (id: string) => {
+    if (!user) return false;
+    try {
+      const { error } = await supabase.from('crm_meetings' as any).delete().eq('id', id);
+      if (error) throw error;
+      setMeetings(prev => prev.filter(m => m.id !== id));
+      return true;
+    } catch { return false; }
+  }, [user]);
+
+  // Reminder CRUD
+  const createReminder = useCallback(async (reminder: Partial<CrmReminder> & { customer_id: string }) => {
+    if (!user) return null;
+    try {
+      const { data, error } = await supabase
+        .from('crm_reminders' as any)
+        .insert({ ...reminder, user_id: user.id })
+        .select().single();
+      if (error) throw error;
+      const r = data as unknown as CrmReminder;
+      setReminders(prev => [...prev, r].sort((a, b) => a.due_date.localeCompare(b.due_date)));
+      toast({ title: 'Rappel créé' });
+      return r;
+    } catch {
+      toast({ title: 'Erreur', variant: 'destructive' });
+      return null;
+    }
+  }, [user, toast]);
+
+  const updateReminder = useCallback(async (id: string, updates: Partial<CrmReminder>) => {
+    if (!user) return false;
+    try {
+      const { error } = await supabase.from('crm_reminders' as any).update(updates as any).eq('id', id);
+      if (error) throw error;
+      setReminders(prev => prev.map(r => r.id === id ? { ...r, ...updates } : r));
+      return true;
+    } catch {
+      toast({ title: 'Erreur', variant: 'destructive' });
+      return false;
+    }
+  }, [user, toast]);
+
+  const deleteReminder = useCallback(async (id: string) => {
+    if (!user) return false;
+    try {
+      const { error } = await supabase.from('crm_reminders' as any).delete().eq('id', id);
+      if (error) throw error;
+      setReminders(prev => prev.filter(r => r.id !== id));
+      return true;
+    } catch { return false; }
+  }, [user]);
+
+  const completeReminder = useCallback(async (id: string) => {
+    return updateReminder(id, { is_completed: true, completed_at: new Date().toISOString() });
+  }, [updateReminder]);
+
   return {
-    customers, interactions, appointments, orders, opportunities, pricingTiers, isLoading,
+    customers, interactions, appointments, orders, opportunities, pricingTiers,
+    meetings, reminders,
+    isLoading,
     refreshData: fetchData,
     createCustomer, updateCustomer, deleteCustomer,
     createOrder,
     createOpportunity, updateOpportunity, deleteOpportunity,
     createInteraction,
+    createMeeting, updateMeeting, deleteMeeting,
+    createReminder, updateReminder, deleteReminder, completeReminder,
     getCustomerInteractions: (id: string) => interactions.filter(i => i.customer_id === id),
     getCustomerAppointments: (id: string) => appointments.filter((a: any) => a.customer_id === id),
     getCustomerOrders: (id: string) => orders.filter(o => o.customer_id === id),
     getCustomerOpportunities: (id: string) => opportunities.filter(o => o.customer_id === id),
+    getCustomerMeetings: (id: string) => meetings.filter(m => m.customer_id === id),
+    getCustomerReminders: (id: string) => reminders.filter(r => r.customer_id === id),
   };
 }
