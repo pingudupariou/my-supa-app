@@ -172,6 +172,7 @@ export function CRMPage() {
                   getTrashedMeetings={crm.getTrashedMeetings}
                   onCreateReminder={crm.createReminder}
                   onCompleteReminder={crm.completeReminder}
+                  onUncompleteReminder={crm.uncompleteReminder}
                   onDeleteReminder={crm.deleteReminder}
                 />
               ) : (
@@ -195,6 +196,7 @@ export function CRMPage() {
                 customers={customersForSelect}
                 onCreate={crm.createReminder}
                 onComplete={crm.completeReminder}
+                onUncomplete={crm.uncompleteReminder}
                 onDelete={crm.deleteReminder}
                 showCustomerName
               />

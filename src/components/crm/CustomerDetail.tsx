@@ -24,6 +24,7 @@ interface CustomerDetailProps {
   getTrashedMeetings?: () => Promise<CrmMeeting[]>;
   onCreateReminder: (reminder: any) => Promise<any>;
   onCompleteReminder: (id: string) => Promise<boolean>;
+  onUncompleteReminder?: (id: string) => Promise<boolean>;
   onDeleteReminder: (id: string) => Promise<boolean>;
 }
 
@@ -31,7 +32,7 @@ export function CustomerDetail({
   client, interactions, opportunities, meetings, reminders,
   onCreateInteraction, onCreateMeeting, onUpdateMeeting, onDeleteMeeting,
   onRestoreMeeting, getTrashedMeetings,
-  onCreateReminder, onCompleteReminder, onDeleteReminder,
+  onCreateReminder, onCompleteReminder, onUncompleteReminder, onDeleteReminder,
 }: CustomerDetailProps) {
   const currentStage = opportunities.length > 0
     ? PIPELINE_STAGES.find(s => s.key === opportunities[0].stage)
@@ -148,6 +149,7 @@ export function CustomerDetail({
               customerId={client.id}
               onCreate={onCreateReminder}
               onComplete={onCompleteReminder}
+              onUncomplete={onUncompleteReminder}
               onDelete={onDeleteReminder}
             />
           </TabsContent>

@@ -15,6 +15,7 @@ interface CrmReminderManagerProps {
   customerId?: string;
   onCreate: (r: any) => Promise<any>;
   onComplete: (id: string) => Promise<boolean>;
+  onUncomplete?: (id: string) => Promise<boolean>;
   onDelete: (id: string) => Promise<boolean>;
   showCustomerName?: boolean;
 }
@@ -31,7 +32,7 @@ const PRIORITY_COLORS: Record<string, string> = {
 };
 
 export function CrmReminderManager({
-  reminders, customers, customerId, onCreate, onComplete, onDelete, showCustomerName = false,
+  reminders, customers, customerId, onCreate, onComplete, onUncomplete, onDelete, showCustomerName = false,
 }: CrmReminderManagerProps) {
   const [showAdd, setShowAdd] = useState(false);
   const [formCustomerId, setFormCustomerId] = useState(customerId || '');
@@ -238,7 +239,7 @@ export function CrmReminderManager({
               )}>
                 <Checkbox
                   checked={r.is_completed}
-                  onCheckedChange={() => !r.is_completed && onComplete(r.id)}
+                  onCheckedChange={() => r.is_completed ? onUncomplete?.(r.id) : onComplete(r.id)}
                   className="mt-0.5"
                 />
                 <div className="flex-1 min-w-0">

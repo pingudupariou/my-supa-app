@@ -404,6 +404,10 @@ export function useCRMData() {
     return updateReminder(id, { is_completed: true, completed_at: new Date().toISOString() });
   }, [updateReminder]);
 
+  const uncompleteReminder = useCallback(async (id: string) => {
+    return updateReminder(id, { is_completed: false, completed_at: null });
+  }, [updateReminder]);
+
   return {
     customers, interactions, appointments, orders, opportunities, pricingTiers,
     meetings, reminders,
@@ -414,7 +418,7 @@ export function useCRMData() {
     createOpportunity, updateOpportunity, deleteOpportunity,
     createInteraction,
     createMeeting, updateMeeting, deleteMeeting, restoreMeeting, getTrashedMeetings,
-    createReminder, updateReminder, deleteReminder, completeReminder,
+    createReminder, updateReminder, deleteReminder, completeReminder, uncompleteReminder,
     getCustomerInteractions: (id: string) => interactions.filter(i => i.customer_id === id),
     getCustomerAppointments: (id: string) => appointments.filter((a: any) => a.customer_id === id),
     getCustomerOrders: (id: string) => orders.filter(o => o.customer_id === id),
