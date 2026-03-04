@@ -20,6 +20,8 @@ interface CustomerDetailProps {
   onCreateMeeting: (meeting: any) => Promise<any>;
   onUpdateMeeting: (id: string, updates: any) => Promise<boolean>;
   onDeleteMeeting: (id: string) => Promise<boolean>;
+  onRestoreMeeting?: (id: string) => Promise<boolean>;
+  getTrashedMeetings?: () => Promise<CrmMeeting[]>;
   onCreateReminder: (reminder: any) => Promise<any>;
   onCompleteReminder: (id: string) => Promise<boolean>;
   onDeleteReminder: (id: string) => Promise<boolean>;
@@ -28,6 +30,7 @@ interface CustomerDetailProps {
 export function CustomerDetail({
   client, interactions, opportunities, meetings, reminders,
   onCreateInteraction, onCreateMeeting, onUpdateMeeting, onDeleteMeeting,
+  onRestoreMeeting, getTrashedMeetings,
   onCreateReminder, onCompleteReminder, onDeleteReminder,
 }: CustomerDetailProps) {
   const currentStage = opportunities.length > 0
@@ -134,6 +137,8 @@ export function CustomerDetail({
               onCreate={onCreateMeeting}
               onUpdate={onUpdateMeeting}
               onDelete={onDeleteMeeting}
+              onRestore={onRestoreMeeting}
+              getTrashedMeetings={getTrashedMeetings}
             />
           </TabsContent>
           <TabsContent value="reminders" className="mt-3">

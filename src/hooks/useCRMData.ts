@@ -89,6 +89,7 @@ export interface CrmMeeting {
   action_items: string | null;
   status: 'planned' | 'completed' | 'cancelled';
   responsible: string | null;
+  deleted_at: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -149,7 +150,7 @@ export function useCRMData() {
         supabase.from('customer_orders').select('*').order('order_date', { ascending: false }),
         supabase.from('customer_opportunities').select('*').order('sort_order'),
         supabase.from('customer_interactions').select('*').order('interaction_date', { ascending: false }),
-        supabase.from('crm_meetings' as any).select('*').order('meeting_date', { ascending: false }),
+        supabase.from('crm_meetings' as any).select('*').is('deleted_at', null).order('meeting_date', { ascending: false }),
         supabase.from('crm_reminders' as any).select('*').order('due_date'),
       ]);
       if (customersRes.data) setCustomers(customersRes.data as any);
@@ -332,12 +333,30 @@ export function useCRMData() {
   const deleteMeeting = useCallback(async (id: string) => {
     if (!user) return false;
     try {
-      const { error } = await supabase.from('crm_meetings' as any).delete().eq('id', id);
+      const { error } = await supabase.from('crm_meetings' as any).update({ deleted_at: new Date().toISOString() } as any).eq('id', id);
       if (error) throw error;
       setMeetings(prev => prev.filter(m => m.id !== id));
+      toast({ title: 'RDV mis en corbeille' });
       return true;
     } catch { return false; }
-  }, [user]);
+  }, [user, toast]);
+
+  const restoreMeeting = useCallback(async (id: string) => {
+    if (!user) return false;
+    try {
+      const { data, error } = await supabase.from('crm_meetings' as any).update({ deleted_at: null } as any).eq('id', id).select().single();
+      if (error) throw error;
+      const m = data as unknown as CrmMeeting;
+      setMeetings(prev => [m, ...prev]);
+      toast({ title: 'RDV restauré' });
+      return true;
+    } catch { return false; }
+  }, [user, toast]);
+
+  const getTrashedMeetings = useCallback(async () => {
+    const { data } = await supabase.from('crm_meetings' as any).select('*').not('deleted_at', 'is', null).order('deleted_at', { ascending: false });
+    return (data || []) as unknown as CrmMeeting[];
+  }, []);
 
   // Reminder CRUD
   const createReminder = useCallback(async (reminder: Partial<CrmReminder> & { customer_id: string }) => {
@@ -394,7 +413,7 @@ export function useCRMData() {
     createOrder,
     createOpportunity, updateOpportunity, deleteOpportunity,
     createInteraction,
-    createMeeting, updateMeeting, deleteMeeting,
+    createMeeting, updateMeeting, deleteMeeting, restoreMeeting, getTrashedMeetings,
     createReminder, updateReminder, deleteReminder, completeReminder,
     getCustomerInteractions: (id: string) => interactions.filter(i => i.customer_id === id),
     getCustomerAppointments: (id: string) => appointments.filter((a: any) => a.customer_id === id),

@@ -768,6 +768,7 @@ export type Database = {
           action_items: string | null
           created_at: string
           customer_id: string
+          deleted_at: string | null
           duration_minutes: number | null
           id: string
           location: string | null
@@ -784,6 +785,7 @@ export type Database = {
           action_items?: string | null
           created_at?: string
           customer_id: string
+          deleted_at?: string | null
           duration_minutes?: number | null
           id?: string
           location?: string | null
@@ -800,6 +802,7 @@ export type Database = {
           action_items?: string | null
           created_at?: string
           customer_id?: string
+          deleted_at?: string | null
           duration_minutes?: number | null
           id?: string
           location?: string | null

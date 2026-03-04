@@ -168,6 +168,8 @@ export function CRMPage() {
                   onCreateMeeting={crm.createMeeting}
                   onUpdateMeeting={crm.updateMeeting}
                   onDeleteMeeting={crm.deleteMeeting}
+                  onRestoreMeeting={crm.restoreMeeting}
+                  getTrashedMeetings={crm.getTrashedMeetings}
                   onCreateReminder={crm.createReminder}
                   onCompleteReminder={crm.completeReminder}
                   onDeleteReminder={crm.deleteReminder}
