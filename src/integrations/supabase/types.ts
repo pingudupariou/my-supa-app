@@ -760,6 +760,105 @@ export type Database = {
         }
         Relationships: []
       }
+      crm_meetings: {
+        Row: {
+          action_items: string | null
+          created_at: string
+          customer_id: string
+          duration_minutes: number | null
+          id: string
+          location: string | null
+          meeting_date: string
+          notes: string | null
+          participants: string | null
+          responsible: string | null
+          status: string
+          title: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          action_items?: string | null
+          created_at?: string
+          customer_id: string
+          duration_minutes?: number | null
+          id?: string
+          location?: string | null
+          meeting_date?: string
+          notes?: string | null
+          participants?: string | null
+          responsible?: string | null
+          status?: string
+          title?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          action_items?: string | null
+          created_at?: string
+          customer_id?: string
+          duration_minutes?: number | null
+          id?: string
+          location?: string | null
+          meeting_date?: string
+          notes?: string | null
+          participants?: string | null
+          responsible?: string | null
+          status?: string
+          title?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      crm_reminders: {
+        Row: {
+          assigned_to: string | null
+          completed_at: string | null
+          created_at: string
+          customer_id: string
+          description: string | null
+          due_date: string
+          id: string
+          is_completed: boolean
+          priority: string
+          reminder_type: string
+          title: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          assigned_to?: string | null
+          completed_at?: string | null
+          created_at?: string
+          customer_id: string
+          description?: string | null
+          due_date?: string
+          id?: string
+          is_completed?: boolean
+          priority?: string
+          reminder_type?: string
+          title?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          assigned_to?: string | null
+          completed_at?: string | null
+          created_at?: string
+          customer_id?: string
+          description?: string | null
+          due_date?: string
+          id?: string
+          is_completed?: boolean
+          priority?: string
+          reminder_type?: string
+          title?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       customer_interactions: {
         Row: {
           content: string | null

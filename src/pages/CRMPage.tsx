@@ -2,10 +2,12 @@ import { useState } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent } from '@/components/ui/card';
 import { KPICard } from '@/components/ui/KPICard';
-import { Users, Kanban } from 'lucide-react';
+import { Users, Kanban, Bell, Calendar } from 'lucide-react';
 import { CustomerList } from '@/components/crm/CustomerList';
 import { CustomerDetail } from '@/components/crm/CustomerDetail';
 import { PipelineKanban } from '@/components/crm/PipelineKanban';
+import { ReminderBanner } from '@/components/crm/ReminderBanner';
+import { CrmReminderManager } from '@/components/crm/CrmReminderManager';
 import { useB2BClientsData } from '@/hooks/useB2BClientsData';
 import { B2BClientTable } from '@/components/b2b/B2BClientTable';
 import { useCRMData } from '@/hooks/useCRMData';
@@ -28,6 +30,12 @@ export function CRMPage() {
     .filter(o => !['won', 'lost'].includes(o.stage))
     .reduce((s, o) => s + (o.estimated_amount || 0), 0);
 
+  const pendingReminders = crm.reminders.filter(r => !r.is_completed).length;
+  const today = new Date().toISOString().slice(0, 10);
+  const overdueReminders = crm.reminders.filter(r => !r.is_completed && r.due_date < today).length;
+
+  const customersForSelect = b2b.clients.map(c => ({ id: c.id, company_name: c.company_name }));
+
   if (b2b.isLoading && crm.isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -41,16 +49,23 @@ export function CRMPage() {
       <div>
         <h1 className="text-3xl font-bold tracking-tight">CRM — Clients</h1>
         <p className="text-muted-foreground">
-          Gestion des clients, pipeline commercial et suivi des interactions
+          Gestion des clients, pipeline commercial, suivi des RDV et rappels
         </p>
       </div>
+
+      {/* Reminder Banner */}
+      <ReminderBanner reminders={crm.reminders} customers={customersForSelect} />
 
       <div className="grid gap-4 md:grid-cols-5">
         <KPICard label="Total Clients" value={totalClients} />
         <KPICard label="Clients Actifs" value={activeClients} trend={activeClients > 0 ? 'up' : 'neutral'} />
         <KPICard label={`CA ${currentYear}`} value={`${(totalCA / 1000).toFixed(0)} k€`} />
-        <KPICard label="Catégories" value={b2b.categories.length} />
         <KPICard label="Pipeline" value={`${(pipelineValue / 1000).toFixed(0)} k€`} />
+        <KPICard
+          label="Rappels"
+          value={`${pendingReminders}${overdueReminders > 0 ? ` (${overdueReminders} ⚠)` : ''}`}
+          trend={overdueReminders > 0 ? 'down' : 'neutral'}
+        />
       </div>
 
       <Tabs defaultValue="clients" className="space-y-4">
@@ -66,6 +81,15 @@ export function CRMPage() {
           <TabsTrigger value="fiches">
             <Users className="h-4 w-4 mr-2" />
             Fiches Clients
+          </TabsTrigger>
+          <TabsTrigger value="suivi">
+            <Bell className="h-4 w-4 mr-2" />
+            Suivi & Rappels
+            {pendingReminders > 0 && (
+              <span className="ml-1.5 inline-flex items-center justify-center h-5 min-w-5 px-1 rounded-full bg-destructive text-destructive-foreground text-[10px] font-bold">
+                {pendingReminders}
+              </span>
+            )}
           </TabsTrigger>
         </TabsList>
 
@@ -95,18 +119,18 @@ export function CRMPage() {
           />
         </TabsContent>
 
-        {/* Pipeline Kanban — uses b2b_clients for customer list */}
+        {/* Pipeline Kanban */}
         <TabsContent value="pipeline">
           <PipelineKanban
             opportunities={crm.opportunities}
-            customers={b2b.clients.map(c => ({ id: c.id, company_name: c.company_name }))}
+            customers={customersForSelect}
             onCreateOpportunity={crm.createOpportunity}
             onUpdateOpportunity={crm.updateOpportunity}
             onDeleteOpportunity={crm.deleteOpportunity}
           />
         </TabsContent>
 
-        {/* Customer Detail with interactions — linked to B2B clients */}
+        {/* Customer Detail with interactions, meetings, reminders */}
         <TabsContent value="fiches" className="space-y-4">
           <div className="grid gap-6 lg:grid-cols-3">
             <div className="lg:col-span-1">
@@ -123,7 +147,15 @@ export function CRMPage() {
                   client={selectedClient}
                   interactions={crm.getCustomerInteractions(selectedClient.id)}
                   opportunities={crm.getCustomerOpportunities(selectedClient.id)}
+                  meetings={crm.getCustomerMeetings(selectedClient.id)}
+                  reminders={crm.getCustomerReminders(selectedClient.id)}
                   onCreateInteraction={crm.createInteraction}
+                  onCreateMeeting={crm.createMeeting}
+                  onUpdateMeeting={crm.updateMeeting}
+                  onDeleteMeeting={crm.deleteMeeting}
+                  onCreateReminder={crm.createReminder}
+                  onCompleteReminder={crm.completeReminder}
+                  onDeleteReminder={crm.deleteReminder}
                 />
               ) : (
                 <Card className="h-full min-h-[400px] flex items-center justify-center">
@@ -135,6 +167,22 @@ export function CRMPage() {
               )}
             </div>
           </div>
+        </TabsContent>
+
+        {/* Centralized Reminders tab */}
+        <TabsContent value="suivi" className="space-y-4">
+          <Card>
+            <CardContent className="pt-6">
+              <CrmReminderManager
+                reminders={crm.reminders}
+                customers={customersForSelect}
+                onCreate={crm.createReminder}
+                onComplete={crm.completeReminder}
+                onDelete={crm.deleteReminder}
+                showCustomerName
+              />
+            </CardContent>
+          </Card>
         </TabsContent>
       </Tabs>
     </div>
