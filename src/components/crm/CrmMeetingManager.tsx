@@ -26,7 +26,7 @@ export function CrmMeetingManager({ meetings, customerId, onCreate, onUpdate, on
   const [newTitle, setNewTitle] = useState('');
   const [newDate, setNewDate] = useState(new Date().toISOString().slice(0, 16));
   const [expandedId, setExpandedId] = useState<string | null>(null);
-  const [editDrafts, setEditDrafts] = useState<Record<string, { notes: string; action_items: string }>>({});
+  const [editDrafts, setEditDrafts] = useState<Record<string, { title: string; notes: string; action_items: string }>>({});
   const [savingId, setSavingId] = useState<string | null>(null);
 
   const handleCreate = async () => {
@@ -41,11 +41,11 @@ export function CrmMeetingManager({ meetings, customerId, onCreate, onUpdate, on
     if (expandedId === id) { setExpandedId(null); return; }
     setExpandedId(id);
     if (!editDrafts[id]) {
-      setEditDrafts(d => ({ ...d, [id]: { notes: meeting.notes || '', action_items: meeting.action_items || '' } }));
+      setEditDrafts(d => ({ ...d, [id]: { title: meeting.title || '', notes: meeting.notes || '', action_items: meeting.action_items || '' } }));
     }
   };
 
-  const updateDraft = (id: string, field: 'notes' | 'action_items', value: string) => {
+  const updateDraft = (id: string, field: 'title' | 'notes' | 'action_items', value: string) => {
     setEditDrafts(d => ({ ...d, [id]: { ...d[id], [field]: value } }));
   };
 
@@ -53,7 +53,7 @@ export function CrmMeetingManager({ meetings, customerId, onCreate, onUpdate, on
     const draft = editDrafts[id];
     if (!draft) return;
     setSavingId(id);
-    await onUpdate(id, { notes: draft.notes, action_items: draft.action_items });
+    await onUpdate(id, { title: draft.title, notes: draft.notes, action_items: draft.action_items });
     setSavingId(null);
   };
 
@@ -102,7 +102,7 @@ export function CrmMeetingManager({ meetings, customerId, onCreate, onUpdate, on
             const st = STATUS_MAP[m.status] || STATUS_MAP.planned;
             const isExpanded = expandedId === m.id;
             const draft = editDrafts[m.id];
-            const hasChanges = draft && (draft.notes !== (m.notes || '') || draft.action_items !== (m.action_items || ''));
+            const hasChanges = draft && (draft.title !== (m.title || '') || draft.notes !== (m.notes || '') || draft.action_items !== (m.action_items || ''));
             return (
               <div key={m.id} className={cn("p-3 rounded-lg border transition-colors", m.status === 'completed' ? 'bg-muted/20' : 'bg-background')}>
                 <div className="flex items-start justify-between cursor-pointer" onClick={() => handleExpand(m.id, m)}>
@@ -135,6 +135,15 @@ export function CrmMeetingManager({ meetings, customerId, onCreate, onUpdate, on
                 </div>
                 {isExpanded && (
                   <div className="mt-3 pt-3 border-t space-y-3 text-sm" onClick={e => e.stopPropagation()}>
+                    <div>
+                      <label className="text-xs font-medium text-muted-foreground mb-1 block">Titre</label>
+                      <Input
+                        value={draft?.title ?? m.title ?? ''}
+                        onChange={e => updateDraft(m.id, 'title', e.target.value)}
+                        placeholder="Titre du RDV"
+                        className="text-sm"
+                      />
+                    </div>
                     {m.participants && <div><span className="text-muted-foreground"><Users className="h-3 w-3 inline mr-1" />Participants:</span> {m.participants}</div>}
                     {m.responsible && <div><span className="text-muted-foreground">Responsable:</span> {m.responsible}</div>}
                     
