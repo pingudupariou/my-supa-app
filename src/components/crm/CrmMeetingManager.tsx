@@ -1,11 +1,11 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { Plus, Calendar, MapPin, Clock, Users, CheckCircle2, XCircle, Trash2 } from 'lucide-react';
+import { Plus, Calendar, MapPin, Clock, Users, CheckCircle2, XCircle, Trash2, Save } from 'lucide-react';
 import { CrmMeeting } from '@/hooks/useCRMData';
 import { cn } from '@/lib/utils';
 
@@ -32,12 +32,37 @@ export function CrmMeetingManager({ meetings, customerId, onCreate, onUpdate, on
   const [showAdd, setShowAdd] = useState(false);
   const [form, setForm] = useState(emptyForm());
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [editDrafts, setEditDrafts] = useState<Record<string, { notes: string; action_items: string }>>({});
+  const [savingId, setSavingId] = useState<string | null>(null);
 
   const handleCreate = async () => {
     if (!form.title.trim()) return;
     await onCreate({ customer_id: customerId, ...form, duration_minutes: Number(form.duration_minutes) || 60 });
     setShowAdd(false);
     setForm(emptyForm());
+  };
+
+  const handleExpand = (id: string, meeting: CrmMeeting) => {
+    if (expandedId === id) {
+      setExpandedId(null);
+      return;
+    }
+    setExpandedId(id);
+    if (!editDrafts[id]) {
+      setEditDrafts(d => ({ ...d, [id]: { notes: meeting.notes || '', action_items: meeting.action_items || '' } }));
+    }
+  };
+
+  const updateDraft = (id: string, field: 'notes' | 'action_items', value: string) => {
+    setEditDrafts(d => ({ ...d, [id]: { ...d[id], [field]: value } }));
+  };
+
+  const saveDraft = async (id: string) => {
+    const draft = editDrafts[id];
+    if (!draft) return;
+    setSavingId(id);
+    await onUpdate(id, { notes: draft.notes, action_items: draft.action_items });
+    setSavingId(null);
   };
 
   return (
@@ -58,9 +83,11 @@ export function CrmMeetingManager({ meetings, customerId, onCreate, onUpdate, on
           {meetings.map(m => {
             const st = STATUS_MAP[m.status] || STATUS_MAP.planned;
             const isExpanded = expandedId === m.id;
+            const draft = editDrafts[m.id];
+            const hasChanges = draft && (draft.notes !== (m.notes || '') || draft.action_items !== (m.action_items || ''));
             return (
               <div key={m.id} className={cn("p-3 rounded-lg border transition-colors", m.status === 'completed' ? 'bg-muted/20' : 'bg-background')}>
-                <div className="flex items-start justify-between cursor-pointer" onClick={() => setExpandedId(isExpanded ? null : m.id)}>
+                <div className="flex items-start justify-between cursor-pointer" onClick={() => handleExpand(m.id, m)}>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
                       <span className="font-medium text-sm truncate">{m.title}</span>
@@ -89,11 +116,40 @@ export function CrmMeetingManager({ meetings, customerId, onCreate, onUpdate, on
                   </div>
                 </div>
                 {isExpanded && (
-                  <div className="mt-3 pt-3 border-t space-y-2 text-sm">
+                  <div className="mt-3 pt-3 border-t space-y-3 text-sm" onClick={e => e.stopPropagation()}>
                     {m.participants && <div><span className="text-muted-foreground"><Users className="h-3 w-3 inline mr-1" />Participants:</span> {m.participants}</div>}
                     {m.responsible && <div><span className="text-muted-foreground">Responsable:</span> {m.responsible}</div>}
-                    {m.notes && <div className="p-2 rounded bg-muted/30"><span className="text-muted-foreground font-medium text-xs">Notes:</span><p className="whitespace-pre-wrap text-xs mt-1">{m.notes}</p></div>}
-                    {m.action_items && <div className="p-2 rounded bg-primary/5"><span className="text-xs font-medium">Actions à suivre:</span><p className="whitespace-pre-wrap text-xs mt-1">{m.action_items}</p></div>}
+                    
+                    <div>
+                      <label className="text-xs font-medium text-muted-foreground mb-1 block">Notes / Compte-rendu</label>
+                      <Textarea
+                        value={draft?.notes ?? m.notes ?? ''}
+                        onChange={e => updateDraft(m.id, 'notes', e.target.value)}
+                        placeholder="Écrire les notes ici…"
+                        rows={3}
+                        className="text-xs resize-y"
+                      />
+                    </div>
+                    
+                    <div>
+                      <label className="text-xs font-medium text-muted-foreground mb-1 block">Actions à suivre</label>
+                      <Textarea
+                        value={draft?.action_items ?? m.action_items ?? ''}
+                        onChange={e => updateDraft(m.id, 'action_items', e.target.value)}
+                        placeholder="Lister les actions…"
+                        rows={2}
+                        className="text-xs resize-y"
+                      />
+                    </div>
+
+                    {hasChanges && (
+                      <div className="flex justify-end">
+                        <Button size="sm" onClick={() => saveDraft(m.id)} disabled={savingId === m.id} className="h-7 text-xs">
+                          <Save className="h-3 w-3 mr-1" />
+                          {savingId === m.id ? 'Enregistrement…' : 'Enregistrer'}
+                        </Button>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -116,8 +172,6 @@ export function CrmMeetingManager({ meetings, customerId, onCreate, onUpdate, on
               <Input placeholder="Responsable" value={form.responsible} onChange={e => setForm(f => ({ ...f, responsible: e.target.value }))} />
             </div>
             <Input placeholder="Participants (séparés par des virgules)" value={form.participants} onChange={e => setForm(f => ({ ...f, participants: e.target.value }))} />
-            <Textarea placeholder="Notes / Compte-rendu" value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} rows={3} />
-            <Textarea placeholder="Actions à suivre" value={form.action_items} onChange={e => setForm(f => ({ ...f, action_items: e.target.value }))} rows={2} />
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowAdd(false)}>Annuler</Button>
