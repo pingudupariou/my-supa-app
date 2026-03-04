@@ -108,12 +108,14 @@ function EditableCell({ value, onSave, type = 'text', className = '' }: {
 }
 
 // Inline select cell
-function EditableSelectCell({ value, options, onSave, placeholder = '—' }: {
+function EditableSelectCell({ value, options, optionItems, onSave, placeholder = '—' }: {
   value: string;
-  options: string[];
+  options?: string[];
+  optionItems?: { value: string; label: string }[];
   onSave: (val: string) => void;
   placeholder?: string;
 }) {
+  const items = optionItems || (options || []).map(o => ({ value: o, label: o }));
   return (
     <Select value={value || 'none'} onValueChange={v => onSave(v === 'none' ? '' : v)}>
       <SelectTrigger className="h-7 text-xs w-full border-dashed">
@@ -121,7 +123,7 @@ function EditableSelectCell({ value, options, onSave, placeholder = '—' }: {
       </SelectTrigger>
       <SelectContent>
         <SelectItem value="none">{placeholder}</SelectItem>
-        {options.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}
+        {items.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
       </SelectContent>
     </Select>
   );
@@ -311,7 +313,7 @@ export function B2BClientTable({
         <TableCell>
           <EditableSelectCell
             value={c.category_id || ''}
-            options={categories.map(cat => cat.id)}
+            optionItems={categories.map(cat => ({ value: cat.id, label: cat.name }))}
             onSave={v => onUpsertClient({ ...c, category_id: v || null })}
             placeholder="—"
           />
