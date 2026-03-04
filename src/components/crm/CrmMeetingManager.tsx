@@ -1,11 +1,9 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { Plus, Calendar, MapPin, Clock, Users, CheckCircle2, XCircle, Trash2, Save } from 'lucide-react';
+import { Plus, Calendar, MapPin, Clock, Users, CheckCircle2, XCircle, Trash2, Save, ChevronDown, ChevronUp } from 'lucide-react';
 import { CrmMeeting } from '@/hooks/useCRMData';
 import { cn } from '@/lib/utils';
 
@@ -23,30 +21,24 @@ const STATUS_MAP: Record<string, { label: string; variant: 'default' | 'secondar
   cancelled: { label: 'Annulé', variant: 'destructive' },
 };
 
-const emptyForm = () => ({
-  title: '', meeting_date: new Date().toISOString().slice(0, 16), duration_minutes: 60,
-  location: '', participants: '', notes: '', action_items: '', responsible: '', status: 'planned',
-});
-
 export function CrmMeetingManager({ meetings, customerId, onCreate, onUpdate, onDelete }: CrmMeetingManagerProps) {
   const [showAdd, setShowAdd] = useState(false);
-  const [form, setForm] = useState(emptyForm());
+  const [newTitle, setNewTitle] = useState('');
+  const [newDate, setNewDate] = useState(new Date().toISOString().slice(0, 16));
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [editDrafts, setEditDrafts] = useState<Record<string, { notes: string; action_items: string }>>({});
   const [savingId, setSavingId] = useState<string | null>(null);
 
   const handleCreate = async () => {
-    if (!form.title.trim()) return;
-    await onCreate({ customer_id: customerId, ...form, duration_minutes: Number(form.duration_minutes) || 60 });
+    if (!newTitle.trim()) return;
+    await onCreate({ customer_id: customerId, title: newTitle, meeting_date: newDate, status: 'planned', duration_minutes: 60 });
+    setNewTitle('');
+    setNewDate(new Date().toISOString().slice(0, 16));
     setShowAdd(false);
-    setForm(emptyForm());
   };
 
   const handleExpand = (id: string, meeting: CrmMeeting) => {
-    if (expandedId === id) {
-      setExpandedId(null);
-      return;
-    }
+    if (expandedId === id) { setExpandedId(null); return; }
     setExpandedId(id);
     if (!editDrafts[id]) {
       setEditDrafts(d => ({ ...d, [id]: { notes: meeting.notes || '', action_items: meeting.action_items || '' } }));
@@ -71,10 +63,36 @@ export function CrmMeetingManager({ meetings, customerId, onCreate, onUpdate, on
         <h4 className="font-medium text-sm flex items-center gap-1.5">
           <Calendar className="h-4 w-4" /> RDV & Réunions ({meetings.length})
         </h4>
-        <Button size="sm" variant="outline" onClick={() => setShowAdd(true)}>
-          <Plus className="h-3.5 w-3.5 mr-1" /> Planifier
+        <Button size="sm" variant="outline" onClick={() => setShowAdd(!showAdd)}>
+          {showAdd ? <ChevronUp className="h-3.5 w-3.5 mr-1" /> : <Plus className="h-3.5 w-3.5 mr-1" />}
+          {showAdd ? 'Fermer' : 'Planifier'}
         </Button>
       </div>
+
+      {/* Inline quick form */}
+      {showAdd && (
+        <div className="mb-3 p-3 rounded-lg border border-dashed border-primary/40 bg-primary/5 space-y-2">
+          <Input
+            placeholder="Titre du RDV *"
+            value={newTitle}
+            onChange={e => setNewTitle(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && handleCreate()}
+            autoFocus
+            className="text-sm"
+          />
+          <div className="flex items-center gap-2">
+            <Input
+              type="datetime-local"
+              value={newDate}
+              onChange={e => setNewDate(e.target.value)}
+              className="text-sm flex-1"
+            />
+            <Button size="sm" onClick={handleCreate} disabled={!newTitle.trim()} className="shrink-0">
+              <Plus className="h-3.5 w-3.5 mr-1" /> Créer
+            </Button>
+          </div>
+        </div>
+      )}
 
       {meetings.length === 0 ? (
         <p className="text-sm text-muted-foreground">Aucun RDV enregistré.</p>
@@ -157,28 +175,6 @@ export function CrmMeetingManager({ meetings, customerId, onCreate, onUpdate, on
           })}
         </div>
       )}
-
-      <Dialog open={showAdd} onOpenChange={setShowAdd}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader><DialogTitle>Planifier un RDV</DialogTitle></DialogHeader>
-          <div className="space-y-3 py-2">
-            <Input placeholder="Titre du RDV *" value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} />
-            <div className="grid grid-cols-2 gap-3">
-              <Input type="datetime-local" value={form.meeting_date} onChange={e => setForm(f => ({ ...f, meeting_date: e.target.value }))} />
-              <Input type="number" placeholder="Durée (min)" value={form.duration_minutes} onChange={e => setForm(f => ({ ...f, duration_minutes: Number(e.target.value) }))} />
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <Input placeholder="Lieu" value={form.location} onChange={e => setForm(f => ({ ...f, location: e.target.value }))} />
-              <Input placeholder="Responsable" value={form.responsible} onChange={e => setForm(f => ({ ...f, responsible: e.target.value }))} />
-            </div>
-            <Input placeholder="Participants (séparés par des virgules)" value={form.participants} onChange={e => setForm(f => ({ ...f, participants: e.target.value }))} />
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowAdd(false)}>Annuler</Button>
-            <Button onClick={handleCreate} disabled={!form.title.trim()}>Créer</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }
