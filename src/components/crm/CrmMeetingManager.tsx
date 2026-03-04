@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
-import { Plus, Calendar, MapPin, Clock, Users, CheckCircle2, XCircle, Trash2, Save, ChevronDown, ChevronUp } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Plus, Calendar, MapPin, Clock, Users, CheckCircle2, XCircle, Trash2, Save, ChevronUp, RotateCcw, Archive } from 'lucide-react';
 import { CrmMeeting } from '@/hooks/useCRMData';
 import { cn } from '@/lib/utils';
 
@@ -13,6 +14,8 @@ interface CrmMeetingManagerProps {
   onCreate: (meeting: any) => Promise<any>;
   onUpdate: (id: string, updates: any) => Promise<boolean>;
   onDelete: (id: string) => Promise<boolean>;
+  onRestore?: (id: string) => Promise<boolean>;
+  getTrashedMeetings?: () => Promise<CrmMeeting[]>;
 }
 
 const STATUS_MAP: Record<string, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' }> = {
@@ -21,8 +24,10 @@ const STATUS_MAP: Record<string, { label: string; variant: 'default' | 'secondar
   cancelled: { label: 'Annulé', variant: 'destructive' },
 };
 
-export function CrmMeetingManager({ meetings, customerId, onCreate, onUpdate, onDelete }: CrmMeetingManagerProps) {
+export function CrmMeetingManager({ meetings, customerId, onCreate, onUpdate, onDelete, onRestore, getTrashedMeetings }: CrmMeetingManagerProps) {
   const [showAdd, setShowAdd] = useState(false);
+  const [showTrash, setShowTrash] = useState(false);
+  const [trashedMeetings, setTrashedMeetings] = useState<CrmMeeting[]>([]);
   const [newTitle, setNewTitle] = useState('');
   const [newDate, setNewDate] = useState(new Date().toISOString().slice(0, 16));
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -57,16 +62,41 @@ export function CrmMeetingManager({ meetings, customerId, onCreate, onUpdate, on
     setSavingId(null);
   };
 
+  const loadTrash = async () => {
+    if (!getTrashedMeetings) return;
+    const trashed = await getTrashedMeetings();
+    // Filter by customerId
+    setTrashedMeetings(trashed.filter(m => m.customer_id === customerId));
+  };
+
+  const toggleTrash = async () => {
+    if (!showTrash) await loadTrash();
+    setShowTrash(!showTrash);
+  };
+
+  const handleRestore = async (id: string) => {
+    if (!onRestore) return;
+    await onRestore(id);
+    setTrashedMeetings(prev => prev.filter(m => m.id !== id));
+  };
+
   return (
     <div>
       <div className="flex items-center justify-between mb-3">
         <h4 className="font-medium text-sm flex items-center gap-1.5">
           <Calendar className="h-4 w-4" /> RDV & Réunions ({meetings.length})
         </h4>
-        <Button size="sm" variant="outline" onClick={() => setShowAdd(!showAdd)}>
-          {showAdd ? <ChevronUp className="h-3.5 w-3.5 mr-1" /> : <Plus className="h-3.5 w-3.5 mr-1" />}
-          {showAdd ? 'Fermer' : 'Planifier'}
-        </Button>
+        <div className="flex items-center gap-1">
+          {getTrashedMeetings && (
+            <Button size="sm" variant="ghost" onClick={toggleTrash} className={cn("h-7 text-xs", showTrash && 'bg-muted')}>
+              <Archive className="h-3.5 w-3.5 mr-1" /> Corbeille
+            </Button>
+          )}
+          <Button size="sm" variant="outline" onClick={() => setShowAdd(!showAdd)}>
+            {showAdd ? <ChevronUp className="h-3.5 w-3.5 mr-1" /> : <Plus className="h-3.5 w-3.5 mr-1" />}
+            {showAdd ? 'Fermer' : 'Planifier'}
+          </Button>
+        </div>
       </div>
 
       {/* Inline quick form */}
@@ -94,6 +124,33 @@ export function CrmMeetingManager({ meetings, customerId, onCreate, onUpdate, on
         </div>
       )}
 
+      {/* Trash view */}
+      {showTrash && (
+        <div className="mb-3 p-3 rounded-lg border border-dashed border-destructive/30 bg-destructive/5 space-y-2">
+          <h5 className="text-xs font-medium text-muted-foreground flex items-center gap-1">
+            <Archive className="h-3 w-3" /> RDV supprimés
+          </h5>
+          {trashedMeetings.length === 0 ? (
+            <p className="text-xs text-muted-foreground">Aucun RDV en corbeille.</p>
+          ) : (
+            trashedMeetings.map(m => (
+              <div key={m.id} className="flex items-center justify-between p-2 rounded border bg-background">
+                <div className="min-w-0">
+                  <span className="text-sm font-medium truncate block">{m.title}</span>
+                  <span className="text-[10px] text-muted-foreground">
+                    {new Date(m.meeting_date).toLocaleDateString('fr-FR')}
+                    {m.deleted_at && ` • Supprimé le ${new Date(m.deleted_at).toLocaleDateString('fr-FR')}`}
+                  </span>
+                </div>
+                <Button size="sm" variant="outline" className="h-7 text-xs shrink-0" onClick={() => handleRestore(m.id)}>
+                  <RotateCcw className="h-3 w-3 mr-1" /> Restaurer
+                </Button>
+              </div>
+            ))
+          )}
+        </div>
+      )}
+
       {meetings.length === 0 ? (
         <p className="text-sm text-muted-foreground">Aucun RDV enregistré.</p>
       ) : (
@@ -104,7 +161,10 @@ export function CrmMeetingManager({ meetings, customerId, onCreate, onUpdate, on
             const draft = editDrafts[m.id];
             const hasChanges = draft && (draft.title !== (m.title || '') || draft.notes !== (m.notes || '') || draft.action_items !== (m.action_items || ''));
             return (
-              <div key={m.id} className={cn("p-3 rounded-lg border transition-colors", m.status === 'completed' ? 'bg-muted/20' : 'bg-background')}>
+              <div key={m.id} className={cn(
+                "p-3 rounded-lg border transition-colors",
+                m.status === 'completed' ? 'bg-muted/20' : m.status === 'cancelled' ? 'bg-destructive/5' : 'bg-background'
+              )}>
                 <div className="flex items-start justify-between cursor-pointer" onClick={() => handleExpand(m.id, m)}>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
@@ -118,17 +178,28 @@ export function CrmMeetingManager({ meetings, customerId, onCreate, onUpdate, on
                     </div>
                   </div>
                   <div className="flex items-center gap-1 shrink-0">
+                    {/* Status change buttons based on current status */}
                     {m.status === 'planned' && (
                       <>
-                        <Button size="icon" variant="ghost" className="h-7 w-7" onClick={e => { e.stopPropagation(); onUpdate(m.id, { status: 'completed' }); }}>
+                        <Button size="icon" variant="ghost" className="h-7 w-7" title="Marquer réalisé" onClick={e => { e.stopPropagation(); onUpdate(m.id, { status: 'completed' }); }}>
                           <CheckCircle2 className="h-3.5 w-3.5 text-green-600" />
                         </Button>
-                        <Button size="icon" variant="ghost" className="h-7 w-7" onClick={e => { e.stopPropagation(); onUpdate(m.id, { status: 'cancelled' }); }}>
+                        <Button size="icon" variant="ghost" className="h-7 w-7" title="Annuler" onClick={e => { e.stopPropagation(); onUpdate(m.id, { status: 'cancelled' }); }}>
                           <XCircle className="h-3.5 w-3.5 text-destructive" />
                         </Button>
                       </>
                     )}
-                    <Button size="icon" variant="ghost" className="h-7 w-7" onClick={e => { e.stopPropagation(); onDelete(m.id); }}>
+                    {m.status === 'completed' && (
+                      <Button size="icon" variant="ghost" className="h-7 w-7" title="Remettre en planifié" onClick={e => { e.stopPropagation(); onUpdate(m.id, { status: 'planned' }); }}>
+                        <RotateCcw className="h-3.5 w-3.5 text-primary" />
+                      </Button>
+                    )}
+                    {m.status === 'cancelled' && (
+                      <Button size="icon" variant="ghost" className="h-7 w-7" title="Replanifier" onClick={e => { e.stopPropagation(); onUpdate(m.id, { status: 'planned' }); }}>
+                        <RotateCcw className="h-3.5 w-3.5 text-primary" />
+                      </Button>
+                    )}
+                    <Button size="icon" variant="ghost" className="h-7 w-7" title="Supprimer" onClick={e => { e.stopPropagation(); onDelete(m.id); }}>
                       <Trash2 className="h-3.5 w-3.5 text-muted-foreground" />
                     </Button>
                   </div>
@@ -144,6 +215,20 @@ export function CrmMeetingManager({ meetings, customerId, onCreate, onUpdate, on
                         className="text-sm"
                       />
                     </div>
+
+                    {/* Status selector */}
+                    <div>
+                      <label className="text-xs font-medium text-muted-foreground mb-1 block">Statut</label>
+                      <Select value={m.status} onValueChange={v => onUpdate(m.id, { status: v })}>
+                        <SelectTrigger className="text-sm h-8"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="planned">📅 Planifié</SelectItem>
+                          <SelectItem value="completed">✅ Réalisé</SelectItem>
+                          <SelectItem value="cancelled">❌ Annulé</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
                     {m.participants && <div><span className="text-muted-foreground"><Users className="h-3 w-3 inline mr-1" />Participants:</span> {m.participants}</div>}
                     {m.responsible && <div><span className="text-muted-foreground">Responsable:</span> {m.responsible}</div>}
                     
