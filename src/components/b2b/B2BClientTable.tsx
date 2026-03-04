@@ -9,7 +9,8 @@ import { Switch } from '@/components/ui/switch';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Plus, Trash2, Upload, Save, X, Settings, ChevronDown, ChevronRight, FolderPlus, Download, Columns3, Eye } from 'lucide-react';
+import { Plus, Trash2, Upload, Save, X, Settings, ChevronDown, ChevronRight, FolderPlus, Download, Columns3, Eye, Calendar, Bell, MessageSquare, AlertTriangle } from 'lucide-react';
+import { CrmMeeting, CrmReminder, CustomerInteraction } from '@/hooks/useCRMData';
 import { B2BClient, B2BClientProjection, B2BPaymentTermOption, B2BDeliveryMethod, B2BDeliveryFeeTier, B2BClientCategory } from '@/hooks/useB2BClientsData';
 import { getCountryFlag } from '@/lib/countryFlags';
 import { B2BClientImportDialog } from './B2BClientImportDialog';
@@ -38,11 +39,15 @@ interface Props {
   onAddCategory: (name: string, color?: string) => Promise<void>;
   onDeleteCategory: (id: string) => Promise<void>;
   onUpdateCategory: (id: string, data: Partial<B2BClientCategory>) => Promise<void>;
+  // CRM activity data (optional)
+  meetings?: CrmMeeting[];
+  reminders?: CrmReminder[];
+  interactions?: CustomerInteraction[];
 }
 
 const revenueYears = [2022, 2023, 2024, 2025];
 
-type ColumnKey = 'is_active' | 'company_name' | 'country' | 'geographic_zone' | 'contact_email' | 'pricing_rule' | 'payment_terms' | 'delivery_method' | 'delivery_fee_rule' | 'moq' | 'ca_2022' | 'ca_2023' | 'ca_2024' | 'ca_2025' | 'category' | 'actions';
+type ColumnKey = 'is_active' | 'company_name' | 'country' | 'geographic_zone' | 'contact_email' | 'pricing_rule' | 'payment_terms' | 'delivery_method' | 'delivery_fee_rule' | 'moq' | 'ca_2022' | 'ca_2023' | 'ca_2024' | 'ca_2025' | 'category' | 'crm_activity' | 'actions';
 
 const ALL_COLUMNS: { key: ColumnKey; label: string; minWidth: string; canHide: boolean }[] = [
   { key: 'is_active', label: 'Actif', minWidth: '50px', canHide: true },
@@ -60,6 +65,7 @@ const ALL_COLUMNS: { key: ColumnKey; label: string; minWidth: string; canHide: b
   { key: 'ca_2024', label: 'CA 2024', minWidth: '80px', canHide: true },
   { key: 'ca_2025', label: 'CA 2025', minWidth: '80px', canHide: true },
   { key: 'category', label: 'Catégorie', minWidth: '90px', canHide: true },
+  { key: 'crm_activity', label: 'Suivi CRM', minWidth: '120px', canHide: true },
   { key: 'actions', label: 'Actions', minWidth: '70px', canHide: false },
 ];
 
@@ -136,6 +142,7 @@ export function B2BClientTable({
   onAddPaymentTerm, onDeletePaymentTerm,
   onAddDeliveryMethod, onDeleteDeliveryMethod,
   onAddCategory, onDeleteCategory, onUpdateCategory,
+  meetings = [], reminders = [], interactions = [],
 }: Props) {
   const [showImport, setShowImport] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
@@ -319,6 +326,42 @@ export function B2BClientTable({
           />
         </TableCell>
       )}
+      {isVisible('crm_activity') && (() => {
+        const today = new Date().toISOString().slice(0, 10);
+        const clientMeetings = meetings.filter(m => m.customer_id === c.id);
+        const plannedMeetings = clientMeetings.filter(m => m.status === 'planned');
+        const clientReminders = reminders.filter(r => r.customer_id === c.id && !r.is_completed);
+        const overdueReminders = clientReminders.filter(r => r.due_date < today);
+        const clientInteractions = interactions.filter(i => i.customer_id === c.id);
+        return (
+          <TableCell>
+            <div className="flex items-center gap-1.5 flex-wrap">
+              {plannedMeetings.length > 0 && (
+                <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-primary/10 text-primary text-[10px] font-medium">
+                  <Calendar className="h-3 w-3" />{plannedMeetings.length}
+                </span>
+              )}
+              {overdueReminders.length > 0 ? (
+                <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-destructive/10 text-destructive text-[10px] font-medium">
+                  <AlertTriangle className="h-3 w-3" />{overdueReminders.length}
+                </span>
+              ) : clientReminders.length > 0 ? (
+                <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-amber-500/10 text-amber-700 text-[10px] font-medium">
+                  <Bell className="h-3 w-3" />{clientReminders.length}
+                </span>
+              ) : null}
+              {clientInteractions.length > 0 && (
+                <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-muted text-muted-foreground text-[10px] font-medium">
+                  <MessageSquare className="h-3 w-3" />{clientInteractions.length}
+                </span>
+              )}
+              {plannedMeetings.length === 0 && clientReminders.length === 0 && clientInteractions.length === 0 && (
+                <span className="text-[10px] text-muted-foreground">—</span>
+              )}
+            </div>
+          </TableCell>
+        );
+      })()}
       {isVisible('actions') && (
         <TableCell>
           <Button size="sm" variant="ghost" onClick={() => setDeleteConfirmId(c.id)}>

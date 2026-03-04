@@ -116,6 +116,9 @@ export function CRMPage() {
             onAddCategory={b2b.addCategory}
             onDeleteCategory={b2b.deleteCategory}
             onUpdateCategory={b2b.updateCategory}
+            meetings={crm.meetings}
+            reminders={crm.reminders}
+            interactions={crm.interactions}
           />
         </TabsContent>
 
