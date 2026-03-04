@@ -89,6 +89,7 @@ export type Database = {
           contract_sign_date: string | null
           country: string | null
           created_at: string
+          deleted_at: string | null
           delivery_fee_rule: string | null
           delivery_method: string | null
           eer_date: number | null
@@ -115,6 +116,7 @@ export type Database = {
           contract_sign_date?: string | null
           country?: string | null
           created_at?: string
+          deleted_at?: string | null
           delivery_fee_rule?: string | null
           delivery_method?: string | null
           eer_date?: number | null
@@ -141,6 +143,7 @@ export type Database = {
           contract_sign_date?: string | null
           country?: string | null
           created_at?: string
+          deleted_at?: string | null
           delivery_fee_rule?: string | null
           delivery_method?: string | null
           eer_date?: number | null
