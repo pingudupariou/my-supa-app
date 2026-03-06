@@ -249,7 +249,7 @@ export function useSnapshots() {
   }, [snapshots]);
 
   return {
-    snapshots, isLoading, isSaving, activeSnapshotName, canManageSnapshots: canManageSnapshots(),
+    snapshots, isLoading, isSaving, activeSystemName, activeScenarioName, canManageSnapshots: canManageSnapshots(),
     createSnapshot, restoreSnapshot, duplicateSnapshot, deleteSnapshot, renameSnapshot, downloadSnapshot, formatDate,
   };
 }
