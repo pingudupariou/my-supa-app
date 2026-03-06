@@ -1148,24 +1148,30 @@ export type Database = {
         Row: {
           comment: string | null
           created_at: string
+          creator_email: string | null
           id: string
           name: string
+          snapshot_type: string
           state_data: Json
           user_id: string
         }
         Insert: {
           comment?: string | null
           created_at?: string
+          creator_email?: string | null
           id?: string
           name: string
+          snapshot_type?: string
           state_data?: Json
           user_id: string
         }
         Update: {
           comment?: string | null
           created_at?: string
+          creator_email?: string | null
           id?: string
           name?: string
+          snapshot_type?: string
           state_data?: Json
           user_id?: string
         }
