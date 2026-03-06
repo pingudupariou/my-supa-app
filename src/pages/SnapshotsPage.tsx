@@ -26,7 +26,7 @@ const SYSTEM_MODULES = ['CRM', 'Plan Produit', 'Organisation', 'Charges', 'Scén
 
 export function SnapshotsPage() {
   const {
-    snapshots, isLoading, isSaving, activeSnapshotName,
+    snapshots, isLoading, isSaving, activeSystemName, activeScenarioName,
     createSnapshot, restoreSnapshot, deleteSnapshot, duplicateSnapshot, downloadSnapshot, formatDate,
   } = useSnapshots();
   const { getTabPermission, isAdmin } = useAuth();
@@ -155,7 +155,12 @@ export function SnapshotsPage() {
         <HeroBanner
           image="rd"
           title="Sauvegardes"
-          subtitle={activeSnapshotName ? `Version en cours : ${activeSnapshotName}` : 'Aucune version chargée'}
+          subtitle={
+            [
+              activeSystemName ? `🔒 Système : ${activeSystemName}` : null,
+              activeScenarioName ? `📋 Scénario : ${activeScenarioName}` : null,
+            ].filter(Boolean).join('  •  ') || 'Aucune version chargée'
+          }
           height="sm"
         />
 
