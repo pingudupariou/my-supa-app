@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
@@ -15,12 +16,14 @@ interface Props {
   onPermanentDeleteProduct: (id: string) => Promise<void>;
   onRestoreReference: (id: string) => Promise<void>;
   onPermanentDeleteReference: (id: string) => Promise<void>;
+  isAdmin: boolean;
 }
 
 export function TrashManager({
   trashedProducts, trashedReferences,
   onRestoreProduct, onPermanentDeleteProduct,
   onRestoreReference, onPermanentDeleteReference,
+  isAdmin,
 }: Props) {
   const totalItems = trashedProducts.length + trashedReferences.length;
 
@@ -64,6 +67,7 @@ export function TrashManager({
                         <Button variant="outline" size="sm" onClick={() => onRestoreProduct(prod.id)}>
                           <RotateCcw className="h-3 w-3 mr-1" /> Restaurer
                         </Button>
+                        {isAdmin && (
                         <AlertDialog>
                           <AlertDialogTrigger asChild>
                             <Button variant="destructive" size="sm">
@@ -85,6 +89,7 @@ export function TrashManager({
                             </AlertDialogFooter>
                           </AlertDialogContent>
                         </AlertDialog>
+                        )}
                       </div>
                     </TableCell>
                   </TableRow>
@@ -125,6 +130,7 @@ export function TrashManager({
                         <Button variant="outline" size="sm" onClick={() => onRestoreReference(ref.id)}>
                           <RotateCcw className="h-3 w-3 mr-1" /> Restaurer
                         </Button>
+                        {isAdmin && (
                         <AlertDialog>
                           <AlertDialogTrigger asChild>
                             <Button variant="destructive" size="sm">
@@ -146,6 +152,7 @@ export function TrashManager({
                             </AlertDialogFooter>
                           </AlertDialogContent>
                         </AlertDialog>
+                        )}
                       </div>
                     </TableCell>
                   </TableRow>
@@ -154,6 +161,13 @@ export function TrashManager({
             </Table>
           </div>
         </div>
+      )}
+
+      {!isAdmin && totalItems > 0 && (
+        <p className="text-xs text-muted-foreground flex items-center gap-1">
+          <AlertTriangle className="h-3 w-3" />
+          Seul un administrateur peut supprimer définitivement un élément.
+        </p>
       )}
 
       {totalItems === 0 && (
