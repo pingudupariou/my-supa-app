@@ -4,6 +4,7 @@ import { useCostFlowData, CostFlowReference, CostFlowProduct } from '@/hooks/use
 import { ReferenceManager } from '@/components/costflow/ReferenceManager';
 import { ReferenceDetail } from '@/components/costflow/ReferenceDetail';
 import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/context/AuthContext';
 import { ProductManager } from '@/components/costflow/ProductManager';
 import { ProductDetail } from '@/components/costflow/ProductDetail';
 import { ProductCategoryManager } from '@/components/costflow/ProductCategoryManager';
@@ -16,6 +17,7 @@ import { ReadOnlyWrapper } from '@/components/auth/ReadOnlyWrapper';
 import { Loader2 } from 'lucide-react';
 
 export function CostFlowPage() {
+  const { isAdmin } = useAuth();
   const data = useCostFlowData();
   const [selectedRef, setSelectedRef] = useState<CostFlowReference | null>(null);
   const [selectedProduct, setSelectedProduct] = useState<CostFlowProduct | null>(null);
@@ -170,6 +172,7 @@ export function CostFlowPage() {
             onPermanentDeleteProduct={data.permanentDeleteProduct}
             onRestoreReference={data.restoreReference}
             onPermanentDeleteReference={data.permanentDeleteReference}
+            isAdmin={isAdmin}
           />
         </TabsContent>
       </Tabs>
