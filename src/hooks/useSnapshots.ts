@@ -23,7 +23,8 @@ export function useSnapshots() {
   const [snapshots, setSnapshots] = useState<Snapshot[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
-  const [activeSnapshotName, setActiveSnapshotName] = useState<string | null>(() => localStorage.getItem(ACTIVE_SNAPSHOT_KEY));
+  const [activeSystemName, setActiveSystemName] = useState<string | null>(() => localStorage.getItem(ACTIVE_SYSTEM_KEY));
+  const [activeScenarioName, setActiveScenarioName] = useState<string | null>(() => localStorage.getItem(ACTIVE_SCENARIO_KEY));
 
   const canManageSnapshots = useCallback(() => {
     if (!user) return false;
@@ -101,8 +102,10 @@ export function useSnapshots() {
         creatorEmail: d.creator_email,
       };
       setSnapshots(prev => [newSnap, ...prev]);
-      setActiveSnapshotName(d.name);
-      localStorage.setItem(ACTIVE_SNAPSHOT_KEY, d.name);
+      const activeKey = type === 'system' ? ACTIVE_SYSTEM_KEY : ACTIVE_SCENARIO_KEY;
+      const setActive = type === 'system' ? setActiveSystemName : setActiveScenarioName;
+      setActive(d.name);
+      localStorage.setItem(activeKey, d.name);
       
       const typeLabel = type === 'system' ? 'système' : 'scénario';
       toast({ title: 'Sauvegarde créée', description: `"${name}" (${typeLabel}) — données capturées.` });
@@ -145,8 +148,11 @@ export function useSnapshots() {
         localStorage.setItem(STATE_KEY, snapshot.stateData);
       }
 
-      localStorage.setItem(ACTIVE_SNAPSHOT_KEY, snapshot.name);
-      setActiveSnapshotName(snapshot.name);
+      const restoreType = stateData?.snapshotType || snapshot.snapshotType || 'scenario';
+      const activeKey2 = restoreType === 'system' ? ACTIVE_SYSTEM_KEY : ACTIVE_SCENARIO_KEY;
+      const setActive2 = restoreType === 'system' ? setActiveSystemName : setActiveScenarioName;
+      localStorage.setItem(activeKey2, snapshot.name);
+      setActive2(snapshot.name);
       toast({ title: 'Restauration effectuée', description: `"${snapshot.name}" — rechargement...` });
       setTimeout(() => window.location.reload(), 800);
       return true;
