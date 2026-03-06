@@ -66,10 +66,14 @@ export function DashboardLayout({
   } = useAuth();
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [activeSnapshot, setActiveSnapshot] = useState<string | null>(() => localStorage.getItem('novaride_active_snapshot'));
+  const [activeSystem, setActiveSystem] = useState<string | null>(() => localStorage.getItem('novaride_active_snapshot_system'));
+  const [activeScenario, setActiveScenario] = useState<string | null>(() => localStorage.getItem('novaride_active_snapshot_scenario'));
 
   useEffect(() => {
-    const handler = () => setActiveSnapshot(localStorage.getItem('novaride_active_snapshot'));
+    const handler = () => {
+      setActiveSystem(localStorage.getItem('novaride_active_snapshot_system'));
+      setActiveScenario(localStorage.getItem('novaride_active_snapshot_scenario'));
+    };
     window.addEventListener('storage', handler);
     const interval = setInterval(handler, 2000);
     return () => { window.removeEventListener('storage', handler); clearInterval(interval); };
@@ -94,9 +98,18 @@ export function DashboardLayout({
         <div className="p-4 border-b border-sidebar-border">
           <NovarideLogo variant="compact" color="light" />
           <div className="text-xs text-sidebar-foreground/50 mt-1">Gestion interne</div>
-          {activeSnapshot && (
-            <div className="mt-2 px-2 py-1 rounded bg-sidebar-accent/20 text-[10px] text-sidebar-foreground/70 truncate" title={activeSnapshot}>
-              📌 {activeSnapshot}
+          {(activeSystem || activeScenario) && (
+            <div className="mt-2 space-y-1">
+              {activeSystem && (
+                <div className="px-2 py-0.5 rounded bg-destructive/20 text-[10px] text-sidebar-foreground/70 truncate" title={`Système : ${activeSystem}`}>
+                  🔒 {activeSystem}
+                </div>
+              )}
+              {activeScenario && (
+                <div className="px-2 py-0.5 rounded bg-sidebar-accent/20 text-[10px] text-sidebar-foreground/70 truncate" title={`Scénario : ${activeScenario}`}>
+                  📋 {activeScenario}
+                </div>
+              )}
             </div>
           )}
         </div>
