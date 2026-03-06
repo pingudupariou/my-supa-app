@@ -1,4 +1,4 @@
-import { ReactNode, useState } from 'react';
+import { ReactNode, useState, useEffect } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { NovarideLogo } from '@/components/ui/NovarideLogo';
@@ -66,6 +66,14 @@ export function DashboardLayout({
   } = useAuth();
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [activeSnapshot, setActiveSnapshot] = useState<string | null>(() => localStorage.getItem('novaride_active_snapshot'));
+
+  useEffect(() => {
+    const handler = () => setActiveSnapshot(localStorage.getItem('novaride_active_snapshot'));
+    window.addEventListener('storage', handler);
+    const interval = setInterval(handler, 2000);
+    return () => { window.removeEventListener('storage', handler); clearInterval(interval); };
+  }, []);
   const handleSignOut = async () => {
     await signOut();
     navigate('/auth');
@@ -86,6 +94,11 @@ export function DashboardLayout({
         <div className="p-4 border-b border-sidebar-border">
           <NovarideLogo variant="compact" color="light" />
           <div className="text-xs text-sidebar-foreground/50 mt-1">Gestion interne</div>
+          {activeSnapshot && (
+            <div className="mt-2 px-2 py-1 rounded bg-sidebar-accent/20 text-[10px] text-sidebar-foreground/70 truncate" title={activeSnapshot}>
+              📌 {activeSnapshot}
+            </div>
+          )}
         </div>
 
         <nav className="flex-1 py-4 overflow-y-auto">
