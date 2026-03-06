@@ -118,17 +118,21 @@ export async function restoreSnapshotData(
     }
   }
 
-  // 2. Insérer
+  // 2. Insérer (réattribuer le user_id au restaurateur)
   for (const table of insertionOrder) {
     const rows = snapshotData[table];
     if (!rows || rows.length === 0) continue;
 
-    const userRows = rows.filter((row: any) => row.user_id === userId);
-    if (userRows.length === 0) continue;
+    // Prendre toutes les lignes et réattribuer le user_id au restaurateur
+    const remappedRows = rows.map((row: any) => ({
+      ...row,
+      user_id: userId,
+    }));
+    if (remappedRows.length === 0) continue;
 
     try {
-      for (let i = 0; i < userRows.length; i += 100) {
-        const batch = userRows.slice(i, i + 100);
+      for (let i = 0; i < remappedRows.length; i += 100) {
+        const batch = remappedRows.slice(i, i + 100);
         const { error } = await supabase.from(table as any).insert(batch as any);
         if (error) {
           console.warn(`Snapshot restore: failed to insert ${table}:`, error.message);
