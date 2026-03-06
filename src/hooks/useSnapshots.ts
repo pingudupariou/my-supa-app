@@ -4,6 +4,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/context/AuthContext';
 
 const STATE_KEY = 'novaride_financial_state_v5';
+const ACTIVE_SNAPSHOT_KEY = 'novaride_active_snapshot';
 
 export interface Snapshot {
   id: string;
@@ -17,6 +18,7 @@ export function useSnapshots() {
   const { user, isAdmin, getTabPermission } = useAuth();
   const [snapshots, setSnapshots] = useState<Snapshot[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [activeSnapshotName, setActiveSnapshotName] = useState<string | null>(() => localStorage.getItem(ACTIVE_SNAPSHOT_KEY));
 
   const canManageSnapshots = useCallback(() => {
     if (!user) return false;
@@ -48,6 +50,8 @@ export function useSnapshots() {
       if (error || !data) return false;
       const d = data as any;
       setSnapshots(prev => [{ id: d.id, name: d.name, comment: d.comment, createdAt: d.created_at, stateData: JSON.stringify(d.state_data) }, ...prev]);
+      setActiveSnapshotName(d.name);
+      localStorage.setItem(ACTIVE_SNAPSHOT_KEY, d.name);
       toast({ title: 'Sauvegarde créée' });
       return true;
     } catch { return false; }
@@ -57,6 +61,8 @@ export function useSnapshots() {
     const snapshot = snapshots.find(s => s.id === id);
     if (!snapshot) return false;
     localStorage.setItem(STATE_KEY, snapshot.stateData);
+    localStorage.setItem(ACTIVE_SNAPSHOT_KEY, snapshot.name);
+    setActiveSnapshotName(snapshot.name);
     toast({ title: 'Restauration effectuée' });
     setTimeout(() => window.location.reload(), 500);
     return true;
@@ -73,5 +79,5 @@ export function useSnapshots() {
 
   const formatDate = (isoString: string) => new Date(isoString).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 
-  return { snapshots, isLoading, canManageSnapshots: canManageSnapshots(), createSnapshot, restoreSnapshot, duplicateSnapshot, deleteSnapshot, renameSnapshot, formatDate };
+  return { snapshots, isLoading, activeSnapshotName, canManageSnapshots: canManageSnapshots(), createSnapshot, restoreSnapshot, duplicateSnapshot, deleteSnapshot, renameSnapshot, formatDate };
 }

@@ -24,7 +24,7 @@ import {
 import { Save, Download, Trash2, Plus, Loader2, Database } from 'lucide-react';
 
 export function SnapshotsPage() {
-  const { snapshots, isLoading, createSnapshot, restoreSnapshot, deleteSnapshot, formatDate } = useSnapshots();
+  const { snapshots, isLoading, activeSnapshotName, createSnapshot, restoreSnapshot, deleteSnapshot, formatDate } = useSnapshots();
   const { getTabPermission, isAdmin } = useAuth();
   const [name, setName] = useState('');
   const [comment, setComment] = useState('');
@@ -55,7 +55,7 @@ export function SnapshotsPage() {
   return (
     <ReadOnlyWrapper tabKey="snapshots">
       <div className="space-y-6">
-        <HeroBanner image="rd" title="Sauvegardes" subtitle="Gérez vos sauvegardes de scénarios financiers" height="sm" />
+        <HeroBanner image="rd" title="Sauvegardes" subtitle={activeSnapshotName ? `Version en cours : ${activeSnapshotName}` : 'Aucune version chargée'} height="sm" />
 
         {canWrite && (
           <Card>
