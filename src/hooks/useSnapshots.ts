@@ -5,7 +5,8 @@ import { useAuth } from '@/context/AuthContext';
 import { collectSnapshotData, restoreSnapshotData, type SnapshotType } from './useSnapshotData';
 
 const STATE_KEY = 'novaride_financial_state_v5';
-const ACTIVE_SNAPSHOT_KEY = 'novaride_active_snapshot';
+const ACTIVE_SYSTEM_KEY = 'novaride_active_snapshot_system';
+const ACTIVE_SCENARIO_KEY = 'novaride_active_snapshot_scenario';
 
 export interface Snapshot {
   id: string;
