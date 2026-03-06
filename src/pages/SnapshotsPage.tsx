@@ -24,7 +24,7 @@ import {
 import { Save, Download, Trash2, Plus, Loader2, Database } from 'lucide-react';
 
 export function SnapshotsPage() {
-  const { snapshots, isLoading, activeSnapshotName, createSnapshot, restoreSnapshot, deleteSnapshot, formatDate } = useSnapshots();
+  const { snapshots, isLoading, isSaving, activeSnapshotName, createSnapshot, restoreSnapshot, deleteSnapshot, formatDate } = useSnapshots();
   const { getTabPermission, isAdmin } = useAuth();
   const [name, setName] = useState('');
   const [comment, setComment] = useState('');
