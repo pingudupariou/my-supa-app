@@ -249,6 +249,54 @@ export type Database = {
         }
         Relationships: []
       }
+      chat_messages: {
+        Row: {
+          content: string
+          created_at: string
+          id: string
+          mentions: string[] | null
+          user_id: string
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          id?: string
+          mentions?: string[] | null
+          user_id: string
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          id?: string
+          mentions?: string[] | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      chat_profiles: {
+        Row: {
+          created_at: string
+          id: string
+          pseudo: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          pseudo?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          pseudo?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       costflow_bom: {
         Row: {
           created_at: string
