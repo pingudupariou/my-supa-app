@@ -772,6 +772,72 @@ export type Database = {
         }
         Relationships: []
       }
+      costflow_stock: {
+        Row: {
+          created_at: string
+          id: string
+          item_id: string
+          item_type: string
+          last_updated_at: string
+          location: string | null
+          notes: string | null
+          quantity: number
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          item_id: string
+          item_type: string
+          last_updated_at?: string
+          location?: string | null
+          notes?: string | null
+          quantity?: number
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          item_id?: string
+          item_type?: string
+          last_updated_at?: string
+          location?: string | null
+          notes?: string | null
+          quantity?: number
+          user_id?: string
+        }
+        Relationships: []
+      }
+      costflow_stock_imports: {
+        Row: {
+          file_name: string
+          id: string
+          imported_at: string
+          matched_count: number
+          partial_count: number
+          unmatched_count: number
+          user_id: string
+        }
+        Insert: {
+          file_name: string
+          id?: string
+          imported_at?: string
+          matched_count?: number
+          partial_count?: number
+          unmatched_count?: number
+          user_id: string
+        }
+        Update: {
+          file_name?: string
+          id?: string
+          imported_at?: string
+          matched_count?: number
+          partial_count?: number
+          unmatched_count?: number
+          user_id?: string
+        }
+        Relationships: []
+      }
       costflow_suppliers: {
         Row: {
           comments: string | null
