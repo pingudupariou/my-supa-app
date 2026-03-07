@@ -161,6 +161,13 @@ export function CostFlowPage() {
           />
         </TabsContent>
 
+        <TabsContent value="stock">
+          <StockManager
+            references={data.references}
+            products={data.products}
+          />
+        </TabsContent>
+
         <TabsContent value="usage">
           <ReferenceUsageMap
             references={data.references}
