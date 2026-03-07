@@ -221,7 +221,7 @@ export function ReferenceUsageMap({ references, products, bom }: Props) {
                 ) : (
                   <BarChart data={chartData} margin={{ left: 10, right: 20, top: 5, bottom: 5 }}>
                     <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="name" tick={{ fontSize: 10, angle: -35, textAnchor: 'end' }} height={70} />
+                    <XAxis dataKey="name" tick={{ fontSize: 10 } as any} height={70} />
                     <YAxis />
                     <Tooltip
                       formatter={(value: number) => [value, chartLabel]}
