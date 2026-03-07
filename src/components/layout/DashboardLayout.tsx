@@ -4,7 +4,8 @@ import { useAuth } from '@/context/AuthContext';
 import { NovarideLogo } from '@/components/ui/NovarideLogo';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import { Home, Package, Users, Receipt, LineChart, Banknote, BarChart3, TrendingUp, FileText, Shield, LogOut, Menu, X, MessageSquare, Cog, Clock, Database, Tag, CalendarRange, LayoutDashboard } from 'lucide-react';
+import { FloatingChat } from '@/components/chat/FloatingChat';
+import { Home, Package, Users, Receipt, LineChart, Banknote, BarChart3, TrendingUp, FileText, Shield, LogOut, Menu, X, MessageSquare, Cog, Clock, Database, Tag, CalendarRange, LayoutDashboard, MessagesSquare } from 'lucide-react';
 
 interface NavItem {
   to: string;
@@ -51,6 +52,7 @@ const navGroups: NavGroup[] = [
       { to: '/planning-dev', label: 'Planning Dev', icon: CalendarRange, tabKey: 'planning-dev' },
       { to: '/timetracking', label: "Suivi d'activité", icon: Clock, tabKey: 'timetracking' },
       { to: '/snapshots', label: 'Sauvegardes', icon: Database, tabKey: 'snapshots' },
+      { to: '/chat', label: 'Chat', icon: MessagesSquare, tabKey: 'chat' },
     ],
   },
 ];
@@ -157,5 +159,8 @@ export function DashboardLayout({
       <main className="flex-1 lg:ml-56 p-6">
         {children}
       </main>
+
+      {/* Floating chat widget */}
+      <FloatingChat />
     </div>;
 }
