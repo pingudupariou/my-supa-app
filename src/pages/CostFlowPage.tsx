@@ -13,6 +13,7 @@ import { SupplierManager } from '@/components/costflow/SupplierManager';
 import { MeetingManager } from '@/components/costflow/MeetingManager';
 import { ProductPlanningGantt } from '@/components/costflow/ProductPlanningGantt';
 import { TrashManager } from '@/components/costflow/TrashManager';
+import { ReferenceUsageMap } from '@/components/costflow/ReferenceUsageMap';
 import { ReadOnlyWrapper } from '@/components/auth/ReadOnlyWrapper';
 import { Loader2 } from 'lucide-react';
 
@@ -66,6 +67,7 @@ export function CostFlowPage() {
           <TabsTrigger value="products">🎯 Produits</TabsTrigger>
           <TabsTrigger value="suppliers">🏭 Fournisseurs</TabsTrigger>
           <TabsTrigger value="costs">💰 Coûts & Export</TabsTrigger>
+          <TabsTrigger value="usage">🔗 Cas d'usage</TabsTrigger>
           <TabsTrigger value="meetings">📋 Réunions BE</TabsTrigger>
           <TabsTrigger value="planning">📅 Planning Dev</TabsTrigger>
           <TabsTrigger value="trash" className="relative">
@@ -154,6 +156,14 @@ export function CostFlowPage() {
             references={data.references}
             bom={data.bom}
             calculateProductCosts={data.calculateProductCosts}
+          />
+        </TabsContent>
+
+        <TabsContent value="usage">
+          <ReferenceUsageMap
+            references={data.references}
+            products={data.products}
+            bom={data.bom}
           />
         </TabsContent>
 
