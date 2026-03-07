@@ -90,9 +90,9 @@ export function ChatWindow({ messages, profiles, myPseudo, onSend, getPseudo, co
   };
 
   return (
-    <div className={`flex flex-col ${compact ? 'h-full' : 'h-[600px]'}`}>
+    <div className={`flex flex-col ${compact ? 'h-full' : 'h-[600px]'} min-h-0`}>
       {/* Messages */}
-      <div ref={scrollRef} className="flex-1 overflow-y-auto p-3 space-y-1">
+      <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto p-3 space-y-1">
         {groupedMessages.map(group => (
           <div key={group.date}>
             <div className="flex justify-center my-3">
