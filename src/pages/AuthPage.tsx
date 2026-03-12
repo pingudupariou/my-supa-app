@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useAuth } from '@/context/AuthContext';
+import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -24,6 +25,10 @@ const signUpSchema = z.object({
   displayName: z.string().trim().min(2, { message: "Le nom doit contenir au moins 2 caractères" }).max(50),
 });
 
+const forgotPasswordSchema = z.object({
+  email: z.string().trim().email({ message: "Email invalide" }),
+});
+
 type LoginFormData = z.infer<typeof loginSchema>;
 type SignUpFormData = z.infer<typeof signUpSchema>;
 
@@ -31,6 +36,7 @@ export function AuthPage() {
   const { user, loading, signIn, signUp } = useAuth();
   const navigate = useNavigate();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
 
   useEffect(() => {
     if (user && !loading) {
@@ -48,6 +54,11 @@ export function AuthPage() {
     defaultValues: { email: '', password: '', displayName: '' },
   });
 
+  const forgotForm = useForm<z.infer<typeof forgotPasswordSchema>>({
+    resolver: zodResolver(forgotPasswordSchema),
+    defaultValues: { email: '' },
+  });
+
   const handleLogin = async (data: LoginFormData) => {
     setIsSubmitting(true);
     const { error } = await signIn(data.email, data.password);
@@ -55,29 +66,14 @@ export function AuthPage() {
 
     if (error) {
       if (error.message.includes('Invalid login credentials')) {
-        toast({
-          title: "Erreur de connexion",
-          description: "Email ou mot de passe incorrect.",
-          variant: "destructive",
-        });
+        toast({ title: "Erreur de connexion", description: "Email ou mot de passe incorrect.", variant: "destructive" });
       } else if (error.message.includes('Email not confirmed')) {
-        toast({
-          title: "Email non vérifié",
-          description: "Veuillez vérifier votre email avant de vous connecter.",
-          variant: "destructive",
-        });
+        toast({ title: "Email non vérifié", description: "Veuillez vérifier votre email avant de vous connecter.", variant: "destructive" });
       } else {
-        toast({
-          title: "Erreur",
-          description: error.message,
-          variant: "destructive",
-        });
+        toast({ title: "Erreur", description: error.message, variant: "destructive" });
       }
     } else {
-      toast({
-        title: "Connexion réussie",
-        description: "Bienvenue sur Novaride FinPlan Studio",
-      });
+      toast({ title: "Connexion réussie", description: "Bienvenue sur Novaride FinPlan Studio" });
       navigate('/');
     }
   };
@@ -89,23 +85,26 @@ export function AuthPage() {
 
     if (error) {
       if (error.message.includes('already registered')) {
-        toast({
-          title: "Compte existant",
-          description: "Un compte existe déjà avec cet email.",
-          variant: "destructive",
-        });
+        toast({ title: "Compte existant", description: "Un compte existe déjà avec cet email.", variant: "destructive" });
       } else {
-        toast({
-          title: "Erreur d'inscription",
-          description: error.message,
-          variant: "destructive",
-        });
+        toast({ title: "Erreur d'inscription", description: error.message, variant: "destructive" });
       }
     } else {
-      toast({
-        title: "Inscription réussie",
-        description: "Vérifiez votre email pour confirmer votre compte.",
-      });
+      toast({ title: "Inscription réussie", description: "Vérifiez votre email pour confirmer votre compte." });
+    }
+  };
+
+  const handleForgotPassword = async (data: z.infer<typeof forgotPasswordSchema>) => {
+    setIsSubmitting(true);
+    const { error } = await supabase.auth.resetPasswordForEmail(data.email, {
+      redirectTo: `${window.location.origin}/reset-password`,
+    });
+    setIsSubmitting(false);
+    if (error) {
+      toast({ title: "Erreur", description: error.message, variant: "destructive" });
+    } else {
+      toast({ title: "Email envoyé", description: "Vérifiez votre boîte mail pour réinitialiser votre mot de passe." });
+      setShowForgotPassword(false);
     }
   };
 
@@ -130,6 +129,36 @@ export function AuthPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
+          {showForgotPassword ? (
+            <div className="space-y-4">
+              <h3 className="text-lg font-semibold">Réinitialiser le mot de passe</h3>
+              <p className="text-sm text-muted-foreground">Entrez votre email pour recevoir un lien de réinitialisation.</p>
+              <Form {...forgotForm}>
+                <form onSubmit={forgotForm.handleSubmit(handleForgotPassword)} className="space-y-4">
+                  <FormField
+                    control={forgotForm.control}
+                    name="email"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Email</FormLabel>
+                        <FormControl>
+                          <Input type="email" placeholder="vous@exemple.com" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <Button type="submit" className="w-full" disabled={isSubmitting}>
+                    {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    Envoyer le lien
+                  </Button>
+                  <Button type="button" variant="ghost" className="w-full" onClick={() => setShowForgotPassword(false)}>
+                    Retour à la connexion
+                  </Button>
+                </form>
+              </Form>
+            </div>
+          ) : (
           <Tabs defaultValue="login" className="w-full">
             <TabsList className="grid w-full grid-cols-2">
               <TabsTrigger value="login">Connexion</TabsTrigger>
@@ -165,10 +194,15 @@ export function AuthPage() {
                       </FormItem>
                     )}
                   />
-                  <Button type="submit" className="w-full" disabled={isSubmitting}>
-                    {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                    Se connecter
-                  </Button>
+                  <div className="flex flex-col gap-2">
+                    <Button type="submit" className="w-full" disabled={isSubmitting}>
+                      {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                      Se connecter
+                    </Button>
+                    <Button type="button" variant="link" className="text-sm text-muted-foreground" onClick={() => setShowForgotPassword(true)}>
+                      Mot de passe oublié ?
+                    </Button>
+                  </div>
                 </form>
               </Form>
             </TabsContent>
@@ -223,6 +257,7 @@ export function AuthPage() {
               </Form>
             </TabsContent>
           </Tabs>
+          )}
         </CardContent>
       </Card>
     </div>

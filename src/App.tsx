@@ -26,6 +26,7 @@ import { PlanningDevPage } from "@/pages/PlanningDevPage";
 import { TableauDeBordPage } from "@/pages/TableauDeBordPage";
 import { AccueilPage } from "@/pages/AccueilPage";
 import { ChatPage } from "@/pages/ChatPage";
+import { ResetPasswordPage } from "@/pages/ResetPasswordPage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -41,6 +42,7 @@ const App = () => (
             <Routes>
               {/* Auth route - public */}
               <Route path="/auth" element={<AuthPage />} />
+              <Route path="/reset-password" element={<ResetPasswordPage />} />
               
               {/* Accueil - accessible to everyone */}
               <Route path="/accueil" element={
