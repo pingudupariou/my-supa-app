@@ -252,7 +252,7 @@ export function TaskManager({
 }
 
 function TaskCard({
-  task, getUserName, getCustomerName, onCycleStatus, onUpdate, onDelete, onShowHistory, users, canEdit, compact,
+  task, getUserName, getCustomerName, onCycleStatus, onUpdate, onDelete, onShowHistory, users, canEdit, canChangeStatus, compact,
 }: {
   task: Task;
   getUserName: (id: string | null) => string;
@@ -263,6 +263,7 @@ function TaskCard({
   onShowHistory: () => void;
   users: { id: string; email: string; display_name: string }[];
   canEdit?: boolean;
+  canChangeStatus?: boolean;
   compact?: boolean;
 }) {
   const stCfg = statusConfig[task.status];
