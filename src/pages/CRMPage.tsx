@@ -21,7 +21,9 @@ import { TaskBanner } from '@/components/tasks/TaskBanner';
 export function CRMPage() {
   const b2b = useB2BClientsData();
   const crm = useCRMData();
-  const { isAdmin } = useAuth();
+  const { user, isAdmin } = useAuth();
+  const tasksData = useTasksData();
+  const { members } = useTeamMembers();
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
 
   const totalClients = b2b.clients.length;
