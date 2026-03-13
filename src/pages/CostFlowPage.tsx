@@ -193,6 +193,19 @@ export function CostFlowPage() {
           <MeetingManager />
         </TabsContent>
 
+        <TabsContent value="tasks">
+          <TaskManager
+            tasks={tasksData.tasks.filter(t => t.context === 'costflow')}
+            history={tasksData.history}
+            users={members}
+            onCreateTask={(t) => tasksData.createTask({ ...t, context: 'costflow' })}
+            onUpdateTask={tasksData.updateTask}
+            onDeleteTask={tasksData.deleteTask}
+            getTaskHistory={tasksData.getTaskHistory}
+            defaultContext="costflow"
+          />
+        </TabsContent>
+
         <TabsContent value="planning">
           <ProductPlanningGantt />
         </TabsContent>
