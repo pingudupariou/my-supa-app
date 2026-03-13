@@ -24,6 +24,8 @@ import { Loader2 } from 'lucide-react';
 export function CostFlowPage() {
   const { isAdmin } = useAuth();
   const data = useCostFlowData();
+  const tasksData = useTasksData();
+  const { members } = useTeamMembers();
   const [selectedRef, setSelectedRef] = useState<CostFlowReference | null>(null);
   const [selectedProduct, setSelectedProduct] = useState<CostFlowProduct | null>(null);
   const [activeTab, setActiveTab] = useState('references');
