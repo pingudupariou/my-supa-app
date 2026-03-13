@@ -75,7 +75,10 @@ export function useChatData() {
           ...msg,
           mentions: msg.mentions || [],
         };
-        setMessages(prev => [...prev, newMsg]);
+        setMessages(prev => {
+          if (prev.some(m => m.id === newMsg.id)) return prev;
+          return [...prev, newMsg];
+        });
 
         // Count unread messages from others
         if (user && msg.user_id !== user.id) {
