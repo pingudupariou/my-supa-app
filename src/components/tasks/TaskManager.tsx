@@ -330,26 +330,30 @@ function TaskCard({
             </Badge>
           )}
         </div>
-        {/* Quick actions - only for task creator */}
-        {canEdit && (
+        {/* Quick actions */}
+        {(canEdit || canChangeStatus) && (
           <div className="flex gap-1 pt-1">
-            <Select value={task.status} onValueChange={v => onUpdate({ status: v as any })}>
-              <SelectTrigger className="h-6 text-[10px] w-auto"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="todo">À faire</SelectItem>
-                <SelectItem value="in_progress">En cours</SelectItem>
-                <SelectItem value="done">Terminé</SelectItem>
-              </SelectContent>
-            </Select>
-            <Select value={task.assigned_to || 'none'} onValueChange={v => onUpdate({ assigned_to: v === 'none' ? null : v })}>
-              <SelectTrigger className="h-6 text-[10px] w-auto"><SelectValue placeholder="Assigner" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">Non assigné</SelectItem>
-                {users.map(u => (
-                  <SelectItem key={u.id} value={u.id}>{u.display_name || u.email}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            {canChangeStatus && (
+              <Select value={task.status} onValueChange={v => onUpdate({ status: v as any })}>
+                <SelectTrigger className="h-6 text-[10px] w-auto"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="todo">À faire</SelectItem>
+                  <SelectItem value="in_progress">En cours</SelectItem>
+                  <SelectItem value="done">Terminé</SelectItem>
+                </SelectContent>
+              </Select>
+            )}
+            {canEdit && (
+              <Select value={task.assigned_to || 'none'} onValueChange={v => onUpdate({ assigned_to: v === 'none' ? null : v })}>
+                <SelectTrigger className="h-6 text-[10px] w-auto"><SelectValue placeholder="Assigner" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Non assigné</SelectItem>
+                  {users.map(u => (
+                    <SelectItem key={u.id} value={u.id}>{u.display_name || u.email}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
           </div>
         )}
       </CardContent>
