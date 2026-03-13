@@ -36,7 +36,8 @@ export function TableauDeBordPage() {
   const { customers, orders } = useCRMData();
   const { salesRules, pricingMode, activeRuleId, editedOurPrices, getEffectivePrice, computeChainFromPublicTTC, loaded: pricingLoaded } = usePricingConfig();
   const { images, setImage } = usePageImages(PAGE_KEY);
-  const { getTabPermission } = useAuth();
+  const { user, getTabPermission } = useAuth();
+  const tasksData = useTasksData();
   const canEdit = getTabPermission('tableau-de-bord') === 'write';
 
   // KPIs
