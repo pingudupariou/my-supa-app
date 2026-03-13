@@ -23,6 +23,7 @@ export function useChatData() {
   const [myPseudo, setMyPseudo] = useState('');
   const [loading, setLoading] = useState(true);
   const [unreadMentions, setUnreadMentions] = useState(0);
+  const [unreadMessages, setUnreadMessages] = useState(0);
   const lastReadRef = useRef<string | null>(null);
 
   // Load profiles
@@ -76,10 +77,23 @@ export function useChatData() {
         };
         setMessages(prev => [...prev, newMsg]);
 
+        // Count unread messages from others
+        if (user && msg.user_id !== user.id) {
+          setUnreadMessages(prev => prev + 1);
+        }
+
         // Check if user is mentioned
         if (user && msg.mentions?.includes(user.id) && msg.user_id !== user.id) {
           setUnreadMentions(prev => prev + 1);
         }
+      })
+      .on('postgres_changes', {
+        event: 'DELETE',
+        schema: 'public',
+        table: 'chat_messages',
+      }, (payload) => {
+        const deletedId = (payload.old as any).id;
+        setMessages(prev => prev.filter(m => m.id !== deletedId));
       })
       .subscribe();
 
@@ -115,10 +129,18 @@ export function useChatData() {
   }, [user]);
 
   const clearMentions = useCallback(() => setUnreadMentions(0), []);
+  const clearUnread = useCallback(() => setUnreadMessages(0), []);
 
   const getPseudo = useCallback((userId: string) => {
     return profiles[userId] || userId.slice(0, 8);
   }, [profiles]);
+
+  // Delete own message
+  const deleteMessage = useCallback(async (messageId: string) => {
+    if (!user) return;
+    await supabase.from('chat_messages').delete().eq('id', messageId).eq('user_id', user.id);
+    setMessages(prev => prev.filter(m => m.id !== messageId));
+  }, [user]);
 
   return {
     messages,
@@ -126,10 +148,13 @@ export function useChatData() {
     myPseudo,
     loading,
     unreadMentions,
+    unreadMessages,
     sendMessage,
     updatePseudo,
     clearMentions,
+    clearUnread,
     getPseudo,
     loadProfiles,
+    deleteMessage,
   };
 }
