@@ -129,10 +129,18 @@ export function useChatData() {
   }, [user]);
 
   const clearMentions = useCallback(() => setUnreadMentions(0), []);
+  const clearUnread = useCallback(() => setUnreadMessages(0), []);
 
   const getPseudo = useCallback((userId: string) => {
     return profiles[userId] || userId.slice(0, 8);
   }, [profiles]);
+
+  // Delete own message
+  const deleteMessage = useCallback(async (messageId: string) => {
+    if (!user) return;
+    await supabase.from('chat_messages').delete().eq('id', messageId).eq('user_id', user.id);
+    setMessages(prev => prev.filter(m => m.id !== messageId));
+  }, [user]);
 
   return {
     messages,
@@ -140,10 +148,13 @@ export function useChatData() {
     myPseudo,
     loading,
     unreadMentions,
+    unreadMessages,
     sendMessage,
     updatePseudo,
     clearMentions,
+    clearUnread,
     getPseudo,
     loadProfiles,
+    deleteMessage,
   };
 }
