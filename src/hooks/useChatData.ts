@@ -23,6 +23,7 @@ export function useChatData() {
   const [myPseudo, setMyPseudo] = useState('');
   const [loading, setLoading] = useState(true);
   const [unreadMentions, setUnreadMentions] = useState(0);
+  const [unreadMessages, setUnreadMessages] = useState(0);
   const lastReadRef = useRef<string | null>(null);
 
   // Load profiles
