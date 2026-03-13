@@ -76,6 +76,14 @@ export function CostFlowPage() {
           <TabsTrigger value="stock">📊 Stock</TabsTrigger>
           <TabsTrigger value="usage">🔗 Cas d'usage</TabsTrigger>
           <TabsTrigger value="meetings">📋 Réunions BE</TabsTrigger>
+          <TabsTrigger value="tasks">
+            ✅ Tâches
+            {tasksData.tasks.filter(t => t.context === 'costflow' && t.status !== 'done').length > 0 && (
+              <span className="ml-1 inline-flex items-center justify-center h-4 min-w-[1rem] rounded-full bg-primary text-primary-foreground text-[10px] font-bold px-1">
+                {tasksData.tasks.filter(t => t.context === 'costflow' && t.status !== 'done').length}
+              </span>
+            )}
+          </TabsTrigger>
           <TabsTrigger value="planning">📅 Planning Dev</TabsTrigger>
           <TabsTrigger value="trash" className="relative">
             🗑️ Corbeille
