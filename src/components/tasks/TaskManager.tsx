@@ -309,10 +309,9 @@ function TaskCard({
               <Building2 className="h-3 w-3 mr-0.5" />{customerName}
             </Badge>
           )}
-          {task.assigned_to && (
-            <Badge variant="secondary" className="text-[10px]">
-              <User className="h-3 w-3 mr-0.5" />{getUserName(task.assigned_to)}
-            </Badge>
+          <Badge variant="secondary" className="text-[10px]">
+            <User className="h-3 w-3 mr-0.5" />{task.assigned_to ? getUserName(task.assigned_to) : 'Non assigné'}
+          </Badge>
           )}
           {task.due_date && (
             <Badge variant={isOverdue ? 'destructive' : 'outline'} className="text-[10px]">
