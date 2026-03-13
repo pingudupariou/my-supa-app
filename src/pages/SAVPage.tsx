@@ -16,9 +16,9 @@ import { Plus, Trash2, Pencil, Wrench, AlertTriangle, CheckCircle, Clock } from 
 
 export function SAVPage() {
   const { tickets, isLoading, createTicket, updateTicket, deleteTicket, generateTicketNumber } = useSAVData();
-  const { customers } = useCRMData();
+  const b2b = useB2BClientsData();
+  const b2bClients = b2b.clients || [];
   const costflow = useCostFlowData();
-  const products = (costflow.products || []) as any[];
 
   const [showCreate, setShowCreate] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
