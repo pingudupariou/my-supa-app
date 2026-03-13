@@ -5,7 +5,10 @@ import { NovarideLogo } from '@/components/ui/NovarideLogo';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { FloatingChat } from '@/components/chat/FloatingChat';
-import { Home, Package, Users, Receipt, LineChart, Banknote, BarChart3, TrendingUp, FileText, Shield, LogOut, Menu, X, MessageSquare, Cog, Clock, Database, Tag, CalendarRange, LayoutDashboard, MessagesSquare } from 'lucide-react';
+import { NotificationBell } from '@/components/tasks/NotificationBell';
+import { useTasksData } from '@/hooks/useTasksData';
+import { useTeamMembers } from '@/hooks/useTeamMembers';
+import { Home, Package, Users, Receipt, LineChart, Banknote, BarChart3, TrendingUp, FileText, Shield, LogOut, Menu, X, MessageSquare, Cog, Clock, Database, Tag, CalendarRange, LayoutDashboard, MessagesSquare, ClipboardList } from 'lucide-react';
 
 interface NavItem {
   to: string;
