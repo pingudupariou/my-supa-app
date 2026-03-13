@@ -55,9 +55,9 @@ export function FloatingChat() {
           className="h-12 w-12 rounded-full bg-primary text-primary-foreground shadow-lg hover:shadow-xl transition-all flex items-center justify-center relative"
         >
           <MessageCircle className="h-5 w-5" />
-          {chat.unreadMentions > 0 && (
+          {(chat.unreadMentions > 0 || chat.unreadMessages > 0) && (
             <span className="absolute -top-1 -right-1 h-5 w-5 rounded-full bg-destructive text-destructive-foreground text-[10px] font-bold flex items-center justify-center animate-pulse">
-              {chat.unreadMentions}
+              {chat.unreadMentions || chat.unreadMessages}
             </span>
           )}
         </button>
