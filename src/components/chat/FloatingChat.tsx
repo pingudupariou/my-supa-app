@@ -21,6 +21,7 @@ export function FloatingChat() {
     setOpen(true);
     setMinimized(false);
     chat.clearMentions();
+    chat.clearUnread();
   };
 
   const handleSavePseudo = () => {
