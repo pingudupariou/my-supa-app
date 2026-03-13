@@ -329,7 +329,7 @@ function TaskCard({
               <SelectItem value="done">Terminé</SelectItem>
             </SelectContent>
           </Select>
-          <Select value={task.assigned_to || ''} onValueChange={v => onUpdate({ assigned_to: v || null })}>
+          <Select value={task.assigned_to || 'none'} onValueChange={v => onUpdate({ assigned_to: v === 'none' ? null : v })}>
             <SelectTrigger className="h-6 text-[10px] w-auto"><SelectValue placeholder="Assigner" /></SelectTrigger>
             <SelectContent>
               {users.map(u => (
