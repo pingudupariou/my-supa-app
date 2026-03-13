@@ -216,6 +216,7 @@ export function TaskManager({
               onShowHistory={() => setHistoryTaskId(task.id)}
               users={users}
               canEdit={currentUserId === task.user_id}
+              canChangeStatus={currentUserId === task.user_id || currentUserId === task.assigned_to}
               compact
             />
           ))}
