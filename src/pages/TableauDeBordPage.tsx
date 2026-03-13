@@ -39,6 +39,7 @@ export function TableauDeBordPage() {
   const { images, setImage } = usePageImages(PAGE_KEY);
   const { user, getTabPermission } = useAuth();
   const tasksData = useTasksData();
+  const { members } = useTeamMembers();
   const canEdit = getTabPermission('tableau-de-bord') === 'write';
 
   // KPIs
