@@ -275,7 +275,7 @@ function TaskCard({
   if (compact) {
     return (
       <div className={`flex items-center gap-2 p-2 rounded-lg border ${isOverdue ? 'border-destructive/50 bg-destructive/5' : ''}`}>
-        <button onClick={canEdit ? onCycleStatus : undefined} className={`shrink-0 ${!canEdit ? 'cursor-default' : ''}`} disabled={!canEdit}>
+        <button onClick={canChangeStatus ? onCycleStatus : undefined} className={`shrink-0 ${!canChangeStatus ? 'cursor-default opacity-50' : ''}`} disabled={!canChangeStatus}>
           <StatusIcon className={`h-4 w-4 ${task.status === 'done' ? 'text-green-600' : task.status === 'in_progress' ? 'text-blue-600' : 'text-muted-foreground'}`} />
         </button>
         <span className={`text-sm flex-1 ${task.status === 'done' ? 'line-through text-muted-foreground' : ''}`}>{task.title}</span>
