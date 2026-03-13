@@ -295,7 +295,7 @@ function TaskCard({
       <CardContent className="p-3 space-y-2">
         <div className="flex items-start justify-between gap-2">
           <div className="flex items-start gap-2 flex-1">
-            <button onClick={canEdit ? onCycleStatus : undefined} className={`mt-0.5 shrink-0 ${!canEdit ? 'cursor-default' : ''}`} disabled={!canEdit}>
+            <button onClick={canChangeStatus ? onCycleStatus : undefined} className={`mt-0.5 shrink-0 ${!canChangeStatus ? 'cursor-default opacity-50' : ''}`} disabled={!canChangeStatus}>
               <StatusIcon className={`h-4 w-4 ${task.status === 'done' ? 'text-green-600' : task.status === 'in_progress' ? 'text-blue-600' : 'text-muted-foreground'}`} />
             </button>
             <div className="flex-1 min-w-0">
