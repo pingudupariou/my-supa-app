@@ -309,11 +309,9 @@ function TaskCard({
               <Building2 className="h-3 w-3 mr-0.5" />{customerName}
             </Badge>
           )}
-          {task.assigned_to && (
-            <Badge variant="secondary" className="text-[10px]">
-              <User className="h-3 w-3 mr-0.5" />{getUserName(task.assigned_to)}
-            </Badge>
-          )}
+          <Badge variant="secondary" className="text-[10px]">
+            <User className="h-3 w-3 mr-0.5" />{task.assigned_to ? getUserName(task.assigned_to) : 'Non assigné'}
+          </Badge>
           {task.due_date && (
             <Badge variant={isOverdue ? 'destructive' : 'outline'} className="text-[10px]">
               <Calendar className="h-3 w-3 mr-0.5" />
@@ -331,9 +329,10 @@ function TaskCard({
               <SelectItem value="done">Terminé</SelectItem>
             </SelectContent>
           </Select>
-          <Select value={task.assigned_to || ''} onValueChange={v => onUpdate({ assigned_to: v || null })}>
+          <Select value={task.assigned_to || 'none'} onValueChange={v => onUpdate({ assigned_to: v === 'none' ? null : v })}>
             <SelectTrigger className="h-6 text-[10px] w-auto"><SelectValue placeholder="Assigner" /></SelectTrigger>
             <SelectContent>
+              <SelectItem value="none">Non assigné</SelectItem>
               {users.map(u => (
                 <SelectItem key={u.id} value={u.id}>{u.display_name || u.email}</SelectItem>
               ))}

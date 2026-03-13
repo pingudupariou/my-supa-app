@@ -36,10 +36,10 @@ export function TasksPage() {
         <KPICard label="Notifications" value={tasksData.unreadCount} trend={tasksData.unreadCount > 0 ? 'down' : 'neutral'} />
       </div>
 
-      <Tabs defaultValue="my">
+      <Tabs defaultValue="all">
         <TabsList>
+          <TabsTrigger value="all"><Users className="h-4 w-4 mr-2" />Les tâches</TabsTrigger>
           <TabsTrigger value="my"><User className="h-4 w-4 mr-2" />Mes tâches</TabsTrigger>
-          <TabsTrigger value="all"><Users className="h-4 w-4 mr-2" />Toutes les tâches</TabsTrigger>
         </TabsList>
 
         <TabsContent value="my" className="mt-4">
