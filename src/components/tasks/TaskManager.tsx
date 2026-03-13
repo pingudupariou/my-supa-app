@@ -150,7 +150,7 @@ export function TaskManager({
                 <Select value={newTask.customer_id} onValueChange={v => setNewTask(p => ({ ...p, customer_id: v }))}>
                   <SelectTrigger><SelectValue placeholder="Client (optionnel)" /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">Aucun</SelectItem>
+                    <SelectItem value="none">Aucun</SelectItem>
                     {customers.map(c => (
                       <SelectItem key={c.id} value={c.id}>{c.company_name}</SelectItem>
                     ))}
