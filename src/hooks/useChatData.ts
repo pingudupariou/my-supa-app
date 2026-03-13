@@ -77,10 +77,23 @@ export function useChatData() {
         };
         setMessages(prev => [...prev, newMsg]);
 
+        // Count unread messages from others
+        if (user && msg.user_id !== user.id) {
+          setUnreadMessages(prev => prev + 1);
+        }
+
         // Check if user is mentioned
         if (user && msg.mentions?.includes(user.id) && msg.user_id !== user.id) {
           setUnreadMentions(prev => prev + 1);
         }
+      })
+      .on('postgres_changes', {
+        event: 'DELETE',
+        schema: 'public',
+        table: 'chat_messages',
+      }, (payload) => {
+        const deletedId = (payload.old as any).id;
+        setMessages(prev => prev.filter(m => m.id !== deletedId));
       })
       .subscribe();
 
