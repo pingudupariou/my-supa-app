@@ -192,6 +192,7 @@ export function TaskManager({
                       onDelete={() => onDeleteTask(task.id)}
                       onShowHistory={() => setHistoryTaskId(task.id)}
                       users={users}
+                      canEdit={currentUserId === task.user_id}
                     />
                   ))}
                 </div>
