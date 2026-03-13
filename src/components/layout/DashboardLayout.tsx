@@ -8,7 +8,7 @@ import { FloatingChat } from '@/components/chat/FloatingChat';
 import { NotificationBell } from '@/components/tasks/NotificationBell';
 import { useTasksData } from '@/hooks/useTasksData';
 import { useTeamMembers } from '@/hooks/useTeamMembers';
-import { Home, Package, Users, Receipt, LineChart, Banknote, BarChart3, TrendingUp, FileText, Shield, LogOut, Menu, X, MessageSquare, Cog, Clock, Database, Tag, CalendarRange, LayoutDashboard, MessagesSquare, ClipboardList } from 'lucide-react';
+import { Home, Package, Users, Receipt, LineChart, Banknote, BarChart3, TrendingUp, FileText, Shield, LogOut, Menu, X, MessageSquare, Cog, Clock, Database, Tag, CalendarRange, LayoutDashboard, MessagesSquare, ClipboardList, Wrench } from 'lucide-react';
 
 interface NavItem {
   to: string;
