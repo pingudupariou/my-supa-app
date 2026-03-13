@@ -101,6 +101,15 @@ export function CRMPage() {
               </span>
             )}
           </TabsTrigger>
+          <TabsTrigger value="tasks">
+            <ClipboardList className="h-4 w-4 mr-2" />
+            Tâches
+            {tasksData.tasks.filter(t => t.context === 'crm' && t.status !== 'done').length > 0 && (
+              <span className="ml-1.5 inline-flex items-center justify-center h-5 min-w-5 px-1 rounded-full bg-primary text-primary-foreground text-[10px] font-bold">
+                {tasksData.tasks.filter(t => t.context === 'crm' && t.status !== 'done').length}
+              </span>
+            )}
+          </TabsTrigger>
           {b2b.trashedClients.length > 0 && (
             <TabsTrigger value="corbeille">
               <Trash2 className="h-4 w-4 mr-2" />
