@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useSAVData, SAVTicket } from '@/hooks/useSAVData';
-import { useCRMData } from '@/hooks/useCRMData';
+import { useB2BClientsData } from '@/hooks/useB2BClientsData';
 import { useCostFlowData } from '@/hooks/useCostFlowData';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
