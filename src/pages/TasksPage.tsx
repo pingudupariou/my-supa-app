@@ -66,6 +66,7 @@ export function TasksPage() {
             history={tasksData.history}
             users={members}
             customers={customers}
+            products={products}
             currentUserId={user?.id}
             onCreateTask={tasksData.createTask}
             onUpdateTask={tasksData.updateTask}
