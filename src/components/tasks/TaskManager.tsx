@@ -8,7 +8,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Plus, Calendar, User, Flag, Trash2, ChevronRight, Clock, CheckCircle2, Circle, ArrowRight, History, Building2 } from 'lucide-react';
+import { Plus, Calendar, User, Flag, Trash2, ChevronRight, Clock, CheckCircle2, Circle, ArrowRight, History, Building2, Package, MoreHorizontal } from 'lucide-react';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { TaskHistory } from '@/hooks/useTasksData';
@@ -18,6 +18,7 @@ interface TaskManagerProps {
   history: TaskHistory[];
   users: { id: string; email: string; display_name: string }[];
   customers?: { id: string; company_name: string }[];
+  products?: { id: string; name: string }[];
   currentUserId?: string;
   onCreateTask: (task: Partial<Task>) => Promise<void>;
   onUpdateTask: (id: string, updates: Partial<Task>) => Promise<void>;
@@ -42,7 +43,7 @@ const priorityConfig = {
 };
 
 export function TaskManager({
-  tasks, history, users, customers, currentUserId, onCreateTask, onUpdateTask, onDeleteTask,
+  tasks, history, users, customers, products, currentUserId, onCreateTask, onUpdateTask, onDeleteTask,
   getTaskHistory, defaultCustomerId, defaultMeetingId, defaultContext, compact,
 }: TaskManagerProps) {
   const [createOpen, setCreateOpen] = useState(false);
@@ -50,22 +51,25 @@ export function TaskManager({
   const [newTask, setNewTask] = useState({
     title: '', description: '', priority: 'moyenne' as string,
     assigned_to: '', customer_id: defaultCustomerId || '', due_date: '',
+    domain: defaultCustomerId ? 'client' as string : defaultContext === 'costflow' ? 'product' as string : '' as string,
+    product_id: '',
   });
   const [filter, setFilter] = useState<'all' | 'todo' | 'in_progress' | 'done'>('all');
   const [search, setSearch] = useState('');
 
   const handleCreate = async () => {
+    const context = newTask.domain === 'client' ? 'crm' : newTask.domain === 'product' ? 'costflow' : newTask.domain === 'other' ? 'autre' : defaultContext || 'global';
     await onCreateTask({
       title: newTask.title,
       description: newTask.description,
       priority: newTask.priority as any,
       assigned_to: newTask.assigned_to || null,
-      customer_id: newTask.customer_id || defaultCustomerId || null,
+      customer_id: newTask.domain === 'client' ? (newTask.customer_id || defaultCustomerId || null) : null,
       meeting_id: defaultMeetingId || null,
-      context: defaultContext || 'global',
+      context,
       due_date: newTask.due_date || null,
     });
-    setNewTask({ title: '', description: '', priority: 'moyenne', assigned_to: '', customer_id: defaultCustomerId || '', due_date: '' });
+    setNewTask({ title: '', description: '', priority: 'moyenne', assigned_to: '', customer_id: defaultCustomerId || '', due_date: '', domain: defaultCustomerId ? 'client' : '', product_id: '' });
     setCreateOpen(false);
   };
 
@@ -147,16 +151,47 @@ export function TaskManager({
                   ))}
                 </SelectContent>
               </Select>
-              {customers && customers.length > 0 && !defaultCustomerId && (
-                <Select value={newTask.customer_id || 'none'} onValueChange={v => setNewTask(p => ({ ...p, customer_id: v === 'none' ? '' : v }))}>
-                  <SelectTrigger><SelectValue placeholder="Client (optionnel)" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">Aucun</SelectItem>
-                    {customers.map(c => (
-                      <SelectItem key={c.id} value={c.id}>{c.company_name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+              {/* Domain selector */}
+              {!defaultCustomerId && (
+                <div className="space-y-2">
+                  <Select value={newTask.domain || 'none'} onValueChange={v => setNewTask(p => ({ ...p, domain: v === 'none' ? '' : v, customer_id: '', product_id: '' }))}>
+                    <SelectTrigger><SelectValue placeholder="Associer à..." /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Aucune association</SelectItem>
+                      <SelectItem value="client">🏢 Client</SelectItem>
+                      <SelectItem value="product">📦 Projet / Produit</SelectItem>
+                      <SelectItem value="other">📌 Autre domaine</SelectItem>
+                    </SelectContent>
+                  </Select>
+
+                  {newTask.domain === 'client' && customers && customers.length > 0 && (
+                    <Select value={newTask.customer_id || 'none'} onValueChange={v => setNewTask(p => ({ ...p, customer_id: v === 'none' ? '' : v }))}>
+                      <SelectTrigger><SelectValue placeholder="Sélectionner un client" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">Aucun</SelectItem>
+                        {customers.map(c => (
+                          <SelectItem key={c.id} value={c.id}>{c.company_name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+
+                  {newTask.domain === 'product' && products && products.length > 0 && (
+                    <Select value={newTask.product_id || 'none'} onValueChange={v => setNewTask(p => ({ ...p, product_id: v === 'none' ? '' : v }))}>
+                      <SelectTrigger><SelectValue placeholder="Sélectionner un produit" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">Aucun</SelectItem>
+                        {products.map(p => (
+                          <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+
+                  {newTask.domain === 'other' && (
+                    <p className="text-xs text-muted-foreground italic">Cette tâche sera classée dans « Autre domaine »</p>
+                  )}
+                </div>
               )}
               <Button onClick={handleCreate} disabled={!newTask.title.trim()} className="w-full">Créer</Button>
             </div>
@@ -280,6 +315,8 @@ function TaskCard({
         </button>
         <span className={`text-sm flex-1 ${task.status === 'done' ? 'line-through text-muted-foreground' : ''}`}>{task.title}</span>
         {customerName && <Badge variant="outline" className="text-[10px]"><Building2 className="h-3 w-3 mr-0.5" />{customerName}</Badge>}
+        {!customerName && task.context === 'costflow' && <Badge variant="outline" className="text-[10px]"><Package className="h-3 w-3 mr-0.5" />Produit</Badge>}
+        {task.context === 'autre' && <Badge variant="outline" className="text-[10px]"><MoreHorizontal className="h-3 w-3 mr-0.5" />Autre</Badge>}
         <Badge className={`text-[10px] ${prCfg.color}`}>{prCfg.label}</Badge>
         {task.assigned_to && <span className="text-xs text-muted-foreground"><User className="h-3 w-3 inline mr-0.5" />→ {getUserName(task.assigned_to)}</span>}
         {task.user_id && <span className="text-xs text-muted-foreground opacity-70">par {getUserName(task.user_id)}</span>}
@@ -315,6 +352,16 @@ function TaskCard({
           {customerName && (
             <Badge variant="outline" className="text-[10px]">
               <Building2 className="h-3 w-3 mr-0.5" />{customerName}
+            </Badge>
+          )}
+          {!customerName && task.context === 'costflow' && (
+            <Badge variant="outline" className="text-[10px]">
+              <Package className="h-3 w-3 mr-0.5" />Produit
+            </Badge>
+          )}
+          {task.context === 'autre' && (
+            <Badge variant="outline" className="text-[10px]">
+              <MoreHorizontal className="h-3 w-3 mr-0.5" />Autre
             </Badge>
           )}
           <Badge variant="secondary" className="text-[10px]">

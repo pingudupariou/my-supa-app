@@ -1,6 +1,7 @@
 import { useTasksData } from '@/hooks/useTasksData';
 import { useTeamMembers } from '@/hooks/useTeamMembers';
 import { useB2BClientsData } from '@/hooks/useB2BClientsData';
+import { useCostFlowData } from '@/hooks/useCostFlowData';
 import { useAuth } from '@/context/AuthContext';
 import { TaskManager } from '@/components/tasks/TaskManager';
 import { TaskBanner } from '@/components/tasks/TaskBanner';
@@ -13,8 +14,10 @@ export function TasksPage() {
   const tasksData = useTasksData();
   const { members } = useTeamMembers();
   const b2b = useB2BClientsData();
+  const costflow = useCostFlowData();
 
   const customers = b2b.clients.map(c => ({ id: c.id, company_name: c.company_name }));
+  const products = (costflow.products || []).map((p: any) => ({ id: p.id, name: p.name }));
   const myTasks = tasksData.tasks.filter(t => t.assigned_to === user?.id || t.user_id === user?.id);
   const allActive = tasksData.tasks.filter(t => t.status !== 'done');
   const today = new Date().toISOString().slice(0, 10);
@@ -48,6 +51,7 @@ export function TasksPage() {
             history={tasksData.history}
             users={members}
             customers={customers}
+            products={products}
             currentUserId={user?.id}
             onCreateTask={tasksData.createTask}
             onUpdateTask={tasksData.updateTask}
@@ -62,6 +66,7 @@ export function TasksPage() {
             history={tasksData.history}
             users={members}
             customers={customers}
+            products={products}
             currentUserId={user?.id}
             onCreateTask={tasksData.createTask}
             onUpdateTask={tasksData.updateTask}
