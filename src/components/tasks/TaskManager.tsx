@@ -354,6 +354,16 @@ function TaskCard({
               <Building2 className="h-3 w-3 mr-0.5" />{customerName}
             </Badge>
           )}
+          {!customerName && task.context === 'costflow' && (
+            <Badge variant="outline" className="text-[10px]">
+              <Package className="h-3 w-3 mr-0.5" />Produit
+            </Badge>
+          )}
+          {task.context === 'autre' && (
+            <Badge variant="outline" className="text-[10px]">
+              <MoreHorizontal className="h-3 w-3 mr-0.5" />Autre
+            </Badge>
+          )}
           <Badge variant="secondary" className="text-[10px]">
             <ArrowRight className="h-3 w-3 mr-0.5" />{task.assigned_to ? getUserName(task.assigned_to) : 'Non assigné'}
           </Badge>
