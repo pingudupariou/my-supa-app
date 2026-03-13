@@ -1,6 +1,7 @@
 import { useTasksData } from '@/hooks/useTasksData';
 import { useTeamMembers } from '@/hooks/useTeamMembers';
 import { useB2BClientsData } from '@/hooks/useB2BClientsData';
+import { useCostFlowData } from '@/hooks/useCostFlowData';
 import { useAuth } from '@/context/AuthContext';
 import { TaskManager } from '@/components/tasks/TaskManager';
 import { TaskBanner } from '@/components/tasks/TaskBanner';
