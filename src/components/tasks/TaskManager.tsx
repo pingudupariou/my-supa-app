@@ -43,7 +43,7 @@ const priorityConfig = {
 };
 
 export function TaskManager({
-  tasks, history, users, customers, currentUserId, onCreateTask, onUpdateTask, onDeleteTask,
+  tasks, history, users, customers, products, currentUserId, onCreateTask, onUpdateTask, onDeleteTask,
   getTaskHistory, defaultCustomerId, defaultMeetingId, defaultContext, compact,
 }: TaskManagerProps) {
   const [createOpen, setCreateOpen] = useState(false);
@@ -51,6 +51,8 @@ export function TaskManager({
   const [newTask, setNewTask] = useState({
     title: '', description: '', priority: 'moyenne' as string,
     assigned_to: '', customer_id: defaultCustomerId || '', due_date: '',
+    domain: defaultCustomerId ? 'client' as string : defaultContext === 'costflow' ? 'product' as string : '' as string,
+    product_id: '',
   });
   const [filter, setFilter] = useState<'all' | 'todo' | 'in_progress' | 'done'>('all');
   const [search, setSearch] = useState('');
