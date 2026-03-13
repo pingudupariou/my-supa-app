@@ -8,7 +8,7 @@ import { FloatingChat } from '@/components/chat/FloatingChat';
 import { NotificationBell } from '@/components/tasks/NotificationBell';
 import { useTasksData } from '@/hooks/useTasksData';
 import { useTeamMembers } from '@/hooks/useTeamMembers';
-import { Home, Package, Users, Receipt, LineChart, Banknote, BarChart3, TrendingUp, FileText, Shield, LogOut, Menu, X, MessageSquare, Cog, Clock, Database, Tag, CalendarRange, LayoutDashboard, MessagesSquare, ClipboardList } from 'lucide-react';
+import { Home, Package, Users, Receipt, LineChart, Banknote, BarChart3, TrendingUp, FileText, Shield, LogOut, Menu, X, MessageSquare, Cog, Clock, Database, Tag, CalendarRange, LayoutDashboard, MessagesSquare, ClipboardList, Wrench } from 'lucide-react';
 
 interface NavItem {
   to: string;
@@ -55,6 +55,7 @@ const navGroups: NavGroup[] = [
       { to: '/planning-dev', label: 'Planning Dev', icon: CalendarRange, tabKey: 'planning-dev' },
       { to: '/timetracking', label: "Suivi d'activité", icon: Clock, tabKey: 'timetracking' },
       { to: '/tasks', label: 'Tâches', icon: ClipboardList, tabKey: 'tasks' },
+      { to: '/sav', label: 'SAV', icon: Wrench, tabKey: 'sav' },
       { to: '/snapshots', label: 'Sauvegardes', icon: Database, tabKey: 'snapshots' },
       { to: '/chat', label: 'Chat', icon: MessagesSquare, tabKey: 'chat' },
     ],
