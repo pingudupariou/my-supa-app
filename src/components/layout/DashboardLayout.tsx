@@ -54,6 +54,7 @@ const navGroups: NavGroup[] = [
       { to: '/costflow', label: 'Production et BE', icon: Cog, tabKey: 'costflow' },
       { to: '/planning-dev', label: 'Planning Dev', icon: CalendarRange, tabKey: 'planning-dev' },
       { to: '/timetracking', label: "Suivi d'activité", icon: Clock, tabKey: 'timetracking' },
+      { to: '/tasks', label: 'Tâches', icon: ClipboardList, tabKey: 'tasks' },
       { to: '/snapshots', label: 'Sauvegardes', icon: Database, tabKey: 'snapshots' },
       { to: '/chat', label: 'Chat', icon: MessagesSquare, tabKey: 'chat' },
     ],
