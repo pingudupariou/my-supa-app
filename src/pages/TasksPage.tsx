@@ -48,6 +48,7 @@ export function TasksPage() {
             history={tasksData.history}
             users={members}
             customers={customers}
+            currentUserId={user?.id}
             onCreateTask={tasksData.createTask}
             onUpdateTask={tasksData.updateTask}
             onDeleteTask={tasksData.deleteTask}
@@ -61,6 +62,7 @@ export function TasksPage() {
             history={tasksData.history}
             users={members}
             customers={customers}
+            currentUserId={user?.id}
             onCreateTask={tasksData.createTask}
             onUpdateTask={tasksData.updateTask}
             onDeleteTask={tasksData.deleteTask}

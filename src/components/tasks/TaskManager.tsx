@@ -18,6 +18,7 @@ interface TaskManagerProps {
   history: TaskHistory[];
   users: { id: string; email: string; display_name: string }[];
   customers?: { id: string; company_name: string }[];
+  currentUserId?: string;
   onCreateTask: (task: Partial<Task>) => Promise<void>;
   onUpdateTask: (id: string, updates: Partial<Task>) => Promise<void>;
   onDeleteTask: (id: string) => Promise<void>;
@@ -41,7 +42,7 @@ const priorityConfig = {
 };
 
 export function TaskManager({
-  tasks, history, users, customers, onCreateTask, onUpdateTask, onDeleteTask,
+  tasks, history, users, customers, currentUserId, onCreateTask, onUpdateTask, onDeleteTask,
   getTaskHistory, defaultCustomerId, defaultMeetingId, defaultContext, compact,
 }: TaskManagerProps) {
   const [createOpen, setCreateOpen] = useState(false);
@@ -191,6 +192,7 @@ export function TaskManager({
                       onDelete={() => onDeleteTask(task.id)}
                       onShowHistory={() => setHistoryTaskId(task.id)}
                       users={users}
+                      canEdit={currentUserId === task.user_id}
                     />
                   ))}
                 </div>
@@ -212,6 +214,7 @@ export function TaskManager({
               onDelete={() => onDeleteTask(task.id)}
               onShowHistory={() => setHistoryTaskId(task.id)}
               users={users}
+              canEdit={currentUserId === task.user_id}
               compact
             />
           ))}
@@ -247,7 +250,7 @@ export function TaskManager({
 }
 
 function TaskCard({
-  task, getUserName, getCustomerName, onCycleStatus, onUpdate, onDelete, onShowHistory, users, compact,
+  task, getUserName, getCustomerName, onCycleStatus, onUpdate, onDelete, onShowHistory, users, canEdit, compact,
 }: {
   task: Task;
   getUserName: (id: string | null) => string;
@@ -257,6 +260,7 @@ function TaskCard({
   onDelete: () => void;
   onShowHistory: () => void;
   users: { id: string; email: string; display_name: string }[];
+  canEdit?: boolean;
   compact?: boolean;
 }) {
   const stCfg = statusConfig[task.status];
@@ -268,16 +272,17 @@ function TaskCard({
   if (compact) {
     return (
       <div className={`flex items-center gap-2 p-2 rounded-lg border ${isOverdue ? 'border-destructive/50 bg-destructive/5' : ''}`}>
-        <button onClick={onCycleStatus} className="shrink-0">
+        <button onClick={canEdit ? onCycleStatus : undefined} className={`shrink-0 ${!canEdit ? 'cursor-default' : ''}`} disabled={!canEdit}>
           <StatusIcon className={`h-4 w-4 ${task.status === 'done' ? 'text-green-600' : task.status === 'in_progress' ? 'text-blue-600' : 'text-muted-foreground'}`} />
         </button>
         <span className={`text-sm flex-1 ${task.status === 'done' ? 'line-through text-muted-foreground' : ''}`}>{task.title}</span>
         {customerName && <Badge variant="outline" className="text-[10px]"><Building2 className="h-3 w-3 mr-0.5" />{customerName}</Badge>}
         <Badge className={`text-[10px] ${prCfg.color}`}>{prCfg.label}</Badge>
-        {task.assigned_to && <span className="text-xs text-muted-foreground"><User className="h-3 w-3 inline mr-0.5" />{getUserName(task.assigned_to)}</span>}
+        {task.assigned_to && <span className="text-xs text-muted-foreground"><User className="h-3 w-3 inline mr-0.5" />→ {getUserName(task.assigned_to)}</span>}
+        {task.user_id && <span className="text-xs text-muted-foreground opacity-70">par {getUserName(task.user_id)}</span>}
         {task.due_date && <span className={`text-xs ${isOverdue ? 'text-destructive font-semibold' : 'text-muted-foreground'}`}>{format(new Date(task.due_date), 'dd/MM')}</span>}
         <Button variant="ghost" size="icon" className="h-6 w-6" onClick={onShowHistory}><History className="h-3 w-3" /></Button>
-        <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive" onClick={onDelete}><Trash2 className="h-3 w-3" /></Button>
+        {canEdit && <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive" onClick={onDelete}><Trash2 className="h-3 w-3" /></Button>}
       </div>
     );
   }
@@ -287,7 +292,7 @@ function TaskCard({
       <CardContent className="p-3 space-y-2">
         <div className="flex items-start justify-between gap-2">
           <div className="flex items-start gap-2 flex-1">
-            <button onClick={onCycleStatus} className="mt-0.5 shrink-0">
+            <button onClick={canEdit ? onCycleStatus : undefined} className={`mt-0.5 shrink-0 ${!canEdit ? 'cursor-default' : ''}`} disabled={!canEdit}>
               <StatusIcon className={`h-4 w-4 ${task.status === 'done' ? 'text-green-600' : task.status === 'in_progress' ? 'text-blue-600' : 'text-muted-foreground'}`} />
             </button>
             <div className="flex-1 min-w-0">
@@ -297,7 +302,7 @@ function TaskCard({
           </div>
           <div className="flex gap-0.5 shrink-0">
             <Button variant="ghost" size="icon" className="h-6 w-6" onClick={onShowHistory}><History className="h-3 w-3" /></Button>
-            <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive" onClick={onDelete}><Trash2 className="h-3 w-3" /></Button>
+            {canEdit && <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive" onClick={onDelete}><Trash2 className="h-3 w-3" /></Button>}
           </div>
         </div>
         <div className="flex items-center gap-1.5 flex-wrap">
@@ -310,7 +315,10 @@ function TaskCard({
             </Badge>
           )}
           <Badge variant="secondary" className="text-[10px]">
-            <User className="h-3 w-3 mr-0.5" />{task.assigned_to ? getUserName(task.assigned_to) : 'Non assigné'}
+            <ArrowRight className="h-3 w-3 mr-0.5" />{task.assigned_to ? getUserName(task.assigned_to) : 'Non assigné'}
+          </Badge>
+          <Badge variant="outline" className="text-[10px] opacity-70">
+            <User className="h-3 w-3 mr-0.5" />par {getUserName(task.user_id)}
           </Badge>
           {task.due_date && (
             <Badge variant={isOverdue ? 'destructive' : 'outline'} className="text-[10px]">
@@ -319,26 +327,28 @@ function TaskCard({
             </Badge>
           )}
         </div>
-        {/* Quick actions */}
-        <div className="flex gap-1 pt-1">
-          <Select value={task.status} onValueChange={v => onUpdate({ status: v as any })}>
-            <SelectTrigger className="h-6 text-[10px] w-auto"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="todo">À faire</SelectItem>
-              <SelectItem value="in_progress">En cours</SelectItem>
-              <SelectItem value="done">Terminé</SelectItem>
-            </SelectContent>
-          </Select>
-          <Select value={task.assigned_to || 'none'} onValueChange={v => onUpdate({ assigned_to: v === 'none' ? null : v })}>
-            <SelectTrigger className="h-6 text-[10px] w-auto"><SelectValue placeholder="Assigner" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="none">Non assigné</SelectItem>
-              {users.map(u => (
-                <SelectItem key={u.id} value={u.id}>{u.display_name || u.email}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
+        {/* Quick actions - only for task creator */}
+        {canEdit && (
+          <div className="flex gap-1 pt-1">
+            <Select value={task.status} onValueChange={v => onUpdate({ status: v as any })}>
+              <SelectTrigger className="h-6 text-[10px] w-auto"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todo">À faire</SelectItem>
+                <SelectItem value="in_progress">En cours</SelectItem>
+                <SelectItem value="done">Terminé</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={task.assigned_to || 'none'} onValueChange={v => onUpdate({ assigned_to: v === 'none' ? null : v })}>
+              <SelectTrigger className="h-6 text-[10px] w-auto"><SelectValue placeholder="Assigner" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">Non assigné</SelectItem>
+                {users.map(u => (
+                  <SelectItem key={u.id} value={u.id}>{u.display_name || u.email}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
       </CardContent>
     </Card>
   );
