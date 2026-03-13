@@ -42,7 +42,7 @@ const priorityConfig = {
 };
 
 export function TaskManager({
-  tasks, history, users, customers, onCreateTask, onUpdateTask, onDeleteTask,
+  tasks, history, users, customers, currentUserId, onCreateTask, onUpdateTask, onDeleteTask,
   getTaskHistory, defaultCustomerId, defaultMeetingId, defaultContext, compact,
 }: TaskManagerProps) {
   const [createOpen, setCreateOpen] = useState(false);
