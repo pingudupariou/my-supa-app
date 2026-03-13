@@ -71,6 +71,8 @@ export function DashboardLayout({
     getTabPermission
   } = useAuth();
   const navigate = useNavigate();
+  const tasksData = useTasksData();
+  const { members } = useTeamMembers();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [activeSystem, setActiveSystem] = useState<string | null>(() => localStorage.getItem('novaride_active_snapshot_system'));
   const [activeScenario, setActiveScenario] = useState<string | null>(() => localStorage.getItem('novaride_active_snapshot_scenario'));
