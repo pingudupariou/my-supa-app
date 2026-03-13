@@ -151,16 +151,47 @@ export function TaskManager({
                   ))}
                 </SelectContent>
               </Select>
-              {customers && customers.length > 0 && !defaultCustomerId && (
-                <Select value={newTask.customer_id || 'none'} onValueChange={v => setNewTask(p => ({ ...p, customer_id: v === 'none' ? '' : v }))}>
-                  <SelectTrigger><SelectValue placeholder="Client (optionnel)" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">Aucun</SelectItem>
-                    {customers.map(c => (
-                      <SelectItem key={c.id} value={c.id}>{c.company_name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+              {/* Domain selector */}
+              {!defaultCustomerId && (
+                <div className="space-y-2">
+                  <Select value={newTask.domain || 'none'} onValueChange={v => setNewTask(p => ({ ...p, domain: v === 'none' ? '' : v, customer_id: '', product_id: '' }))}>
+                    <SelectTrigger><SelectValue placeholder="Associer à..." /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Aucune association</SelectItem>
+                      <SelectItem value="client">🏢 Client</SelectItem>
+                      <SelectItem value="product">📦 Projet / Produit</SelectItem>
+                      <SelectItem value="other">📌 Autre domaine</SelectItem>
+                    </SelectContent>
+                  </Select>
+
+                  {newTask.domain === 'client' && customers && customers.length > 0 && (
+                    <Select value={newTask.customer_id || 'none'} onValueChange={v => setNewTask(p => ({ ...p, customer_id: v === 'none' ? '' : v }))}>
+                      <SelectTrigger><SelectValue placeholder="Sélectionner un client" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">Aucun</SelectItem>
+                        {customers.map(c => (
+                          <SelectItem key={c.id} value={c.id}>{c.company_name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+
+                  {newTask.domain === 'product' && products && products.length > 0 && (
+                    <Select value={newTask.product_id || 'none'} onValueChange={v => setNewTask(p => ({ ...p, product_id: v === 'none' ? '' : v }))}>
+                      <SelectTrigger><SelectValue placeholder="Sélectionner un produit" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">Aucun</SelectItem>
+                        {products.map(p => (
+                          <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+
+                  {newTask.domain === 'other' && (
+                    <p className="text-xs text-muted-foreground italic">Cette tâche sera classée dans « Autre domaine »</p>
+                  )}
+                </div>
               )}
               <Button onClick={handleCreate} disabled={!newTask.title.trim()} className="w-full">Créer</Button>
             </div>
