@@ -196,6 +196,14 @@ const App = () => (
                 </ProtectedRoute>
               } />
               
+              <Route path="/sav" element={
+                <ProtectedRoute tabKey="sav">
+                  <DashboardLayout>
+                    <SAVPage />
+                  </DashboardLayout>
+                </ProtectedRoute>
+              } />
+              
               {/* Admin routes */}
               <Route path="/permissions" element={
                 <ProtectedRoute>
