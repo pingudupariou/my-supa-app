@@ -27,6 +27,7 @@ import { TableauDeBordPage } from "@/pages/TableauDeBordPage";
 import { AccueilPage } from "@/pages/AccueilPage";
 import { ChatPage } from "@/pages/ChatPage";
 import { ResetPasswordPage } from "@/pages/ResetPasswordPage";
+import { TasksPage } from "@/pages/TasksPage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -182,6 +183,14 @@ const App = () => (
                 <ProtectedRoute tabKey="chat">
                   <DashboardLayout>
                     <ChatPage />
+                  </DashboardLayout>
+                </ProtectedRoute>
+              } />
+              
+              <Route path="/tasks" element={
+                <ProtectedRoute tabKey="tasks">
+                  <DashboardLayout>
+                    <TasksPage />
                   </DashboardLayout>
                 </ProtectedRoute>
               } />

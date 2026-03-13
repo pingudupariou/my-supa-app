@@ -5,7 +5,10 @@ import { NovarideLogo } from '@/components/ui/NovarideLogo';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { FloatingChat } from '@/components/chat/FloatingChat';
-import { Home, Package, Users, Receipt, LineChart, Banknote, BarChart3, TrendingUp, FileText, Shield, LogOut, Menu, X, MessageSquare, Cog, Clock, Database, Tag, CalendarRange, LayoutDashboard, MessagesSquare } from 'lucide-react';
+import { NotificationBell } from '@/components/tasks/NotificationBell';
+import { useTasksData } from '@/hooks/useTasksData';
+import { useTeamMembers } from '@/hooks/useTeamMembers';
+import { Home, Package, Users, Receipt, LineChart, Banknote, BarChart3, TrendingUp, FileText, Shield, LogOut, Menu, X, MessageSquare, Cog, Clock, Database, Tag, CalendarRange, LayoutDashboard, MessagesSquare, ClipboardList } from 'lucide-react';
 
 interface NavItem {
   to: string;
@@ -51,6 +54,7 @@ const navGroups: NavGroup[] = [
       { to: '/costflow', label: 'Production et BE', icon: Cog, tabKey: 'costflow' },
       { to: '/planning-dev', label: 'Planning Dev', icon: CalendarRange, tabKey: 'planning-dev' },
       { to: '/timetracking', label: "Suivi d'activité", icon: Clock, tabKey: 'timetracking' },
+      { to: '/tasks', label: 'Tâches', icon: ClipboardList, tabKey: 'tasks' },
       { to: '/snapshots', label: 'Sauvegardes', icon: Database, tabKey: 'snapshots' },
       { to: '/chat', label: 'Chat', icon: MessagesSquare, tabKey: 'chat' },
     ],
@@ -67,6 +71,8 @@ export function DashboardLayout({
     getTabPermission
   } = useAuth();
   const navigate = useNavigate();
+  const tasksData = useTasksData();
+  const { members } = useTeamMembers();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [activeSystem, setActiveSystem] = useState<string | null>(() => localStorage.getItem('novaride_active_snapshot_system'));
   const [activeScenario, setActiveScenario] = useState<string | null>(() => localStorage.getItem('novaride_active_snapshot_scenario'));
@@ -98,7 +104,18 @@ export function DashboardLayout({
       {/* Sidebar */}
       <aside className={cn('fixed inset-y-0 left-0 z-40 w-56 bg-sidebar text-sidebar-foreground flex flex-col transition-transform lg:translate-x-0', sidebarOpen ? 'translate-x-0' : '-translate-x-full')}>
         <div className="p-4 border-b border-sidebar-border">
-          <NovarideLogo variant="compact" color="light" />
+          <div className="flex items-center justify-between">
+            <NovarideLogo variant="compact" color="light" />
+            <NotificationBell
+              notifications={tasksData.notifications}
+              unreadCount={tasksData.unreadCount}
+              tasks={tasksData.tasks}
+              users={members}
+              onMarkRead={tasksData.markNotificationRead}
+              onMarkAllRead={tasksData.markAllNotificationsRead}
+              onNavigateToTask={() => navigate('/tasks')}
+            />
+          </div>
           <div className="text-xs text-sidebar-foreground/50 mt-1">Gestion interne</div>
           {(activeSystem || activeScenario) && (
             <div className="mt-2 space-y-1">

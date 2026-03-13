@@ -16,11 +16,16 @@ import { TrashManager } from '@/components/costflow/TrashManager';
 import { ReferenceUsageMap } from '@/components/costflow/ReferenceUsageMap';
 import { StockManager } from '@/components/costflow/StockManager';
 import { ReadOnlyWrapper } from '@/components/auth/ReadOnlyWrapper';
+import { TaskManager } from '@/components/tasks/TaskManager';
+import { useTasksData } from '@/hooks/useTasksData';
+import { useTeamMembers } from '@/hooks/useTeamMembers';
 import { Loader2 } from 'lucide-react';
 
 export function CostFlowPage() {
   const { isAdmin } = useAuth();
   const data = useCostFlowData();
+  const tasksData = useTasksData();
+  const { members } = useTeamMembers();
   const [selectedRef, setSelectedRef] = useState<CostFlowReference | null>(null);
   const [selectedProduct, setSelectedProduct] = useState<CostFlowProduct | null>(null);
   const [activeTab, setActiveTab] = useState('references');
@@ -71,6 +76,14 @@ export function CostFlowPage() {
           <TabsTrigger value="stock">📊 Stock</TabsTrigger>
           <TabsTrigger value="usage">🔗 Cas d'usage</TabsTrigger>
           <TabsTrigger value="meetings">📋 Réunions BE</TabsTrigger>
+          <TabsTrigger value="tasks">
+            ✅ Tâches
+            {tasksData.tasks.filter(t => t.context === 'costflow' && t.status !== 'done').length > 0 && (
+              <span className="ml-1 inline-flex items-center justify-center h-4 min-w-[1rem] rounded-full bg-primary text-primary-foreground text-[10px] font-bold px-1">
+                {tasksData.tasks.filter(t => t.context === 'costflow' && t.status !== 'done').length}
+              </span>
+            )}
+          </TabsTrigger>
           <TabsTrigger value="planning">📅 Planning Dev</TabsTrigger>
           <TabsTrigger value="trash" className="relative">
             🗑️ Corbeille
@@ -178,6 +191,19 @@ export function CostFlowPage() {
 
         <TabsContent value="meetings">
           <MeetingManager />
+        </TabsContent>
+
+        <TabsContent value="tasks">
+          <TaskManager
+            tasks={tasksData.tasks.filter(t => t.context === 'costflow')}
+            history={tasksData.history}
+            users={members}
+            onCreateTask={(t) => tasksData.createTask({ ...t, context: 'costflow' })}
+            onUpdateTask={tasksData.updateTask}
+            onDeleteTask={tasksData.deleteTask}
+            getTaskHistory={tasksData.getTaskHistory}
+            defaultContext="costflow"
+          />
         </TabsContent>
 
         <TabsContent value="planning">

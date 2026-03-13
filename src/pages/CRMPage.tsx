@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent } from '@/components/ui/card';
 import { KPICard } from '@/components/ui/KPICard';
-import { Users, Kanban, Bell, Calendar, Trash2 } from 'lucide-react';
+import { Users, Kanban, Bell, Calendar, Trash2, ClipboardList } from 'lucide-react';
 import { CustomerList } from '@/components/crm/CustomerList';
 import { CustomerDetail } from '@/components/crm/CustomerDetail';
 import { PipelineKanban } from '@/components/crm/PipelineKanban';
@@ -13,11 +13,17 @@ import { B2BClientTable } from '@/components/b2b/B2BClientTable';
 import { B2BTrashBin } from '@/components/b2b/B2BTrashBin';
 import { useCRMData } from '@/hooks/useCRMData';
 import { useAuth } from '@/context/AuthContext';
+import { useTasksData } from '@/hooks/useTasksData';
+import { useTeamMembers } from '@/hooks/useTeamMembers';
+import { TaskManager } from '@/components/tasks/TaskManager';
+import { TaskBanner } from '@/components/tasks/TaskBanner';
 
 export function CRMPage() {
   const b2b = useB2BClientsData();
   const crm = useCRMData();
-  const { isAdmin } = useAuth();
+  const { user, isAdmin } = useAuth();
+  const tasksData = useTasksData();
+  const { members } = useTeamMembers();
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
 
   const totalClients = b2b.clients.length;
@@ -56,8 +62,9 @@ export function CRMPage() {
         </p>
       </div>
 
-      {/* Reminder Banner */}
+      {/* Banners */}
       <ReminderBanner reminders={crm.reminders} customers={customersForSelect} />
+      <TaskBanner tasks={tasksData.tasks} currentUserId={user?.id} />
 
       <div className="grid gap-4 md:grid-cols-5">
         <KPICard label="Total Clients" value={totalClients} />
@@ -91,6 +98,15 @@ export function CRMPage() {
             {pendingReminders > 0 && (
               <span className="ml-1.5 inline-flex items-center justify-center h-5 min-w-5 px-1 rounded-full bg-destructive text-destructive-foreground text-[10px] font-bold">
                 {pendingReminders}
+              </span>
+            )}
+          </TabsTrigger>
+          <TabsTrigger value="tasks">
+            <ClipboardList className="h-4 w-4 mr-2" />
+            Tâches
+            {tasksData.tasks.filter(t => t.context === 'crm' && t.status !== 'done').length > 0 && (
+              <span className="ml-1.5 inline-flex items-center justify-center h-5 min-w-5 px-1 rounded-full bg-primary text-primary-foreground text-[10px] font-bold">
+                {tasksData.tasks.filter(t => t.context === 'crm' && t.status !== 'done').length}
               </span>
             )}
           </TabsTrigger>
@@ -199,6 +215,25 @@ export function CRMPage() {
                 onUncomplete={crm.uncompleteReminder}
                 onDelete={crm.deleteReminder}
                 showCustomerName
+              />
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Tasks tab */}
+        <TabsContent value="tasks" className="space-y-4">
+          <Card>
+            <CardContent className="pt-6">
+              <TaskManager
+                tasks={tasksData.tasks.filter(t => t.context === 'crm')}
+                history={tasksData.history}
+                users={members}
+                customers={customersForSelect}
+                onCreateTask={(t) => tasksData.createTask({ ...t, context: 'crm' })}
+                onUpdateTask={tasksData.updateTask}
+                onDeleteTask={tasksData.deleteTask}
+                getTaskHistory={tasksData.getTaskHistory}
+                defaultContext="crm"
               />
             </CardContent>
           </Card>

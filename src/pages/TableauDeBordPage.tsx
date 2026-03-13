@@ -8,8 +8,10 @@ import { useCRMData } from '@/hooks/useCRMData';
 import { usePricingConfig } from '@/hooks/usePricingConfig';
 import { usePageImages } from '@/hooks/usePageImages';
 import { useAuth } from '@/context/AuthContext';
+import { useTasksData } from '@/hooks/useTasksData';
 import { MarginChart } from '@/components/pricing/MarginChart';
 import { EditableImage } from '@/components/ui/EditableImage';
+import { TaskDashboardWidget } from '@/components/tasks/TaskDashboardWidget';
 import { Package, Layers, Factory, Users, CalendarRange, TrendingUp, Cog } from 'lucide-react';
 import defaultHeroImg from '@/assets/banner-nrc-udh.jpg';
 import defaultVisionImg from '@/assets/savoir-faire.jpg';
@@ -34,7 +36,8 @@ export function TableauDeBordPage() {
   const { customers, orders } = useCRMData();
   const { salesRules, pricingMode, activeRuleId, editedOurPrices, getEffectivePrice, computeChainFromPublicTTC, loaded: pricingLoaded } = usePricingConfig();
   const { images, setImage } = usePageImages(PAGE_KEY);
-  const { getTabPermission } = useAuth();
+  const { user, getTabPermission } = useAuth();
+  const tasksData = useTasksData();
   const canEdit = getTabPermission('tableau-de-bord') === 'write';
 
   // KPIs
@@ -179,6 +182,9 @@ export function TableauDeBordPage() {
 
         {/* Side panel */}
         <div className="space-y-4">
+          {/* Task widget */}
+          <TaskDashboardWidget tasks={tasksData.tasks} currentUserId={user?.id} />
+
           {/* Photo card */}
           <Card className="overflow-hidden">
             <div className="relative h-36">
