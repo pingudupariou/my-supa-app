@@ -22,7 +22,7 @@ interface Props {
   compact?: boolean;
 }
 
-export function ChatWindow({ messages, profiles, myPseudo, onSend, getPseudo, compact }: Props) {
+export function ChatWindow({ messages, profiles, myPseudo, onSend, onDelete, getPseudo, compact }: Props) {
   const { user } = useAuth();
   const [input, setInput] = useState('');
   const [showMentions, setShowMentions] = useState(false);
