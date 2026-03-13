@@ -18,6 +18,7 @@ interface TaskManagerProps {
   history: TaskHistory[];
   users: { id: string; email: string; display_name: string }[];
   customers?: { id: string; company_name: string }[];
+  products?: { id: string; name: string }[];
   currentUserId?: string;
   onCreateTask: (task: Partial<Task>) => Promise<void>;
   onUpdateTask: (id: string, updates: Partial<Task>) => Promise<void>;
