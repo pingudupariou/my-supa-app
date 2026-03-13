@@ -332,6 +332,7 @@ function TaskCard({
           <Select value={task.assigned_to || 'none'} onValueChange={v => onUpdate({ assigned_to: v === 'none' ? null : v })}>
             <SelectTrigger className="h-6 text-[10px] w-auto"><SelectValue placeholder="Assigner" /></SelectTrigger>
             <SelectContent>
+              <SelectItem value="none">Non assigné</SelectItem>
               {users.map(u => (
                 <SelectItem key={u.id} value={u.id}>{u.display_name || u.email}</SelectItem>
               ))}
