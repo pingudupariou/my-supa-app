@@ -315,6 +315,8 @@ function TaskCard({
         </button>
         <span className={`text-sm flex-1 ${task.status === 'done' ? 'line-through text-muted-foreground' : ''}`}>{task.title}</span>
         {customerName && <Badge variant="outline" className="text-[10px]"><Building2 className="h-3 w-3 mr-0.5" />{customerName}</Badge>}
+        {!customerName && task.context === 'costflow' && <Badge variant="outline" className="text-[10px]"><Package className="h-3 w-3 mr-0.5" />Produit</Badge>}
+        {task.context === 'autre' && <Badge variant="outline" className="text-[10px]"><MoreHorizontal className="h-3 w-3 mr-0.5" />Autre</Badge>}
         <Badge className={`text-[10px] ${prCfg.color}`}>{prCfg.label}</Badge>
         {task.assigned_to && <span className="text-xs text-muted-foreground"><User className="h-3 w-3 inline mr-0.5" />→ {getUserName(task.assigned_to)}</span>}
         {task.user_id && <span className="text-xs text-muted-foreground opacity-70">par {getUserName(task.user_id)}</span>}
