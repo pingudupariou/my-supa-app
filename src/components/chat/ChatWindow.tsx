@@ -105,22 +105,33 @@ export function ChatWindow({ messages, profiles, myPseudo, onSend, onDelete, get
               const showPseudo = i === 0 || group.msgs[i - 1].user_id !== msg.user_id;
               const isMentioned = user && msg.mentions?.includes(user.id);
               return (
-                <div key={msg.id} className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
+                <div key={msg.id} className={`group flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
                   {showPseudo && (
                     <span className={`text-[10px] font-semibold mt-2 mb-0.5 px-1 ${isMe ? 'text-primary' : 'text-muted-foreground'}`}>
                       {pseudo}
                     </span>
                   )}
-                  <div
-                    className={`max-w-[80%] rounded-lg px-3 py-1.5 text-sm ${
-                      isMe
-                        ? 'bg-primary text-primary-foreground'
-                        : isMentioned
-                        ? 'bg-accent border-2 border-primary/40'
-                        : 'bg-muted'
-                    }`}
-                    dangerouslySetInnerHTML={{ __html: highlightMentions(msg.content) }}
-                  />
+                  <div className="flex items-center gap-1">
+                    {isMe && onDelete && (
+                      <button
+                        onClick={() => onDelete(msg.id)}
+                        className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-destructive/10 text-destructive/60 hover:text-destructive"
+                        title="Supprimer"
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </button>
+                    )}
+                    <div
+                      className={`max-w-[80%] rounded-lg px-3 py-1.5 text-sm ${
+                        isMe
+                          ? 'bg-primary text-primary-foreground'
+                          : isMentioned
+                          ? 'bg-accent border-2 border-primary/40'
+                          : 'bg-muted'
+                      }`}
+                      dangerouslySetInnerHTML={{ __html: highlightMentions(msg.content) }}
+                    />
+                  </div>
                   <span className="text-[9px] text-muted-foreground/60 px-1">
                     {format(new Date(msg.created_at), 'HH:mm')}
                   </span>
