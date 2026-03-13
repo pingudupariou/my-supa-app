@@ -62,8 +62,9 @@ export function CRMPage() {
         </p>
       </div>
 
-      {/* Reminder Banner */}
+      {/* Banners */}
       <ReminderBanner reminders={crm.reminders} customers={customersForSelect} />
+      <TaskBanner tasks={tasksData.tasks} currentUserId={user?.id} />
 
       <div className="grid gap-4 md:grid-cols-5">
         <KPICard label="Total Clients" value={totalClients} />
