@@ -103,11 +103,18 @@ export function useChatData() {
   // Send message
   const sendMessage = useCallback(async (content: string, mentions: string[] = []) => {
     if (!user || !content.trim()) return;
-    await supabase.from('chat_messages').insert({
+    const { data } = await supabase.from('chat_messages').insert({
       user_id: user.id,
       content: content.trim(),
       mentions,
-    });
+    }).select().single();
+    // Optimistically add if realtime doesn't catch it
+    if (data) {
+      setMessages(prev => {
+        if (prev.some(m => m.id === data.id)) return prev;
+        return [...prev, { ...data, mentions: data.mentions || [] }];
+      });
+    }
   }, [user]);
 
   // Update pseudo
