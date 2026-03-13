@@ -185,7 +185,7 @@ export function TableauDeBordPage() {
         {/* Side panel */}
         <div className="space-y-4">
           {/* Task widget */}
-          <TaskDashboardWidget tasks={tasksData.tasks} currentUserId={user?.id} />
+          <TaskDashboardWidget tasks={tasksData.tasks} currentUserId={user?.id} users={members} />
 
           {/* Photo card */}
           <Card className="overflow-hidden">
