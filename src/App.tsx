@@ -187,6 +187,14 @@ const App = () => (
                 </ProtectedRoute>
               } />
               
+              <Route path="/tasks" element={
+                <ProtectedRoute tabKey="tasks">
+                  <DashboardLayout>
+                    <TasksPage />
+                  </DashboardLayout>
+                </ProtectedRoute>
+              } />
+              
               {/* Admin routes */}
               <Route path="/permissions" element={
                 <ProtectedRoute>
