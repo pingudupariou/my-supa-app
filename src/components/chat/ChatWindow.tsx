@@ -17,6 +17,7 @@ interface Props {
   profiles: Record<string, string>;
   myPseudo: string;
   onSend: (content: string, mentions: string[]) => void;
+  onDelete?: (messageId: string) => void;
   getPseudo: (userId: string) => string;
   compact?: boolean;
 }
