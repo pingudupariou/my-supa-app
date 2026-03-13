@@ -9,6 +9,7 @@ import { usePricingConfig } from '@/hooks/usePricingConfig';
 import { usePageImages } from '@/hooks/usePageImages';
 import { useAuth } from '@/context/AuthContext';
 import { useTasksData } from '@/hooks/useTasksData';
+import { useTeamMembers } from '@/hooks/useTeamMembers';
 import { MarginChart } from '@/components/pricing/MarginChart';
 import { EditableImage } from '@/components/ui/EditableImage';
 import { TaskDashboardWidget } from '@/components/tasks/TaskDashboardWidget';
