@@ -16,6 +16,9 @@ import { TrashManager } from '@/components/costflow/TrashManager';
 import { ReferenceUsageMap } from '@/components/costflow/ReferenceUsageMap';
 import { StockManager } from '@/components/costflow/StockManager';
 import { ReadOnlyWrapper } from '@/components/auth/ReadOnlyWrapper';
+import { TaskManager } from '@/components/tasks/TaskManager';
+import { useTasksData } from '@/hooks/useTasksData';
+import { useTeamMembers } from '@/hooks/useTeamMembers';
 import { Loader2 } from 'lucide-react';
 
 export function CostFlowPage() {
