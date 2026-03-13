@@ -58,17 +58,18 @@ export function TaskManager({
   const [search, setSearch] = useState('');
 
   const handleCreate = async () => {
+    const context = newTask.domain === 'client' ? 'crm' : newTask.domain === 'product' ? 'costflow' : newTask.domain === 'other' ? 'autre' : defaultContext || 'global';
     await onCreateTask({
       title: newTask.title,
       description: newTask.description,
       priority: newTask.priority as any,
       assigned_to: newTask.assigned_to || null,
-      customer_id: newTask.customer_id || defaultCustomerId || null,
+      customer_id: newTask.domain === 'client' ? (newTask.customer_id || defaultCustomerId || null) : null,
       meeting_id: defaultMeetingId || null,
-      context: defaultContext || 'global',
+      context,
       due_date: newTask.due_date || null,
     });
-    setNewTask({ title: '', description: '', priority: 'moyenne', assigned_to: '', customer_id: defaultCustomerId || '', due_date: '' });
+    setNewTask({ title: '', description: '', priority: 'moyenne', assigned_to: '', customer_id: defaultCustomerId || '', due_date: '', domain: defaultCustomerId ? 'client' : '', product_id: '' });
     setCreateOpen(false);
   };
 
