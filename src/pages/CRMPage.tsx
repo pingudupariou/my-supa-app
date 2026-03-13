@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent } from '@/components/ui/card';
 import { KPICard } from '@/components/ui/KPICard';
-import { Users, Kanban, Bell, Calendar, Trash2 } from 'lucide-react';
+import { Users, Kanban, Bell, Calendar, Trash2, ClipboardList } from 'lucide-react';
 import { CustomerList } from '@/components/crm/CustomerList';
 import { CustomerDetail } from '@/components/crm/CustomerDetail';
 import { PipelineKanban } from '@/components/crm/PipelineKanban';
@@ -13,6 +13,10 @@ import { B2BClientTable } from '@/components/b2b/B2BClientTable';
 import { B2BTrashBin } from '@/components/b2b/B2BTrashBin';
 import { useCRMData } from '@/hooks/useCRMData';
 import { useAuth } from '@/context/AuthContext';
+import { useTasksData } from '@/hooks/useTasksData';
+import { useTeamMembers } from '@/hooks/useTeamMembers';
+import { TaskManager } from '@/components/tasks/TaskManager';
+import { TaskBanner } from '@/components/tasks/TaskBanner';
 
 export function CRMPage() {
   const b2b = useB2BClientsData();
