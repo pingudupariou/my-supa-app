@@ -220,6 +220,25 @@ export function CRMPage() {
           </Card>
         </TabsContent>
 
+        {/* Tasks tab */}
+        <TabsContent value="tasks" className="space-y-4">
+          <Card>
+            <CardContent className="pt-6">
+              <TaskManager
+                tasks={tasksData.tasks.filter(t => t.context === 'crm')}
+                history={tasksData.history}
+                users={members}
+                customers={customersForSelect}
+                onCreateTask={(t) => tasksData.createTask({ ...t, context: 'crm' })}
+                onUpdateTask={tasksData.updateTask}
+                onDeleteTask={tasksData.deleteTask}
+                getTaskHistory={tasksData.getTaskHistory}
+                defaultContext="crm"
+              />
+            </CardContent>
+          </Card>
+        </TabsContent>
+
         {/* Trash bin */}
         <TabsContent value="corbeille" className="space-y-4">
           <B2BTrashBin
