@@ -9,6 +9,7 @@ import { usePricingConfig } from '@/hooks/usePricingConfig';
 import { usePageImages } from '@/hooks/usePageImages';
 import { useAuth } from '@/context/AuthContext';
 import { useTasksData } from '@/hooks/useTasksData';
+import { useTeamMembers } from '@/hooks/useTeamMembers';
 import { MarginChart } from '@/components/pricing/MarginChart';
 import { EditableImage } from '@/components/ui/EditableImage';
 import { TaskDashboardWidget } from '@/components/tasks/TaskDashboardWidget';
@@ -38,6 +39,7 @@ export function TableauDeBordPage() {
   const { images, setImage } = usePageImages(PAGE_KEY);
   const { user, getTabPermission } = useAuth();
   const tasksData = useTasksData();
+  const { members } = useTeamMembers();
   const canEdit = getTabPermission('tableau-de-bord') === 'write';
 
   // KPIs
@@ -183,7 +185,7 @@ export function TableauDeBordPage() {
         {/* Side panel */}
         <div className="space-y-4">
           {/* Task widget */}
-          <TaskDashboardWidget tasks={tasksData.tasks} currentUserId={user?.id} />
+          <TaskDashboardWidget tasks={tasksData.tasks} currentUserId={user?.id} users={members} />
 
           {/* Photo card */}
           <Card className="overflow-hidden">
