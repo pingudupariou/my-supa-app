@@ -272,16 +272,17 @@ function TaskCard({
   if (compact) {
     return (
       <div className={`flex items-center gap-2 p-2 rounded-lg border ${isOverdue ? 'border-destructive/50 bg-destructive/5' : ''}`}>
-        <button onClick={onCycleStatus} className="shrink-0">
+        <button onClick={canEdit ? onCycleStatus : undefined} className={`shrink-0 ${!canEdit ? 'cursor-default' : ''}`} disabled={!canEdit}>
           <StatusIcon className={`h-4 w-4 ${task.status === 'done' ? 'text-green-600' : task.status === 'in_progress' ? 'text-blue-600' : 'text-muted-foreground'}`} />
         </button>
         <span className={`text-sm flex-1 ${task.status === 'done' ? 'line-through text-muted-foreground' : ''}`}>{task.title}</span>
         {customerName && <Badge variant="outline" className="text-[10px]"><Building2 className="h-3 w-3 mr-0.5" />{customerName}</Badge>}
         <Badge className={`text-[10px] ${prCfg.color}`}>{prCfg.label}</Badge>
-        {task.assigned_to && <span className="text-xs text-muted-foreground"><User className="h-3 w-3 inline mr-0.5" />{getUserName(task.assigned_to)}</span>}
+        {task.assigned_to && <span className="text-xs text-muted-foreground"><User className="h-3 w-3 inline mr-0.5" />→ {getUserName(task.assigned_to)}</span>}
+        {task.user_id && <span className="text-xs text-muted-foreground opacity-70">par {getUserName(task.user_id)}</span>}
         {task.due_date && <span className={`text-xs ${isOverdue ? 'text-destructive font-semibold' : 'text-muted-foreground'}`}>{format(new Date(task.due_date), 'dd/MM')}</span>}
         <Button variant="ghost" size="icon" className="h-6 w-6" onClick={onShowHistory}><History className="h-3 w-3" /></Button>
-        <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive" onClick={onDelete}><Trash2 className="h-3 w-3" /></Button>
+        {canEdit && <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive" onClick={onDelete}><Trash2 className="h-3 w-3" /></Button>}
       </div>
     );
   }
