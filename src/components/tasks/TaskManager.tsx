@@ -8,7 +8,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Plus, Calendar, User, Flag, Trash2, ChevronRight, Clock, CheckCircle2, Circle, ArrowRight, History, Building2 } from 'lucide-react';
+import { Plus, Calendar, User, Flag, Trash2, ChevronRight, Clock, CheckCircle2, Circle, ArrowRight, History, Building2, Package, MoreHorizontal } from 'lucide-react';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { TaskHistory } from '@/hooks/useTasksData';
