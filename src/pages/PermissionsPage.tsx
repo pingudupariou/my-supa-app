@@ -31,7 +31,10 @@ const TAB_ITEMS = [
   { key: 'crm', label: 'CRM' },
   { key: 'pricing', label: 'Pricing' },
   { key: 'timetracking', label: "Suivi d'activité" },
+  { key: 'tasks', label: 'Tâches' },
+  { key: 'sav', label: 'SAV' },
   { key: 'snapshots', label: 'Sauvegardes' },
+  { key: 'chat', label: 'Chat' },
 ];
 
 const roleLabels: Record<AppRole, string> = { admin: 'Admin', finance: 'Finance', board: 'Board', investisseur: 'Investisseur', lecteur: 'Lecteur', bureau_etude: 'Bureau d\'étude', production: 'Production', marketing: 'Marketing' };
