@@ -104,7 +104,18 @@ export function DashboardLayout({
       {/* Sidebar */}
       <aside className={cn('fixed inset-y-0 left-0 z-40 w-56 bg-sidebar text-sidebar-foreground flex flex-col transition-transform lg:translate-x-0', sidebarOpen ? 'translate-x-0' : '-translate-x-full')}>
         <div className="p-4 border-b border-sidebar-border">
-          <NovarideLogo variant="compact" color="light" />
+          <div className="flex items-center justify-between">
+            <NovarideLogo variant="compact" color="light" />
+            <NotificationBell
+              notifications={tasksData.notifications}
+              unreadCount={tasksData.unreadCount}
+              tasks={tasksData.tasks}
+              users={members}
+              onMarkRead={tasksData.markNotificationRead}
+              onMarkAllRead={tasksData.markAllNotificationsRead}
+              onNavigateToTask={() => navigate('/tasks')}
+            />
+          </div>
           <div className="text-xs text-sidebar-foreground/50 mt-1">Gestion interne</div>
           {(activeSystem || activeScenario) && (
             <div className="mt-2 space-y-1">
