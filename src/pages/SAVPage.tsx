@@ -142,7 +142,7 @@ export function SAVPage() {
                     <TableRow key={t.id}>
                       <TableCell className="font-mono text-xs font-medium">{t.ticket_number}</TableCell>
                       <TableCell className="text-xs">{t.open_date}</TableCell>
-                      <TableCell className="text-xs">{getCustomerName(t.customer_id)}</TableCell>
+                      <TableCell className="text-xs">{getCustomerDisplay(t)}</TableCell>
                       <TableCell><Badge variant="outline" className="text-[10px]">{t.customer_type}</Badge></TableCell>
                       <TableCell className="text-xs">{t.invoice_number || '—'}</TableCell>
                       <TableCell className="text-xs max-w-[120px] truncate">{t.product_sku || '—'}</TableCell>
