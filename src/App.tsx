@@ -28,6 +28,7 @@ import { AccueilPage } from "@/pages/AccueilPage";
 import { ChatPage } from "@/pages/ChatPage";
 import { ResetPasswordPage } from "@/pages/ResetPasswordPage";
 import { TasksPage } from "@/pages/TasksPage";
+import { SAVPage } from "@/pages/SAVPage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
