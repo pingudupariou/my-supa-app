@@ -68,9 +68,11 @@ export function SAVPage() {
   const resolvedCount = tickets.filter(t => t.status === 'resolved' || t.status === 'closed').length;
   const warrantyCount = tickets.filter(t => t.is_under_warranty).length;
 
-  const getCustomerName = (id: string | null) => {
-    if (!id) return '—';
-    return customers.find(c => c.id === id)?.company_name || '—';
+  const getCustomerDisplay = (t: SAVTicket) => {
+    if (t.customer_type === 'B2B' && t.customer_id) {
+      return b2bClients.find(c => c.id === t.customer_id)?.company_name || '—';
+    }
+    return t.customer_name || '—';
   };
 
   if (isLoading) {
