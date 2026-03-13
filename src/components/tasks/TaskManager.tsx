@@ -147,7 +147,7 @@ export function TaskManager({
                 </SelectContent>
               </Select>
               {customers && customers.length > 0 && !defaultCustomerId && (
-                <Select value={newTask.customer_id} onValueChange={v => setNewTask(p => ({ ...p, customer_id: v }))}>
+                <Select value={newTask.customer_id || 'none'} onValueChange={v => setNewTask(p => ({ ...p, customer_id: v === 'none' ? '' : v }))}>
                   <SelectTrigger><SelectValue placeholder="Client (optionnel)" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="none">Aucun</SelectItem>
