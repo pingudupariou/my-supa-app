@@ -193,6 +193,7 @@ export function TaskManager({
                       onShowHistory={() => setHistoryTaskId(task.id)}
                       users={users}
                       canEdit={currentUserId === task.user_id}
+                      canChangeStatus={currentUserId === task.user_id || currentUserId === task.assigned_to}
                     />
                   ))}
                 </div>
@@ -215,6 +216,7 @@ export function TaskManager({
               onShowHistory={() => setHistoryTaskId(task.id)}
               users={users}
               canEdit={currentUserId === task.user_id}
+              canChangeStatus={currentUserId === task.user_id || currentUserId === task.assigned_to}
               compact
             />
           ))}
@@ -250,7 +252,7 @@ export function TaskManager({
 }
 
 function TaskCard({
-  task, getUserName, getCustomerName, onCycleStatus, onUpdate, onDelete, onShowHistory, users, canEdit, compact,
+  task, getUserName, getCustomerName, onCycleStatus, onUpdate, onDelete, onShowHistory, users, canEdit, canChangeStatus, compact,
 }: {
   task: Task;
   getUserName: (id: string | null) => string;
@@ -261,6 +263,7 @@ function TaskCard({
   onShowHistory: () => void;
   users: { id: string; email: string; display_name: string }[];
   canEdit?: boolean;
+  canChangeStatus?: boolean;
   compact?: boolean;
 }) {
   const stCfg = statusConfig[task.status];
@@ -272,7 +275,7 @@ function TaskCard({
   if (compact) {
     return (
       <div className={`flex items-center gap-2 p-2 rounded-lg border ${isOverdue ? 'border-destructive/50 bg-destructive/5' : ''}`}>
-        <button onClick={canEdit ? onCycleStatus : undefined} className={`shrink-0 ${!canEdit ? 'cursor-default' : ''}`} disabled={!canEdit}>
+        <button onClick={canChangeStatus ? onCycleStatus : undefined} className={`shrink-0 ${!canChangeStatus ? 'cursor-default opacity-50' : ''}`} disabled={!canChangeStatus}>
           <StatusIcon className={`h-4 w-4 ${task.status === 'done' ? 'text-green-600' : task.status === 'in_progress' ? 'text-blue-600' : 'text-muted-foreground'}`} />
         </button>
         <span className={`text-sm flex-1 ${task.status === 'done' ? 'line-through text-muted-foreground' : ''}`}>{task.title}</span>
@@ -292,7 +295,7 @@ function TaskCard({
       <CardContent className="p-3 space-y-2">
         <div className="flex items-start justify-between gap-2">
           <div className="flex items-start gap-2 flex-1">
-            <button onClick={canEdit ? onCycleStatus : undefined} className={`mt-0.5 shrink-0 ${!canEdit ? 'cursor-default' : ''}`} disabled={!canEdit}>
+            <button onClick={canChangeStatus ? onCycleStatus : undefined} className={`mt-0.5 shrink-0 ${!canChangeStatus ? 'cursor-default opacity-50' : ''}`} disabled={!canChangeStatus}>
               <StatusIcon className={`h-4 w-4 ${task.status === 'done' ? 'text-green-600' : task.status === 'in_progress' ? 'text-blue-600' : 'text-muted-foreground'}`} />
             </button>
             <div className="flex-1 min-w-0">
@@ -327,26 +330,30 @@ function TaskCard({
             </Badge>
           )}
         </div>
-        {/* Quick actions - only for task creator */}
-        {canEdit && (
+        {/* Quick actions */}
+        {(canEdit || canChangeStatus) && (
           <div className="flex gap-1 pt-1">
-            <Select value={task.status} onValueChange={v => onUpdate({ status: v as any })}>
-              <SelectTrigger className="h-6 text-[10px] w-auto"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="todo">À faire</SelectItem>
-                <SelectItem value="in_progress">En cours</SelectItem>
-                <SelectItem value="done">Terminé</SelectItem>
-              </SelectContent>
-            </Select>
-            <Select value={task.assigned_to || 'none'} onValueChange={v => onUpdate({ assigned_to: v === 'none' ? null : v })}>
-              <SelectTrigger className="h-6 text-[10px] w-auto"><SelectValue placeholder="Assigner" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">Non assigné</SelectItem>
-                {users.map(u => (
-                  <SelectItem key={u.id} value={u.id}>{u.display_name || u.email}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            {canChangeStatus && (
+              <Select value={task.status} onValueChange={v => onUpdate({ status: v as any })}>
+                <SelectTrigger className="h-6 text-[10px] w-auto"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="todo">À faire</SelectItem>
+                  <SelectItem value="in_progress">En cours</SelectItem>
+                  <SelectItem value="done">Terminé</SelectItem>
+                </SelectContent>
+              </Select>
+            )}
+            {canEdit && (
+              <Select value={task.assigned_to || 'none'} onValueChange={v => onUpdate({ assigned_to: v === 'none' ? null : v })}>
+                <SelectTrigger className="h-6 text-[10px] w-auto"><SelectValue placeholder="Assigner" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Non assigné</SelectItem>
+                  {users.map(u => (
+                    <SelectItem key={u.id} value={u.id}>{u.display_name || u.email}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
           </div>
         )}
       </CardContent>
