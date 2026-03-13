@@ -1265,6 +1265,7 @@ export type Database = {
           client_returned_product: boolean | null
           created_at: string
           customer_id: string | null
+          customer_name: string | null
           customer_type: string
           id: string
           invoice_number: string | null
@@ -1286,6 +1287,7 @@ export type Database = {
           client_returned_product?: boolean | null
           created_at?: string
           customer_id?: string | null
+          customer_name?: string | null
           customer_type?: string
           id?: string
           invoice_number?: string | null
@@ -1307,6 +1309,7 @@ export type Database = {
           client_returned_product?: boolean | null
           created_at?: string
           customer_id?: string | null
+          customer_name?: string | null
           customer_type?: string
           id?: string
           invoice_number?: string | null

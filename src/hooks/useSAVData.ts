@@ -9,6 +9,7 @@ export interface SAVTicket {
   ticket_number: string;
   open_date: string;
   customer_id: string | null;
+  customer_name: string | null;
   customer_type: string;
   invoice_number: string | null;
   product_sku: string | null;

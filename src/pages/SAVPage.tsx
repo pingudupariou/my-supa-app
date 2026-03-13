@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useSAVData, SAVTicket } from '@/hooks/useSAVData';
-import { useCRMData } from '@/hooks/useCRMData';
+import { useB2BClientsData } from '@/hooks/useB2BClientsData';
 import { useCostFlowData } from '@/hooks/useCostFlowData';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -16,9 +16,9 @@ import { Plus, Trash2, Pencil, Wrench, AlertTriangle, CheckCircle, Clock } from 
 
 export function SAVPage() {
   const { tickets, isLoading, createTicket, updateTicket, deleteTicket, generateTicketNumber } = useSAVData();
-  const { customers } = useCRMData();
+  const b2b = useB2BClientsData();
+  const b2bClients = b2b.clients || [];
   const costflow = useCostFlowData();
-  const products = (costflow.products || []) as any[];
 
   const [showCreate, setShowCreate] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -68,9 +68,11 @@ export function SAVPage() {
   const resolvedCount = tickets.filter(t => t.status === 'resolved' || t.status === 'closed').length;
   const warrantyCount = tickets.filter(t => t.is_under_warranty).length;
 
-  const getCustomerName = (id: string | null) => {
-    if (!id) return '—';
-    return customers.find(c => c.id === id)?.company_name || '—';
+  const getCustomerDisplay = (t: SAVTicket) => {
+    if (t.customer_type === 'B2B' && t.customer_id) {
+      return b2bClients.find(c => c.id === t.customer_id)?.company_name || '—';
+    }
+    return t.customer_name || '—';
   };
 
   if (isLoading) {
@@ -140,7 +142,7 @@ export function SAVPage() {
                     <TableRow key={t.id}>
                       <TableCell className="font-mono text-xs font-medium">{t.ticket_number}</TableCell>
                       <TableCell className="text-xs">{t.open_date}</TableCell>
-                      <TableCell className="text-xs">{getCustomerName(t.customer_id)}</TableCell>
+                      <TableCell className="text-xs">{getCustomerDisplay(t)}</TableCell>
                       <TableCell><Badge variant="outline" className="text-[10px]">{t.customer_type}</Badge></TableCell>
                       <TableCell className="text-xs">{t.invoice_number || '—'}</TableCell>
                       <TableCell className="text-xs max-w-[120px] truncate">{t.product_sku || '—'}</TableCell>
@@ -186,24 +188,32 @@ export function SAVPage() {
 
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="text-sm font-medium">Client concerné</label>
-                <Select value={form.customer_id || 'none'} onValueChange={v => setForm(p => ({ ...p, customer_id: v === 'none' ? null : v }))}>
-                  <SelectTrigger><SelectValue placeholder="Sélectionner" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">— Aucun —</SelectItem>
-                    {customers.map(c => <SelectItem key={c.id} value={c.id}>{c.company_name}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
                 <label className="text-sm font-medium">Type client</label>
-                <Select value={form.customer_type || 'B2C'} onValueChange={v => setForm(p => ({ ...p, customer_type: v }))}>
+                <Select value={form.customer_type || 'B2C'} onValueChange={v => setForm(p => ({ ...p, customer_type: v, customer_id: null, customer_name: null }))}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="B2B">B2B</SelectItem>
                     <SelectItem value="B2C">B2C</SelectItem>
                   </SelectContent>
                 </Select>
+              </div>
+              <div>
+                <label className="text-sm font-medium">Client concerné</label>
+                {form.customer_type === 'B2B' ? (
+                  <Select value={form.customer_id || 'none'} onValueChange={v => setForm(p => ({ ...p, customer_id: v === 'none' ? null : v }))}>
+                    <SelectTrigger><SelectValue placeholder="Sélectionner un client B2B" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">— Aucun —</SelectItem>
+                      {b2bClients.map(c => <SelectItem key={c.id} value={c.id}>{c.company_name}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <Input 
+                    value={form.customer_name || ''} 
+                    onChange={e => setForm(p => ({ ...p, customer_name: e.target.value }))} 
+                    placeholder="Nom du client" 
+                  />
+                )}
               </div>
             </div>
 
