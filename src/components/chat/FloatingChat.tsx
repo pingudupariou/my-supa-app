@@ -111,6 +111,7 @@ export function FloatingChat() {
           profiles={chat.profiles}
           myPseudo={chat.myPseudo}
           onSend={chat.sendMessage}
+          onDelete={chat.deleteMessage}
           getPseudo={chat.getPseudo}
           compact
         />
