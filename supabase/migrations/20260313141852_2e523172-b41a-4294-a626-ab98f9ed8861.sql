@@ -1,0 +1,1 @@
+ALTER TABLE public.sav_tickets ADD COLUMN customer_name TEXT;
