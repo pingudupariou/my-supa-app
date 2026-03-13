@@ -51,7 +51,7 @@ export function FloatingChat() {
     return (
       <div className="fixed bottom-6 right-6 z-50">
         <button
-          onClick={() => { setMinimized(false); chat.clearMentions(); }}
+          onClick={() => { setMinimized(false); chat.clearMentions(); chat.clearUnread(); }}
           className="h-12 w-12 rounded-full bg-primary text-primary-foreground shadow-lg hover:shadow-xl transition-all flex items-center justify-center relative"
         >
           <MessageCircle className="h-5 w-5" />
