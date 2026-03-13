@@ -1258,6 +1258,80 @@ export type Database = {
         }
         Relationships: []
       }
+      sav_tickets: {
+        Row: {
+          bl_reference: string | null
+          bl_send_date: string | null
+          client_returned_product: boolean | null
+          created_at: string
+          customer_id: string | null
+          customer_type: string
+          id: string
+          invoice_number: string | null
+          is_under_warranty: boolean | null
+          media_received: boolean | null
+          notes: string | null
+          open_date: string
+          parts_sent_for_repair: string | null
+          problem_description: string | null
+          product_sku: string | null
+          status: string
+          ticket_number: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          bl_reference?: string | null
+          bl_send_date?: string | null
+          client_returned_product?: boolean | null
+          created_at?: string
+          customer_id?: string | null
+          customer_type?: string
+          id?: string
+          invoice_number?: string | null
+          is_under_warranty?: boolean | null
+          media_received?: boolean | null
+          notes?: string | null
+          open_date?: string
+          parts_sent_for_repair?: string | null
+          problem_description?: string | null
+          product_sku?: string | null
+          status?: string
+          ticket_number: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          bl_reference?: string | null
+          bl_send_date?: string | null
+          client_returned_product?: boolean | null
+          created_at?: string
+          customer_id?: string | null
+          customer_type?: string
+          id?: string
+          invoice_number?: string | null
+          is_under_warranty?: boolean | null
+          media_received?: boolean | null
+          notes?: string | null
+          open_date?: string
+          parts_sent_for_repair?: string | null
+          problem_description?: string | null
+          product_sku?: string | null
+          status?: string
+          ticket_number?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sav_tickets_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       snapshots: {
         Row: {
           comment: string | null
