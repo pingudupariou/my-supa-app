@@ -1,26 +1,56 @@
 import { useState } from 'react';
 import { useSAVData, SAVTicket } from '@/hooks/useSAVData';
 import { useB2BClientsData } from '@/hooks/useB2BClientsData';
-import { useCostFlowData } from '@/hooks/useCostFlowData';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Textarea } from '@/components/ui/textarea';
 import { KPICard } from '@/components/ui/KPICard';
-import { Plus, Trash2, Pencil, Wrench, AlertTriangle, CheckCircle, Clock } from 'lucide-react';
+import { Plus, Trash2, Pencil, Wrench, CheckCircle, RotateCcw, Copy, Archive } from 'lucide-react';
+import { toast } from 'sonner';
+
+const statusCfg: Record<string, { label: string; color: string }> = {
+  open: { label: 'Ouvert', color: 'bg-yellow-100 text-yellow-800 border-yellow-300' },
+  in_progress: { label: 'En cours', color: 'bg-blue-100 text-blue-800 border-blue-300' },
+  waiting_return: { label: 'Attente retour', color: 'bg-orange-100 text-orange-800 border-orange-300' },
+  resolved: { label: 'Résolu', color: 'bg-green-100 text-green-800 border-green-300' },
+  closed: { label: 'Clôturé', color: 'bg-muted text-muted-foreground border-border' },
+};
+
+function ticketsToTSV(tickets: SAVTicket[], getCustomerDisplay: (t: SAVTicket) => string): string {
+  const headers = ['N° Ticket', 'Date', 'Client', 'B2B/B2C', 'N° Facture', 'Produit / SKU', 'Garantie', 'Médias', 'Problème', 'Retour client', 'Pièces renvoyées', 'Réf. BL', 'Date envoi', 'Statut', 'Notes'];
+  const rows = tickets.map(t => [
+    t.ticket_number,
+    t.open_date,
+    getCustomerDisplay(t),
+    t.customer_type,
+    t.invoice_number || '',
+    t.product_sku || '',
+    t.is_under_warranty ? 'Oui' : 'Non',
+    t.media_received ? 'Oui' : 'Non',
+    t.problem_description || '',
+    t.client_returned_product ? 'Oui' : 'Non',
+    t.parts_sent_for_repair || '',
+    t.bl_reference || '',
+    t.bl_send_date || '',
+    statusCfg[t.status]?.label || t.status,
+    t.notes || '',
+  ].join('\t'));
+  return [headers.join('\t'), ...rows].join('\n');
+}
 
 export function SAVPage() {
-  const { tickets, isLoading, createTicket, updateTicket, deleteTicket, generateTicketNumber } = useSAVData();
+  const { tickets, trashedTickets, isLoading, createTicket, updateTicket, softDeleteTicket, restoreTicket, permanentDeleteTicket, generateTicketNumber } = useSAVData();
   const b2b = useB2BClientsData();
   const b2bClients = b2b.clients || [];
-  const costflow = useCostFlowData();
 
   const [showCreate, setShowCreate] = useState(false);
+  const [showTrash, setShowTrash] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<Partial<SAVTicket>>({});
 
@@ -47,7 +77,7 @@ export function SAVPage() {
   const handleSave = async () => {
     if (!form.ticket_number) return;
     if (editingId) {
-      const { id, user_id, created_at, updated_at, ...updates } = form as any;
+      const { id, user_id, created_at, updated_at, deleted_at, ...updates } = form as any;
       await updateTicket(editingId, updates);
     } else {
       await createTicket(form);
@@ -55,25 +85,26 @@ export function SAVPage() {
     setShowCreate(false);
   };
 
-  const statusCfg: Record<string, { label: string; color: string }> = {
-    open: { label: 'Ouvert', color: 'bg-yellow-100 text-yellow-800 border-yellow-300' },
-    in_progress: { label: 'En cours', color: 'bg-blue-100 text-blue-800 border-blue-300' },
-    waiting_return: { label: 'Attente retour', color: 'bg-orange-100 text-orange-800 border-orange-300' },
-    resolved: { label: 'Résolu', color: 'bg-green-100 text-green-800 border-green-300' },
-    closed: { label: 'Clôturé', color: 'bg-muted text-muted-foreground border-border' },
-  };
-
-  const openCount = tickets.filter(t => t.status === 'open').length;
-  const inProgressCount = tickets.filter(t => t.status === 'in_progress' || t.status === 'waiting_return').length;
-  const resolvedCount = tickets.filter(t => t.status === 'resolved' || t.status === 'closed').length;
-  const warrantyCount = tickets.filter(t => t.is_under_warranty).length;
-
   const getCustomerDisplay = (t: SAVTicket) => {
     if (t.customer_type === 'B2B' && t.customer_id) {
       return b2bClients.find(c => c.id === t.customer_id)?.company_name || '—';
     }
     return t.customer_name || '—';
   };
+
+  const handleCopyToClipboard = () => {
+    const tsv = ticketsToTSV(tickets, getCustomerDisplay);
+    navigator.clipboard.writeText(tsv).then(() => {
+      toast.success('Tableau copié ! Collez dans Excel avec Ctrl+V');
+    }).catch(() => {
+      toast.error('Erreur lors de la copie');
+    });
+  };
+
+  const openCount = tickets.filter(t => t.status === 'open').length;
+  const inProgressCount = tickets.filter(t => t.status === 'in_progress' || t.status === 'waiting_return').length;
+  const resolvedCount = tickets.filter(t => t.status === 'resolved' || t.status === 'closed').length;
+  const warrantyCount = tickets.filter(t => t.is_under_warranty).length;
 
   if (isLoading) {
     return (
@@ -90,7 +121,18 @@ export function SAVPage() {
           <h1 className="text-3xl font-bold tracking-tight">SAV</h1>
           <p className="text-muted-foreground">Suivi des tickets de service après-vente</p>
         </div>
-        <Button onClick={openCreate}><Plus className="h-4 w-4 mr-2" />Nouveau ticket</Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={handleCopyToClipboard} disabled={tickets.length === 0}>
+            <Copy className="h-4 w-4 mr-2" />Copier pour Excel
+          </Button>
+          <Button variant="outline" onClick={() => setShowTrash(true)} className="relative">
+            <Archive className="h-4 w-4 mr-2" />Corbeille
+            {trashedTickets.length > 0 && (
+              <Badge variant="destructive" className="ml-1 text-[10px] px-1.5 py-0">{trashedTickets.length}</Badge>
+            )}
+          </Button>
+          <Button onClick={openCreate}><Plus className="h-4 w-4 mr-2" />Nouveau ticket</Button>
+        </div>
       </div>
 
       <div className="grid gap-4 md:grid-cols-4">
@@ -156,7 +198,7 @@ export function SAVPage() {
                       <TableCell>
                         <div className="flex gap-1">
                           <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => openEdit(t)}><Pencil className="h-3 w-3" /></Button>
-                          <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive" onClick={() => deleteTicket(t.id)}><Trash2 className="h-3 w-3" /></Button>
+                          <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive" onClick={() => softDeleteTicket(t.id)}><Trash2 className="h-3 w-3" /></Button>
                         </div>
                       </TableCell>
                     </TableRow>
@@ -167,6 +209,48 @@ export function SAVPage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Trash Dialog */}
+      <Dialog open={showTrash} onOpenChange={setShowTrash}>
+        <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2"><Archive className="h-5 w-5" />Corbeille SAV ({trashedTickets.length})</DialogTitle>
+          </DialogHeader>
+          {trashedTickets.length === 0 ? (
+            <p className="text-muted-foreground text-center py-8">La corbeille est vide.</p>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>N° Ticket</TableHead>
+                  <TableHead>Date</TableHead>
+                  <TableHead>Client</TableHead>
+                  <TableHead>Statut</TableHead>
+                  <TableHead>Supprimé le</TableHead>
+                  <TableHead className="w-24">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {trashedTickets.map(t => (
+                  <TableRow key={t.id}>
+                    <TableCell className="font-mono text-xs">{t.ticket_number}</TableCell>
+                    <TableCell className="text-xs">{t.open_date}</TableCell>
+                    <TableCell className="text-xs">{getCustomerDisplay(t)}</TableCell>
+                    <TableCell><Badge className={`text-[10px] ${statusCfg[t.status]?.color || ''}`}>{statusCfg[t.status]?.label || t.status}</Badge></TableCell>
+                    <TableCell className="text-xs">{t.deleted_at ? new Date(t.deleted_at).toLocaleDateString('fr-FR') : '—'}</TableCell>
+                    <TableCell>
+                      <div className="flex gap-1">
+                        <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => restoreTicket(t.id)} title="Restaurer"><RotateCcw className="h-3 w-3" /></Button>
+                        <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive" onClick={() => permanentDeleteTicket(t.id)} title="Supprimer définitivement"><Trash2 className="h-3 w-3" /></Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* Create / Edit Dialog */}
       <Dialog open={showCreate} onOpenChange={setShowCreate}>
@@ -208,11 +292,7 @@ export function SAVPage() {
                     </SelectContent>
                   </Select>
                 ) : (
-                  <Input 
-                    value={form.customer_name || ''} 
-                    onChange={e => setForm(p => ({ ...p, customer_name: e.target.value }))} 
-                    placeholder="Nom du client" 
-                  />
+                  <Input value={form.customer_name || ''} onChange={e => setForm(p => ({ ...p, customer_name: e.target.value }))} placeholder="Nom du client" />
                 )}
               </div>
             </div>

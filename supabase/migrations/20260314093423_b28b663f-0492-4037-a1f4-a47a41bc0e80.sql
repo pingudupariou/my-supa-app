@@ -1,0 +1,1 @@
+ALTER TABLE public.sav_tickets ADD COLUMN IF NOT EXISTS deleted_at timestamptz DEFAULT NULL;
