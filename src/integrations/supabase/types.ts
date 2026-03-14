@@ -1267,6 +1267,7 @@ export type Database = {
           customer_id: string | null
           customer_name: string | null
           customer_type: string
+          deleted_at: string | null
           id: string
           invoice_number: string | null
           is_under_warranty: boolean | null
@@ -1289,6 +1290,7 @@ export type Database = {
           customer_id?: string | null
           customer_name?: string | null
           customer_type?: string
+          deleted_at?: string | null
           id?: string
           invoice_number?: string | null
           is_under_warranty?: boolean | null
@@ -1311,6 +1313,7 @@ export type Database = {
           customer_id?: string | null
           customer_name?: string | null
           customer_type?: string
+          deleted_at?: string | null
           id?: string
           invoice_number?: string | null
           is_under_warranty?: boolean | null
