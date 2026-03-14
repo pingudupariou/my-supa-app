@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { ClientSubTabs } from '@/components/crm/ClientSubTabs';
 import { Card, CardContent } from '@/components/ui/card';
 import { KPICard } from '@/components/ui/KPICard';
 import { Users, Kanban, Bell, Calendar, Trash2, ClipboardList } from 'lucide-react';
