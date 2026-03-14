@@ -22,6 +22,7 @@ export interface SAVTicket {
   bl_send_date: string | null;
   status: string;
   notes: string | null;
+  deleted_at: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -29,6 +30,7 @@ export interface SAVTicket {
 export function useSAVData() {
   const { user } = useAuth();
   const [tickets, setTickets] = useState<SAVTicket[]>([]);
+  const [trashedTickets, setTrashedTickets] = useState<SAVTicket[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   const fetchTickets = useCallback(async () => {
@@ -43,7 +45,9 @@ export function useSAVData() {
       console.error('Error fetching SAV tickets:', error);
       toast.error('Erreur lors du chargement des tickets SAV');
     } else {
-      setTickets((data as any[]) || []);
+      const all = (data as any[]) || [];
+      setTickets(all.filter(t => !t.deleted_at));
+      setTrashedTickets(all.filter(t => !!t.deleted_at));
     }
     setIsLoading(false);
   }, [user]);
@@ -78,16 +82,44 @@ export function useSAVData() {
     }
   };
 
-  const deleteTicket = async (id: string) => {
+  const softDeleteTicket = async (id: string) => {
     const { error } = await supabase
       .from('sav_tickets' as any)
-      .delete()
+      .update({ deleted_at: new Date().toISOString() } as any)
       .eq('id', id);
     if (error) {
       toast.error('Erreur lors de la suppression');
       console.error(error);
     } else {
-      toast.success('Ticket supprimé');
+      toast.success('Ticket déplacé dans la corbeille');
+      fetchTickets();
+    }
+  };
+
+  const restoreTicket = async (id: string) => {
+    const { error } = await supabase
+      .from('sav_tickets' as any)
+      .update({ deleted_at: null } as any)
+      .eq('id', id);
+    if (error) {
+      toast.error('Erreur lors de la restauration');
+      console.error(error);
+    } else {
+      toast.success('Ticket restauré');
+      fetchTickets();
+    }
+  };
+
+  const permanentDeleteTicket = async (id: string) => {
+    const { error } = await supabase
+      .from('sav_tickets' as any)
+      .delete()
+      .eq('id', id);
+    if (error) {
+      toast.error('Erreur lors de la suppression définitive');
+      console.error(error);
+    } else {
+      toast.success('Ticket supprimé définitivement');
       fetchTickets();
     }
   };
@@ -100,5 +132,5 @@ export function useSAVData() {
     return `SAV-${y}${m}-${rand}`;
   };
 
-  return { tickets, isLoading, createTicket, updateTicket, deleteTicket, fetchTickets, generateTicketNumber };
+  return { tickets, trashedTickets, isLoading, createTicket, updateTicket, softDeleteTicket, restoreTicket, permanentDeleteTicket, fetchTickets, generateTicketNumber };
 }
