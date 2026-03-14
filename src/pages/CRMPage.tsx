@@ -10,7 +10,7 @@ import { PipelineKanban } from '@/components/crm/PipelineKanban';
 import { ReminderBanner } from '@/components/crm/ReminderBanner';
 import { CrmReminderManager } from '@/components/crm/CrmReminderManager';
 import { useB2BClientsData } from '@/hooks/useB2BClientsData';
-import { B2BClientTable } from '@/components/b2b/B2BClientTable';
+
 import { B2BTrashBin } from '@/components/b2b/B2BTrashBin';
 import { useCRMData } from '@/hooks/useCRMData';
 import { useAuth } from '@/context/AuthContext';
