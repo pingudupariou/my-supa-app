@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { ClientSubTabs } from '@/components/crm/ClientSubTabs';
 import { Card, CardContent } from '@/components/ui/card';
 import { KPICard } from '@/components/ui/KPICard';
 import { Users, Kanban, Bell, Calendar, Trash2, ClipboardList } from 'lucide-react';
@@ -9,7 +10,7 @@ import { PipelineKanban } from '@/components/crm/PipelineKanban';
 import { ReminderBanner } from '@/components/crm/ReminderBanner';
 import { CrmReminderManager } from '@/components/crm/CrmReminderManager';
 import { useB2BClientsData } from '@/hooks/useB2BClientsData';
-import { B2BClientTable } from '@/components/b2b/B2BClientTable';
+
 import { B2BTrashBin } from '@/components/b2b/B2BTrashBin';
 import { useCRMData } from '@/hooks/useCRMData';
 import { useAuth } from '@/context/AuthContext';
@@ -123,31 +124,7 @@ export function CRMPage() {
 
         {/* B2B Client Table (existing) */}
         <TabsContent value="clients">
-          <B2BClientTable
-            clients={b2b.clients}
-            projections={b2b.projections}
-            deliveryFeeTiers={b2b.deliveryFeeTiers}
-            paymentTermsOptions={b2b.paymentTermsOptions}
-            deliveryMethods={b2b.deliveryMethods}
-            categories={b2b.categories}
-            onUpsertClient={b2b.upsertClient}
-            onDeleteClient={b2b.deleteClient}
-            onBulkImport={b2b.bulkImportClients}
-            onUpsertProjection={b2b.upsertProjection}
-            getClientProjections={b2b.getClientProjections}
-            onAddDeliveryFee={b2b.addDeliveryFeeTier}
-            onDeleteDeliveryFee={b2b.deleteDeliveryFeeTier}
-            onAddPaymentTerm={b2b.addPaymentTerm}
-            onDeletePaymentTerm={b2b.deletePaymentTerm}
-            onAddDeliveryMethod={b2b.addDeliveryMethod}
-            onDeleteDeliveryMethod={b2b.deleteDeliveryMethod}
-            onAddCategory={b2b.addCategory}
-            onDeleteCategory={b2b.deleteCategory}
-            onUpdateCategory={b2b.updateCategory}
-            meetings={crm.meetings}
-            reminders={crm.reminders}
-            interactions={crm.interactions}
-          />
+          <ClientSubTabs b2b={b2b} crm={crm} />
         </TabsContent>
 
         {/* Pipeline Kanban */}
