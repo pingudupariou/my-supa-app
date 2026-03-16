@@ -1,10 +1,12 @@
 import { useMemo } from 'react';
 import { SectionCard } from '@/components/ui/KPICard';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { formatCurrency } from '@/data/financialConfig';
+import { cn } from '@/lib/utils';
 import type { HistoricalYearData } from './EditableHistoricalFinancials';
 import {
   ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid,
-  Tooltip, ResponsiveContainer, Legend, Cell,
+  Tooltip, ResponsiveContainer, Legend,
 } from 'recharts';
 
 interface Props {
