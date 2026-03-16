@@ -20,7 +20,7 @@ import {
 import { 
   Wallet, TrendingUp, TrendingDown, AlertTriangle, Users, Package,
   Building2, Target, PiggyBank, Calendar, Settings2, Briefcase, UserPlus,
-  BarChart3, LineChart as LineChartIcon,
+  BarChart3, LineChart as LineChartIcon, Banknote,
 } from 'lucide-react';
 import { Department } from '@/engine/types';
 
@@ -50,12 +50,13 @@ const revenueModeLabels: Record<RevenueMode, string> = {
   'by-client': 'Par Client',
 };
 
-type SectionKey = 'cash' | 'needs' | 'projection' | 'valuation' | 'clientDeck' | 'payroll' | 'evolution' | 'roadmap';
+type SectionKey = 'cash' | 'needs' | 'projection' | 'valuation' | 'clientDeck' | 'payroll' | 'evolution' | 'roadmap' | 'fundingPlan';
 
 const defaultSections: Record<SectionKey, boolean> = {
   cash: true,
   clientDeck: true,
   evolution: true,
+  fundingPlan: true,
   needs: true,
   payroll: true,
   projection: true,
@@ -67,6 +68,7 @@ const sectionLabels: Record<SectionKey, string> = {
   cash: 'Approche Cash',
   clientDeck: 'Deck CA Clients',
   evolution: 'Graphiques d\'Évolution',
+  fundingPlan: 'Plan de Financement',
   needs: 'Justification des Besoins',
   payroll: 'Masse Salariale',
   projection: 'Projection Détaillée',
@@ -619,6 +621,61 @@ export function InvestmentSummaryPage() {
           )}
         </SectionCard>
       )}
+
+      {/* =============== SECTION: PLAN DE FINANCEMENT =============== */}
+      {visibleSections.fundingPlan && state.fundingPlan?.enabled && state.fundingPlan.entries.length > 0 && (() => {
+        const fp = state.fundingPlan;
+        const totalFP = fp.entries.reduce((s, e) => s + years.reduce((sy, y) => sy + (e.amountsByYear[y] || 0), 0), 0);
+        return (
+          <SectionCard title="Plan de Financement" id="funding-plan-summary">
+            <div className="grid md:grid-cols-4 gap-4 mb-6">
+              <KPICard label="Total Financement" value={formatCurrency(totalFP, true)} subValue={`${fp.entries.length} source(s)`} />
+              {years.slice(0, 3).map(year => {
+                const yearTotal = fp.entries.reduce((s, e) => s + (e.amountsByYear[year] || 0), 0);
+                return <KPICard key={year} label={`${year}`} value={formatCurrency(yearTotal, true)} subValue={yearTotal > 0 ? 'Prévu' : '—'} />;
+              })}
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b">
+                    <th className="text-left py-2 font-medium">Source</th>
+                    {years.map(y => <th key={y} className="text-right py-2 font-medium">{y}</th>)}
+                    <th className="text-right py-2 font-medium">Total</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {fp.entries.map(entry => {
+                    const lineTotal = years.reduce((s, y) => s + (entry.amountsByYear[y] || 0), 0);
+                    return (
+                      <tr key={entry.id} className="border-b border-border/50">
+                        <td className="py-2 flex items-center gap-2">
+                          <Banknote className="h-4 w-4 text-muted-foreground" />
+                          {entry.label}
+                        </td>
+                        {years.map(y => (
+                          <td key={y} className="text-right py-2 font-mono-numbers">
+                            {(entry.amountsByYear[y] || 0) > 0 ? formatCurrency(entry.amountsByYear[y], true) : '—'}
+                          </td>
+                        ))}
+                        <td className="text-right py-2 font-mono-numbers font-semibold">{formatCurrency(lineTotal, true)}</td>
+                      </tr>
+                    );
+                  })}
+                  <tr className="font-semibold bg-muted/50">
+                    <td className="py-2">Total</td>
+                    {years.map(y => {
+                      const yt = fp.entries.reduce((s, e) => s + (e.amountsByYear[y] || 0), 0);
+                      return <td key={y} className="text-right py-2 font-mono-numbers">{formatCurrency(yt, true)}</td>;
+                    })}
+                    <td className="text-right py-2 font-mono-numbers">{formatCurrency(totalFP, true)}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </SectionCard>
+        );
+      })()}
 
       {/* =============== SECTION: JUSTIFICATION DES BESOINS =============== */}
       {visibleSections.needs && (

@@ -46,6 +46,17 @@ export interface StrategicOpexLine {
   amount: number;
 }
 
+export interface FundingPlanEntry {
+  id: string;
+  label: string;
+  amountsByYear: Record<number, number>;
+}
+
+export interface FundingPlanConfig {
+  enabled: boolean;
+  entries: FundingPlanEntry[];
+}
+
 export interface SimpleOpexConfig {
   baseAmount: number;
   growthRate: number;
@@ -165,6 +176,7 @@ interface FinancialState {
   valuationConfig: ValuationConfig;
   roadmapBlocks: Record<string, { startQ: number; durationQ: number }>;
   hiringSimulation: HiringSimulationConfig;
+  fundingPlan: FundingPlanConfig;
 }
 
 interface ComputedValues {
@@ -206,6 +218,7 @@ interface FinancialContextType {
   updateValuationConfig: (config: Partial<ValuationConfig>) => void;
   updateRoadmapBlocks: (blocks: Record<string, { startQ: number; durationQ: number }>) => void;
   updateHiringSimulation: (config: Partial<HiringSimulationConfig>) => void;
+  updateFundingPlan: (config: Partial<FundingPlanConfig>) => void;
   saveAll: () => void;
 }
 
@@ -249,6 +262,10 @@ function loadState(): FinancialState {
       if (!parsed.hiringSimulation) {
         parsed.hiringSimulation = { ...defaultHiringSimulation };
       }
+      // Ensure fundingPlan exists
+      if (!parsed.fundingPlan) {
+        parsed.fundingPlan = { enabled: false, entries: [] };
+      }
       return parsed;
     }
   } catch {}
@@ -284,6 +301,7 @@ function getDefaultState(): FinancialState {
     valuationConfig: { ...defaultValuationConfig },
     roadmapBlocks: {},
     hiringSimulation: { ...defaultHiringSimulation },
+    fundingPlan: { enabled: false, entries: [] },
   };
 }
 
@@ -330,6 +348,8 @@ export function FinancialProvider({ children }: { children: ReactNode }) {
            if (cloudState.simpleOpexConfig && !cloudState.simpleOpexConfig.strategicOpex) cloudState.simpleOpexConfig.strategicOpex = [];
            // Ensure hiringSimulation exists
            if (!cloudState.hiringSimulation) cloudState.hiringSimulation = { ...defaultHiringSimulation };
+           // Ensure fundingPlan exists
+           if (!cloudState.fundingPlan) cloudState.fundingPlan = { enabled: false, entries: [] };
           setState({ ...cloudState, hasUnsavedChanges: false });
           localStorage.setItem(STATE_KEY, JSON.stringify(cloudState));
         }
@@ -371,6 +391,7 @@ export function FinancialProvider({ children }: { children: ReactNode }) {
   const updateValuationConfig = useCallback((config: Partial<ValuationConfig>) => { setState(prev => ({ ...prev, valuationConfig: { ...prev.valuationConfig, ...config }, hasUnsavedChanges: true })); }, []);
   const updateRoadmapBlocks = useCallback((roadmapBlocks: Record<string, { startQ: number; durationQ: number }>) => { setState(prev => ({ ...prev, roadmapBlocks, hasUnsavedChanges: true })); }, []);
   const updateHiringSimulation = useCallback((config: Partial<HiringSimulationConfig>) => { setState(prev => ({ ...prev, hiringSimulation: { ...prev.hiringSimulation, ...config }, hasUnsavedChanges: true })); }, []);
+  const updateFundingPlan = useCallback((config: Partial<FundingPlanConfig>) => { setState(prev => ({ ...prev, fundingPlan: { ...prev.fundingPlan, ...config }, hasUnsavedChanges: true })); }, []);
 
   const saveAll = useCallback(async () => {
     try {
@@ -504,8 +525,27 @@ export function FinancialProvider({ children }: { children: ReactNode }) {
     payrollByYear.forEach(p => { annualPayroll[p.year] = p.payroll; });
     opexByYear.forEach(o => { annualOpex[o.year] = o.opex; });
 
+    // Merge funding plan entries into otherInflows for treasury
+    const effectiveConfig = { ...monthlyTreasuryConfig, otherInflows: { ...monthlyTreasuryConfig.otherInflows } };
+    const fundingPlan = state.fundingPlan;
+    if (fundingPlan?.enabled && fundingPlan.entries.length > 0) {
+      fundingPlan.entries.forEach(entry => {
+        Object.entries(entry.amountsByYear).forEach(([yearStr, amount]) => {
+          if (amount > 0) {
+            const yr = Number(yearStr);
+            const key = `${yr}-00`; // Janvier (mois 0)
+            const existing = effectiveConfig.otherInflows[key];
+            effectiveConfig.otherInflows[key] = {
+              amount: (existing?.amount || 0) + amount,
+              label: existing?.label ? `${existing.label}, ${entry.label}` : entry.label,
+            };
+          }
+        });
+      });
+    }
+
     const monthlyTreasuryProjection = calculateMonthlyTreasuryProjection(
-      monthlyTreasuryConfig,
+      effectiveConfig,
       { annualRevenue, annualCogs, annualPayroll, annualOpex },
       fundingRounds,
       initialCash,
@@ -532,6 +572,7 @@ export function FinancialProvider({ children }: { children: ReactNode }) {
       updateValuationConfig,
       updateRoadmapBlocks,
       updateHiringSimulation,
+      updateFundingPlan,
       saveAll,
     }}>
       {children}

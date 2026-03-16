@@ -1,5 +1,5 @@
-import { useMemo } from 'react';
-import { useFinancial } from '@/context/FinancialContext';
+import { useMemo, useState } from 'react';
+import { useFinancial, FundingPlanEntry } from '@/context/FinancialContext';
 import { SectionCard, KPICard } from '@/components/ui/KPICard';
 import { HeroBanner } from '@/components/ui/HeroBanner';
 import { SaveButton } from '@/components/ui/SaveButton';
@@ -11,9 +11,11 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Switch } from '@/components/ui/switch';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { formatCurrency, formatPercent } from '@/data/financialConfig';
 import { cn } from '@/lib/utils';
-import { Calendar, Clock, Wallet, TrendingUp } from 'lucide-react';
+import { Calendar, Clock, Wallet, TrendingUp, Plus, Trash2, Banknote } from 'lucide-react';
 import { calculateGlobalRevenue } from '@/components/product/GlobalRevenueEditor';
 import { aggregateByYear } from '@/engine/monthlyTreasuryEngine';
 import {
@@ -32,6 +34,7 @@ import {
 const EXPORT_SECTIONS: ExportableSection[] = [
   { id: 'settings', label: 'Paramètres du Scénario', elementId: 'scenario-settings' },
   { id: 'treasury-params', label: 'Paramètres Trésorerie', elementId: 'treasury-params' },
+  { id: 'funding-plan', label: 'Plan de Financement', elementId: 'funding-plan' },
   { id: 'kpis', label: 'KPIs par Scénario', elementId: 'scenario-kpis' },
   { id: 'adjustments', label: 'Ajustements', elementId: 'scenario-adjustments' },
   { id: 'chart', label: 'Comparaison des Scénarios', elementId: 'scenario-chart' },
@@ -39,7 +42,7 @@ const EXPORT_SECTIONS: ExportableSection[] = [
 ];
 
 export function ScenariosPage() {
-  const { state, computed, setActiveScenario, updateScenarioConfig, updateScenarioSettings, updateFundingRounds, setExcludeFundingFromTreasury, saveAll } = useFinancial();
+  const { state, computed, setActiveScenario, updateScenarioConfig, updateScenarioSettings, updateFundingRounds, setExcludeFundingFromTreasury, updateFundingPlan, saveAll } = useFinancial();
 
   const activeConfig = state.scenarioConfigs[state.activeScenarioId];
   const { startYear, durationYears, initialCash } = state.scenarioSettings;
@@ -349,6 +352,167 @@ export function ScenariosPage() {
             subValue={`En ${startYear + durationYears - 1}`}
           />
         </div>
+      </SectionCard>
+
+      {/* Plan de Financement */}
+      <SectionCard title="Plan de Financement" id="funding-plan">
+        <div className="flex items-center gap-3 mb-6 p-3 rounded-lg border bg-muted/30">
+          <Switch
+            id="funding-plan-toggle"
+            checked={state.fundingPlan.enabled}
+            onCheckedChange={(checked) => updateFundingPlan({ enabled: !!checked })}
+          />
+          <Label htmlFor="funding-plan-toggle" className="cursor-pointer text-sm font-medium">
+            Activer le plan de financement
+          </Label>
+          <Badge variant={state.fundingPlan.enabled ? 'default' : 'outline'} className="ml-auto text-xs">
+            {state.fundingPlan.enabled ? 'Activé' : 'Désactivé'}
+          </Badge>
+        </div>
+
+        {state.fundingPlan.enabled && (
+          <>
+            <div className="flex justify-between items-center mb-4">
+              <p className="text-sm text-muted-foreground">
+                Ajoutez des entrées de cash par année (subventions, prêts, apports, etc.)
+              </p>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  const newEntry: FundingPlanEntry = {
+                    id: crypto.randomUUID(),
+                    label: 'Nouveau financement',
+                    amountsByYear: {},
+                  };
+                  updateFundingPlan({ entries: [...state.fundingPlan.entries, newEntry] });
+                }}
+              >
+                <Plus className="h-4 w-4 mr-1" /> Ajouter une ligne
+              </Button>
+            </div>
+
+            {state.fundingPlan.entries.length > 0 && (
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="min-w-[180px]">Libellé</TableHead>
+                      {YEARS.map(year => (
+                        <TableHead key={year} className="text-right min-w-[110px]">{year}</TableHead>
+                      ))}
+                      <TableHead className="text-right min-w-[110px]">Total</TableHead>
+                      <TableHead className="w-10"></TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {state.fundingPlan.entries.map((entry) => {
+                      const total = YEARS.reduce((s, y) => s + (entry.amountsByYear[y] || 0), 0);
+                      return (
+                        <TableRow key={entry.id}>
+                          <TableCell>
+                            <Input
+                              value={entry.label}
+                              onChange={(e) => {
+                                const updated = state.fundingPlan.entries.map(en =>
+                                  en.id === entry.id ? { ...en, label: e.target.value } : en
+                                );
+                                updateFundingPlan({ entries: updated });
+                              }}
+                              className="h-8 text-sm"
+                            />
+                          </TableCell>
+                          {YEARS.map(year => (
+                            <TableCell key={year} className="text-right">
+                              <Input
+                                type="number"
+                                value={entry.amountsByYear[year] || ''}
+                                placeholder="0"
+                                onChange={(e) => {
+                                  const val = parseFloat(e.target.value) || 0;
+                                  const updated = state.fundingPlan.entries.map(en =>
+                                    en.id === entry.id
+                                      ? { ...en, amountsByYear: { ...en.amountsByYear, [year]: val } }
+                                      : en
+                                  );
+                                  updateFundingPlan({ entries: updated });
+                                }}
+                                className="h-8 text-sm text-right font-mono-numbers w-[100px]"
+                              />
+                            </TableCell>
+                          ))}
+                          <TableCell className="text-right font-semibold font-mono-numbers">
+                            {formatCurrency(total, true)}
+                          </TableCell>
+                          <TableCell>
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              className="h-7 w-7 text-destructive"
+                              onClick={() => {
+                                updateFundingPlan({
+                                  entries: state.fundingPlan.entries.filter(en => en.id !== entry.id),
+                                });
+                              }}
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                    {/* Total row */}
+                    <TableRow className="bg-muted/50 font-semibold">
+                      <TableCell>Total Plan de Financement</TableCell>
+                      {YEARS.map(year => {
+                        const yearTotal = state.fundingPlan.entries.reduce((s, e) => s + (e.amountsByYear[year] || 0), 0);
+                        return (
+                          <TableCell key={year} className="text-right font-mono-numbers">
+                            {formatCurrency(yearTotal, true)}
+                          </TableCell>
+                        );
+                      })}
+                      <TableCell className="text-right font-mono-numbers">
+                        {formatCurrency(
+                          state.fundingPlan.entries.reduce((s, e) =>
+                            s + YEARS.reduce((sy, y) => sy + (e.amountsByYear[y] || 0), 0), 0
+                          ), true
+                        )}
+                      </TableCell>
+                      <TableCell />
+                    </TableRow>
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+
+            {/* Visual summary */}
+            {state.fundingPlan.entries.length > 0 && (
+              <div className="mt-6 grid md:grid-cols-4 gap-4">
+                <KPICard
+                  label="Total Plan Financement"
+                  value={formatCurrency(
+                    state.fundingPlan.entries.reduce((s, e) =>
+                      s + YEARS.reduce((sy, y) => sy + (e.amountsByYear[y] || 0), 0), 0
+                    ), true
+                  )}
+                  subValue={`${state.fundingPlan.entries.length} ligne(s)`}
+                />
+                {YEARS.slice(0, 3).map(year => {
+                  const yearTotal = state.fundingPlan.entries.reduce((s, e) => s + (e.amountsByYear[year] || 0), 0);
+                  return (
+                    <KPICard
+                      key={year}
+                      label={`Financement ${year}`}
+                      value={formatCurrency(yearTotal, true)}
+                      subValue={yearTotal > 0 ? 'Injection Janvier' : 'Aucun'}
+                    />
+                  );
+                })}
+              </div>
+            )}
+          </>
+        )}
       </SectionCard>
 
       {/* Scenario Selector */}
