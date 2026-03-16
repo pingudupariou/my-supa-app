@@ -42,7 +42,7 @@ const EXPORT_SECTIONS: ExportableSection[] = [
 ];
 
 export function ScenariosPage() {
-  const { state, computed, setActiveScenario, updateScenarioConfig, updateScenarioSettings, updateFundingRounds, setExcludeFundingFromTreasury, saveAll } = useFinancial();
+  const { state, computed, setActiveScenario, updateScenarioConfig, updateScenarioSettings, updateFundingRounds, setExcludeFundingFromTreasury, updateFundingPlan, saveAll } = useFinancial();
 
   const activeConfig = state.scenarioConfigs[state.activeScenarioId];
   const { startYear, durationYears, initialCash } = state.scenarioSettings;
