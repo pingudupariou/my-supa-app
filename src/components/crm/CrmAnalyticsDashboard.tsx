@@ -54,6 +54,7 @@ export function CrmAnalyticsDashboard({ clients, projections, categories, intera
   const [rankingSortAsc, setRankingSortAsc] = useState(false);
   const [chartYears, setChartYears] = useState<Set<number>>(new Set());
   const [chartSortAsc, setChartSortAsc] = useState<boolean | null>(null);
+  const [chartSortMode, setChartSortMode] = useState<'total' | 'average' | 'last'>('total');
   // Section visibility
   const [showSections, setShowSections] = useState({
     chart: true,
@@ -181,17 +182,24 @@ export function CrmAnalyticsDashboard({ clients, projections, categories, intera
   // For 'client' groupBy: pivot so clients are on X-axis and years are series
   const clientPivotData = useMemo(() => {
     if (groupBy !== 'client') return null;
+    const getSortValue = (clientId: string) => {
+      if (chartSortMode === 'last') {
+        const lastYear = activeChartYears[activeChartYears.length - 1];
+        const p = projections.find(p => p.client_id === clientId && p.year === lastYear);
+        return p ? Number(p.projected_revenue || 0) : 0;
+      }
+      const total = activeChartYears.reduce((s, y) => {
+        const p = projections.find(p => p.client_id === clientId && p.year === y);
+        return s + (p ? Number(p.projected_revenue || 0) : 0);
+      }, 0);
+      return chartSortMode === 'average' ? total / (activeChartYears.length || 1) : total;
+    };
+
     const clients = chartSortAsc !== null
       ? [...displayClients].sort((a, b) => {
-          const totalA = activeChartYears.reduce((s, y) => {
-            const p = projections.find(p => p.client_id === a.id && p.year === y);
-            return s + (p ? Number(p.projected_revenue || 0) : 0);
-          }, 0);
-          const totalB = activeChartYears.reduce((s, y) => {
-            const p = projections.find(p => p.client_id === b.id && p.year === y);
-            return s + (p ? Number(p.projected_revenue || 0) : 0);
-          }, 0);
-          return chartSortAsc ? totalA - totalB : totalB - totalA;
+          const va = getSortValue(a.id);
+          const vb = getSortValue(b.id);
+          return chartSortAsc ? va - vb : vb - va;
         })
       : displayClients;
 
@@ -206,7 +214,7 @@ export function CrmAnalyticsDashboard({ clients, projections, categories, intera
       });
       return row;
     });
-  }, [groupBy, displayClients, projections, activeChartYears, chartSortAsc]);
+  }, [groupBy, displayClients, projections, activeChartYears, chartSortAsc, chartSortMode]);
 
   // Filtered chart data by selected years (for non-client groupBy)
   const filteredChartData = useMemo(() => {
@@ -448,6 +456,16 @@ export function CrmAnalyticsDashboard({ clients, projections, categories, intera
               >
                 <ArrowUp className="h-3 w-3" /> Croissant
               </Button>
+              {activeChartYears.length > 1 && chartSortAsc !== null && (
+                <Select value={chartSortMode} onValueChange={v => setChartSortMode(v as 'total' | 'average' | 'last')}>
+                  <SelectTrigger className="h-6 w-[130px] text-[10px]"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="total">Par total cumulé</SelectItem>
+                    <SelectItem value="average">Par moyenne</SelectItem>
+                    <SelectItem value="last">Par dernière année</SelectItem>
+                  </SelectContent>
+                </Select>
+              )}
             </div>
           </CardHeader>
           <CardContent className="px-2">
