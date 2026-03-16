@@ -594,8 +594,34 @@ export function CrmAnalyticsDashboard({ clients, projections, categories, intera
             ))}
           </div>
         </CardHeader>
-        <CardContent className="px-2 pb-3">
-          <ScrollArea className="max-h-[500px]">
+        <CardContent className="px-2 pb-3 space-y-4">
+          {/* Horizontal bar chart */}
+          {rankingData.length > 0 && (
+            <ResponsiveContainer width="100%" height={Math.max(200, rankingData.length * 32 + 40)}>
+              <BarChart
+                data={rankingData.slice(0, 20).map(r => ({
+                  name: r.company_name,
+                  ...Object.fromEntries(activeRankingYears.map(y => [`CA ${y}`, r[`ca_${y}`] || 0])),
+                }))}
+                layout="vertical"
+                margin={{ top: 5, right: 40, left: 10, bottom: 5 }}
+              >
+                <CartesianGrid strokeDasharray="3 3" className="stroke-border/40" horizontal={false} />
+                <XAxis type="number" tickFormatter={v => formatCurrency(v)} className="text-[10px]" />
+                <YAxis type="category" dataKey="name" width={140} className="text-[10px]" tick={{ fontSize: 10 }} />
+                <Tooltip
+                  formatter={(v: number, name: string) => [formatCurrency(v), name]}
+                  contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 8, fontSize: 11 }}
+                />
+                <Legend wrapperStyle={{ fontSize: 10 }} />
+                {activeRankingYears.map((y, i) => (
+                  <Bar key={y} dataKey={`CA ${y}`} fill={CHART_COLORS[i % CHART_COLORS.length]} radius={[0, 3, 3, 0]} barSize={activeRankingYears.length > 2 ? 8 : 14} />
+                ))}
+              </BarChart>
+            </ResponsiveContainer>
+          )}
+
+          <Separator />
             <Table>
               <TableHeader>
                 <TableRow>
