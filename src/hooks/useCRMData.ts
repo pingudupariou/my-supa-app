@@ -358,6 +358,16 @@ export function useCRMData() {
     return (data || []) as unknown as CrmMeeting[];
   }, []);
 
+  const permanentDeleteMeeting = useCallback(async (id: string) => {
+    if (!user) return false;
+    try {
+      const { error } = await supabase.from('crm_meetings' as any).delete().eq('id', id);
+      if (error) throw error;
+      toast({ title: 'RDV supprimé définitivement' });
+      return true;
+    } catch { return false; }
+  }, [user, toast]);
+
   // Reminder CRUD
   const createReminder = useCallback(async (reminder: Partial<CrmReminder> & { customer_id: string }) => {
     if (!user) return null;
@@ -417,7 +427,7 @@ export function useCRMData() {
     createOrder,
     createOpportunity, updateOpportunity, deleteOpportunity,
     createInteraction,
-    createMeeting, updateMeeting, deleteMeeting, restoreMeeting, getTrashedMeetings,
+    createMeeting, updateMeeting, deleteMeeting, restoreMeeting, getTrashedMeetings, permanentDeleteMeeting,
     createReminder, updateReminder, deleteReminder, completeReminder, uncompleteReminder,
     getCustomerInteractions: (id: string) => interactions.filter(i => i.customer_id === id),
     getCustomerAppointments: (id: string) => appointments.filter((a: any) => a.customer_id === id),

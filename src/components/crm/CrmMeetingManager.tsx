@@ -4,7 +4,8 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Plus, Calendar, MapPin, Clock, Users, CheckCircle2, XCircle, Trash2, Save, ChevronUp, RotateCcw, Archive } from 'lucide-react';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
+import { Plus, Calendar, MapPin, Clock, Users, CheckCircle2, XCircle, Trash2, Save, ChevronUp, RotateCcw, Archive, AlertTriangle } from 'lucide-react';
 import { CrmMeeting } from '@/hooks/useCRMData';
 import { cn } from '@/lib/utils';
 
@@ -15,7 +16,9 @@ interface CrmMeetingManagerProps {
   onUpdate: (id: string, updates: any) => Promise<boolean>;
   onDelete: (id: string) => Promise<boolean>;
   onRestore?: (id: string) => Promise<boolean>;
+  onPermanentDelete?: (id: string) => Promise<boolean>;
   getTrashedMeetings?: () => Promise<CrmMeeting[]>;
+  isAdmin?: boolean;
 }
 
 const STATUS_MAP: Record<string, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' }> = {
@@ -24,10 +27,11 @@ const STATUS_MAP: Record<string, { label: string; variant: 'default' | 'secondar
   cancelled: { label: 'Annulé', variant: 'destructive' },
 };
 
-export function CrmMeetingManager({ meetings, customerId, onCreate, onUpdate, onDelete, onRestore, getTrashedMeetings }: CrmMeetingManagerProps) {
+export function CrmMeetingManager({ meetings, customerId, onCreate, onUpdate, onDelete, onRestore, onPermanentDelete, getTrashedMeetings, isAdmin }: CrmMeetingManagerProps) {
   const [showAdd, setShowAdd] = useState(false);
   const [showTrash, setShowTrash] = useState(false);
   const [trashedMeetings, setTrashedMeetings] = useState<CrmMeeting[]>([]);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [newTitle, setNewTitle] = useState('');
   const [newDate, setNewDate] = useState(new Date().toISOString().slice(0, 16));
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -79,6 +83,15 @@ export function CrmMeetingManager({ meetings, customerId, onCreate, onUpdate, on
     await onRestore(id);
     setTrashedMeetings(prev => prev.filter(m => m.id !== id));
   };
+
+  const handlePermanentDelete = async (id: string) => {
+    if (!onPermanentDelete) return;
+    await onPermanentDelete(id);
+    setTrashedMeetings(prev => prev.filter(m => m.id !== id));
+    setConfirmDeleteId(null);
+  };
+
+  const meetingToDelete = trashedMeetings.find(m => m.id === confirmDeleteId);
 
   return (
     <div>
@@ -142,11 +155,24 @@ export function CrmMeetingManager({ meetings, customerId, onCreate, onUpdate, on
                     {m.deleted_at && ` • Supprimé le ${new Date(m.deleted_at).toLocaleDateString('fr-FR')}`}
                   </span>
                 </div>
-                <Button size="sm" variant="outline" className="h-7 text-xs shrink-0" onClick={() => handleRestore(m.id)}>
-                  <RotateCcw className="h-3 w-3 mr-1" /> Restaurer
-                </Button>
+                <div className="flex items-center gap-1 shrink-0">
+                  <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => handleRestore(m.id)}>
+                    <RotateCcw className="h-3 w-3 mr-1" /> Restaurer
+                  </Button>
+                  {isAdmin && (
+                    <Button size="sm" variant="destructive" className="h-7 text-xs" onClick={() => setConfirmDeleteId(m.id)}>
+                      <Trash2 className="h-3 w-3 mr-1" /> Supprimer
+                    </Button>
+                  )}
+                </div>
               </div>
             ))
+          )}
+          {!isAdmin && trashedMeetings.length > 0 && (
+            <p className="text-[10px] text-muted-foreground flex items-center gap-1 mt-1">
+              <AlertTriangle className="h-3 w-3" />
+              Seul un administrateur peut supprimer définitivement un RDV.
+            </p>
           )}
         </div>
       )}
@@ -269,6 +295,27 @@ export function CrmMeetingManager({ meetings, customerId, onCreate, onUpdate, on
           })}
         </div>
       )}
+
+      <AlertDialog open={!!confirmDeleteId} onOpenChange={open => !open && setConfirmDeleteId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Suppression définitive</AlertDialogTitle>
+            <AlertDialogDescription>
+              Êtes-vous sûr de vouloir supprimer définitivement le RDV <strong>{meetingToDelete?.title}</strong> ?
+              Cette action est irréversible.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annuler</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => confirmDeleteId && handlePermanentDelete(confirmDeleteId)}
+            >
+              Supprimer définitivement
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

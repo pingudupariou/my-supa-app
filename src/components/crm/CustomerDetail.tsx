@@ -21,18 +21,21 @@ interface CustomerDetailProps {
   onUpdateMeeting: (id: string, updates: any) => Promise<boolean>;
   onDeleteMeeting: (id: string) => Promise<boolean>;
   onRestoreMeeting?: (id: string) => Promise<boolean>;
+  onPermanentDeleteMeeting?: (id: string) => Promise<boolean>;
   getTrashedMeetings?: () => Promise<CrmMeeting[]>;
   onCreateReminder: (reminder: any) => Promise<any>;
   onCompleteReminder: (id: string) => Promise<boolean>;
   onUncompleteReminder?: (id: string) => Promise<boolean>;
   onDeleteReminder: (id: string) => Promise<boolean>;
+  isAdmin?: boolean;
 }
 
 export function CustomerDetail({
   client, interactions, opportunities, meetings, reminders,
   onCreateInteraction, onCreateMeeting, onUpdateMeeting, onDeleteMeeting,
-  onRestoreMeeting, getTrashedMeetings,
+  onRestoreMeeting, onPermanentDeleteMeeting, getTrashedMeetings,
   onCreateReminder, onCompleteReminder, onUncompleteReminder, onDeleteReminder,
+  isAdmin,
 }: CustomerDetailProps) {
   const currentStage = opportunities.length > 0
     ? PIPELINE_STAGES.find(s => s.key === opportunities[0].stage)
@@ -139,7 +142,9 @@ export function CustomerDetail({
               onUpdate={onUpdateMeeting}
               onDelete={onDeleteMeeting}
               onRestore={onRestoreMeeting}
+              onPermanentDelete={onPermanentDeleteMeeting}
               getTrashedMeetings={getTrashedMeetings}
+              isAdmin={isAdmin}
             />
           </TabsContent>
           <TabsContent value="reminders" className="mt-3">
