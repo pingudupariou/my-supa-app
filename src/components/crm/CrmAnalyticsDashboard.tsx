@@ -622,6 +622,7 @@ export function CrmAnalyticsDashboard({ clients, projections, categories, intera
           )}
 
           <Separator />
+          <ScrollArea className="max-h-[500px]">
             <Table>
               <TableHeader>
                 <TableRow>
