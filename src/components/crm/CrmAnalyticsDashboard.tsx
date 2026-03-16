@@ -561,6 +561,129 @@ export function CrmAnalyticsDashboard({ clients, projections, categories, intera
             </Card>
           )}
         </div>
+      {/* Ranking table */}
+      <Card>
+        <CardHeader className="py-3 px-4">
+          <CardTitle className="text-sm flex items-center gap-2">
+            <Trophy className="h-4 w-4" />
+            Classement CA par année
+            <Badge variant="outline" className="text-[10px] ml-2">{rankingData.length} clients</Badge>
+            <div className="ml-auto flex items-center gap-1">
+              <Button
+                size="sm"
+                variant={rankingSortAsc ? 'default' : 'outline'}
+                className="h-7 text-[10px] px-2 gap-1"
+                onClick={() => setRankingSortAsc(!rankingSortAsc)}
+              >
+                {rankingSortAsc ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />}
+                {rankingSortAsc ? 'Croissant' : 'Décroissant'}
+              </Button>
+            </div>
+          </CardTitle>
+          <div className="flex flex-wrap gap-1.5 mt-2">
+            {years.map(y => (
+              <Button
+                key={y}
+                size="sm"
+                variant={activeRankingYears.includes(y) ? 'default' : 'outline'}
+                className="h-6 text-[10px] px-2"
+                onClick={() => toggleRankingYear(y)}
+              >
+                {y}
+              </Button>
+            ))}
+          </div>
+        </CardHeader>
+        <CardContent className="px-2 pb-3">
+          <ScrollArea className="max-h-[500px]">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-10 text-center text-[10px]">#</TableHead>
+                  <TableHead className="text-[10px]">Client</TableHead>
+                  <TableHead className="text-[10px] w-16">Pays</TableHead>
+                  {activeRankingYears.map(y => (
+                    <TableHead key={y} className="text-right text-[10px] w-28">
+                      CA {y}
+                    </TableHead>
+                  ))}
+                  {activeRankingYears.length > 1 && (
+                    <TableHead className="text-right text-[10px] w-28 font-bold">Total</TableHead>
+                  )}
+                  {activeRankingYears.length > 1 && (
+                    <TableHead className="text-center text-[10px] w-32">Évol. Rang</TableHead>
+                  )}
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {rankingData.map((row, idx) => {
+                  const firstYear = activeRankingYears[0];
+                  const lastYear = activeRankingYears[activeRankingYears.length - 1];
+                  const rankDiff = activeRankingYears.length > 1
+                    ? (row[`rank_${firstYear}`] || 0) - (row[`rank_${lastYear}`] || 0)
+                    : 0;
+                  return (
+                    <TableRow key={row.id} className="hover:bg-muted/50">
+                      <TableCell className="text-center font-bold text-xs">
+                        {idx + 1 <= 3 ? (
+                          <span className={`inline-flex items-center justify-center h-5 w-5 rounded-full text-[10px] font-bold ${
+                            idx === 0 ? 'bg-yellow-400/20 text-yellow-600' :
+                            idx === 1 ? 'bg-gray-300/30 text-gray-500' :
+                            'bg-orange-300/20 text-orange-600'
+                          }`}>
+                            {idx + 1}
+                          </span>
+                        ) : (
+                          <span className="text-muted-foreground">{idx + 1}</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-xs font-medium">
+                        <div className="flex items-center gap-1.5">
+                          {row.country && <span className="text-sm">{getCountryFlag(row.country)}</span>}
+                          <span className="truncate max-w-[180px]">{row.company_name}</span>
+                          {!row.is_active && <Badge variant="secondary" className="text-[8px] h-3.5">Inactif</Badge>}
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-[10px] text-muted-foreground">{row.country || '—'}</TableCell>
+                      {activeRankingYears.map(y => (
+                        <TableCell key={y} className="text-right text-xs tabular-nums">
+                          <div className="flex items-center justify-end gap-1.5">
+                            <span className={row[`ca_${y}`] > 0 ? 'font-medium' : 'text-muted-foreground'}>
+                              {row[`ca_${y}`] > 0 ? formatCurrency(row[`ca_${y}`]) : '—'}
+                            </span>
+                            <Badge variant="outline" className="text-[8px] h-4 px-1 text-muted-foreground">
+                              #{row[`rank_${y}`]}
+                            </Badge>
+                          </div>
+                        </TableCell>
+                      ))}
+                      {activeRankingYears.length > 1 && (
+                        <TableCell className="text-right text-xs font-bold tabular-nums">
+                          {row.total > 0 ? formatCurrency(row.total) : '—'}
+                        </TableCell>
+                      )}
+                      {activeRankingYears.length > 1 && (
+                        <TableCell className="text-center">
+                          {rankDiff !== 0 ? (
+                            <span className={`inline-flex items-center gap-0.5 text-[10px] font-medium ${
+                              rankDiff > 0 ? 'text-green-600' : 'text-red-500'
+                            }`}>
+                              {rankDiff > 0 ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />}
+                              {Math.abs(rankDiff)} place{Math.abs(rankDiff) > 1 ? 's' : ''}
+                            </span>
+                          ) : (
+                            <span className="text-[10px] text-muted-foreground">—</span>
+                          )}
+                        </TableCell>
+                      )}
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </ScrollArea>
+        </CardContent>
+      </Card>
       </div>
     </div>
   );
