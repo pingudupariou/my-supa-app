@@ -12,6 +12,7 @@ import { CrmReminderManager } from '@/components/crm/CrmReminderManager';
 import { useB2BClientsData } from '@/hooks/useB2BClientsData';
 
 import { B2BTrashBin } from '@/components/b2b/B2BTrashBin';
+import { CrmAnalyticsDashboard } from '@/components/crm/CrmAnalyticsDashboard';
 import { useCRMData } from '@/hooks/useCRMData';
 import { useAuth } from '@/context/AuthContext';
 import { useTasksData } from '@/hooks/useTasksData';
