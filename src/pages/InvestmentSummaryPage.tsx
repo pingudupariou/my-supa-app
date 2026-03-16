@@ -653,7 +653,7 @@ export function InvestmentSummaryPage() {
                           <Banknote className="h-4 w-4 text-muted-foreground" />
                           {entry.label}
                         </td>
-                        {YEARS.map(y => (
+                        {years.map(y => (
                           <td key={y} className="text-right py-2 font-mono-numbers">
                             {(entry.amountsByYear[y] || 0) > 0 ? formatCurrency(entry.amountsByYear[y], true) : '—'}
                           </td>
