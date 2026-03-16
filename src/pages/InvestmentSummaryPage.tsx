@@ -625,7 +625,7 @@ export function InvestmentSummaryPage() {
       {/* =============== SECTION: PLAN DE FINANCEMENT =============== */}
       {visibleSections.fundingPlan && state.fundingPlan?.enabled && state.fundingPlan.entries.length > 0 && (() => {
         const fp = state.fundingPlan;
-        const totalFP = fp.entries.reduce((s, e) => s + YEARS.reduce((sy, y) => sy + (e.amountsByYear[y] || 0), 0), 0);
+        const totalFP = fp.entries.reduce((s, e) => s + years.reduce((sy, y) => sy + (e.amountsByYear[y] || 0), 0), 0);
         return (
           <SectionCard title="Plan de Financement" id="funding-plan-summary">
             <div className="grid md:grid-cols-4 gap-4 mb-6">
