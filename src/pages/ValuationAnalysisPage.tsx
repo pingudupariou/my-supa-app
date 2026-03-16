@@ -373,6 +373,7 @@ export function ValuationAnalysisPage() {
 
         {/* Historique Financier Éditable */}
         <TabsContent value="historical" className="space-y-6">
+          <HistoricalSummaryChart data={state.historicalData} />
           <EditableHistoricalFinancials
             data={state.historicalData}
             onChange={updateHistoricalData}
