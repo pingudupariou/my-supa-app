@@ -223,7 +223,17 @@ export function CRMPage() {
           </Card>
         </TabsContent>
 
-        {/* Trash bin */}
+        {/* Analytics */}
+        <TabsContent value="analytics" className="space-y-4">
+          <CrmAnalyticsDashboard
+            clients={b2b.clients}
+            projections={b2b.projections}
+            categories={b2b.categories}
+            interactions={crm.interactions}
+            meetings={crm.meetings}
+          />
+        </TabsContent>
+
         <TabsContent value="corbeille" className="space-y-4">
           <B2BTrashBin
             trashedClients={b2b.trashedClients}
