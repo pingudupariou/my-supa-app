@@ -54,6 +54,7 @@ export function CrmAnalyticsDashboard({ clients, projections, categories, intera
   const [rankingSortAsc, setRankingSortAsc] = useState(false);
   const [chartYears, setChartYears] = useState<Set<number>>(new Set());
   const [chartSortAsc, setChartSortAsc] = useState<boolean | null>(null);
+  const [chartSortMode, setChartSortMode] = useState<'total' | 'average' | 'last'>('total');
   // Section visibility
   const [showSections, setShowSections] = useState({
     chart: true,
