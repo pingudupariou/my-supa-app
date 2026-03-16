@@ -385,6 +385,7 @@ export function FinancialProvider({ children }: { children: ReactNode }) {
   const updateValuationConfig = useCallback((config: Partial<ValuationConfig>) => { setState(prev => ({ ...prev, valuationConfig: { ...prev.valuationConfig, ...config }, hasUnsavedChanges: true })); }, []);
   const updateRoadmapBlocks = useCallback((roadmapBlocks: Record<string, { startQ: number; durationQ: number }>) => { setState(prev => ({ ...prev, roadmapBlocks, hasUnsavedChanges: true })); }, []);
   const updateHiringSimulation = useCallback((config: Partial<HiringSimulationConfig>) => { setState(prev => ({ ...prev, hiringSimulation: { ...prev.hiringSimulation, ...config }, hasUnsavedChanges: true })); }, []);
+  const updateFundingPlan = useCallback((config: Partial<FundingPlanConfig>) => { setState(prev => ({ ...prev, fundingPlan: { ...prev.fundingPlan, ...config }, hasUnsavedChanges: true })); }, []);
 
   const saveAll = useCallback(async () => {
     try {
