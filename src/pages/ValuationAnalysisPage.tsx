@@ -6,6 +6,7 @@ import { SaveButton } from '@/components/ui/SaveButton';
 import { PageExportPDF, ExportableSection } from '@/components/export/PageExportPDF';
 import { ReadOnlyWrapper } from '@/components/auth/ReadOnlyWrapper';
 import { EditableHistoricalFinancials } from '@/components/valuation/EditableHistoricalFinancials';
+import { HistoricalSummaryChart } from '@/components/valuation/HistoricalSummaryChart';
 import { DilutionSimulator } from '@/components/valuation/DilutionSimulator';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
