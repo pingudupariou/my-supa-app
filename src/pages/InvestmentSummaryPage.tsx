@@ -20,7 +20,7 @@ import {
 import { 
   Wallet, TrendingUp, TrendingDown, AlertTriangle, Users, Package,
   Building2, Target, PiggyBank, Calendar, Settings2, Briefcase, UserPlus,
-  BarChart3, LineChart as LineChartIcon,
+  BarChart3, LineChart as LineChartIcon, Banknote,
 } from 'lucide-react';
 import { Department } from '@/engine/types';
 
