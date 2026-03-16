@@ -142,7 +142,9 @@ export function CustomerDetail({
               onUpdate={onUpdateMeeting}
               onDelete={onDeleteMeeting}
               onRestore={onRestoreMeeting}
+              onPermanentDelete={onPermanentDeleteMeeting}
               getTrashedMeetings={getTrashedMeetings}
+              isAdmin={isAdmin}
             />
           </TabsContent>
           <TabsContent value="reminders" className="mt-3">

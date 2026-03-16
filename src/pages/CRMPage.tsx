@@ -162,11 +162,13 @@ export function CRMPage() {
                   onUpdateMeeting={crm.updateMeeting}
                   onDeleteMeeting={crm.deleteMeeting}
                   onRestoreMeeting={crm.restoreMeeting}
+                  onPermanentDeleteMeeting={crm.permanentDeleteMeeting}
                   getTrashedMeetings={crm.getTrashedMeetings}
                   onCreateReminder={crm.createReminder}
                   onCompleteReminder={crm.completeReminder}
                   onUncompleteReminder={crm.uncompleteReminder}
                   onDeleteReminder={crm.deleteReminder}
+                  isAdmin={isAdmin}
                 />
               ) : (
                 <Card className="h-full min-h-[400px] flex items-center justify-center">
