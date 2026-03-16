@@ -8,10 +8,11 @@ import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import {
   BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell,
 } from 'recharts';
-import { BarChart3, Filter, Eye, EyeOff, FileText, TrendingUp, Users, Globe, X } from 'lucide-react';
+import { BarChart3, Filter, Eye, EyeOff, FileText, TrendingUp, Users, Globe, X, ArrowUp, ArrowDown, Trophy, ArrowUpDown } from 'lucide-react';
 import { B2BClient, B2BClientProjection, B2BClientCategory } from '@/hooks/useB2BClientsData';
 import { CustomerInteraction, CrmMeeting } from '@/hooks/useCRMData';
 import { getCountryFlag } from '@/lib/countryFlags';
