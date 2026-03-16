@@ -16,7 +16,9 @@ interface CrmMeetingManagerProps {
   onUpdate: (id: string, updates: any) => Promise<boolean>;
   onDelete: (id: string) => Promise<boolean>;
   onRestore?: (id: string) => Promise<boolean>;
+  onPermanentDelete?: (id: string) => Promise<boolean>;
   getTrashedMeetings?: () => Promise<CrmMeeting[]>;
+  isAdmin?: boolean;
 }
 
 const STATUS_MAP: Record<string, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' }> = {
