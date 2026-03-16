@@ -21,11 +21,13 @@ interface CustomerDetailProps {
   onUpdateMeeting: (id: string, updates: any) => Promise<boolean>;
   onDeleteMeeting: (id: string) => Promise<boolean>;
   onRestoreMeeting?: (id: string) => Promise<boolean>;
+  onPermanentDeleteMeeting?: (id: string) => Promise<boolean>;
   getTrashedMeetings?: () => Promise<CrmMeeting[]>;
   onCreateReminder: (reminder: any) => Promise<any>;
   onCompleteReminder: (id: string) => Promise<boolean>;
   onUncompleteReminder?: (id: string) => Promise<boolean>;
   onDeleteReminder: (id: string) => Promise<boolean>;
+  isAdmin?: boolean;
 }
 
 export function CustomerDetail({
