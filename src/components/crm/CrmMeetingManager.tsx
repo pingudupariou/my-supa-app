@@ -27,10 +27,11 @@ const STATUS_MAP: Record<string, { label: string; variant: 'default' | 'secondar
   cancelled: { label: 'Annulé', variant: 'destructive' },
 };
 
-export function CrmMeetingManager({ meetings, customerId, onCreate, onUpdate, onDelete, onRestore, getTrashedMeetings }: CrmMeetingManagerProps) {
+export function CrmMeetingManager({ meetings, customerId, onCreate, onUpdate, onDelete, onRestore, onPermanentDelete, getTrashedMeetings, isAdmin }: CrmMeetingManagerProps) {
   const [showAdd, setShowAdd] = useState(false);
   const [showTrash, setShowTrash] = useState(false);
   const [trashedMeetings, setTrashedMeetings] = useState<CrmMeeting[]>([]);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [newTitle, setNewTitle] = useState('');
   const [newDate, setNewDate] = useState(new Date().toISOString().slice(0, 16));
   const [expandedId, setExpandedId] = useState<string | null>(null);
