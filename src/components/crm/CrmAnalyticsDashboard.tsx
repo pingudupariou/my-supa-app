@@ -53,7 +53,16 @@ export function CrmAnalyticsDashboard({ clients, projections, categories, intera
   const [rankingYears, setRankingYears] = useState<Set<number>>(new Set());
   const [rankingSortAsc, setRankingSortAsc] = useState(false);
   const [chartYears, setChartYears] = useState<Set<number>>(new Set());
-  const [chartSortAsc, setChartSortAsc] = useState<boolean | null>(null); // null = no sort
+  const [chartSortAsc, setChartSortAsc] = useState<boolean | null>(null);
+  // Section visibility
+  const [showSections, setShowSections] = useState({
+    chart: true,
+    clients: true,
+    pie: true,
+    detail: true,
+    ranking: true,
+  });
+  const toggleSection = (key: keyof typeof showSections) => setShowSections(s => ({ ...s, [key]: !s[key] }));
 
   // Available years from projections
   const years = useMemo(() => {
@@ -337,14 +346,115 @@ export function CrmAnalyticsDashboard({ clients, projections, categories, intera
                 </SelectContent>
               </Select>
             </div>
+            <Separator orientation="vertical" className="h-6" />
+            <div className="flex items-center gap-1.5">
+              <Label className="text-xs">Sections :</Label>
+              {([
+                ['chart', 'Graphique CA'],
+                ['clients', 'Clients'],
+                ['pie', 'Répartition pays'],
+                ['detail', 'Fiche client'],
+                ['ranking', 'Classement'],
+              ] as const).map(([key, label]) => (
+                <Button
+                  key={key}
+                  size="sm"
+                  variant={showSections[key] ? 'default' : 'outline'}
+                  className="h-6 text-[10px] px-2"
+                  onClick={() => toggleSection(key)}
+                >
+                  {showSections[key] ? <Eye className="h-3 w-3 mr-1" /> : <EyeOff className="h-3 w-3 mr-1" />}
+                  {label}
+                </Button>
+              ))}
+            </div>
           </div>
         </CardContent>
       </Card>
 
-      <div className="grid gap-4 lg:grid-cols-[280px_1fr]">
+      {/* Chart — full width */}
+      {showSections.chart && (
+        <Card>
+          <CardHeader className="py-3 px-4">
+            <CardTitle className="text-sm flex items-center gap-2">
+              <TrendingUp className="h-4 w-4" />
+              Évolution CA — par {groupBy === 'client' ? 'Client' : groupBy === 'country' ? 'Pays' : groupBy === 'category' ? 'Catégorie' : 'Statut'}
+              <Badge variant="outline" className="text-[10px] ml-auto">
+                {displayClients.length} client{displayClients.length > 1 ? 's' : ''}
+              </Badge>
+            </CardTitle>
+            <div className="flex flex-wrap items-center gap-1.5 mt-2">
+              {years.map(y => (
+                <Button
+                  key={y}
+                  size="sm"
+                  variant={activeChartYears.includes(y) ? 'default' : 'outline'}
+                  className="h-6 text-[10px] px-2"
+                  onClick={() => toggleChartYear(y)}
+                >
+                  {y}
+                </Button>
+              ))}
+              <Separator orientation="vertical" className="h-5 mx-1" />
+              <Button
+                size="sm"
+                variant={chartSortAsc === false ? 'default' : 'outline'}
+                className="h-6 text-[10px] px-2 gap-1"
+                onClick={() => setChartSortAsc(chartSortAsc === false ? null : false)}
+              >
+                <ArrowDown className="h-3 w-3" /> Décroissant
+              </Button>
+              <Button
+                size="sm"
+                variant={chartSortAsc === true ? 'default' : 'outline'}
+                className="h-6 text-[10px] px-2 gap-1"
+                onClick={() => setChartSortAsc(chartSortAsc === true ? null : true)}
+              >
+                <ArrowUp className="h-3 w-3" /> Croissant
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent className="px-2">
+            <ResponsiveContainer width="100%" height={400}>
+              {chartMode === 'bar' ? (
+                <BarChart data={filteredChartData} margin={{ top: 5, right: 20, left: 10, bottom: 5 }}>
+                  <CartesianGrid strokeDasharray="3 3" className="stroke-border/40" />
+                  <XAxis dataKey="year" className="text-xs" />
+                  <YAxis tickFormatter={v => formatCurrency(v)} className="text-xs" width={65} />
+                  <Tooltip
+                    formatter={(v: number, name: string) => [formatCurrency(v), name]}
+                    contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 8, fontSize: 12 }}
+                  />
+                  <Legend wrapperStyle={{ fontSize: 11 }} />
+                  {seriesKeys.map((key, i) => (
+                    <Bar key={key} dataKey={key} fill={CHART_COLORS[i % CHART_COLORS.length]} radius={[3, 3, 0, 0]} />
+                  ))}
+                </BarChart>
+              ) : (
+                <LineChart data={filteredChartData} margin={{ top: 5, right: 20, left: 10, bottom: 5 }}>
+                  <CartesianGrid strokeDasharray="3 3" className="stroke-border/40" />
+                  <XAxis dataKey="year" className="text-xs" />
+                  <YAxis tickFormatter={v => formatCurrency(v)} className="text-xs" width={65} />
+                  <Tooltip
+                    formatter={(v: number, name: string) => [formatCurrency(v), name]}
+                    contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 8, fontSize: 12 }}
+                  />
+                  <Legend wrapperStyle={{ fontSize: 11 }} />
+                  {seriesKeys.map((key, i) => (
+                    <Line key={key} type="monotone" dataKey={key} stroke={CHART_COLORS[i % CHART_COLORS.length]} strokeWidth={2} dot={{ r: 4 }} />
+                  ))}
+                </LineChart>
+              )}
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Clients + Pie + Detail row */}
+      <div className={`grid gap-4 ${showSections.clients ? 'lg:grid-cols-[280px_1fr]' : ''}`}>
         {/* Left: client selector */}
-        {showFilters && (
-          <Card className="lg:row-span-2">
+        {showSections.clients && showFilters && (
+          <Card>
             <CardHeader className="py-3 px-4">
               <CardTitle className="text-sm flex items-center justify-between">
                 <span className="flex items-center gap-1.5"><Users className="h-4 w-4" /> Clients ({filteredClients.length})</span>
@@ -403,117 +513,42 @@ export function CrmAnalyticsDashboard({ clients, projections, categories, intera
           </Card>
         )}
 
-        {/* Center: main chart */}
-        <Card>
-          <CardHeader className="py-3 px-4">
-            <CardTitle className="text-sm flex items-center gap-2">
-              <TrendingUp className="h-4 w-4" />
-              Évolution CA — par {groupBy === 'client' ? 'Client' : groupBy === 'country' ? 'Pays' : groupBy === 'category' ? 'Catégorie' : 'Statut'}
-              <Badge variant="outline" className="text-[10px] ml-auto">
-                {displayClients.length} client{displayClients.length > 1 ? 's' : ''}
-              </Badge>
-            </CardTitle>
-            <div className="flex flex-wrap items-center gap-1.5 mt-2">
-              {years.map(y => (
-                <Button
-                  key={y}
-                  size="sm"
-                  variant={activeChartYears.includes(y) ? 'default' : 'outline'}
-                  className="h-6 text-[10px] px-2"
-                  onClick={() => toggleChartYear(y)}
-                >
-                  {y}
-                </Button>
-              ))}
-              <Separator orientation="vertical" className="h-5 mx-1" />
-              <Button
-                size="sm"
-                variant={chartSortAsc === false ? 'default' : 'outline'}
-                className="h-6 text-[10px] px-2 gap-1"
-                onClick={() => setChartSortAsc(chartSortAsc === false ? null : false)}
-              >
-                <ArrowDown className="h-3 w-3" /> Décroissant
-              </Button>
-              <Button
-                size="sm"
-                variant={chartSortAsc === true ? 'default' : 'outline'}
-                className="h-6 text-[10px] px-2 gap-1"
-                onClick={() => setChartSortAsc(chartSortAsc === true ? null : true)}
-              >
-                <ArrowUp className="h-3 w-3" /> Croissant
-              </Button>
-            </div>
-          </CardHeader>
-          <CardContent className="px-2">
-            <ResponsiveContainer width="100%" height={360}>
-              {chartMode === 'bar' ? (
-                <BarChart data={filteredChartData} margin={{ top: 5, right: 20, left: 10, bottom: 5 }}>
-                  <CartesianGrid strokeDasharray="3 3" className="stroke-border/40" />
-                  <XAxis dataKey="year" className="text-xs" />
-                  <YAxis tickFormatter={v => formatCurrency(v)} className="text-xs" width={65} />
-                  <Tooltip
-                    formatter={(v: number, name: string) => [formatCurrency(v), name]}
-                    contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 8, fontSize: 12 }}
-                  />
-                  <Legend wrapperStyle={{ fontSize: 11 }} />
-                  {seriesKeys.map((key, i) => (
-                    <Bar key={key} dataKey={key} fill={CHART_COLORS[i % CHART_COLORS.length]} radius={[3, 3, 0, 0]} />
-                  ))}
-                </BarChart>
-              ) : (
-                <LineChart data={filteredChartData} margin={{ top: 5, right: 20, left: 10, bottom: 5 }}>
-                  <CartesianGrid strokeDasharray="3 3" className="stroke-border/40" />
-                  <XAxis dataKey="year" className="text-xs" />
-                  <YAxis tickFormatter={v => formatCurrency(v)} className="text-xs" width={65} />
-                  <Tooltip
-                    formatter={(v: number, name: string) => [formatCurrency(v), name]}
-                    contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 8, fontSize: 12 }}
-                  />
-                  <Legend wrapperStyle={{ fontSize: 11 }} />
-                  {seriesKeys.map((key, i) => (
-                    <Line key={key} type="monotone" dataKey={key} stroke={CHART_COLORS[i % CHART_COLORS.length]} strokeWidth={2} dot={{ r: 4 }} />
-                  ))}
-                </LineChart>
-              )}
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
-
-        {/* Bottom row: pie + detail panel */}
-        <div className={`${showFilters ? '' : 'lg:col-span-2'} grid gap-4 ${detailClientId ? 'lg:grid-cols-2' : 'lg:grid-cols-1'}`}>
-          {/* Pie chart — country distribution */}
-          <Card>
-            <CardHeader className="py-3 px-4">
-              <CardTitle className="text-sm flex items-center gap-2">
-                <Globe className="h-4 w-4" /> Répartition par pays
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <ResponsiveContainer width="100%" height={250}>
-                <PieChart>
-                  <Pie
-                    data={pieData}
-                    dataKey="value"
-                    nameKey="name"
-                    cx="50%"
-                    cy="50%"
-                    outerRadius={90}
-                    label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-                    labelLine={false}
-                    fontSize={11}
-                  >
-                    {pieData.map((_, i) => (
-                      <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />
-                    ))}
-                  </Pie>
-                  <Tooltip />
-                </PieChart>
-              </ResponsiveContainer>
-            </CardContent>
-          </Card>
+        {/* Right: pie + detail */}
+        <div className={`grid gap-4 ${showSections.detail && detailClientId ? 'lg:grid-cols-2' : ''}`}>
+          {showSections.pie && (
+            <Card>
+              <CardHeader className="py-3 px-4">
+                <CardTitle className="text-sm flex items-center gap-2">
+                  <Globe className="h-4 w-4" /> Répartition par pays
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ResponsiveContainer width="100%" height={250}>
+                  <PieChart>
+                    <Pie
+                      data={pieData}
+                      dataKey="value"
+                      nameKey="name"
+                      cx="50%"
+                      cy="50%"
+                      outerRadius={90}
+                      label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                      labelLine={false}
+                      fontSize={11}
+                    >
+                      {pieData.map((_, i) => (
+                        <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />
+                      ))}
+                    </Pie>
+                    <Tooltip />
+                  </PieChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
+          )}
 
           {/* Detail panel */}
-          {detailClientId && detailClient && (
+          {showSections.detail && detailClientId && detailClient && (
             <Card>
               <CardHeader className="py-3 px-4">
                 <CardTitle className="text-sm flex items-center justify-between">
@@ -531,7 +566,6 @@ export function CrmAnalyticsDashboard({ clients, projections, categories, intera
               </CardHeader>
               <CardContent className="px-4">
                 <ScrollArea className="h-[350px]">
-                  {/* Revenue per year */}
                   <div className="mb-4">
                     <h5 className="text-xs font-semibold text-muted-foreground mb-2 uppercase tracking-wide">CA par année</h5>
                     {detailProjections.length === 0 ? (
@@ -550,18 +584,13 @@ export function CrmAnalyticsDashboard({ clients, projections, categories, intera
                       </div>
                     )}
                   </div>
-
                   <Separator className="my-3" />
-
-                  {/* Client notes */}
                   {detailClient.notes && (
                     <div className="mb-4">
                       <h5 className="text-xs font-semibold text-muted-foreground mb-1 uppercase tracking-wide">Notes client</h5>
                       <p className="text-xs whitespace-pre-wrap bg-muted/30 rounded p-2">{detailClient.notes}</p>
                     </div>
                   )}
-
-                  {/* Meetings */}
                   <div className="mb-4">
                     <h5 className="text-xs font-semibold text-muted-foreground mb-2 uppercase tracking-wide">
                       RDV / Réunions ({detailMeetings.length})
@@ -590,10 +619,7 @@ export function CrmAnalyticsDashboard({ clients, projections, categories, intera
                       </div>
                     )}
                   </div>
-
                   <Separator className="my-3" />
-
-                  {/* Interactions */}
                   <div>
                     <h5 className="text-xs font-semibold text-muted-foreground mb-2 uppercase tracking-wide">
                       Historique interactions ({detailInteractions.length})
@@ -622,158 +648,158 @@ export function CrmAnalyticsDashboard({ clients, projections, categories, intera
             </Card>
           )}
         </div>
-      {/* Ranking table */}
-      <Card>
-        <CardHeader className="py-3 px-4">
-          <CardTitle className="text-sm flex items-center gap-2">
-            <Trophy className="h-4 w-4" />
-            Classement CA par année
-            <Badge variant="outline" className="text-[10px] ml-2">{rankingData.length} clients</Badge>
-            <div className="ml-auto flex items-center gap-1">
-              <Button
-                size="sm"
-                variant={rankingSortAsc ? 'default' : 'outline'}
-                className="h-7 text-[10px] px-2 gap-1"
-                onClick={() => setRankingSortAsc(!rankingSortAsc)}
-              >
-                {rankingSortAsc ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />}
-                {rankingSortAsc ? 'Croissant' : 'Décroissant'}
-              </Button>
-            </div>
-          </CardTitle>
-          <div className="flex flex-wrap gap-1.5 mt-2">
-            {years.map(y => (
-              <Button
-                key={y}
-                size="sm"
-                variant={activeRankingYears.includes(y) ? 'default' : 'outline'}
-                className="h-6 text-[10px] px-2"
-                onClick={() => toggleRankingYear(y)}
-              >
-                {y}
-              </Button>
-            ))}
-          </div>
-        </CardHeader>
-        <CardContent className="px-2 pb-3 space-y-4">
-          {/* Horizontal bar chart */}
-          {rankingData.length > 0 && (
-            <ResponsiveContainer width="100%" height={360}>
-              <BarChart
-                data={rankingData.slice(0, 20).map(r => ({
-                  name: r.company_name.length > 12 ? r.company_name.slice(0, 12) + '…' : r.company_name,
-                  fullName: r.company_name,
-                  ...Object.fromEntries(activeRankingYears.map(y => [`CA ${y}`, r[`ca_${y}`] || 0])),
-                }))}
-                margin={{ top: 5, right: 20, left: 10, bottom: 60 }}
-              >
-                <CartesianGrid strokeDasharray="3 3" className="stroke-border/40" vertical={false} />
-                <XAxis dataKey="name" className="text-[10px]" angle={-45} textAnchor="end" height={70} tick={{ fontSize: 9 }} interval={0} />
-                <YAxis tickFormatter={v => formatCurrency(v)} className="text-[10px]" width={65} />
-                <Tooltip
-                  formatter={(v: number, name: string) => [formatCurrency(v), name]}
-                  labelFormatter={(label, payload) => payload?.[0]?.payload?.fullName || label}
-                  contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 8, fontSize: 11 }}
-                />
-                <Legend wrapperStyle={{ fontSize: 10 }} />
-                {activeRankingYears.map((y, i) => (
-                  <Bar key={y} dataKey={`CA ${y}`} fill={CHART_COLORS[i % CHART_COLORS.length]} radius={[3, 3, 0, 0]} />
-                ))}
-              </BarChart>
-            </ResponsiveContainer>
-          )}
+      </div>
 
-          <Separator />
-          <ScrollArea className="max-h-[500px]">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-10 text-center text-[10px]">#</TableHead>
-                  <TableHead className="text-[10px]">Client</TableHead>
-                  <TableHead className="text-[10px] w-16">Pays</TableHead>
-                  {activeRankingYears.map(y => (
-                    <TableHead key={y} className="text-right text-[10px] w-28">
-                      CA {y}
-                    </TableHead>
+      {/* Ranking — full width */}
+      {showSections.ranking && (
+        <Card>
+          <CardHeader className="py-3 px-4">
+            <CardTitle className="text-sm flex items-center gap-2">
+              <Trophy className="h-4 w-4" />
+              Classement CA par année
+              <Badge variant="outline" className="text-[10px] ml-2">{rankingData.length} clients</Badge>
+              <div className="ml-auto flex items-center gap-1">
+                <Button
+                  size="sm"
+                  variant={rankingSortAsc ? 'default' : 'outline'}
+                  className="h-7 text-[10px] px-2 gap-1"
+                  onClick={() => setRankingSortAsc(!rankingSortAsc)}
+                >
+                  {rankingSortAsc ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />}
+                  {rankingSortAsc ? 'Croissant' : 'Décroissant'}
+                </Button>
+              </div>
+            </CardTitle>
+            <div className="flex flex-wrap gap-1.5 mt-2">
+              {years.map(y => (
+                <Button
+                  key={y}
+                  size="sm"
+                  variant={activeRankingYears.includes(y) ? 'default' : 'outline'}
+                  className="h-6 text-[10px] px-2"
+                  onClick={() => toggleRankingYear(y)}
+                >
+                  {y}
+                </Button>
+              ))}
+            </div>
+          </CardHeader>
+          <CardContent className="px-2 pb-3 space-y-4">
+            {rankingData.length > 0 && (
+              <ResponsiveContainer width="100%" height={360}>
+                <BarChart
+                  data={rankingData.slice(0, 20).map(r => ({
+                    name: r.company_name.length > 12 ? r.company_name.slice(0, 12) + '…' : r.company_name,
+                    fullName: r.company_name,
+                    ...Object.fromEntries(activeRankingYears.map(y => [`CA ${y}`, r[`ca_${y}`] || 0])),
+                  }))}
+                  margin={{ top: 5, right: 20, left: 10, bottom: 60 }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" className="stroke-border/40" vertical={false} />
+                  <XAxis dataKey="name" className="text-[10px]" angle={-45} textAnchor="end" height={70} tick={{ fontSize: 9 }} interval={0} />
+                  <YAxis tickFormatter={v => formatCurrency(v)} className="text-[10px]" width={65} />
+                  <Tooltip
+                    formatter={(v: number, name: string) => [formatCurrency(v), name]}
+                    labelFormatter={(label, payload) => payload?.[0]?.payload?.fullName || label}
+                    contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 8, fontSize: 11 }}
+                  />
+                  <Legend wrapperStyle={{ fontSize: 10 }} />
+                  {activeRankingYears.map((y, i) => (
+                    <Bar key={y} dataKey={`CA ${y}`} fill={CHART_COLORS[i % CHART_COLORS.length]} radius={[3, 3, 0, 0]} />
                   ))}
-                  {activeRankingYears.length > 1 && (
-                    <TableHead className="text-right text-[10px] w-28 font-bold">Total</TableHead>
-                  )}
-                  {activeRankingYears.length > 1 && (
-                    <TableHead className="text-center text-[10px] w-32">Évol. Rang</TableHead>
-                  )}
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {rankingData.map((row, idx) => {
-                  const firstYear = activeRankingYears[0];
-                  const lastYear = activeRankingYears[activeRankingYears.length - 1];
-                  const rankDiff = activeRankingYears.length > 1
-                    ? (row[`rank_${firstYear}`] || 0) - (row[`rank_${lastYear}`] || 0)
-                    : 0;
-                  return (
-                    <TableRow key={row.id} className="hover:bg-muted/50">
-                      <TableCell className="text-center font-bold text-xs">
-                        {idx + 1 <= 3 ? (
-                          <span className={`inline-flex items-center justify-center h-5 w-5 rounded-full text-[10px] font-bold ${
-                            idx === 0 ? 'bg-yellow-400/20 text-yellow-600' :
-                            idx === 1 ? 'bg-gray-300/30 text-gray-500' :
-                            'bg-orange-300/20 text-orange-600'
-                          }`}>
-                            {idx + 1}
-                          </span>
-                        ) : (
-                          <span className="text-muted-foreground">{idx + 1}</span>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-xs font-medium">
-                        <div className="flex items-center gap-1.5">
-                          {row.country && <span className="text-sm">{getCountryFlag(row.country)}</span>}
-                          <span className="truncate max-w-[180px]">{row.company_name}</span>
-                          {!row.is_active && <Badge variant="secondary" className="text-[8px] h-3.5">Inactif</Badge>}
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-[10px] text-muted-foreground">{row.country || '—'}</TableCell>
-                      {activeRankingYears.map(y => (
-                        <TableCell key={y} className="text-right text-xs tabular-nums">
-                          <div className="flex items-center justify-end gap-1.5">
-                            <span className={row[`ca_${y}`] > 0 ? 'font-medium' : 'text-muted-foreground'}>
-                              {row[`ca_${y}`] > 0 ? formatCurrency(row[`ca_${y}`]) : '—'}
-                            </span>
-                            <Badge variant="outline" className="text-[8px] h-4 px-1 text-muted-foreground">
-                              #{row[`rank_${y}`]}
-                            </Badge>
-                          </div>
-                        </TableCell>
-                      ))}
-                      {activeRankingYears.length > 1 && (
-                        <TableCell className="text-right text-xs font-bold tabular-nums">
-                          {row.total > 0 ? formatCurrency(row.total) : '—'}
-                        </TableCell>
-                      )}
-                      {activeRankingYears.length > 1 && (
-                        <TableCell className="text-center">
-                          {rankDiff !== 0 ? (
-                            <span className={`inline-flex items-center gap-0.5 text-[10px] font-medium ${
-                              rankDiff > 0 ? 'text-green-600' : 'text-red-500'
+                </BarChart>
+              </ResponsiveContainer>
+            )}
+
+            <Separator />
+            <ScrollArea className="max-h-[500px]">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-10 text-center text-[10px]">#</TableHead>
+                    <TableHead className="text-[10px]">Client</TableHead>
+                    <TableHead className="text-[10px] w-16">Pays</TableHead>
+                    {activeRankingYears.map(y => (
+                      <TableHead key={y} className="text-right text-[10px] w-28">CA {y}</TableHead>
+                    ))}
+                    {activeRankingYears.length > 1 && (
+                      <TableHead className="text-right text-[10px] w-28 font-bold">Total</TableHead>
+                    )}
+                    {activeRankingYears.length > 1 && (
+                      <TableHead className="text-center text-[10px] w-32">Évol. Rang</TableHead>
+                    )}
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {rankingData.map((row, idx) => {
+                    const firstYear = activeRankingYears[0];
+                    const lastYear = activeRankingYears[activeRankingYears.length - 1];
+                    const rankDiff = activeRankingYears.length > 1
+                      ? (row[`rank_${firstYear}`] || 0) - (row[`rank_${lastYear}`] || 0)
+                      : 0;
+                    return (
+                      <TableRow key={row.id} className="hover:bg-muted/50">
+                        <TableCell className="text-center font-bold text-xs">
+                          {idx + 1 <= 3 ? (
+                            <span className={`inline-flex items-center justify-center h-5 w-5 rounded-full text-[10px] font-bold ${
+                              idx === 0 ? 'bg-yellow-400/20 text-yellow-600' :
+                              idx === 1 ? 'bg-gray-300/30 text-gray-500' :
+                              'bg-orange-300/20 text-orange-600'
                             }`}>
-                              {rankDiff > 0 ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />}
-                              {Math.abs(rankDiff)} place{Math.abs(rankDiff) > 1 ? 's' : ''}
+                              {idx + 1}
                             </span>
                           ) : (
-                            <span className="text-[10px] text-muted-foreground">—</span>
+                            <span className="text-muted-foreground">{idx + 1}</span>
                           )}
                         </TableCell>
-                      )}
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          </ScrollArea>
-        </CardContent>
-      </Card>
-      </div>
+                        <TableCell className="text-xs font-medium">
+                          <div className="flex items-center gap-1.5">
+                            {row.country && <span className="text-sm">{getCountryFlag(row.country)}</span>}
+                            <span className="truncate max-w-[180px]">{row.company_name}</span>
+                            {!row.is_active && <Badge variant="secondary" className="text-[8px] h-3.5">Inactif</Badge>}
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-[10px] text-muted-foreground">{row.country || '—'}</TableCell>
+                        {activeRankingYears.map(y => (
+                          <TableCell key={y} className="text-right text-xs tabular-nums">
+                            <div className="flex items-center justify-end gap-1.5">
+                              <span className={row[`ca_${y}`] > 0 ? 'font-medium' : 'text-muted-foreground'}>
+                                {row[`ca_${y}`] > 0 ? formatCurrency(row[`ca_${y}`]) : '—'}
+                              </span>
+                              <Badge variant="outline" className="text-[8px] h-4 px-1 text-muted-foreground">
+                                #{row[`rank_${y}`]}
+                              </Badge>
+                            </div>
+                          </TableCell>
+                        ))}
+                        {activeRankingYears.length > 1 && (
+                          <TableCell className="text-right text-xs font-bold tabular-nums">
+                            {row.total > 0 ? formatCurrency(row.total) : '—'}
+                          </TableCell>
+                        )}
+                        {activeRankingYears.length > 1 && (
+                          <TableCell className="text-center">
+                            {rankDiff !== 0 ? (
+                              <span className={`inline-flex items-center gap-0.5 text-[10px] font-medium ${
+                                rankDiff > 0 ? 'text-green-600' : 'text-red-500'
+                              }`}>
+                                {rankDiff > 0 ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />}
+                                {Math.abs(rankDiff)} place{Math.abs(rankDiff) > 1 ? 's' : ''}
+                              </span>
+                            ) : (
+                              <span className="text-[10px] text-muted-foreground">—</span>
+                            )}
+                          </TableCell>
+                        )}
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </ScrollArea>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }
