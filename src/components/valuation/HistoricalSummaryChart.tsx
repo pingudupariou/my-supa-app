@@ -1,10 +1,12 @@
 import { useMemo } from 'react';
 import { SectionCard } from '@/components/ui/KPICard';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { formatCurrency } from '@/data/financialConfig';
+import { cn } from '@/lib/utils';
 import type { HistoricalYearData } from './EditableHistoricalFinancials';
 import {
   ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid,
-  Tooltip, ResponsiveContainer, Legend, Cell,
+  Tooltip, ResponsiveContainer, Legend,
 } from 'recharts';
 
 interface Props {
@@ -156,6 +158,63 @@ export function HistoricalSummaryChart({ data }: Props) {
           </ComposedChart>
         </ResponsiveContainer>
       </div>
+
+      {/* Summary table */}
+      {(() => {
+        const indicators = [
+          { label: 'Chiffre d\'Affaires', fn: totalRevenue, bold: true, highlight: true },
+          { label: 'Marge Brute', fn: margeBruteGlobale },
+          { label: '% Marge Brute', fn: (d: HistoricalYearData) => { const ca = totalRevenue(d); return ca > 0 ? (margeBruteGlobale(d) / ca) * 100 : 0; }, pct: true },
+          { label: 'Valeur Ajoutée', fn: valeurAjoutee },
+          { label: 'EBE', fn: ebe, bold: true },
+          { label: '% Marge EBE', fn: (d: HistoricalYearData) => { const ca = totalRevenue(d); return ca > 0 ? (ebe(d) / ca) * 100 : 0; }, pct: true },
+          { label: 'Charges de personnel', fn: (d: HistoricalYearData) => d.payroll, negative: true },
+          { label: 'Résultat d\'Exploitation', fn: resultatExploitation, bold: true },
+          { label: 'Résultat Net', fn: resultatNet, bold: true, highlight: true },
+          { label: '% Marge Nette', fn: (d: HistoricalYearData) => { const ca = totalRevenue(d); return ca > 0 ? (resultatNet(d) / ca) * 100 : 0; }, pct: true },
+        ];
+
+        return (
+          <div className="mt-6 overflow-x-auto border rounded-lg">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="min-w-[180px] sticky left-0 bg-background z-10">Indicateur</TableHead>
+                  {data.map(d => (
+                    <TableHead key={d.year} className="text-right min-w-[110px] font-bold">{d.year}</TableHead>
+                  ))}
+                  {data.length > 1 && <TableHead className="text-right min-w-[90px] text-muted-foreground">Δ N/N-1</TableHead>}
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {indicators.map(ind => {
+                  const values = data.map(d => ind.fn(d));
+                  const lastTwo = values.length >= 2 ? [values[values.length - 2], values[values.length - 1]] : null;
+                  const delta = lastTwo && lastTwo[0] !== 0 ? ((lastTwo[1] - lastTwo[0]) / Math.abs(lastTwo[0])) * 100 : null;
+
+                  return (
+                    <TableRow key={ind.label} className={cn(ind.highlight && 'bg-muted/40')}>
+                      <TableCell className={cn('sticky left-0 bg-background z-10 text-xs', ind.highlight && 'bg-muted/40', ind.bold && 'font-bold')}>
+                        {ind.label}
+                      </TableCell>
+                      {values.map((v, i) => (
+                        <TableCell key={data[i].year} className={cn('text-right font-mono-numbers text-xs', ind.bold && 'font-bold', !ind.pct && v < 0 && 'text-destructive')}>
+                          {ind.pct ? `${v.toFixed(1)}%` : formatCurrency(v, true)}
+                        </TableCell>
+                      ))}
+                      {data.length > 1 && (
+                        <TableCell className={cn('text-right font-mono-numbers text-xs', delta && delta > 0 ? 'text-emerald-600' : delta && delta < 0 ? 'text-destructive' : '')}>
+                          {delta !== null && !ind.pct ? `${delta > 0 ? '+' : ''}${delta.toFixed(1)}%` : '-'}
+                        </TableCell>
+                      )}
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </div>
+        );
+      })()}
 
       {/* Revenue breakdown by channel (small stacked bar) */}
       {data.some(d => (d.salesB2B || 0) + (d.salesB2C || 0) + (d.salesOEM || 0) > 0) && (
