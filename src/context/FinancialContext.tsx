@@ -297,6 +297,7 @@ function getDefaultState(): FinancialState {
     valuationConfig: { ...defaultValuationConfig },
     roadmapBlocks: {},
     hiringSimulation: { ...defaultHiringSimulation },
+    fundingPlan: { enabled: false, entries: [] },
   };
 }
 
