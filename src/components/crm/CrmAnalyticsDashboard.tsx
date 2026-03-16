@@ -456,6 +456,16 @@ export function CrmAnalyticsDashboard({ clients, projections, categories, intera
               >
                 <ArrowUp className="h-3 w-3" /> Croissant
               </Button>
+              {activeChartYears.length > 1 && chartSortAsc !== null && (
+                <Select value={chartSortMode} onValueChange={v => setChartSortMode(v as 'total' | 'average' | 'last')}>
+                  <SelectTrigger className="h-6 w-[130px] text-[10px]"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="total">Par total cumulé</SelectItem>
+                    <SelectItem value="average">Par moyenne</SelectItem>
+                    <SelectItem value="last">Par dernière année</SelectItem>
+                  </SelectContent>
+                </Select>
+              )}
             </div>
           </CardHeader>
           <CardContent className="px-2">
