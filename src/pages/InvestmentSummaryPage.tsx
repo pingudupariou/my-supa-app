@@ -221,7 +221,7 @@ export function InvestmentSummaryPage() {
     });
 
     return { channelData, clientTotals, stackedChartData };
-  }, [state.revenueMode, state.clientRevenueConfig, years]);
+  }, [state.revenueMode, state.clientRevenueConfig, years, b2b.clients]);
 
   const channelColors: Record<string, string> = {
     B2C: CHART_COLORS[0],
