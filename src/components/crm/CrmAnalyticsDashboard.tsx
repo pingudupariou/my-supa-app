@@ -154,11 +154,40 @@ export function CrmAnalyticsDashboard({ clients, projections, categories, intera
     });
   }, [displayClients, projections, years, groupBy, categories]);
 
+  // Active chart years
+  const activeChartYears = useMemo(() => {
+    if (chartYears.size === 0) return years;
+    return years.filter(y => chartYears.has(y));
+  }, [chartYears, years]);
+
+  const toggleChartYear = (y: number) => {
+    setChartYears(prev => {
+      const next = new Set(prev);
+      if (next.has(y)) next.delete(y);
+      else next.add(y);
+      return next;
+    });
+  };
+
+  // Filtered chart data by selected years
+  const filteredChartData = useMemo(() => {
+    return chartData.filter(d => activeChartYears.includes(Number(d.year)));
+  }, [chartData, activeChartYears]);
+
   // Series keys (all keys except 'year')
   const seriesKeys = useMemo(() => {
-    if (chartData.length === 0) return [];
-    return Object.keys(chartData[0]).filter(k => k !== 'year');
-  }, [chartData]);
+    if (filteredChartData.length === 0) return [];
+    const keys = Object.keys(filteredChartData[0]).filter(k => k !== 'year');
+    if (chartSortAsc !== null) {
+      // Sort series by total value across selected years
+      keys.sort((a, b) => {
+        const totalA = filteredChartData.reduce((s, r) => s + (Number(r[a]) || 0), 0);
+        const totalB = filteredChartData.reduce((s, r) => s + (Number(r[b]) || 0), 0);
+        return chartSortAsc ? totalA - totalB : totalB - totalA;
+      });
+    }
+    return keys;
+  }, [filteredChartData, chartSortAsc]);
 
   // Pie data for country distribution
   const pieData = useMemo(() => {
