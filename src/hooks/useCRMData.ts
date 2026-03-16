@@ -358,6 +358,16 @@ export function useCRMData() {
     return (data || []) as unknown as CrmMeeting[];
   }, []);
 
+  const permanentDeleteMeeting = useCallback(async (id: string) => {
+    if (!user) return false;
+    try {
+      const { error } = await supabase.from('crm_meetings' as any).delete().eq('id', id);
+      if (error) throw error;
+      toast({ title: 'RDV supprimé définitivement' });
+      return true;
+    } catch { return false; }
+  }, [user, toast]);
+
   // Reminder CRUD
   const createReminder = useCallback(async (reminder: Partial<CrmReminder> & { customer_id: string }) => {
     if (!user) return null;
