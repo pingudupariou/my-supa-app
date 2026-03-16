@@ -202,6 +202,14 @@ export function CrmMeetingManager({ meetings, customerId, onCreate, onUpdate, on
                       {m.duration_minutes && <span className="flex items-center gap-1"><Clock className="h-3 w-3" />{m.duration_minutes}min</span>}
                       {m.location && <span className="flex items-center gap-1"><MapPin className="h-3 w-3" />{m.location}</span>}
                     </div>
+                    {!isExpanded && m.notes && (
+                      <p className="text-[11px] text-muted-foreground mt-1.5 line-clamp-2 italic">{m.notes}</p>
+                    )}
+                    {!isExpanded && m.action_items && (
+                      <p className="text-[11px] text-muted-foreground mt-0.5 line-clamp-1">
+                        <span className="font-medium not-italic">Actions:</span> {m.action_items}
+                      </p>
+                    )}
                   </div>
                   <div className="flex items-center gap-1 shrink-0">
                     {/* Status change buttons based on current status */}
