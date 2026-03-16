@@ -348,6 +348,8 @@ export function FinancialProvider({ children }: { children: ReactNode }) {
            if (cloudState.simpleOpexConfig && !cloudState.simpleOpexConfig.strategicOpex) cloudState.simpleOpexConfig.strategicOpex = [];
            // Ensure hiringSimulation exists
            if (!cloudState.hiringSimulation) cloudState.hiringSimulation = { ...defaultHiringSimulation };
+           // Ensure fundingPlan exists
+           if (!cloudState.fundingPlan) cloudState.fundingPlan = { enabled: false, entries: [] };
           setState({ ...cloudState, hasUnsavedChanges: false });
           localStorage.setItem(STATE_KEY, JSON.stringify(cloudState));
         }
