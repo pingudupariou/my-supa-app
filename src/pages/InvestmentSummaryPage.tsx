@@ -622,6 +622,61 @@ export function InvestmentSummaryPage() {
         </SectionCard>
       )}
 
+      {/* =============== SECTION: PLAN DE FINANCEMENT =============== */}
+      {visibleSections.fundingPlan && state.fundingPlan?.enabled && state.fundingPlan.entries.length > 0 && (() => {
+        const fp = state.fundingPlan;
+        const totalFP = fp.entries.reduce((s, e) => s + YEARS.reduce((sy, y) => sy + (e.amountsByYear[y] || 0), 0), 0);
+        return (
+          <SectionCard title="Plan de Financement" id="funding-plan-summary">
+            <div className="grid md:grid-cols-4 gap-4 mb-6">
+              <KPICard label="Total Financement" value={formatCurrency(totalFP, true)} subValue={`${fp.entries.length} source(s)`} />
+              {YEARS.slice(0, 3).map(year => {
+                const yearTotal = fp.entries.reduce((s, e) => s + (e.amountsByYear[year] || 0), 0);
+                return <KPICard key={year} label={`${year}`} value={formatCurrency(yearTotal, true)} subValue={yearTotal > 0 ? 'Prévu' : '—'} />;
+              })}
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b">
+                    <th className="text-left py-2 font-medium">Source</th>
+                    {YEARS.map(y => <th key={y} className="text-right py-2 font-medium">{y}</th>)}
+                    <th className="text-right py-2 font-medium">Total</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {fp.entries.map(entry => {
+                    const lineTotal = YEARS.reduce((s, y) => s + (entry.amountsByYear[y] || 0), 0);
+                    return (
+                      <tr key={entry.id} className="border-b border-border/50">
+                        <td className="py-2 flex items-center gap-2">
+                          <Banknote className="h-4 w-4 text-muted-foreground" />
+                          {entry.label}
+                        </td>
+                        {YEARS.map(y => (
+                          <td key={y} className="text-right py-2 font-mono-numbers">
+                            {(entry.amountsByYear[y] || 0) > 0 ? formatCurrency(entry.amountsByYear[y], true) : '—'}
+                          </td>
+                        ))}
+                        <td className="text-right py-2 font-mono-numbers font-semibold">{formatCurrency(lineTotal, true)}</td>
+                      </tr>
+                    );
+                  })}
+                  <tr className="font-semibold bg-muted/50">
+                    <td className="py-2">Total</td>
+                    {YEARS.map(y => {
+                      const yt = fp.entries.reduce((s, e) => s + (e.amountsByYear[y] || 0), 0);
+                      return <td key={y} className="text-right py-2 font-mono-numbers">{formatCurrency(yt, true)}</td>;
+                    })}
+                    <td className="text-right py-2 font-mono-numbers">{formatCurrency(totalFP, true)}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </SectionCard>
+        );
+      })()}
+
       {/* =============== SECTION: JUSTIFICATION DES BESOINS =============== */}
       {visibleSections.needs && (
         <SectionCard title="Justification des Besoins" id="needs-justification">
