@@ -112,6 +112,10 @@ export function CRMPage() {
               </span>
             )}
           </TabsTrigger>
+          <TabsTrigger value="analytics">
+            <BarChart3 className="h-4 w-4 mr-2" />
+            Analyse
+          </TabsTrigger>
           {b2b.trashedClients.length > 0 && (
             <TabsTrigger value="corbeille">
               <Trash2 className="h-4 w-4 mr-2" />
