@@ -84,6 +84,15 @@ export function CrmMeetingManager({ meetings, customerId, onCreate, onUpdate, on
     setTrashedMeetings(prev => prev.filter(m => m.id !== id));
   };
 
+  const handlePermanentDelete = async (id: string) => {
+    if (!onPermanentDelete) return;
+    await onPermanentDelete(id);
+    setTrashedMeetings(prev => prev.filter(m => m.id !== id));
+    setConfirmDeleteId(null);
+  };
+
+  const meetingToDelete = trashedMeetings.find(m => m.id === confirmDeleteId);
+
   return (
     <div>
       <div className="flex items-center justify-between mb-3">
