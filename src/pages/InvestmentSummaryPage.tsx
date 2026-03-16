@@ -630,7 +630,7 @@ export function InvestmentSummaryPage() {
           <SectionCard title="Plan de Financement" id="funding-plan-summary">
             <div className="grid md:grid-cols-4 gap-4 mb-6">
               <KPICard label="Total Financement" value={formatCurrency(totalFP, true)} subValue={`${fp.entries.length} source(s)`} />
-              {YEARS.slice(0, 3).map(year => {
+              {years.slice(0, 3).map(year => {
                 const yearTotal = fp.entries.reduce((s, e) => s + (e.amountsByYear[year] || 0), 0);
                 return <KPICard key={year} label={`${year}`} value={formatCurrency(yearTotal, true)} subValue={yearTotal > 0 ? 'Prévu' : '—'} />;
               })}
