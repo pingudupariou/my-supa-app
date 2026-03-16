@@ -46,6 +46,17 @@ export interface StrategicOpexLine {
   amount: number;
 }
 
+export interface FundingPlanEntry {
+  id: string;
+  label: string;
+  amountsByYear: Record<number, number>;
+}
+
+export interface FundingPlanConfig {
+  enabled: boolean;
+  entries: FundingPlanEntry[];
+}
+
 export interface SimpleOpexConfig {
   baseAmount: number;
   growthRate: number;
