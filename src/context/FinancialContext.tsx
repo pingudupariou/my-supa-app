@@ -262,6 +262,10 @@ function loadState(): FinancialState {
       if (!parsed.hiringSimulation) {
         parsed.hiringSimulation = { ...defaultHiringSimulation };
       }
+      // Ensure fundingPlan exists
+      if (!parsed.fundingPlan) {
+        parsed.fundingPlan = { enabled: false, entries: [] };
+      }
       return parsed;
     }
   } catch {}
