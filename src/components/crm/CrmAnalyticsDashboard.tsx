@@ -52,6 +52,8 @@ export function CrmAnalyticsDashboard({ clients, projections, categories, intera
   const [showFilters, setShowFilters] = useState(true);
   const [rankingYears, setRankingYears] = useState<Set<number>>(new Set());
   const [rankingSortAsc, setRankingSortAsc] = useState(false);
+  const [chartYears, setChartYears] = useState<Set<number>>(new Set());
+  const [chartSortAsc, setChartSortAsc] = useState<boolean | null>(null); // null = no sort
 
   // Available years from projections
   const years = useMemo(() => {
