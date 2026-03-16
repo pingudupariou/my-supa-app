@@ -199,14 +199,20 @@ export function InvestmentSummaryPage() {
       };
     }).filter(c => c.count > 0);
 
-    const clientTotals = cfg.entries.map(e => ({
-      name: e.clientName,
-      channel: e.channel,
-      category: e.categoryName || 'Sans catégorie',
-      marginRate: getMarginRate(e),
-      total: years.reduce((s, y) => s + getRevenue(e, y), 0),
-      revenueByYear: years.map(y => getRevenue(e, y)),
-    })).sort((a, b) => b.total - a.total);
+    const clientTotals = cfg.entries.map(e => {
+      const b2bClient = b2b.clients.find(c => c.id === e.clientId);
+      const country = b2bClient?.country || null;
+      return {
+        name: e.clientName,
+        channel: e.channel,
+        category: e.categoryName || 'Sans catégorie',
+        country,
+        flag: getCountryFlag(country),
+        marginRate: getMarginRate(e),
+        total: years.reduce((s, y) => s + getRevenue(e, y), 0),
+        revenueByYear: years.map(y => getRevenue(e, y)),
+      };
+    }).sort((a, b) => b.total - a.total);
 
     const stackedChartData = years.map((y, yi) => {
       const row: Record<string, any> = { year: y };
