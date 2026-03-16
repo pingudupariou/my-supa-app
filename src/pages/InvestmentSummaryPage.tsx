@@ -664,7 +664,7 @@ export function InvestmentSummaryPage() {
                   })}
                   <tr className="font-semibold bg-muted/50">
                     <td className="py-2">Total</td>
-                    {YEARS.map(y => {
+                    {years.map(y => {
                       const yt = fp.entries.reduce((s, e) => s + (e.amountsByYear[y] || 0), 0);
                       return <td key={y} className="text-right py-2 font-mono-numbers">{formatCurrency(yt, true)}</td>;
                     })}
