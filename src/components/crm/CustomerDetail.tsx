@@ -33,8 +33,9 @@ interface CustomerDetailProps {
 export function CustomerDetail({
   client, interactions, opportunities, meetings, reminders,
   onCreateInteraction, onCreateMeeting, onUpdateMeeting, onDeleteMeeting,
-  onRestoreMeeting, getTrashedMeetings,
+  onRestoreMeeting, onPermanentDeleteMeeting, getTrashedMeetings,
   onCreateReminder, onCompleteReminder, onUncompleteReminder, onDeleteReminder,
+  isAdmin,
 }: CustomerDetailProps) {
   const currentStage = opportunities.length > 0
     ? PIPELINE_STAGES.find(s => s.key === opportunities[0].stage)
