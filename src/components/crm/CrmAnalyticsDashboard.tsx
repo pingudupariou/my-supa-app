@@ -195,6 +195,55 @@ export function CrmAnalyticsDashboard({ clients, projections, categories, intera
     return `${v.toFixed(0)} €`;
   };
 
+  const toggleRankingYear = (y: number) => {
+    setRankingYears(prev => {
+      const next = new Set(prev);
+      if (next.has(y)) next.delete(y);
+      else next.add(y);
+      return next;
+    });
+  };
+
+  const activeRankingYears = useMemo(() => {
+    if (rankingYears.size === 0) return [new Date().getFullYear()];
+    return Array.from(rankingYears).sort();
+  }, [rankingYears]);
+
+  // Ranking data: for each client, CA per selected year + rank per year
+  const rankingData = useMemo(() => {
+    const rows = displayClients.map(client => {
+      const row: Record<string, any> = {
+        id: client.id,
+        company_name: client.company_name,
+        country: client.country,
+        is_active: client.is_active,
+      };
+      let total = 0;
+      activeRankingYears.forEach(year => {
+        const proj = projections.find(p => p.client_id === client.id && p.year === year);
+        const val = proj ? Number(proj.projected_revenue || 0) : 0;
+        row[`ca_${year}`] = val;
+        total += val;
+      });
+      row.total = total;
+      return row;
+    });
+
+    // Sort by total
+    rows.sort((a, b) => rankingSortAsc ? a.total - b.total : b.total - a.total);
+
+    // Compute rank per year
+    activeRankingYears.forEach(year => {
+      const sorted = [...rows].sort((a, b) => b[`ca_${year}`] - a[`ca_${year}`]);
+      sorted.forEach((r, i) => {
+        const found = rows.find(x => x.id === r.id);
+        if (found) found[`rank_${year}`] = i + 1;
+      });
+    });
+
+    return rows;
+  }, [displayClients, projections, activeRankingYears, rankingSortAsc]);
+
   return (
     <div className="space-y-4">
       {/* Controls bar */}
