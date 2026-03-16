@@ -646,7 +646,7 @@ export function InvestmentSummaryPage() {
                 </thead>
                 <tbody>
                   {fp.entries.map(entry => {
-                    const lineTotal = YEARS.reduce((s, y) => s + (entry.amountsByYear[y] || 0), 0);
+                    const lineTotal = years.reduce((s, y) => s + (entry.amountsByYear[y] || 0), 0);
                     return (
                       <tr key={entry.id} className="border-b border-border/50">
                         <td className="py-2 flex items-center gap-2">
