@@ -452,7 +452,39 @@ export function CrmAnalyticsDashboard({ clients, projections, categories, intera
           </CardHeader>
           <CardContent className="px-2">
             <ResponsiveContainer width="100%" height={400}>
-              {chartMode === 'bar' ? (
+              {groupBy === 'client' && clientPivotData ? (
+                chartMode === 'bar' ? (
+                  <BarChart data={clientPivotData} margin={{ top: 5, right: 20, left: 10, bottom: 70 }}>
+                    <CartesianGrid strokeDasharray="3 3" className="stroke-border/40" vertical={false} />
+                    <XAxis dataKey="name" className="text-[10px]" angle={-45} textAnchor="end" height={80} tick={{ fontSize: 9 }} interval={0} />
+                    <YAxis tickFormatter={v => formatCurrency(v)} className="text-xs" width={65} />
+                    <Tooltip
+                      formatter={(v: number, name: string) => [formatCurrency(v), name]}
+                      labelFormatter={(_, payload) => payload?.[0]?.payload?.fullName || _}
+                      contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 8, fontSize: 12 }}
+                    />
+                    <Legend wrapperStyle={{ fontSize: 11 }} />
+                    {activeChartYears.map(y => (
+                      <Bar key={y} dataKey={`CA ${y}`} fill={YEAR_COLORS[y]} radius={[3, 3, 0, 0]} />
+                    ))}
+                  </BarChart>
+                ) : (
+                  <LineChart data={clientPivotData} margin={{ top: 5, right: 20, left: 10, bottom: 70 }}>
+                    <CartesianGrid strokeDasharray="3 3" className="stroke-border/40" />
+                    <XAxis dataKey="name" className="text-[10px]" angle={-45} textAnchor="end" height={80} tick={{ fontSize: 9 }} interval={0} />
+                    <YAxis tickFormatter={v => formatCurrency(v)} className="text-xs" width={65} />
+                    <Tooltip
+                      formatter={(v: number, name: string) => [formatCurrency(v), name]}
+                      labelFormatter={(_, payload) => payload?.[0]?.payload?.fullName || _}
+                      contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 8, fontSize: 12 }}
+                    />
+                    <Legend wrapperStyle={{ fontSize: 11 }} />
+                    {activeChartYears.map(y => (
+                      <Line key={y} type="monotone" dataKey={`CA ${y}`} stroke={YEAR_COLORS[y]} strokeWidth={2} dot={{ r: 4 }} />
+                    ))}
+                  </LineChart>
+                )
+              ) : chartMode === 'bar' ? (
                 <BarChart data={filteredChartData} margin={{ top: 5, right: 20, left: 10, bottom: 5 }}>
                   <CartesianGrid strokeDasharray="3 3" className="stroke-border/40" />
                   <XAxis dataKey="year" className="text-xs" />
