@@ -214,7 +214,7 @@ export function CrmAnalyticsDashboard({ clients, projections, categories, intera
       });
       return row;
     });
-  }, [groupBy, displayClients, projections, activeChartYears, chartSortAsc]);
+  }, [groupBy, displayClients, projections, activeChartYears, chartSortAsc, chartSortMode]);
 
   // Filtered chart data by selected years (for non-client groupBy)
   const filteredChartData = useMemo(() => {
