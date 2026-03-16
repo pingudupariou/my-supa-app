@@ -413,11 +413,41 @@ export function CrmAnalyticsDashboard({ clients, projections, categories, intera
                 {displayClients.length} client{displayClients.length > 1 ? 's' : ''}
               </Badge>
             </CardTitle>
+            <div className="flex flex-wrap items-center gap-1.5 mt-2">
+              {years.map(y => (
+                <Button
+                  key={y}
+                  size="sm"
+                  variant={activeChartYears.includes(y) ? 'default' : 'outline'}
+                  className="h-6 text-[10px] px-2"
+                  onClick={() => toggleChartYear(y)}
+                >
+                  {y}
+                </Button>
+              ))}
+              <Separator orientation="vertical" className="h-5 mx-1" />
+              <Button
+                size="sm"
+                variant={chartSortAsc === false ? 'default' : 'outline'}
+                className="h-6 text-[10px] px-2 gap-1"
+                onClick={() => setChartSortAsc(chartSortAsc === false ? null : false)}
+              >
+                <ArrowDown className="h-3 w-3" /> Décroissant
+              </Button>
+              <Button
+                size="sm"
+                variant={chartSortAsc === true ? 'default' : 'outline'}
+                className="h-6 text-[10px] px-2 gap-1"
+                onClick={() => setChartSortAsc(chartSortAsc === true ? null : true)}
+              >
+                <ArrowUp className="h-3 w-3" /> Croissant
+              </Button>
+            </div>
           </CardHeader>
           <CardContent className="px-2">
             <ResponsiveContainer width="100%" height={360}>
               {chartMode === 'bar' ? (
-                <BarChart data={chartData} margin={{ top: 5, right: 20, left: 10, bottom: 5 }}>
+                <BarChart data={filteredChartData} margin={{ top: 5, right: 20, left: 10, bottom: 5 }}>
                   <CartesianGrid strokeDasharray="3 3" className="stroke-border/40" />
                   <XAxis dataKey="year" className="text-xs" />
                   <YAxis tickFormatter={v => formatCurrency(v)} className="text-xs" width={65} />
@@ -431,7 +461,7 @@ export function CrmAnalyticsDashboard({ clients, projections, categories, intera
                   ))}
                 </BarChart>
               ) : (
-                <LineChart data={chartData} margin={{ top: 5, right: 20, left: 10, bottom: 5 }}>
+                <LineChart data={filteredChartData} margin={{ top: 5, right: 20, left: 10, bottom: 5 }}>
                   <CartesianGrid strokeDasharray="3 3" className="stroke-border/40" />
                   <XAxis dataKey="year" className="text-xs" />
                   <YAxis tickFormatter={v => formatCurrency(v)} className="text-xs" width={65} />
