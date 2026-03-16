@@ -597,25 +597,26 @@ export function CrmAnalyticsDashboard({ clients, projections, categories, intera
         <CardContent className="px-2 pb-3 space-y-4">
           {/* Horizontal bar chart */}
           {rankingData.length > 0 && (
-            <ResponsiveContainer width="100%" height={Math.max(200, rankingData.length * 32 + 40)}>
+            <ResponsiveContainer width="100%" height={360}>
               <BarChart
                 data={rankingData.slice(0, 20).map(r => ({
-                  name: r.company_name,
+                  name: r.company_name.length > 12 ? r.company_name.slice(0, 12) + '…' : r.company_name,
+                  fullName: r.company_name,
                   ...Object.fromEntries(activeRankingYears.map(y => [`CA ${y}`, r[`ca_${y}`] || 0])),
                 }))}
-                layout="vertical"
-                margin={{ top: 5, right: 40, left: 10, bottom: 5 }}
+                margin={{ top: 5, right: 20, left: 10, bottom: 60 }}
               >
-                <CartesianGrid strokeDasharray="3 3" className="stroke-border/40" horizontal={false} />
-                <XAxis type="number" tickFormatter={v => formatCurrency(v)} className="text-[10px]" />
-                <YAxis type="category" dataKey="name" width={140} className="text-[10px]" tick={{ fontSize: 10 }} />
+                <CartesianGrid strokeDasharray="3 3" className="stroke-border/40" vertical={false} />
+                <XAxis dataKey="name" className="text-[10px]" angle={-45} textAnchor="end" height={70} tick={{ fontSize: 9 }} interval={0} />
+                <YAxis tickFormatter={v => formatCurrency(v)} className="text-[10px]" width={65} />
                 <Tooltip
                   formatter={(v: number, name: string) => [formatCurrency(v), name]}
+                  labelFormatter={(label, payload) => payload?.[0]?.payload?.fullName || label}
                   contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 8, fontSize: 11 }}
                 />
                 <Legend wrapperStyle={{ fontSize: 10 }} />
                 {activeRankingYears.map((y, i) => (
-                  <Bar key={y} dataKey={`CA ${y}`} fill={CHART_COLORS[i % CHART_COLORS.length]} radius={[0, 3, 3, 0]} barSize={activeRankingYears.length > 2 ? 8 : 14} />
+                  <Bar key={y} dataKey={`CA ${y}`} fill={CHART_COLORS[i % CHART_COLORS.length]} radius={[3, 3, 0, 0]} />
                 ))}
               </BarChart>
             </ResponsiveContainer>
