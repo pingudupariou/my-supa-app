@@ -176,6 +176,7 @@ interface FinancialState {
   valuationConfig: ValuationConfig;
   roadmapBlocks: Record<string, { startQ: number; durationQ: number }>;
   hiringSimulation: HiringSimulationConfig;
+  fundingPlan: FundingPlanConfig;
 }
 
 interface ComputedValues {
