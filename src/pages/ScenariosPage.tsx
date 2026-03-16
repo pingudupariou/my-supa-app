@@ -34,6 +34,7 @@ import {
 const EXPORT_SECTIONS: ExportableSection[] = [
   { id: 'settings', label: 'Paramètres du Scénario', elementId: 'scenario-settings' },
   { id: 'treasury-params', label: 'Paramètres Trésorerie', elementId: 'treasury-params' },
+  { id: 'funding-plan', label: 'Plan de Financement', elementId: 'funding-plan' },
   { id: 'kpis', label: 'KPIs par Scénario', elementId: 'scenario-kpis' },
   { id: 'adjustments', label: 'Ajustements', elementId: 'scenario-adjustments' },
   { id: 'chart', label: 'Comparaison des Scénarios', elementId: 'scenario-chart' },
