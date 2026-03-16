@@ -76,6 +76,7 @@ const sectionLabels: Record<SectionKey, string> = {
 
 export function InvestmentSummaryPage() {
   const { state, computed, setRevenueMode } = useFinancial();
+  const b2b = useB2BClientsData();
   const [visibleSections, setVisibleSections] = useState(defaultSections);
   const [showSectionSettings, setShowSectionSettings] = useState(false);
 
