@@ -1,5 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useFinancial, RevenueMode } from '@/context/FinancialContext';
+import { useB2BClientsData } from '@/hooks/useB2BClientsData';
+import { getCountryFlag } from '@/lib/countryFlags';
 import { HeroBanner } from '@/components/ui/HeroBanner';
 import { SectionCard, KPICard } from '@/components/ui/KPICard';
 import { Badge } from '@/components/ui/badge';
@@ -74,6 +76,7 @@ const sectionLabels: Record<SectionKey, string> = {
 
 export function InvestmentSummaryPage() {
   const { state, computed, setRevenueMode } = useFinancial();
+  const b2b = useB2BClientsData();
   const [visibleSections, setVisibleSections] = useState(defaultSections);
   const [showSectionSettings, setShowSectionSettings] = useState(false);
 
@@ -196,14 +199,20 @@ export function InvestmentSummaryPage() {
       };
     }).filter(c => c.count > 0);
 
-    const clientTotals = cfg.entries.map(e => ({
-      name: e.clientName,
-      channel: e.channel,
-      category: e.categoryName || 'Sans catégorie',
-      marginRate: getMarginRate(e),
-      total: years.reduce((s, y) => s + getRevenue(e, y), 0),
-      revenueByYear: years.map(y => getRevenue(e, y)),
-    })).sort((a, b) => b.total - a.total);
+    const clientTotals = cfg.entries.map(e => {
+      const b2bClient = b2b.clients.find(c => c.id === e.clientId);
+      const country = b2bClient?.country || null;
+      return {
+        name: e.clientName,
+        channel: e.channel,
+        category: e.categoryName || 'Sans catégorie',
+        country,
+        flag: getCountryFlag(country),
+        marginRate: getMarginRate(e),
+        total: years.reduce((s, y) => s + getRevenue(e, y), 0),
+        revenueByYear: years.map(y => getRevenue(e, y)),
+      };
+    }).sort((a, b) => b.total - a.total);
 
     const stackedChartData = years.map((y, yi) => {
       const row: Record<string, any> = { year: y };
@@ -212,7 +221,7 @@ export function InvestmentSummaryPage() {
     });
 
     return { channelData, clientTotals, stackedChartData };
-  }, [state.revenueMode, state.clientRevenueConfig, years]);
+  }, [state.revenueMode, state.clientRevenueConfig, years, b2b.clients]);
 
   const channelColors: Record<string, string> = {
     B2C: CHART_COLORS[0],
@@ -552,6 +561,7 @@ export function InvestmentSummaryPage() {
                     <thead>
                       <tr className="border-b bg-muted/30">
                         <th className="text-left py-2 px-3 font-semibold text-xs">Client</th>
+                        <th className="text-left py-2 px-3 font-semibold text-xs">Pays</th>
                         <th className="text-left py-2 px-3 font-semibold text-xs">Canal</th>
                         <th className="text-left py-2 px-3 font-semibold text-xs">Catégorie</th>
                         <th className="text-right py-2 px-3 font-semibold text-xs">Marge</th>
@@ -565,6 +575,13 @@ export function InvestmentSummaryPage() {
                       {clientDeckData.clientTotals.slice(0, 15).map((c, i) => (
                         <tr key={i} className="border-b hover:bg-muted/20 text-xs">
                           <td className="py-2 px-3 font-medium">{c.name}</td>
+                          <td className="py-2 px-3">
+                            {c.flag ? (
+                              <span className="text-base mr-1" title={c.country || ''}>{c.flag}</span>
+                            ) : (
+                              <span className="text-muted-foreground">—</span>
+                            )}
+                          </td>
                           <td className="py-2 px-3">
                             <Badge variant="outline" className="text-[10px]" style={{ borderColor: channelColors[c.channel] }}>
                               {c.channel}
