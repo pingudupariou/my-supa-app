@@ -218,6 +218,7 @@ interface FinancialContextType {
   updateValuationConfig: (config: Partial<ValuationConfig>) => void;
   updateRoadmapBlocks: (blocks: Record<string, { startQ: number; durationQ: number }>) => void;
   updateHiringSimulation: (config: Partial<HiringSimulationConfig>) => void;
+  updateFundingPlan: (config: Partial<FundingPlanConfig>) => void;
   saveAll: () => void;
 }
 
