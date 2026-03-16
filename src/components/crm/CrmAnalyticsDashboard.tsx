@@ -346,11 +346,34 @@ export function CrmAnalyticsDashboard({ clients, projections, categories, intera
                 </SelectContent>
               </Select>
             </div>
+            <Separator orientation="vertical" className="h-6" />
+            <div className="flex items-center gap-1.5">
+              <Label className="text-xs">Sections :</Label>
+              {([
+                ['chart', 'Graphique CA'],
+                ['clients', 'Clients'],
+                ['pie', 'Répartition pays'],
+                ['detail', 'Fiche client'],
+                ['ranking', 'Classement'],
+              ] as const).map(([key, label]) => (
+                <Button
+                  key={key}
+                  size="sm"
+                  variant={showSections[key] ? 'default' : 'outline'}
+                  className="h-6 text-[10px] px-2"
+                  onClick={() => toggleSection(key)}
+                >
+                  {showSections[key] ? <Eye className="h-3 w-3 mr-1" /> : <EyeOff className="h-3 w-3 mr-1" />}
+                  {label}
+                </Button>
+              ))}
+            </div>
           </div>
         </CardContent>
       </Card>
 
-      <div className="grid gap-4 lg:grid-cols-[280px_1fr]">
+      {/* Chart — full width */}
+      {showSections.chart && (
         {/* Left: client selector */}
         {showFilters && (
           <Card className="lg:row-span-2">
