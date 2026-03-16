@@ -561,6 +561,7 @@ export function InvestmentSummaryPage() {
                     <thead>
                       <tr className="border-b bg-muted/30">
                         <th className="text-left py-2 px-3 font-semibold text-xs">Client</th>
+                        <th className="text-left py-2 px-3 font-semibold text-xs">Pays</th>
                         <th className="text-left py-2 px-3 font-semibold text-xs">Canal</th>
                         <th className="text-left py-2 px-3 font-semibold text-xs">Catégorie</th>
                         <th className="text-right py-2 px-3 font-semibold text-xs">Marge</th>
@@ -574,6 +575,13 @@ export function InvestmentSummaryPage() {
                       {clientDeckData.clientTotals.slice(0, 15).map((c, i) => (
                         <tr key={i} className="border-b hover:bg-muted/20 text-xs">
                           <td className="py-2 px-3 font-medium">{c.name}</td>
+                          <td className="py-2 px-3">
+                            {c.flag ? (
+                              <span className="text-base mr-1" title={c.country || ''}>{c.flag}</span>
+                            ) : (
+                              <span className="text-muted-foreground">—</span>
+                            )}
+                          </td>
                           <td className="py-2 px-3">
                             <Badge variant="outline" className="text-[10px]" style={{ borderColor: channelColors[c.channel] }}>
                               {c.channel}
