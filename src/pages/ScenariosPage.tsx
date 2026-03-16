@@ -1,5 +1,5 @@
-import { useMemo } from 'react';
-import { useFinancial } from '@/context/FinancialContext';
+import { useMemo, useState } from 'react';
+import { useFinancial, FundingPlanEntry } from '@/context/FinancialContext';
 import { SectionCard, KPICard } from '@/components/ui/KPICard';
 import { HeroBanner } from '@/components/ui/HeroBanner';
 import { SaveButton } from '@/components/ui/SaveButton';
@@ -11,9 +11,11 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Switch } from '@/components/ui/switch';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { formatCurrency, formatPercent } from '@/data/financialConfig';
 import { cn } from '@/lib/utils';
-import { Calendar, Clock, Wallet, TrendingUp } from 'lucide-react';
+import { Calendar, Clock, Wallet, TrendingUp, Plus, Trash2, Banknote } from 'lucide-react';
 import { calculateGlobalRevenue } from '@/components/product/GlobalRevenueEditor';
 import { aggregateByYear } from '@/engine/monthlyTreasuryEngine';
 import {
