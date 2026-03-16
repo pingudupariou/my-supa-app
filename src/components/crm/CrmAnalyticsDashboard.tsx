@@ -178,17 +178,46 @@ export function CrmAnalyticsDashboard({ clients, projections, categories, intera
     });
   };
 
-  // Filtered chart data by selected years
+  // For 'client' groupBy: pivot so clients are on X-axis and years are series
+  const clientPivotData = useMemo(() => {
+    if (groupBy !== 'client') return null;
+    const clients = chartSortAsc !== null
+      ? [...displayClients].sort((a, b) => {
+          const totalA = activeChartYears.reduce((s, y) => {
+            const p = projections.find(p => p.client_id === a.id && p.year === y);
+            return s + (p ? Number(p.projected_revenue || 0) : 0);
+          }, 0);
+          const totalB = activeChartYears.reduce((s, y) => {
+            const p = projections.find(p => p.client_id === b.id && p.year === y);
+            return s + (p ? Number(p.projected_revenue || 0) : 0);
+          }, 0);
+          return chartSortAsc ? totalA - totalB : totalB - totalA;
+        })
+      : displayClients;
+
+    return clients.map(client => {
+      const row: Record<string, any> = {
+        name: client.company_name.length > 14 ? client.company_name.slice(0, 14) + '…' : client.company_name,
+        fullName: client.company_name,
+      };
+      activeChartYears.forEach(y => {
+        const proj = projections.find(p => p.client_id === client.id && p.year === y);
+        row[`CA ${y}`] = proj ? Number(proj.projected_revenue || 0) : 0;
+      });
+      return row;
+    });
+  }, [groupBy, displayClients, projections, activeChartYears, chartSortAsc]);
+
+  // Filtered chart data by selected years (for non-client groupBy)
   const filteredChartData = useMemo(() => {
     return chartData.filter(d => activeChartYears.includes(Number(d.year)));
   }, [chartData, activeChartYears]);
 
-  // Series keys (all keys except 'year')
+  // Series keys for non-client groupBy
   const seriesKeys = useMemo(() => {
     if (filteredChartData.length === 0) return [];
     const keys = Object.keys(filteredChartData[0]).filter(k => k !== 'year');
     if (chartSortAsc !== null) {
-      // Sort series by total value across selected years
       keys.sort((a, b) => {
         const totalA = filteredChartData.reduce((s, r) => s + (Number(r[a]) || 0), 0);
         const totalB = filteredChartData.reduce((s, r) => s + (Number(r[b]) || 0), 0);
@@ -197,6 +226,13 @@ export function CrmAnalyticsDashboard({ clients, projections, categories, intera
     }
     return keys;
   }, [filteredChartData, chartSortAsc]);
+
+  // Year colors: consistent mapping
+  const YEAR_COLORS = useMemo(() => {
+    const map: Record<number, string> = {};
+    years.forEach((y, i) => { map[y] = CHART_COLORS[i % CHART_COLORS.length]; });
+    return map;
+  }, [years]);
 
   // Pie data for country distribution
   const pieData = useMemo(() => {
@@ -416,7 +452,39 @@ export function CrmAnalyticsDashboard({ clients, projections, categories, intera
           </CardHeader>
           <CardContent className="px-2">
             <ResponsiveContainer width="100%" height={400}>
-              {chartMode === 'bar' ? (
+              {groupBy === 'client' && clientPivotData ? (
+                chartMode === 'bar' ? (
+                  <BarChart data={clientPivotData} margin={{ top: 5, right: 20, left: 10, bottom: 70 }}>
+                    <CartesianGrid strokeDasharray="3 3" className="stroke-border/40" vertical={false} />
+                    <XAxis dataKey="name" className="text-[10px]" angle={-45} textAnchor="end" height={80} tick={{ fontSize: 9 }} interval={0} />
+                    <YAxis tickFormatter={v => formatCurrency(v)} className="text-xs" width={65} />
+                    <Tooltip
+                      formatter={(v: number, name: string) => [formatCurrency(v), name]}
+                      labelFormatter={(_, payload) => payload?.[0]?.payload?.fullName || _}
+                      contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 8, fontSize: 12 }}
+                    />
+                    <Legend wrapperStyle={{ fontSize: 11 }} />
+                    {activeChartYears.map(y => (
+                      <Bar key={y} dataKey={`CA ${y}`} fill={YEAR_COLORS[y]} radius={[3, 3, 0, 0]} />
+                    ))}
+                  </BarChart>
+                ) : (
+                  <LineChart data={clientPivotData} margin={{ top: 5, right: 20, left: 10, bottom: 70 }}>
+                    <CartesianGrid strokeDasharray="3 3" className="stroke-border/40" />
+                    <XAxis dataKey="name" className="text-[10px]" angle={-45} textAnchor="end" height={80} tick={{ fontSize: 9 }} interval={0} />
+                    <YAxis tickFormatter={v => formatCurrency(v)} className="text-xs" width={65} />
+                    <Tooltip
+                      formatter={(v: number, name: string) => [formatCurrency(v), name]}
+                      labelFormatter={(_, payload) => payload?.[0]?.payload?.fullName || _}
+                      contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 8, fontSize: 12 }}
+                    />
+                    <Legend wrapperStyle={{ fontSize: 11 }} />
+                    {activeChartYears.map(y => (
+                      <Line key={y} type="monotone" dataKey={`CA ${y}`} stroke={YEAR_COLORS[y]} strokeWidth={2} dot={{ r: 4 }} />
+                    ))}
+                  </LineChart>
+                )
+              ) : chartMode === 'bar' ? (
                 <BarChart data={filteredChartData} margin={{ top: 5, right: 20, left: 10, bottom: 5 }}>
                   <CartesianGrid strokeDasharray="3 3" className="stroke-border/40" />
                   <XAxis dataKey="year" className="text-xs" />
