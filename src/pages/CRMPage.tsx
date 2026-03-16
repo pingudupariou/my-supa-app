@@ -3,7 +3,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ClientSubTabs } from '@/components/crm/ClientSubTabs';
 import { Card, CardContent } from '@/components/ui/card';
 import { KPICard } from '@/components/ui/KPICard';
-import { Users, Kanban, Bell, Calendar, Trash2, ClipboardList } from 'lucide-react';
+import { Users, Kanban, Bell, Calendar, Trash2, ClipboardList, BarChart3 } from 'lucide-react';
 import { CustomerList } from '@/components/crm/CustomerList';
 import { CustomerDetail } from '@/components/crm/CustomerDetail';
 import { PipelineKanban } from '@/components/crm/PipelineKanban';
@@ -12,6 +12,7 @@ import { CrmReminderManager } from '@/components/crm/CrmReminderManager';
 import { useB2BClientsData } from '@/hooks/useB2BClientsData';
 
 import { B2BTrashBin } from '@/components/b2b/B2BTrashBin';
+import { CrmAnalyticsDashboard } from '@/components/crm/CrmAnalyticsDashboard';
 import { useCRMData } from '@/hooks/useCRMData';
 import { useAuth } from '@/context/AuthContext';
 import { useTasksData } from '@/hooks/useTasksData';
@@ -110,6 +111,10 @@ export function CRMPage() {
                 {tasksData.tasks.filter(t => t.context === 'crm' && t.status !== 'done').length}
               </span>
             )}
+          </TabsTrigger>
+          <TabsTrigger value="analytics">
+            <BarChart3 className="h-4 w-4 mr-2" />
+            Analyse
           </TabsTrigger>
           {b2b.trashedClients.length > 0 && (
             <TabsTrigger value="corbeille">
@@ -218,7 +223,17 @@ export function CRMPage() {
           </Card>
         </TabsContent>
 
-        {/* Trash bin */}
+        {/* Analytics */}
+        <TabsContent value="analytics" className="space-y-4">
+          <CrmAnalyticsDashboard
+            clients={b2b.clients}
+            projections={b2b.projections}
+            categories={b2b.categories}
+            interactions={crm.interactions}
+            meetings={crm.meetings}
+          />
+        </TabsContent>
+
         <TabsContent value="corbeille" className="space-y-4">
           <B2BTrashBin
             trashedClients={b2b.trashedClients}
