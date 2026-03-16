@@ -640,7 +640,7 @@ export function InvestmentSummaryPage() {
                 <thead>
                   <tr className="border-b">
                     <th className="text-left py-2 font-medium">Source</th>
-                    {YEARS.map(y => <th key={y} className="text-right py-2 font-medium">{y}</th>)}
+                    {years.map(y => <th key={y} className="text-right py-2 font-medium">{y}</th>)}
                     <th className="text-right py-2 font-medium">Total</th>
                   </tr>
                 </thead>
