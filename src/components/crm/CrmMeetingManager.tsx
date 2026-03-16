@@ -155,11 +155,24 @@ export function CrmMeetingManager({ meetings, customerId, onCreate, onUpdate, on
                     {m.deleted_at && ` • Supprimé le ${new Date(m.deleted_at).toLocaleDateString('fr-FR')}`}
                   </span>
                 </div>
-                <Button size="sm" variant="outline" className="h-7 text-xs shrink-0" onClick={() => handleRestore(m.id)}>
-                  <RotateCcw className="h-3 w-3 mr-1" /> Restaurer
-                </Button>
+                <div className="flex items-center gap-1 shrink-0">
+                  <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => handleRestore(m.id)}>
+                    <RotateCcw className="h-3 w-3 mr-1" /> Restaurer
+                  </Button>
+                  {isAdmin && (
+                    <Button size="sm" variant="destructive" className="h-7 text-xs" onClick={() => setConfirmDeleteId(m.id)}>
+                      <Trash2 className="h-3 w-3 mr-1" /> Supprimer
+                    </Button>
+                  )}
+                </div>
               </div>
             ))
+          )}
+          {!isAdmin && trashedMeetings.length > 0 && (
+            <p className="text-[10px] text-muted-foreground flex items-center gap-1 mt-1">
+              <AlertTriangle className="h-3 w-3" />
+              Seul un administrateur peut supprimer définitivement un RDV.
+            </p>
           )}
         </div>
       )}
