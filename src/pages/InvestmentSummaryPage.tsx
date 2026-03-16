@@ -1,5 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useFinancial, RevenueMode } from '@/context/FinancialContext';
+import { useB2BClientsData } from '@/hooks/useB2BClientsData';
+import { getCountryFlag } from '@/lib/countryFlags';
 import { HeroBanner } from '@/components/ui/HeroBanner';
 import { SectionCard, KPICard } from '@/components/ui/KPICard';
 import { Badge } from '@/components/ui/badge';
