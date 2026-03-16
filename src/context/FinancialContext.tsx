@@ -525,8 +525,27 @@ export function FinancialProvider({ children }: { children: ReactNode }) {
     payrollByYear.forEach(p => { annualPayroll[p.year] = p.payroll; });
     opexByYear.forEach(o => { annualOpex[o.year] = o.opex; });
 
+    // Merge funding plan entries into otherInflows for treasury
+    const effectiveConfig = { ...monthlyTreasuryConfig, otherInflows: { ...monthlyTreasuryConfig.otherInflows } };
+    const fundingPlan = state.fundingPlan;
+    if (fundingPlan?.enabled && fundingPlan.entries.length > 0) {
+      fundingPlan.entries.forEach(entry => {
+        Object.entries(entry.amountsByYear).forEach(([yearStr, amount]) => {
+          if (amount > 0) {
+            const yr = Number(yearStr);
+            const key = `${yr}-00`; // Janvier (mois 0)
+            const existing = effectiveConfig.otherInflows[key];
+            effectiveConfig.otherInflows[key] = {
+              amount: (existing?.amount || 0) + amount,
+              label: existing?.label ? `${existing.label}, ${entry.label}` : entry.label,
+            };
+          }
+        });
+      });
+    }
+
     const monthlyTreasuryProjection = calculateMonthlyTreasuryProjection(
-      monthlyTreasuryConfig,
+      effectiveConfig,
       { annualRevenue, annualCogs, annualPayroll, annualOpex },
       fundingRounds,
       initialCash,
