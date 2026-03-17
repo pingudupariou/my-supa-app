@@ -1,27 +1,47 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { RefreshCw, Search } from 'lucide-react';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
+import { RefreshCw, Search, FileText } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { B2BClient } from '@/hooks/useB2BClientsData';
+import { CrmMeeting } from '@/hooks/useCRMData';
 
 interface CustomerListProps {
   clients: B2BClient[];
   selectedId: string | null;
   onSelect: (id: string) => void;
   onRefresh: () => void;
+  meetings?: CrmMeeting[];
 }
 
-export function CustomerList({ clients, selectedId, onSelect, onRefresh }: CustomerListProps) {
+export function CustomerList({ clients, selectedId, onSelect, onRefresh, meetings = [] }: CustomerListProps) {
   const [search, setSearch] = useState('');
+  const [showLastNote, setShowLastNote] = useState(false);
 
   const filtered = clients.filter(c =>
     c.company_name.toLowerCase().includes(search.toLowerCase()) ||
     (c.contact_email || '').toLowerCase().includes(search.toLowerCase()) ||
     (c.country || '').toLowerCase().includes(search.toLowerCase())
   );
+
+  // Map client id -> last meeting with notes
+  const lastMeetingNotes = useMemo(() => {
+    const map: Record<string, string> = {};
+    if (!showLastNote) return map;
+    for (const client of clients) {
+      const clientMeetings = meetings
+        .filter(m => m.customer_id === client.id && m.notes && m.notes.trim().length > 0)
+        .sort((a, b) => new Date(b.meeting_date).getTime() - new Date(a.meeting_date).getTime());
+      if (clientMeetings.length > 0) {
+        map[client.id] = clientMeetings[0].notes!;
+      }
+    }
+    return map;
+  }, [clients, meetings, showLastNote]);
 
   return (
     <Card>
@@ -41,6 +61,14 @@ export function CustomerList({ clients, selectedId, onSelect, onRefresh }: Custo
             className="pl-8 h-8 text-sm"
           />
         </div>
+        {meetings.length > 0 && (
+          <div className="flex items-center gap-2 mt-2">
+            <Switch id="show-last-note" checked={showLastNote} onCheckedChange={setShowLastNote} />
+            <Label htmlFor="show-last-note" className="text-xs text-muted-foreground cursor-pointer">
+              Dernière note RDV
+            </Label>
+          </div>
+        )}
       </CardHeader>
       <CardContent className="space-y-1 max-h-[500px] overflow-y-auto">
         {filtered.length === 0 && <p className="text-sm text-muted-foreground">Aucun client</p>}
@@ -60,6 +88,12 @@ export function CustomerList({ clients, selectedId, onSelect, onRefresh }: Custo
                 {c.is_active ? 'Actif' : 'Inactif'}
               </Badge>
             </div>
+            {showLastNote && lastMeetingNotes[c.id] && (
+              <div className="mt-1.5 flex items-start gap-1 text-[11px] text-muted-foreground/80 leading-tight">
+                <FileText className="h-3 w-3 mt-0.5 shrink-0" />
+                <span className="line-clamp-2">{lastMeetingNotes[c.id]}</span>
+              </div>
+            )}
           </button>
         ))}
       </CardContent>
