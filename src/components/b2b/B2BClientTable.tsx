@@ -521,25 +521,44 @@ export function B2BClientTable({
       {/* Main table */}
       <div className="border rounded-lg overflow-x-auto">
         <Table>
-          <TableHeader>
-            <TableRow>
-              {visibleColumns.map(col => (
-                <TableHead key={col.key} className={`text-[10px] min-w-[${col.minWidth}] ${col.key.startsWith('ca_') ? 'text-right bg-accent/20' : ''}`}>
-                  <div className="flex items-center gap-1.5">
-                    {col.canHide && (
-                      <Checkbox
-                        checked={true}
-                        onCheckedChange={() => toggleColumn(col.key)}
-                        className="h-3 w-3 shrink-0"
-                        title={`Masquer "${col.label}"`}
-                      />
-                    )}
-                    <span>{col.label}</span>
-                  </div>
-                </TableHead>
-              ))}
-            </TableRow>
-          </TableHeader>
+           <TableHeader>
+             <TableRow>
+               {visibleColumns.map(col => {
+                 const isPermColumn = EDITABLE_COLUMN_KEYS.includes(col.key);
+                 const colEditable = isPermColumn ? isColumnEditableByOthers?.(col.key) ?? false : false;
+                 return (
+                   <TableHead key={col.key} className={`text-[10px] min-w-[${col.minWidth}] ${col.key.startsWith('ca_') ? 'text-right bg-accent/20' : ''}`}>
+                     <div className="flex items-center gap-1.5">
+                       {col.canHide && (
+                         <Checkbox
+                           checked={true}
+                           onCheckedChange={() => toggleColumn(col.key)}
+                           className="h-3 w-3 shrink-0"
+                           title={`Masquer "${col.label}"`}
+                         />
+                       )}
+                       <span>{col.label}</span>
+                       {isAdmin && isPermColumn && onToggleColumnPermission && (
+                         <Tooltip>
+                           <TooltipTrigger asChild>
+                             <button
+                               onClick={() => onToggleColumnPermission(col.key, !colEditable)}
+                               className={`ml-auto p-0.5 rounded transition-colors ${colEditable ? 'text-primary hover:text-primary/80' : 'text-muted-foreground/40 hover:text-muted-foreground'}`}
+                             >
+                               {colEditable ? <LockOpen className="h-3 w-3" /> : <Lock className="h-3 w-3" />}
+                             </button>
+                           </TooltipTrigger>
+                           <TooltipContent side="top" className="text-xs">
+                             {colEditable ? 'Colonne ouverte en écriture (cliquer pour verrouiller)' : 'Colonne verrouillée (cliquer pour ouvrir en écriture)'}
+                           </TooltipContent>
+                         </Tooltip>
+                       )}
+                     </div>
+                   </TableHead>
+                 );
+               })}
+             </TableRow>
+           </TableHeader>
           <TableBody>
             {clients.length === 0 && (
               <TableRow>
