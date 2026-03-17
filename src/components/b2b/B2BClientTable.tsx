@@ -187,6 +187,16 @@ export function B2BClientTable({
     await onUpsertClient({ id: client.id, company_name: client.company_name, [field]: value || null });
   };
 
+  // Determine if the current user can edit a specific column
+  const canEditColumn = (colKey: string): boolean => {
+    if (isAdmin) return true;
+    if (!isColumnEditableByOthers) return true; // no permission system = editable
+    return isColumnEditableByOthers(colKey);
+  };
+
+  // Editable column keys that can be permission-controlled
+  const EDITABLE_COLUMN_KEYS = ['company_name', 'country', 'geographic_zone', 'contact_email', 'contact_phone', 'pricing_rule', 'payment_terms', 'delivery_method', 'delivery_fee_rule', 'moq', 'is_active', 'category', 'notes'];
+
   const handleCreate = async () => {
     if (!newForm.company_name.trim()) return;
     await onUpsertClient({
