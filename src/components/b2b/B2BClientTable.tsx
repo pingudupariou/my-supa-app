@@ -278,6 +278,11 @@ export function B2BClientTable({
           <EditableCell value={c.contact_email || ''} onSave={v => saveField(c, 'contact_email', v)} />
         </TableCell>
       )}
+      {isVisible('contact_phone') && (
+        <TableCell>
+          <EditableCell value={c.contact_phone || ''} onSave={v => saveField(c, 'contact_phone', v)} />
+        </TableCell>
+      )}
       {isVisible('pricing_rule') && (
         <TableCell>
           <EditableSelectCell value={c.pricing_rule || ''} options={salesRules.map(r => r.name)} onSave={v => saveField(c, 'pricing_rule', v)} />
