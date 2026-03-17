@@ -58,7 +58,59 @@ export function CrmMeetingManager({ meetings, customerId, onCreate, onUpdate, on
     setEditDrafts(d => ({ ...d, [id]: { ...d[id], [field]: value } }));
   };
 
+  // Auto-save with debounce
+  const autoSaveTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+
+  const scheduleAutoSave = useCallback((id: string) => {
+    if (autoSaveTimers.current[id]) clearTimeout(autoSaveTimers.current[id]);
+    autoSaveTimers.current[id] = setTimeout(async () => {
+      const draft = editDrafts[id];
+      if (!draft) return;
+      const meeting = meetings.find(m => m.id === id);
+      if (!meeting) return;
+      const hasChanges = draft.title !== (meeting.title || '') || draft.notes !== (meeting.notes || '') || draft.action_items !== (meeting.action_items || '');
+      if (!hasChanges) return;
+      setSavingId(id);
+      await onUpdate(id, { title: draft.title, notes: draft.notes, action_items: draft.action_items });
+      setSavingId(null);
+    }, 1200);
+  }, [editDrafts, meetings, onUpdate]);
+
+  // Trigger auto-save whenever drafts change
+  useEffect(() => {
+    Object.keys(editDrafts).forEach(id => {
+      const meeting = meetings.find(m => m.id === id);
+      if (!meeting) return;
+      const draft = editDrafts[id];
+      const hasChanges = draft && (draft.title !== (meeting.title || '') || draft.notes !== (meeting.notes || '') || draft.action_items !== (meeting.action_items || ''));
+      if (hasChanges) scheduleAutoSave(id);
+    });
+    return () => {
+      Object.values(autoSaveTimers.current).forEach(t => clearTimeout(t));
+    };
+  }, [editDrafts, scheduleAutoSave, meetings]);
+
+  // Save on unmount (navigating away)
+  useEffect(() => {
+    return () => {
+      Object.values(autoSaveTimers.current).forEach(t => clearTimeout(t));
+      // Force-save any pending drafts synchronously is not possible,
+      // so we trigger immediate saves for all dirty drafts
+      Object.keys(editDrafts).forEach(id => {
+        const draft = editDrafts[id];
+        const meeting = meetings.find(m => m.id === id);
+        if (!meeting || !draft) return;
+        const hasChanges = draft.title !== (meeting.title || '') || draft.notes !== (meeting.notes || '') || draft.action_items !== (meeting.action_items || '');
+        if (hasChanges) {
+          onUpdate(id, { title: draft.title, notes: draft.notes, action_items: draft.action_items });
+        }
+      });
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editDrafts, meetings]);
+
   const saveDraft = async (id: string) => {
+    if (autoSaveTimers.current[id]) clearTimeout(autoSaveTimers.current[id]);
     const draft = editDrafts[id];
     if (!draft) return;
     setSavingId(id);
