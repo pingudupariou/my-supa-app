@@ -91,6 +91,7 @@ export interface CrmMeeting {
   status: 'planned' | 'completed' | 'cancelled';
   responsible: string | null;
   deleted_at: string | null;
+  business_entity_id: string | null;
   created_at: string;
   updated_at: string;
 }
