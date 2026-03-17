@@ -265,64 +265,69 @@ export function B2BClientTable({
   const uncategorized = clients.filter(c => !c.category_id);
   const grouped = categories.map(cat => ({ category: cat, clients: clients.filter(c => c.category_id === cat.id) }));
 
+  // Read-only cell for locked columns
+  const ReadOnlyCell = ({ value, className = '' }: { value: string; className?: string }) => (
+    <span className={`px-1 py-0.5 inline-block min-w-[2rem] text-muted-foreground ${className}`}>{value || '—'}</span>
+  );
+
   const renderClientRow = (c: B2BClient) => (
     <TableRow key={c.id} className="text-xs">
       {isVisible('is_active') && (
         <TableCell>
-          <Switch checked={c.is_active} onCheckedChange={v => onUpsertClient({ ...c, is_active: v })} />
+          <Switch checked={c.is_active} onCheckedChange={v => onUpsertClient({ id: c.id, company_name: c.company_name, is_active: v })} disabled={!canEditColumn('is_active')} />
         </TableCell>
       )}
       {isVisible('company_name') && (
         <TableCell className="font-medium">
-          <EditableCell value={c.company_name} onSave={v => saveField(c, 'company_name', v)} />
+          {canEditColumn('company_name') ? <EditableCell value={c.company_name} onSave={v => saveField(c, 'company_name', v)} /> : <ReadOnlyCell value={c.company_name} />}
         </TableCell>
       )}
       {isVisible('country') && (
         <TableCell>
           <span className="flex items-center gap-1">
             {getCountryFlag(c.country) && <span className="text-base leading-none">{getCountryFlag(c.country)}</span>}
-            <EditableCell value={c.country || ''} onSave={v => saveField(c, 'country', v)} />
+            {canEditColumn('country') ? <EditableCell value={c.country || ''} onSave={v => saveField(c, 'country', v)} /> : <ReadOnlyCell value={c.country || ''} />}
           </span>
         </TableCell>
       )}
       {isVisible('geographic_zone') && (
         <TableCell>
-          <EditableCell value={c.geographic_zone || ''} onSave={v => saveField(c, 'geographic_zone', v)} />
+          {canEditColumn('geographic_zone') ? <EditableCell value={c.geographic_zone || ''} onSave={v => saveField(c, 'geographic_zone', v)} /> : <ReadOnlyCell value={c.geographic_zone || ''} />}
         </TableCell>
       )}
       {isVisible('contact_email') && (
         <TableCell>
-          <EditableCell value={c.contact_email || ''} onSave={v => saveField(c, 'contact_email', v)} />
+          {canEditColumn('contact_email') ? <EditableCell value={c.contact_email || ''} onSave={v => saveField(c, 'contact_email', v)} /> : <ReadOnlyCell value={c.contact_email || ''} />}
         </TableCell>
       )}
       {isVisible('contact_phone') && (
         <TableCell>
-          <EditableCell value={c.contact_phone || ''} onSave={v => saveField(c, 'contact_phone', v)} />
+          {canEditColumn('contact_phone') ? <EditableCell value={c.contact_phone || ''} onSave={v => saveField(c, 'contact_phone', v)} /> : <ReadOnlyCell value={c.contact_phone || ''} />}
         </TableCell>
       )}
       {isVisible('pricing_rule') && (
         <TableCell>
-          <EditableSelectCell value={c.pricing_rule || ''} options={salesRules.map(r => r.name)} onSave={v => saveField(c, 'pricing_rule', v)} />
+          {canEditColumn('pricing_rule') ? <EditableSelectCell value={c.pricing_rule || ''} options={salesRules.map(r => r.name)} onSave={v => saveField(c, 'pricing_rule', v)} /> : <ReadOnlyCell value={c.pricing_rule || ''} />}
         </TableCell>
       )}
       {isVisible('payment_terms') && (
         <TableCell>
-          <EditableSelectCell value={c.payment_terms || ''} options={paymentTermLabels} onSave={v => saveField(c, 'payment_terms', v)} />
+          {canEditColumn('payment_terms') ? <EditableSelectCell value={c.payment_terms || ''} options={paymentTermLabels} onSave={v => saveField(c, 'payment_terms', v)} /> : <ReadOnlyCell value={c.payment_terms || ''} />}
         </TableCell>
       )}
       {isVisible('delivery_method') && (
         <TableCell>
-          <EditableSelectCell value={c.delivery_method || ''} options={deliveryMethodLabels} onSave={v => saveField(c, 'delivery_method', v)} />
+          {canEditColumn('delivery_method') ? <EditableSelectCell value={c.delivery_method || ''} options={deliveryMethodLabels} onSave={v => saveField(c, 'delivery_method', v)} /> : <ReadOnlyCell value={c.delivery_method || ''} />}
         </TableCell>
       )}
       {isVisible('delivery_fee_rule') && (
         <TableCell>
-          <EditableSelectCell value={c.delivery_fee_rule || ''} options={deliveryFeeLabels} onSave={v => saveField(c, 'delivery_fee_rule', v)} />
+          {canEditColumn('delivery_fee_rule') ? <EditableSelectCell value={c.delivery_fee_rule || ''} options={deliveryFeeLabels} onSave={v => saveField(c, 'delivery_fee_rule', v)} /> : <ReadOnlyCell value={c.delivery_fee_rule || ''} />}
         </TableCell>
       )}
       {isVisible('moq') && (
         <TableCell>
-          <EditableCell value={c.moq || ''} onSave={v => saveField(c, 'moq', v)} />
+          {canEditColumn('moq') ? <EditableCell value={c.moq || ''} onSave={v => saveField(c, 'moq', v)} /> : <ReadOnlyCell value={c.moq || ''} />}
         </TableCell>
       )}
       {revenueYears.map((year, i) => {
@@ -342,12 +347,16 @@ export function B2BClientTable({
       })}
       {isVisible('category') && (
         <TableCell>
-          <EditableSelectCell
-            value={c.category_id || ''}
-            optionItems={categories.map(cat => ({ value: cat.id, label: cat.name }))}
-            onSave={v => onUpsertClient({ ...c, category_id: v || null })}
-            placeholder="—"
-          />
+          {canEditColumn('category') ? (
+            <EditableSelectCell
+              value={c.category_id || ''}
+              optionItems={categories.map(cat => ({ value: cat.id, label: cat.name }))}
+              onSave={v => onUpsertClient({ id: c.id, company_name: c.company_name, category_id: v || null })}
+              placeholder="—"
+            />
+          ) : (
+            <ReadOnlyCell value={categories.find(cat => cat.id === c.category_id)?.name || ''} />
+          )}
         </TableCell>
       )}
       {isVisible('crm_activity') && (() => {
