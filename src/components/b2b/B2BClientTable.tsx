@@ -44,6 +44,10 @@ interface Props {
   meetings?: CrmMeeting[];
   reminders?: CrmReminder[];
   interactions?: CustomerInteraction[];
+  // Admin & column editability
+  isAdmin?: boolean;
+  isColumnEditableByOthers?: (columnKey: string) => boolean;
+  onToggleColumnPermission?: (columnKey: string, value: boolean) => Promise<void>;
 }
 
 const revenueYears = [2022, 2023, 2024, 2025];
