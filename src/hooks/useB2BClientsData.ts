@@ -11,6 +11,7 @@ export interface B2BClient {
   country: string | null;
   geographic_zone: string | null;
   contact_email: string | null;
+  contact_phone: string | null;
   eer_date: number | null;
   last_purchase_date: number | null;
   client_type: string | null;
