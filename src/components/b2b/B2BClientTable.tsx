@@ -509,7 +509,17 @@ export function B2BClientTable({
             <TableRow>
               {visibleColumns.map(col => (
                 <TableHead key={col.key} className={`text-[10px] min-w-[${col.minWidth}] ${col.key.startsWith('ca_') ? 'text-right bg-accent/20' : ''}`}>
-                  {col.label}
+                  <div className="flex items-center gap-1.5">
+                    {col.canHide && (
+                      <Checkbox
+                        checked={true}
+                        onCheckedChange={() => toggleColumn(col.key)}
+                        className="h-3 w-3 shrink-0"
+                        title={`Masquer "${col.label}"`}
+                      />
+                    )}
+                    <span>{col.label}</span>
+                  </div>
                 </TableHead>
               ))}
             </TableRow>
