@@ -187,6 +187,7 @@ export function B2BClientTable({
       country: newForm.country || null,
       geographic_zone: newForm.geographic_zone || null,
       contact_email: newForm.contact_email || null,
+      contact_phone: newForm.contact_phone || null,
       eer_date: parseInt(newForm.eer_date) || null,
       client_type: newForm.client_type || null,
       pricing_rule: newForm.pricing_rule || null,
