@@ -47,7 +47,7 @@ interface Props {
 
 const revenueYears = [2022, 2023, 2024, 2025];
 
-type ColumnKey = 'is_active' | 'company_name' | 'country' | 'geographic_zone' | 'contact_email' | 'pricing_rule' | 'payment_terms' | 'delivery_method' | 'delivery_fee_rule' | 'moq' | 'ca_2022' | 'ca_2023' | 'ca_2024' | 'ca_2025' | 'category' | 'crm_activity' | 'actions';
+type ColumnKey = 'is_active' | 'company_name' | 'country' | 'geographic_zone' | 'contact_email' | 'contact_phone' | 'pricing_rule' | 'payment_terms' | 'delivery_method' | 'delivery_fee_rule' | 'moq' | 'ca_2022' | 'ca_2023' | 'ca_2024' | 'ca_2025' | 'category' | 'crm_activity' | 'actions';
 
 const ALL_COLUMNS: { key: ColumnKey; label: string; minWidth: string; canHide: boolean }[] = [
   { key: 'is_active', label: 'Actif', minWidth: '50px', canHide: true },
@@ -55,6 +55,7 @@ const ALL_COLUMNS: { key: ColumnKey; label: string; minWidth: string; canHide: b
   { key: 'country', label: 'Pays', minWidth: '80px', canHide: true },
   { key: 'geographic_zone', label: 'Zone Géo', minWidth: '80px', canHide: true },
   { key: 'contact_email', label: 'Mail contact', minWidth: '140px', canHide: true },
+  { key: 'contact_phone', label: 'Tél contact', minWidth: '120px', canHide: true },
   { key: 'pricing_rule', label: 'Pricing', minWidth: '100px', canHide: true },
   { key: 'payment_terms', label: 'Délai paie.', minWidth: '90px', canHide: true },
   { key: 'delivery_method', label: 'Livraison', minWidth: '80px', canHide: true },
