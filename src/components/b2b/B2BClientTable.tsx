@@ -540,7 +540,10 @@ export function B2BClientTable({
               <Input placeholder="Pays" value={newForm.country} onChange={e => setNewForm(f => ({ ...f, country: e.target.value }))} />
               <Input placeholder="Zone géographique" value={newForm.geographic_zone} onChange={e => setNewForm(f => ({ ...f, geographic_zone: e.target.value }))} />
             </div>
-            <Input placeholder="Email contact" value={newForm.contact_email} onChange={e => setNewForm(f => ({ ...f, contact_email: e.target.value }))} />
+            <div className="grid grid-cols-2 gap-3">
+              <Input placeholder="Email contact" value={newForm.contact_email} onChange={e => setNewForm(f => ({ ...f, contact_email: e.target.value }))} />
+              <Input placeholder="Tél contact" value={newForm.contact_phone} onChange={e => setNewForm(f => ({ ...f, contact_phone: e.target.value }))} />
+            </div>
             <div className="grid grid-cols-2 gap-3">
               <Select value={newForm.pricing_rule} onValueChange={v => setNewForm(f => ({ ...f, pricing_rule: v }))}>
                 <SelectTrigger><SelectValue placeholder="Pricing rule" /></SelectTrigger>
