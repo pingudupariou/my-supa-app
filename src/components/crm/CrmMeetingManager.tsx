@@ -354,6 +354,7 @@ export function CrmMeetingManager({ meetings, customerId, onCreate, onUpdate, on
                         </Button>
                       )}
                     </div>
+                  </div>
                 )}
               </div>
             );
