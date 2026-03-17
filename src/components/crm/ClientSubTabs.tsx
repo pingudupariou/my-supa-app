@@ -5,6 +5,8 @@ import { Badge } from '@/components/ui/badge';
 import { Users, UserX } from 'lucide-react';
 import { B2BClientTable } from '@/components/b2b/B2BClientTable';
 import { useCRMData } from '@/hooks/useCRMData';
+import { useColumnPermissions } from '@/hooks/useColumnPermissions';
+import { useAuth } from '@/context/AuthContext';
 
 interface ClientSubTabsProps {
   b2b: ReturnType<typeof import('@/hooks/useB2BClientsData').useB2BClientsData>;
@@ -13,6 +15,8 @@ interface ClientSubTabsProps {
 
 export function ClientSubTabs({ b2b, crm }: ClientSubTabsProps) {
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
+  const { isAdmin } = useAuth();
+  const { isEditableByOthers, togglePermission } = useColumnPermissions();
 
   const activeClients = b2b.clients.filter(c => c.is_active);
   const inactiveClients = b2b.clients.filter(c => !c.is_active);
@@ -46,6 +50,9 @@ export function ClientSubTabs({ b2b, crm }: ClientSubTabsProps) {
     meetings: crm.meetings,
     reminders: crm.reminders,
     interactions: crm.interactions,
+    isAdmin,
+    isColumnEditableByOthers: isEditableByOthers,
+    onToggleColumnPermission: togglePermission,
   };
 
   return (
