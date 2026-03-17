@@ -34,6 +34,7 @@ export interface CustomerInteraction {
   subject: string;
   content: string | null;
   interaction_date: string;
+  business_entity_id: string | null;
   created_at: string;
 }
 
