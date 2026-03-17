@@ -34,6 +34,7 @@ export interface CustomerInteraction {
   subject: string;
   content: string | null;
   interaction_date: string;
+  business_entity_id: string | null;
   created_at: string;
 }
 
@@ -90,6 +91,7 @@ export interface CrmMeeting {
   status: 'planned' | 'completed' | 'cancelled';
   responsible: string | null;
   deleted_at: string | null;
+  business_entity_id: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -106,6 +108,7 @@ export interface CrmReminder {
   is_completed: boolean;
   assigned_to: string | null;
   completed_at: string | null;
+  business_entity_id: string | null;
   created_at: string;
   updated_at: string;
 }

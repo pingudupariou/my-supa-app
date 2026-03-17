@@ -8,7 +8,7 @@ import { CrmMeetingManager } from './CrmMeetingManager';
 import { CrmReminderManager } from './CrmReminderManager';
 import { B2BClient } from '@/hooks/useB2BClientsData';
 import { CustomerInteraction, CustomerOpportunity, CrmMeeting, CrmReminder, PIPELINE_STAGES } from '@/hooks/useCRMData';
-import { Mail, Phone, Globe, FileText, Calendar, Bell, MessageSquare } from 'lucide-react';
+import { Mail, Phone, Globe, FileText, Calendar, Bell, MessageSquare, Building2 } from 'lucide-react';
 
 interface CustomerDetailProps {
   client: B2BClient;
@@ -28,6 +28,7 @@ interface CustomerDetailProps {
   onUncompleteReminder?: (id: string) => Promise<boolean>;
   onDeleteReminder: (id: string) => Promise<boolean>;
   isAdmin?: boolean;
+  selectedEntityName?: string;
 }
 
 export function CustomerDetail({
@@ -35,7 +36,7 @@ export function CustomerDetail({
   onCreateInteraction, onCreateMeeting, onUpdateMeeting, onDeleteMeeting,
   onRestoreMeeting, onPermanentDeleteMeeting, getTrashedMeetings,
   onCreateReminder, onCompleteReminder, onUncompleteReminder, onDeleteReminder,
-  isAdmin,
+  isAdmin, selectedEntityName,
 }: CustomerDetailProps) {
   const currentStage = opportunities.length > 0
     ? PIPELINE_STAGES.find(s => s.key === opportunities[0].stage)
@@ -49,6 +50,11 @@ export function CustomerDetail({
         <CardTitle className="flex items-center justify-between">
           <span>{client.company_name}</span>
           <div className="flex items-center gap-2">
+            {selectedEntityName && (
+              <Badge variant="outline" className="text-[10px] gap-1">
+                <Building2 className="h-3 w-3" />{selectedEntityName}
+              </Badge>
+            )}
             {pendingReminders > 0 && (
               <Badge variant="destructive" className="text-[10px]">
                 <Bell className="h-3 w-3 mr-0.5" />{pendingReminders}
