@@ -340,13 +340,19 @@ export function CrmMeetingManager({ meetings, customerId, onCreate, onUpdate, on
                       />
                     </div>
 
-                    {hasChanges && (
-                      <div className="flex justify-end">
+                    <div className="flex justify-end items-center gap-2">
+                      {savingId === m.id && (
+                        <span className="text-[10px] text-muted-foreground animate-pulse">Enregistrement auto…</span>
+                      )}
+                      {!hasChanges && savingId !== m.id && draft && (
+                        <span className="text-[10px] text-muted-foreground">✓ Sauvegardé</span>
+                      )}
+                      {hasChanges && (
                         <Button size="sm" onClick={() => saveDraft(m.id)} disabled={savingId === m.id} className="h-7 text-xs">
                           <Save className="h-3 w-3 mr-1" />
                           {savingId === m.id ? 'Enregistrement…' : 'Enregistrer'}
                         </Button>
-                      </div>
+                      )}
                     )}
                   </div>
                 )}
