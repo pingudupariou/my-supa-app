@@ -50,6 +50,11 @@ export function CustomerDetail({
         <CardTitle className="flex items-center justify-between">
           <span>{client.company_name}</span>
           <div className="flex items-center gap-2">
+            {selectedEntityName && (
+              <Badge variant="outline" className="text-[10px] gap-1">
+                <Building2 className="h-3 w-3" />{selectedEntityName}
+              </Badge>
+            )}
             {pendingReminders > 0 && (
               <Badge variant="destructive" className="text-[10px]">
                 <Bell className="h-3 w-3 mr-0.5" />{pendingReminders}
