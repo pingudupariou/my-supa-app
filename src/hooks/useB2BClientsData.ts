@@ -120,17 +120,19 @@ export function useB2BClientsData() {
 
   const upsertClient = useCallback(async (data: Partial<B2BClient> & { company_name: string }) => {
     if (!user) return null;
-    const payload = { ...data, user_id: user.id };
     if (data.id) {
-      const { data: res, error } = await supabase.from('b2b_clients').update(payload).eq('id', data.id).select().single();
+      // Only send changed fields, not the entire object — avoid sending read-only/computed columns
+      const { id, created_at, updated_at, user_id, ...updateFields } = data as any;
+      const { data: res, error } = await supabase.from('b2b_clients').update(updateFields).eq('id', data.id).select();
       if (error) { toast({ title: 'Erreur', description: error.message, variant: 'destructive' }); return null; }
       await fetchAll();
-      return res as B2BClient;
+      return (res && res[0]) as B2BClient | null;
     } else {
-      const { data: res, error } = await supabase.from('b2b_clients').insert(payload).select().single();
+      const payload = { ...data, user_id: user.id };
+      const { data: res, error } = await supabase.from('b2b_clients').insert(payload).select();
       if (error) { toast({ title: 'Erreur', description: error.message, variant: 'destructive' }); return null; }
       await fetchAll();
-      return res as B2BClient;
+      return (res && res[0]) as B2BClient | null;
     }
   }, [user, toast, fetchAll]);
 

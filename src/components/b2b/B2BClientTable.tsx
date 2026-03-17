@@ -178,7 +178,7 @@ export function B2BClientTable({
   const isVisible = (key: ColumnKey) => !hiddenColumns.has(key);
 
   const saveField = async (client: B2BClient, field: keyof B2BClient, value: string) => {
-    await onUpsertClient({ ...client, [field]: value || null });
+    await onUpsertClient({ id: client.id, company_name: client.company_name, [field]: value || null });
   };
 
   const handleCreate = async () => {
