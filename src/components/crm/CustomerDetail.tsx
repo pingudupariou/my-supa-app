@@ -28,6 +28,7 @@ interface CustomerDetailProps {
   onUncompleteReminder?: (id: string) => Promise<boolean>;
   onDeleteReminder: (id: string) => Promise<boolean>;
   isAdmin?: boolean;
+  selectedEntityName?: string;
 }
 
 export function CustomerDetail({
