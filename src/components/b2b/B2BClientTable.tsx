@@ -370,6 +370,24 @@ export function B2BClientTable({
           </TableCell>
         );
       })()}
+      {isVisible('last_note') && (() => {
+        const clientMeetingsWithNotes = meetings
+          .filter(m => m.customer_id === c.id && m.notes && m.notes.trim().length > 0)
+          .sort((a, b) => new Date(b.meeting_date).getTime() - new Date(a.meeting_date).getTime());
+        const lastNote = clientMeetingsWithNotes[0]?.notes || null;
+        return (
+          <TableCell>
+            {lastNote ? (
+              <div className="flex items-start gap-1 max-w-[200px]">
+                <FileText className="h-3 w-3 mt-0.5 shrink-0 text-muted-foreground" />
+                <span className="text-[11px] text-muted-foreground line-clamp-2 leading-tight">{lastNote}</span>
+              </div>
+            ) : (
+              <span className="text-[10px] text-muted-foreground">—</span>
+            )}
+          </TableCell>
+        );
+      })()}
       {isVisible('actions') && (
         <TableCell>
           <Button size="sm" variant="ghost" onClick={() => setDeleteConfirmId(c.id)}>
