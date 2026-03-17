@@ -108,6 +108,7 @@ export interface CrmReminder {
   is_completed: boolean;
   assigned_to: string | null;
   completed_at: string | null;
+  business_entity_id: string | null;
   created_at: string;
   updated_at: string;
 }
