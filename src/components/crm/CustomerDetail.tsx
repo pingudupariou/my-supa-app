@@ -70,6 +70,11 @@ export function CustomerDetail({
             <span className="ml-1">{client.contact_email || '-'}</span>
           </div>
           <div className="flex items-center gap-1.5">
+            <Phone className="h-3.5 w-3.5 text-muted-foreground" />
+            <span className="text-muted-foreground">Tél:</span>
+            <span className="ml-1">{client.contact_phone || '-'}</span>
+          </div>
+          <div className="flex items-center gap-1.5">
             <Globe className="h-3.5 w-3.5 text-muted-foreground" />
             <span className="text-muted-foreground">Pays:</span>
             <span className="ml-1">{client.country || '-'}</span>
