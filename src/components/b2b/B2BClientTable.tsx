@@ -150,6 +150,7 @@ export function B2BClientTable({
   onAddDeliveryMethod, onDeleteDeliveryMethod,
   onAddCategory, onDeleteCategory, onUpdateCategory,
   meetings = [], reminders = [], interactions = [],
+  isAdmin = false, isColumnEditableByOthers, onToggleColumnPermission,
 }: Props) {
   const [showImport, setShowImport] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
