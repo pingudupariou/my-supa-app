@@ -199,7 +199,7 @@ export function B2BClientTable({
       is_active: true,
     });
     setShowAdd(false);
-    setNewForm({ company_name: '', country: '', geographic_zone: '', contact_email: '', eer_date: '', client_type: '', pricing_rule: '', payment_terms: '', delivery_method: '', delivery_fee_rule: '', moq: '', category_id: '' });
+    setNewForm({ company_name: '', country: '', geographic_zone: '', contact_email: '', contact_phone: '', eer_date: '', client_type: '', pricing_rule: '', payment_terms: '', delivery_method: '', delivery_fee_rule: '', moq: '', category_id: '' });
   };
 
   const toggleCategory = (catId: string) => {
