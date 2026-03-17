@@ -152,6 +152,7 @@ export function CRMPage() {
                 selectedId={selectedClientId}
                 onSelect={setSelectedClientId}
                 onRefresh={b2b.refreshData}
+                meetings={crm.meetings}
               />
             </div>
             <div className="lg:col-span-2">
