@@ -8,7 +8,7 @@ import { CrmMeetingManager } from './CrmMeetingManager';
 import { CrmReminderManager } from './CrmReminderManager';
 import { B2BClient } from '@/hooks/useB2BClientsData';
 import { CustomerInteraction, CustomerOpportunity, CrmMeeting, CrmReminder, PIPELINE_STAGES } from '@/hooks/useCRMData';
-import { Mail, Phone, Globe, FileText, Calendar, Bell, MessageSquare } from 'lucide-react';
+import { Mail, Phone, Globe, FileText, Calendar, Bell, MessageSquare, Building2 } from 'lucide-react';
 
 interface CustomerDetailProps {
   client: B2BClient;
