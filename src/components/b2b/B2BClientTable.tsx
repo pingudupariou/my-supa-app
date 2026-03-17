@@ -47,7 +47,7 @@ interface Props {
 
 const revenueYears = [2022, 2023, 2024, 2025];
 
-type ColumnKey = 'is_active' | 'company_name' | 'country' | 'geographic_zone' | 'contact_email' | 'pricing_rule' | 'payment_terms' | 'delivery_method' | 'delivery_fee_rule' | 'moq' | 'ca_2022' | 'ca_2023' | 'ca_2024' | 'ca_2025' | 'category' | 'crm_activity' | 'actions';
+type ColumnKey = 'is_active' | 'company_name' | 'country' | 'geographic_zone' | 'contact_email' | 'contact_phone' | 'pricing_rule' | 'payment_terms' | 'delivery_method' | 'delivery_fee_rule' | 'moq' | 'ca_2022' | 'ca_2023' | 'ca_2024' | 'ca_2025' | 'category' | 'crm_activity' | 'actions';
 
 const ALL_COLUMNS: { key: ColumnKey; label: string; minWidth: string; canHide: boolean }[] = [
   { key: 'is_active', label: 'Actif', minWidth: '50px', canHide: true },
@@ -55,6 +55,7 @@ const ALL_COLUMNS: { key: ColumnKey; label: string; minWidth: string; canHide: b
   { key: 'country', label: 'Pays', minWidth: '80px', canHide: true },
   { key: 'geographic_zone', label: 'Zone Géo', minWidth: '80px', canHide: true },
   { key: 'contact_email', label: 'Mail contact', minWidth: '140px', canHide: true },
+  { key: 'contact_phone', label: 'Tél contact', minWidth: '120px', canHide: true },
   { key: 'pricing_rule', label: 'Pricing', minWidth: '100px', canHide: true },
   { key: 'payment_terms', label: 'Délai paie.', minWidth: '90px', canHide: true },
   { key: 'delivery_method', label: 'Livraison', minWidth: '80px', canHide: true },
@@ -156,7 +157,7 @@ export function B2BClientTable({
   const { salesRules } = usePricingConfig();
 
   const [newForm, setNewForm] = useState({
-    company_name: '', country: '', geographic_zone: '', contact_email: '',
+    company_name: '', country: '', geographic_zone: '', contact_email: '', contact_phone: '',
     eer_date: '', client_type: '', pricing_rule: '', payment_terms: '',
     delivery_method: '', delivery_fee_rule: '', moq: '', category_id: '',
   });
@@ -186,6 +187,7 @@ export function B2BClientTable({
       country: newForm.country || null,
       geographic_zone: newForm.geographic_zone || null,
       contact_email: newForm.contact_email || null,
+      contact_phone: newForm.contact_phone || null,
       eer_date: parseInt(newForm.eer_date) || null,
       client_type: newForm.client_type || null,
       pricing_rule: newForm.pricing_rule || null,
@@ -197,7 +199,7 @@ export function B2BClientTable({
       is_active: true,
     });
     setShowAdd(false);
-    setNewForm({ company_name: '', country: '', geographic_zone: '', contact_email: '', eer_date: '', client_type: '', pricing_rule: '', payment_terms: '', delivery_method: '', delivery_fee_rule: '', moq: '', category_id: '' });
+    setNewForm({ company_name: '', country: '', geographic_zone: '', contact_email: '', contact_phone: '', eer_date: '', client_type: '', pricing_rule: '', payment_terms: '', delivery_method: '', delivery_fee_rule: '', moq: '', category_id: '' });
   };
 
   const toggleCategory = (catId: string) => {
@@ -274,6 +276,11 @@ export function B2BClientTable({
       {isVisible('contact_email') && (
         <TableCell>
           <EditableCell value={c.contact_email || ''} onSave={v => saveField(c, 'contact_email', v)} />
+        </TableCell>
+      )}
+      {isVisible('contact_phone') && (
+        <TableCell>
+          <EditableCell value={c.contact_phone || ''} onSave={v => saveField(c, 'contact_phone', v)} />
         </TableCell>
       )}
       {isVisible('pricing_rule') && (
@@ -533,7 +540,10 @@ export function B2BClientTable({
               <Input placeholder="Pays" value={newForm.country} onChange={e => setNewForm(f => ({ ...f, country: e.target.value }))} />
               <Input placeholder="Zone géographique" value={newForm.geographic_zone} onChange={e => setNewForm(f => ({ ...f, geographic_zone: e.target.value }))} />
             </div>
-            <Input placeholder="Email contact" value={newForm.contact_email} onChange={e => setNewForm(f => ({ ...f, contact_email: e.target.value }))} />
+            <div className="grid grid-cols-2 gap-3">
+              <Input placeholder="Email contact" value={newForm.contact_email} onChange={e => setNewForm(f => ({ ...f, contact_email: e.target.value }))} />
+              <Input placeholder="Tél contact" value={newForm.contact_phone} onChange={e => setNewForm(f => ({ ...f, contact_phone: e.target.value }))} />
+            </div>
             <div className="grid grid-cols-2 gap-3">
               <Select value={newForm.pricing_rule} onValueChange={v => setNewForm(f => ({ ...f, pricing_rule: v }))}>
                 <SelectTrigger><SelectValue placeholder="Pricing rule" /></SelectTrigger>

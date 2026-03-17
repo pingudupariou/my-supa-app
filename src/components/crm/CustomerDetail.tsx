@@ -8,7 +8,7 @@ import { CrmMeetingManager } from './CrmMeetingManager';
 import { CrmReminderManager } from './CrmReminderManager';
 import { B2BClient } from '@/hooks/useB2BClientsData';
 import { CustomerInteraction, CustomerOpportunity, CrmMeeting, CrmReminder, PIPELINE_STAGES } from '@/hooks/useCRMData';
-import { Mail, Globe, FileText, Calendar, Bell, MessageSquare } from 'lucide-react';
+import { Mail, Phone, Globe, FileText, Calendar, Bell, MessageSquare } from 'lucide-react';
 
 interface CustomerDetailProps {
   client: B2BClient;
@@ -68,6 +68,11 @@ export function CustomerDetail({
             <Mail className="h-3.5 w-3.5 text-muted-foreground" />
             <span className="text-muted-foreground">Email:</span>
             <span className="ml-1">{client.contact_email || '-'}</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <Phone className="h-3.5 w-3.5 text-muted-foreground" />
+            <span className="text-muted-foreground">Tél:</span>
+            <span className="ml-1">{client.contact_phone || '-'}</span>
           </div>
           <div className="flex items-center gap-1.5">
             <Globe className="h-3.5 w-3.5 text-muted-foreground" />

@@ -1,0 +1,1 @@
+ALTER TABLE public.b2b_clients ADD COLUMN contact_phone text DEFAULT NULL;
