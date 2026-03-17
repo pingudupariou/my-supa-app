@@ -353,8 +353,7 @@ export function CrmMeetingManager({ meetings, customerId, onCreate, onUpdate, on
                           {savingId === m.id ? 'Enregistrement…' : 'Enregistrer'}
                         </Button>
                       )}
-                    )}
-                  </div>
+                    </div>
                 )}
               </div>
             );
