@@ -157,7 +157,7 @@ export function B2BClientTable({
   const { salesRules } = usePricingConfig();
 
   const [newForm, setNewForm] = useState({
-    company_name: '', country: '', geographic_zone: '', contact_email: '',
+    company_name: '', country: '', geographic_zone: '', contact_email: '', contact_phone: '',
     eer_date: '', client_type: '', pricing_rule: '', payment_terms: '',
     delivery_method: '', delivery_fee_rule: '', moq: '', category_id: '',
   });
