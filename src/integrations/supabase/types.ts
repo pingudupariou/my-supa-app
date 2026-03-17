@@ -904,9 +904,40 @@ export type Database = {
         }
         Relationships: []
       }
+      crm_business_entities: {
+        Row: {
+          color: string | null
+          created_at: string
+          description: string | null
+          id: string
+          is_default: boolean
+          name: string
+          user_id: string
+        }
+        Insert: {
+          color?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_default?: boolean
+          name: string
+          user_id: string
+        }
+        Update: {
+          color?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_default?: boolean
+          name?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       crm_meetings: {
         Row: {
           action_items: string | null
+          business_entity_id: string | null
           created_at: string
           customer_id: string
           deleted_at: string | null
@@ -924,6 +955,7 @@ export type Database = {
         }
         Insert: {
           action_items?: string | null
+          business_entity_id?: string | null
           created_at?: string
           customer_id: string
           deleted_at?: string | null
@@ -941,6 +973,7 @@ export type Database = {
         }
         Update: {
           action_items?: string | null
+          business_entity_id?: string | null
           created_at?: string
           customer_id?: string
           deleted_at?: string | null
@@ -956,11 +989,20 @@ export type Database = {
           updated_at?: string
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "crm_meetings_business_entity_id_fkey"
+            columns: ["business_entity_id"]
+            isOneToOne: false
+            referencedRelation: "crm_business_entities"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       crm_reminders: {
         Row: {
           assigned_to: string | null
+          business_entity_id: string | null
           completed_at: string | null
           created_at: string
           customer_id: string
@@ -976,6 +1018,7 @@ export type Database = {
         }
         Insert: {
           assigned_to?: string | null
+          business_entity_id?: string | null
           completed_at?: string | null
           created_at?: string
           customer_id: string
@@ -991,6 +1034,7 @@ export type Database = {
         }
         Update: {
           assigned_to?: string | null
+          business_entity_id?: string | null
           completed_at?: string | null
           created_at?: string
           customer_id?: string
@@ -1004,10 +1048,19 @@ export type Database = {
           updated_at?: string
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "crm_reminders_business_entity_id_fkey"
+            columns: ["business_entity_id"]
+            isOneToOne: false
+            referencedRelation: "crm_business_entities"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       customer_interactions: {
         Row: {
+          business_entity_id: string | null
           content: string | null
           created_at: string
           customer_id: string
@@ -1018,6 +1071,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          business_entity_id?: string | null
           content?: string | null
           created_at?: string
           customer_id: string
@@ -1028,6 +1082,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          business_entity_id?: string | null
           content?: string | null
           created_at?: string
           customer_id?: string
@@ -1037,7 +1092,15 @@ export type Database = {
           subject?: string
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "customer_interactions_business_entity_id_fkey"
+            columns: ["business_entity_id"]
+            isOneToOne: false
+            referencedRelation: "crm_business_entities"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       customer_opportunities: {
         Row: {
