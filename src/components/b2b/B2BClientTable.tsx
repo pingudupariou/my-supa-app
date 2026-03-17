@@ -9,7 +9,7 @@ import { Switch } from '@/components/ui/switch';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Plus, Trash2, Upload, Save, X, Settings, ChevronDown, ChevronRight, FolderPlus, Download, Columns3, Eye, Calendar, Bell, MessageSquare, AlertTriangle } from 'lucide-react';
+import { Plus, Trash2, Upload, Save, X, Settings, ChevronDown, ChevronRight, FolderPlus, Download, Columns3, Eye, Calendar, Bell, MessageSquare, AlertTriangle, FileText } from 'lucide-react';
 import { CrmMeeting, CrmReminder, CustomerInteraction } from '@/hooks/useCRMData';
 import { B2BClient, B2BClientProjection, B2BPaymentTermOption, B2BDeliveryMethod, B2BDeliveryFeeTier, B2BClientCategory } from '@/hooks/useB2BClientsData';
 import { getCountryFlag } from '@/lib/countryFlags';
@@ -47,7 +47,7 @@ interface Props {
 
 const revenueYears = [2022, 2023, 2024, 2025];
 
-type ColumnKey = 'is_active' | 'company_name' | 'country' | 'geographic_zone' | 'contact_email' | 'contact_phone' | 'pricing_rule' | 'payment_terms' | 'delivery_method' | 'delivery_fee_rule' | 'moq' | 'ca_2022' | 'ca_2023' | 'ca_2024' | 'ca_2025' | 'category' | 'crm_activity' | 'actions';
+type ColumnKey = 'is_active' | 'company_name' | 'country' | 'geographic_zone' | 'contact_email' | 'contact_phone' | 'pricing_rule' | 'payment_terms' | 'delivery_method' | 'delivery_fee_rule' | 'moq' | 'ca_2022' | 'ca_2023' | 'ca_2024' | 'ca_2025' | 'category' | 'crm_activity' | 'last_note' | 'actions';
 
 const ALL_COLUMNS: { key: ColumnKey; label: string; minWidth: string; canHide: boolean }[] = [
   { key: 'is_active', label: 'Actif', minWidth: '50px', canHide: true },
@@ -67,6 +67,7 @@ const ALL_COLUMNS: { key: ColumnKey; label: string; minWidth: string; canHide: b
   { key: 'ca_2025', label: 'CA 2025', minWidth: '80px', canHide: true },
   { key: 'category', label: 'Catégorie', minWidth: '90px', canHide: true },
   { key: 'crm_activity', label: 'Suivi CRM', minWidth: '120px', canHide: true },
+  { key: 'last_note', label: 'Dernière note RDV', minWidth: '180px', canHide: true },
   { key: 'actions', label: 'Actions', minWidth: '70px', canHide: false },
 ];
 
@@ -366,6 +367,24 @@ export function B2BClientTable({
                 <span className="text-[10px] text-muted-foreground">—</span>
               )}
             </div>
+          </TableCell>
+        );
+      })()}
+      {isVisible('last_note') && (() => {
+        const clientMeetingsWithNotes = meetings
+          .filter(m => m.customer_id === c.id && m.notes && m.notes.trim().length > 0)
+          .sort((a, b) => new Date(b.meeting_date).getTime() - new Date(a.meeting_date).getTime());
+        const lastNote = clientMeetingsWithNotes[0]?.notes || null;
+        return (
+          <TableCell>
+            {lastNote ? (
+              <div className="flex items-start gap-1 max-w-[200px]">
+                <FileText className="h-3 w-3 mt-0.5 shrink-0 text-muted-foreground" />
+                <span className="text-[11px] text-muted-foreground line-clamp-2 leading-tight">{lastNote}</span>
+              </div>
+            ) : (
+              <span className="text-[10px] text-muted-foreground">—</span>
+            )}
           </TableCell>
         );
       })()}
