@@ -3,13 +3,16 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ClientSubTabs } from '@/components/crm/ClientSubTabs';
 import { Card, CardContent } from '@/components/ui/card';
 import { KPICard } from '@/components/ui/KPICard';
-import { Users, Kanban, Bell, Calendar, Trash2, ClipboardList, BarChart3 } from 'lucide-react';
+import { Users, Kanban, Bell, Calendar, Trash2, ClipboardList, BarChart3, Building2 } from 'lucide-react';
 import { CustomerList } from '@/components/crm/CustomerList';
 import { CustomerDetail } from '@/components/crm/CustomerDetail';
 import { PipelineKanban } from '@/components/crm/PipelineKanban';
 import { ReminderBanner } from '@/components/crm/ReminderBanner';
 import { CrmReminderManager } from '@/components/crm/CrmReminderManager';
 import { useB2BClientsData } from '@/hooks/useB2BClientsData';
+import { BusinessEntitySelector } from '@/components/crm/BusinessEntitySelector';
+import { BusinessEntityManager } from '@/components/crm/BusinessEntityManager';
+import { useBusinessEntities } from '@/hooks/useBusinessEntities';
 
 import { B2BTrashBin } from '@/components/b2b/B2BTrashBin';
 import { CrmAnalyticsDashboard } from '@/components/crm/CrmAnalyticsDashboard';
@@ -26,6 +29,7 @@ export function CRMPage() {
   const { user, isAdmin } = useAuth();
   const tasksData = useTasksData();
   const { members } = useTeamMembers();
+  const bizEntities = useBusinessEntities();
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
 
   const totalClients = b2b.clients.length;
@@ -47,6 +51,44 @@ export function CRMPage() {
 
   const customersForSelect = b2b.clients.map(c => ({ id: c.id, company_name: c.company_name }));
 
+  // Filter by selected entity
+  const entityId = bizEntities.selectedEntityId;
+  const filterByEntity = entityId && entityId !== 'all';
+
+  const filteredMeetings = filterByEntity
+    ? crm.meetings.filter(m => m.business_entity_id === entityId)
+    : crm.meetings;
+
+  const filteredInteractions = filterByEntity
+    ? crm.interactions.filter(i => i.business_entity_id === entityId)
+    : crm.interactions;
+
+  const filteredReminders = filterByEntity
+    ? crm.reminders.filter(r => r.business_entity_id === entityId)
+    : crm.reminders;
+
+  // Wrapped create functions that inject business_entity_id
+  const createMeetingWithEntity = async (meeting: any) => {
+    return crm.createMeeting({
+      ...meeting,
+      business_entity_id: filterByEntity ? entityId : null,
+    });
+  };
+
+  const createInteractionWithEntity = async (interaction: any) => {
+    return crm.createInteraction({
+      ...interaction,
+      business_entity_id: filterByEntity ? entityId : null,
+    });
+  };
+
+  const createReminderWithEntity = async (reminder: any) => {
+    return crm.createReminder({
+      ...reminder,
+      business_entity_id: filterByEntity ? entityId : null,
+    });
+  };
+
   if (b2b.isLoading && crm.isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -57,15 +99,25 @@ export function CRMPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">CRM — Clients</h1>
-        <p className="text-muted-foreground">
-          Gestion des clients, pipeline commercial, suivi des RDV et rappels
-        </p>
+      <div className="flex items-start justify-between flex-wrap gap-3">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">CRM — Clients</h1>
+          <p className="text-muted-foreground">
+            Gestion des clients, pipeline commercial, suivi des RDV et rappels
+          </p>
+        </div>
+        {/* Entity selector */}
+        {bizEntities.entities.length > 0 && (
+          <BusinessEntitySelector
+            entities={bizEntities.entities}
+            selectedId={bizEntities.selectedEntityId}
+            onSelect={bizEntities.setSelectedEntityId}
+          />
+        )}
       </div>
 
       {/* Banners */}
-      <ReminderBanner reminders={crm.reminders} customers={customersForSelect} />
+      <ReminderBanner reminders={filteredReminders} customers={customersForSelect} />
       <TaskBanner tasks={tasksData.tasks} currentUserId={user?.id} />
 
       <div className="grid gap-4 md:grid-cols-5">
@@ -116,6 +168,12 @@ export function CRMPage() {
             <BarChart3 className="h-4 w-4 mr-2" />
             Analyse
           </TabsTrigger>
+          {isAdmin && (
+            <TabsTrigger value="entities">
+              <Building2 className="h-4 w-4 mr-2" />
+              Entités
+            </TabsTrigger>
+          )}
           {b2b.trashedClients.length > 0 && (
             <TabsTrigger value="corbeille">
               <Trash2 className="h-4 w-4 mr-2" />
@@ -152,29 +210,30 @@ export function CRMPage() {
                 selectedId={selectedClientId}
                 onSelect={setSelectedClientId}
                 onRefresh={b2b.refreshData}
-                meetings={crm.meetings}
+                meetings={filteredMeetings}
               />
             </div>
             <div className="lg:col-span-2">
               {selectedClient ? (
                 <CustomerDetail
                   client={selectedClient}
-                  interactions={crm.getCustomerInteractions(selectedClient.id)}
+                  interactions={filteredInteractions.filter(i => i.customer_id === selectedClient.id)}
                   opportunities={crm.getCustomerOpportunities(selectedClient.id)}
-                  meetings={crm.getCustomerMeetings(selectedClient.id)}
-                  reminders={crm.getCustomerReminders(selectedClient.id)}
-                  onCreateInteraction={crm.createInteraction}
-                  onCreateMeeting={crm.createMeeting}
+                  meetings={filteredMeetings.filter(m => m.customer_id === selectedClient.id)}
+                  reminders={filteredReminders.filter(r => r.customer_id === selectedClient.id)}
+                  onCreateInteraction={createInteractionWithEntity}
+                  onCreateMeeting={createMeetingWithEntity}
                   onUpdateMeeting={crm.updateMeeting}
                   onDeleteMeeting={crm.deleteMeeting}
                   onRestoreMeeting={crm.restoreMeeting}
                   onPermanentDeleteMeeting={crm.permanentDeleteMeeting}
                   getTrashedMeetings={crm.getTrashedMeetings}
-                  onCreateReminder={crm.createReminder}
+                  onCreateReminder={createReminderWithEntity}
                   onCompleteReminder={crm.completeReminder}
                   onUncompleteReminder={crm.uncompleteReminder}
                   onDeleteReminder={crm.deleteReminder}
                   isAdmin={isAdmin}
+                  selectedEntityName={bizEntities.selectedEntity?.name}
                 />
               ) : (
                 <Card className="h-full min-h-[400px] flex items-center justify-center">
@@ -193,9 +252,9 @@ export function CRMPage() {
           <Card>
             <CardContent className="pt-6">
               <CrmReminderManager
-                reminders={crm.reminders}
+                reminders={filteredReminders}
                 customers={customersForSelect}
-                onCreate={crm.createReminder}
+                onCreate={createReminderWithEntity}
                 onComplete={crm.completeReminder}
                 onUncomplete={crm.uncompleteReminder}
                 onDelete={crm.deleteReminder}
@@ -230,9 +289,25 @@ export function CRMPage() {
             clients={b2b.clients}
             projections={b2b.projections}
             categories={b2b.categories}
-            interactions={crm.interactions}
-            meetings={crm.meetings}
+            interactions={filteredInteractions}
+            meetings={filteredMeetings}
           />
+        </TabsContent>
+
+        {/* Business Entities management (admin only) */}
+        <TabsContent value="entities" className="space-y-4">
+          <Card>
+            <CardContent className="pt-6">
+              <BusinessEntityManager
+                entities={bizEntities.entities}
+                onCreate={bizEntities.createEntity}
+                onUpdate={bizEntities.updateEntity}
+                onDelete={bizEntities.deleteEntity}
+                onSetDefault={bizEntities.setDefault}
+                isAdmin={isAdmin}
+              />
+            </CardContent>
+          </Card>
         </TabsContent>
 
         <TabsContent value="corbeille" className="space-y-4">
