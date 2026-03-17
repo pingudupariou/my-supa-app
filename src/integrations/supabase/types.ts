@@ -174,6 +174,30 @@ export type Database = {
           },
         ]
       }
+      b2b_column_permissions: {
+        Row: {
+          column_key: string
+          id: string
+          is_editable_by_others: boolean
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          column_key: string
+          id?: string
+          is_editable_by_others?: boolean
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          column_key?: string
+          id?: string
+          is_editable_by_others?: boolean
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
       b2b_delivery_fee_tiers: {
         Row: {
           created_at: string

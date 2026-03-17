@@ -9,7 +9,8 @@ import { Switch } from '@/components/ui/switch';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Plus, Trash2, Upload, Save, X, Settings, ChevronDown, ChevronRight, FolderPlus, Download, Columns3, Eye, Calendar, Bell, MessageSquare, AlertTriangle, FileText } from 'lucide-react';
+import { Plus, Trash2, Upload, Save, X, Settings, ChevronDown, ChevronRight, FolderPlus, Download, Columns3, Eye, Calendar, Bell, MessageSquare, AlertTriangle, FileText, Lock, LockOpen } from 'lucide-react';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { CrmMeeting, CrmReminder, CustomerInteraction } from '@/hooks/useCRMData';
 import { B2BClient, B2BClientProjection, B2BPaymentTermOption, B2BDeliveryMethod, B2BDeliveryFeeTier, B2BClientCategory } from '@/hooks/useB2BClientsData';
 import { getCountryFlag } from '@/lib/countryFlags';
@@ -43,6 +44,10 @@ interface Props {
   meetings?: CrmMeeting[];
   reminders?: CrmReminder[];
   interactions?: CustomerInteraction[];
+  // Admin & column editability
+  isAdmin?: boolean;
+  isColumnEditableByOthers?: (columnKey: string) => boolean;
+  onToggleColumnPermission?: (columnKey: string, value: boolean) => Promise<void>;
 }
 
 const revenueYears = [2022, 2023, 2024, 2025];
@@ -145,6 +150,7 @@ export function B2BClientTable({
   onAddDeliveryMethod, onDeleteDeliveryMethod,
   onAddCategory, onDeleteCategory, onUpdateCategory,
   meetings = [], reminders = [], interactions = [],
+  isAdmin = false, isColumnEditableByOthers, onToggleColumnPermission,
 }: Props) {
   const [showImport, setShowImport] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
@@ -180,6 +186,16 @@ export function B2BClientTable({
   const saveField = async (client: B2BClient, field: keyof B2BClient, value: string) => {
     await onUpsertClient({ id: client.id, company_name: client.company_name, [field]: value || null });
   };
+
+  // Determine if the current user can edit a specific column
+  const canEditColumn = (colKey: string): boolean => {
+    if (isAdmin) return true;
+    if (!isColumnEditableByOthers) return true; // no permission system = editable
+    return isColumnEditableByOthers(colKey);
+  };
+
+  // Editable column keys that can be permission-controlled
+  const EDITABLE_COLUMN_KEYS = ['company_name', 'country', 'geographic_zone', 'contact_email', 'contact_phone', 'pricing_rule', 'payment_terms', 'delivery_method', 'delivery_fee_rule', 'moq', 'is_active', 'category', 'notes'];
 
   const handleCreate = async () => {
     if (!newForm.company_name.trim()) return;
@@ -249,64 +265,69 @@ export function B2BClientTable({
   const uncategorized = clients.filter(c => !c.category_id);
   const grouped = categories.map(cat => ({ category: cat, clients: clients.filter(c => c.category_id === cat.id) }));
 
+  // Read-only cell for locked columns
+  const ReadOnlyCell = ({ value, className = '' }: { value: string; className?: string }) => (
+    <span className={`px-1 py-0.5 inline-block min-w-[2rem] text-muted-foreground ${className}`}>{value || '—'}</span>
+  );
+
   const renderClientRow = (c: B2BClient) => (
     <TableRow key={c.id} className="text-xs">
       {isVisible('is_active') && (
         <TableCell>
-          <Switch checked={c.is_active} onCheckedChange={v => onUpsertClient({ ...c, is_active: v })} />
+          <Switch checked={c.is_active} onCheckedChange={v => onUpsertClient({ id: c.id, company_name: c.company_name, is_active: v })} disabled={!canEditColumn('is_active')} />
         </TableCell>
       )}
       {isVisible('company_name') && (
         <TableCell className="font-medium">
-          <EditableCell value={c.company_name} onSave={v => saveField(c, 'company_name', v)} />
+          {canEditColumn('company_name') ? <EditableCell value={c.company_name} onSave={v => saveField(c, 'company_name', v)} /> : <ReadOnlyCell value={c.company_name} />}
         </TableCell>
       )}
       {isVisible('country') && (
         <TableCell>
           <span className="flex items-center gap-1">
             {getCountryFlag(c.country) && <span className="text-base leading-none">{getCountryFlag(c.country)}</span>}
-            <EditableCell value={c.country || ''} onSave={v => saveField(c, 'country', v)} />
+            {canEditColumn('country') ? <EditableCell value={c.country || ''} onSave={v => saveField(c, 'country', v)} /> : <ReadOnlyCell value={c.country || ''} />}
           </span>
         </TableCell>
       )}
       {isVisible('geographic_zone') && (
         <TableCell>
-          <EditableCell value={c.geographic_zone || ''} onSave={v => saveField(c, 'geographic_zone', v)} />
+          {canEditColumn('geographic_zone') ? <EditableCell value={c.geographic_zone || ''} onSave={v => saveField(c, 'geographic_zone', v)} /> : <ReadOnlyCell value={c.geographic_zone || ''} />}
         </TableCell>
       )}
       {isVisible('contact_email') && (
         <TableCell>
-          <EditableCell value={c.contact_email || ''} onSave={v => saveField(c, 'contact_email', v)} />
+          {canEditColumn('contact_email') ? <EditableCell value={c.contact_email || ''} onSave={v => saveField(c, 'contact_email', v)} /> : <ReadOnlyCell value={c.contact_email || ''} />}
         </TableCell>
       )}
       {isVisible('contact_phone') && (
         <TableCell>
-          <EditableCell value={c.contact_phone || ''} onSave={v => saveField(c, 'contact_phone', v)} />
+          {canEditColumn('contact_phone') ? <EditableCell value={c.contact_phone || ''} onSave={v => saveField(c, 'contact_phone', v)} /> : <ReadOnlyCell value={c.contact_phone || ''} />}
         </TableCell>
       )}
       {isVisible('pricing_rule') && (
         <TableCell>
-          <EditableSelectCell value={c.pricing_rule || ''} options={salesRules.map(r => r.name)} onSave={v => saveField(c, 'pricing_rule', v)} />
+          {canEditColumn('pricing_rule') ? <EditableSelectCell value={c.pricing_rule || ''} options={salesRules.map(r => r.name)} onSave={v => saveField(c, 'pricing_rule', v)} /> : <ReadOnlyCell value={c.pricing_rule || ''} />}
         </TableCell>
       )}
       {isVisible('payment_terms') && (
         <TableCell>
-          <EditableSelectCell value={c.payment_terms || ''} options={paymentTermLabels} onSave={v => saveField(c, 'payment_terms', v)} />
+          {canEditColumn('payment_terms') ? <EditableSelectCell value={c.payment_terms || ''} options={paymentTermLabels} onSave={v => saveField(c, 'payment_terms', v)} /> : <ReadOnlyCell value={c.payment_terms || ''} />}
         </TableCell>
       )}
       {isVisible('delivery_method') && (
         <TableCell>
-          <EditableSelectCell value={c.delivery_method || ''} options={deliveryMethodLabels} onSave={v => saveField(c, 'delivery_method', v)} />
+          {canEditColumn('delivery_method') ? <EditableSelectCell value={c.delivery_method || ''} options={deliveryMethodLabels} onSave={v => saveField(c, 'delivery_method', v)} /> : <ReadOnlyCell value={c.delivery_method || ''} />}
         </TableCell>
       )}
       {isVisible('delivery_fee_rule') && (
         <TableCell>
-          <EditableSelectCell value={c.delivery_fee_rule || ''} options={deliveryFeeLabels} onSave={v => saveField(c, 'delivery_fee_rule', v)} />
+          {canEditColumn('delivery_fee_rule') ? <EditableSelectCell value={c.delivery_fee_rule || ''} options={deliveryFeeLabels} onSave={v => saveField(c, 'delivery_fee_rule', v)} /> : <ReadOnlyCell value={c.delivery_fee_rule || ''} />}
         </TableCell>
       )}
       {isVisible('moq') && (
         <TableCell>
-          <EditableCell value={c.moq || ''} onSave={v => saveField(c, 'moq', v)} />
+          {canEditColumn('moq') ? <EditableCell value={c.moq || ''} onSave={v => saveField(c, 'moq', v)} /> : <ReadOnlyCell value={c.moq || ''} />}
         </TableCell>
       )}
       {revenueYears.map((year, i) => {
@@ -326,12 +347,16 @@ export function B2BClientTable({
       })}
       {isVisible('category') && (
         <TableCell>
-          <EditableSelectCell
-            value={c.category_id || ''}
-            optionItems={categories.map(cat => ({ value: cat.id, label: cat.name }))}
-            onSave={v => onUpsertClient({ ...c, category_id: v || null })}
-            placeholder="—"
-          />
+          {canEditColumn('category') ? (
+            <EditableSelectCell
+              value={c.category_id || ''}
+              optionItems={categories.map(cat => ({ value: cat.id, label: cat.name }))}
+              onSave={v => onUpsertClient({ id: c.id, company_name: c.company_name, category_id: v || null })}
+              placeholder="—"
+            />
+          ) : (
+            <ReadOnlyCell value={categories.find(cat => cat.id === c.category_id)?.name || ''} />
+          )}
         </TableCell>
       )}
       {isVisible('crm_activity') && (() => {
@@ -505,25 +530,44 @@ export function B2BClientTable({
       {/* Main table */}
       <div className="border rounded-lg overflow-x-auto">
         <Table>
-          <TableHeader>
-            <TableRow>
-              {visibleColumns.map(col => (
-                <TableHead key={col.key} className={`text-[10px] min-w-[${col.minWidth}] ${col.key.startsWith('ca_') ? 'text-right bg-accent/20' : ''}`}>
-                  <div className="flex items-center gap-1.5">
-                    {col.canHide && (
-                      <Checkbox
-                        checked={true}
-                        onCheckedChange={() => toggleColumn(col.key)}
-                        className="h-3 w-3 shrink-0"
-                        title={`Masquer "${col.label}"`}
-                      />
-                    )}
-                    <span>{col.label}</span>
-                  </div>
-                </TableHead>
-              ))}
-            </TableRow>
-          </TableHeader>
+           <TableHeader>
+             <TableRow>
+               {visibleColumns.map(col => {
+                 const isPermColumn = EDITABLE_COLUMN_KEYS.includes(col.key);
+                 const colEditable = isPermColumn ? isColumnEditableByOthers?.(col.key) ?? false : false;
+                 return (
+                   <TableHead key={col.key} className={`text-[10px] min-w-[${col.minWidth}] ${col.key.startsWith('ca_') ? 'text-right bg-accent/20' : ''}`}>
+                     <div className="flex items-center gap-1.5">
+                       {col.canHide && (
+                         <Checkbox
+                           checked={true}
+                           onCheckedChange={() => toggleColumn(col.key)}
+                           className="h-3 w-3 shrink-0"
+                           title={`Masquer "${col.label}"`}
+                         />
+                       )}
+                       <span>{col.label}</span>
+                       {isAdmin && isPermColumn && onToggleColumnPermission && (
+                         <Tooltip>
+                           <TooltipTrigger asChild>
+                             <button
+                               onClick={() => onToggleColumnPermission(col.key, !colEditable)}
+                               className={`ml-auto p-0.5 rounded transition-colors ${colEditable ? 'text-primary hover:text-primary/80' : 'text-muted-foreground/40 hover:text-muted-foreground'}`}
+                             >
+                               {colEditable ? <LockOpen className="h-3 w-3" /> : <Lock className="h-3 w-3" />}
+                             </button>
+                           </TooltipTrigger>
+                           <TooltipContent side="top" className="text-xs">
+                             {colEditable ? 'Colonne ouverte en écriture (cliquer pour verrouiller)' : 'Colonne verrouillée (cliquer pour ouvrir en écriture)'}
+                           </TooltipContent>
+                         </Tooltip>
+                       )}
+                     </div>
+                   </TableHead>
+                 );
+               })}
+             </TableRow>
+           </TableHeader>
           <TableBody>
             {clients.length === 0 && (
               <TableRow>
