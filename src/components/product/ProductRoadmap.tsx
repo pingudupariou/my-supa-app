@@ -299,7 +299,7 @@ export function ProductRoadmap({ products, years, persistedBlocks, onBlocksChang
             </div>
           </div>
         )}
-
+      </div>
       </>
       )}
     </SectionCard>
