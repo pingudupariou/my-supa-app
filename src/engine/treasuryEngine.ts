@@ -312,7 +312,7 @@ export function calculateTreasuryProjection(
     const { revenue, cogs } = calculateRevenueForYear(products, year, scenarioConfig);
     const { payroll, headcount } = calculatePayrollForYear(roles, year);
     const volumes = calculateTotalVolumes(products, year, scenarioConfig);
-    const opex = calculateOpexForYear(expenses, year, startYear, revenue, volumes, scenarioConfig, opexMode, simpleOpexConfig);
+    const opex = calculateOpexForYear(expenses, year, startYear, revenue, volumes, scenarioConfig, opexMode, simpleOpexConfig, products);
     const capex = calculateCapexForYear(products, year);
     const { total: depreciation, byProduct: depreciationByProduct } = calculateDepreciationForYear(products, year);
 
