@@ -8,19 +8,11 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Package, Plus, Trash2, Megaphone, FlaskConical } from 'lucide-react';
 import { formatCurrency } from '@/data/financialConfig';
-import { CapexPaymentConfig, MonthIndex, MONTHS } from '@/engine/monthlyTreasuryEngine';
+import { CapexPaymentConfig, MonthIndex, MONTHS, OpexPaymentConfig } from '@/engine/monthlyTreasuryEngine';
 import { Product } from '@/engine/types';
 
-export interface OpexPaymentConfig {
-  id: string;
-  productId: string;
-  productName: string;
-  type: 'rd' | 'marketing';
-  year: number;
-  month: MonthIndex;
-  percentageOfTotal: number;
-  amount: number;
-}
+// Re-export for backward compatibility
+export type { OpexPaymentConfig } from '@/engine/monthlyTreasuryEngine';
 
 interface CapexSchedulerProps {
   capexPayments: CapexPaymentConfig[];
