@@ -547,7 +547,7 @@ export function calculateMonthlyTreasuryProjection(
       // Autres sorties
       const otherOutflow = config.otherOutflows[monthKey]?.amount || 0;
       
-      const totalOutflows = cogs + monthlyPayroll + monthlyOpex + variableChargesAmount + loanPaymentsAmount + capexPaymentsAmount + otherOutflow;
+      const totalOutflows = cogs + monthlyPayroll + monthlyOpex + variableChargesAmount + loanPaymentsAmount + capexPaymentsAmount + opexProductPaymentsAmount + otherOutflow;
 
       // === TRÉSORERIE ===
       const netCashFlow = totalInflows - totalOutflows;
