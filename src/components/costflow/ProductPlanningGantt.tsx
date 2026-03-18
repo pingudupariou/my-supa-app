@@ -398,7 +398,11 @@ export function ProductPlanningGantt() {
                       />
                     ) : (
                       <>
-                        <span className="truncate flex-1 font-medium">{row.label}</span>
+                        <span
+                          className="truncate flex-1 font-medium cursor-pointer hover:text-primary hover:underline transition-colors"
+                          onClick={() => { setRowNotesRow({ id: row.id, label: row.label }); setShowRowNotes(true); }}
+                          title="Cliquez pour voir le récap des notes"
+                        >{row.label}</span>
                         <Button variant="ghost" size="icon" className="h-5 w-5 opacity-0 group-hover/row:opacity-100 shrink-0"
                           onClick={() => { setRowNotesRow({ id: row.id, label: row.label }); setShowRowNotes(true); }}
                           title="Voir toutes les notes">
