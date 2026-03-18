@@ -46,7 +46,7 @@ export function ProductRoadmap({ products, years, persistedBlocks, onBlocksChang
 
   // Initialize blocks from persisted data or defaults
   const [blocks, setBlocks] = useState<RoadmapBlock[]>(() =>
-    products.map(p => {
+    validatedProducts.map(p => {
       if (persistedBlocks?.[p.id]) {
         return { productId: p.id, ...persistedBlocks[p.id] };
       }
