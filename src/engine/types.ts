@@ -48,6 +48,7 @@ export interface Product {
   opexMarketing?: number;     // OPEX Marketing one-shot (année de lancement)
   productCategoryId?: string; // Catégorie produit (pour classement/couleur)
   productComment?: string;    // Commentaire libre sur le produit
+  productStatus?: 'standby' | 'validated'; // Statut du produit
 }
 
 // ==================
