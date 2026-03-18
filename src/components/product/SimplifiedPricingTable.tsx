@@ -142,6 +142,7 @@ export function SimplifiedPricingTable({ products, categories, onUpdateProduct, 
                 : <><Clock className="h-3 w-3" /> Stby</>
               }
             </button>
+          </TableCell>
           {/* Catégorie */}
           <TableCell className="py-1.5 text-center">
             {categories.length > 0 ? (
