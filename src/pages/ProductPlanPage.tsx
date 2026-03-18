@@ -5,6 +5,7 @@ import { SectionCard, KPICard } from '@/components/ui/KPICard';
 import { HeroBanner } from '@/components/ui/HeroBanner';
 import { SaveButton } from '@/components/ui/SaveButton';
 import { SimplifiedPricingTable } from '@/components/product/SimplifiedPricingTable';
+import { ProductPlanCategoryManager } from '@/components/product/ProductPlanCategoryManager';
 import { RevenueVisualization } from '@/components/product/RevenueVisualization';
 import { VolumesByChannelTable } from '@/components/product/VolumesByChannelTable';
 import { ProductRoadmap } from '@/components/product/ProductRoadmap';
@@ -57,6 +58,7 @@ export function ProductPlanPage() {
     updateGlobalRevenueConfig,
     updateClientRevenueConfig,
     updateRoadmapBlocks,
+    updateProductCategories,
   } = useFinancial();
 
   const settings = state.scenarioSettings;
