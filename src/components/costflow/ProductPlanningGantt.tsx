@@ -547,6 +547,74 @@ export function ProductPlanningGantt() {
           onOpenBlockNote={openBlockNote}
         />
       )}
+
+      {/* Import validated products dialog */}
+      <Dialog open={showImportDialog} onOpenChange={setShowImportDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <CheckCircle2 className="h-5 w-5 text-emerald-500" />
+              Importer des produits validés
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            {validatedProducts.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-4">
+                Aucun produit validé. Passez des produits en statut "Validé" dans le Plan Produit.
+              </p>
+            ) : (
+              <>
+                <p className="text-xs text-muted-foreground">
+                  Sélectionnez les produits à ajouter comme lignes dans le planning.
+                </p>
+                <div className="space-y-1 max-h-64 overflow-y-auto">
+                  {validatedProducts.map(p => {
+                    const alreadyExists = existingRowLabels.has(p.name.toLowerCase());
+                    return (
+                      <label
+                        key={p.id}
+                        className={`flex items-center gap-3 px-3 py-2 rounded-md cursor-pointer transition-colors ${
+                          alreadyExists ? 'opacity-40 cursor-not-allowed' : 'hover:bg-muted'
+                        }`}
+                      >
+                        <Checkbox
+                          checked={selectedImports.has(p.id)}
+                          disabled={alreadyExists}
+                          onCheckedChange={(checked) => {
+                            setSelectedImports(prev => {
+                              const next = new Set(prev);
+                              checked ? next.add(p.id) : next.delete(p.id);
+                              return next;
+                            });
+                          }}
+                        />
+                        <div className="flex-1 min-w-0">
+                          <span className="text-sm font-medium truncate block">{p.name}</span>
+                          <span className="text-[10px] text-muted-foreground">
+                            Lancement {p.launchYear}
+                            {alreadyExists && ' · Déjà dans le planning'}
+                          </span>
+                        </div>
+                        <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
+                      </label>
+                    );
+                  })}
+                </div>
+              </>
+            )}
+            <div className="flex gap-2 pt-2">
+              <Button
+                onClick={handleImportProducts}
+                disabled={selectedImports.size === 0}
+                className="flex-1"
+              >
+                <PackagePlus className="h-4 w-4 mr-1" />
+                Ajouter {selectedImports.size > 0 ? `(${selectedImports.size})` : ''}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
