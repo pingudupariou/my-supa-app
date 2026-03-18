@@ -13,6 +13,8 @@ import { useB2BClientsData } from '@/hooks/useB2BClientsData';
 import { BusinessEntitySelector } from '@/components/crm/BusinessEntitySelector';
 import { BusinessEntityManager } from '@/components/crm/BusinessEntityManager';
 import { useBusinessEntities } from '@/hooks/useBusinessEntities';
+import { useEntityClients } from '@/hooks/useEntityClients';
+import { EntityClientAssociator } from '@/components/crm/EntityClientAssociator';
 
 import { B2BTrashBin } from '@/components/b2b/B2BTrashBin';
 import { CrmAnalyticsDashboard } from '@/components/crm/CrmAnalyticsDashboard';
@@ -22,6 +24,8 @@ import { useTasksData } from '@/hooks/useTasksData';
 import { useTeamMembers } from '@/hooks/useTeamMembers';
 import { TaskManager } from '@/components/tasks/TaskManager';
 import { TaskBanner } from '@/components/tasks/TaskBanner';
+import { Button } from '@/components/ui/button';
+import { Link2 } from 'lucide-react';
 
 export function CRMPage() {
   const b2b = useB2BClientsData();
@@ -30,13 +34,28 @@ export function CRMPage() {
   const tasksData = useTasksData();
   const { members } = useTeamMembers();
   const bizEntities = useBusinessEntities();
+  const entityClients = useEntityClients();
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
+  const [showAssociator, setShowAssociator] = useState(false);
 
-  const totalClients = b2b.clients.length;
-  const activeClients = b2b.clients.filter(c => c.is_active).length;
+  const entityId = bizEntities.selectedEntityId;
+  const filterByEntity = entityId && entityId !== 'all';
+
+  // Entity-filtered client IDs
+  const entityClientIds = filterByEntity
+    ? entityClients.getClientIdsForEntity(entityId)
+    : null;
+
+  // Entity-filtered clients for KPIs
+  const visibleClients = entityClientIds != null
+    ? b2b.clients.filter(c => entityClientIds.includes(c.id))
+    : b2b.clients;
+
+  const totalClients = visibleClients.length;
+  const activeClients = visibleClients.filter(c => c.is_active).length;
   const currentYear = new Date().getFullYear();
   const totalCA = b2b.projections
-    .filter(p => p.year === currentYear)
+    .filter(p => p.year === currentYear && (!entityClientIds || entityClientIds.includes(p.client_id)))
     .reduce((sum, p) => sum + Number(p.projected_revenue || 0), 0);
 
   const selectedClient = b2b.clients.find(c => c.id === selectedClientId);
@@ -44,16 +63,6 @@ export function CRMPage() {
   const pipelineValue = crm.opportunities
     .filter(o => !['won', 'lost'].includes(o.stage))
     .reduce((s, o) => s + (o.estimated_amount || 0), 0);
-
-  const pendingReminders = crm.reminders.filter(r => !r.is_completed).length;
-  const today = new Date().toISOString().slice(0, 10);
-  const overdueReminders = crm.reminders.filter(r => !r.is_completed && r.due_date < today).length;
-
-  const customersForSelect = b2b.clients.map(c => ({ id: c.id, company_name: c.company_name }));
-
-  // Filter by selected entity
-  const entityId = bizEntities.selectedEntityId;
-  const filterByEntity = entityId && entityId !== 'all';
 
   const filteredMeetings = filterByEntity
     ? crm.meetings.filter(m => m.business_entity_id === entityId)
@@ -66,6 +75,12 @@ export function CRMPage() {
   const filteredReminders = filterByEntity
     ? crm.reminders.filter(r => r.business_entity_id === entityId)
     : crm.reminders;
+
+  const pendingReminders = filteredReminders.filter(r => !r.is_completed).length;
+  const today = new Date().toISOString().slice(0, 10);
+  const overdueReminders = filteredReminders.filter(r => !r.is_completed && r.due_date < today).length;
+
+  const customersForSelect = b2b.clients.map(c => ({ id: c.id, company_name: c.company_name }));
 
   // Wrapped create functions that inject business_entity_id
   const createMeetingWithEntity = async (meeting: any) => {
@@ -89,6 +104,11 @@ export function CRMPage() {
     });
   };
 
+  // Clients list for fiches tab - filtered by entity
+  const fichesClients = entityClientIds != null
+    ? b2b.clients.filter(c => entityClientIds.includes(c.id))
+    : b2b.clients;
+
   if (b2b.isLoading && crm.isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -106,14 +126,23 @@ export function CRMPage() {
             Gestion des clients, pipeline commercial, suivi des RDV et rappels
           </p>
         </div>
-        {/* Entity selector */}
-        {bizEntities.entities.length > 0 && (
-          <BusinessEntitySelector
-            entities={bizEntities.entities}
-            selectedId={bizEntities.selectedEntityId}
-            onSelect={bizEntities.setSelectedEntityId}
-          />
-        )}
+        <div className="flex items-center gap-2">
+          {/* Entity selector */}
+          {bizEntities.entities.length > 0 && (
+            <BusinessEntitySelector
+              entities={bizEntities.entities}
+              selectedId={bizEntities.selectedEntityId}
+              onSelect={bizEntities.setSelectedEntityId}
+            />
+          )}
+          {/* Associate clients button (admin, when entity selected) */}
+          {isAdmin && filterByEntity && bizEntities.selectedEntity && (
+            <Button size="sm" variant="outline" onClick={() => setShowAssociator(true)}>
+              <Link2 className="h-3.5 w-3.5 mr-1.5" />
+              Associer clients
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Banners */}
@@ -185,9 +214,9 @@ export function CRMPage() {
           )}
         </TabsList>
 
-        {/* B2B Client Table (existing) */}
+        {/* B2B Client Table - filtered by entity */}
         <TabsContent value="clients">
-          <ClientSubTabs b2b={b2b} crm={crm} />
+          <ClientSubTabs b2b={b2b} crm={crm} entityClientIds={entityClientIds} />
         </TabsContent>
 
         {/* Pipeline Kanban */}
@@ -206,7 +235,7 @@ export function CRMPage() {
           <div className="grid gap-6 lg:grid-cols-3">
             <div className="lg:col-span-1">
               <CustomerList
-                clients={b2b.clients}
+                clients={fichesClients}
                 selectedId={selectedClientId}
                 onSelect={setSelectedClientId}
                 onRefresh={b2b.refreshData}
@@ -286,7 +315,7 @@ export function CRMPage() {
         {/* Analytics */}
         <TabsContent value="analytics" className="space-y-4">
           <CrmAnalyticsDashboard
-            clients={b2b.clients}
+            clients={visibleClients}
             projections={b2b.projections}
             categories={b2b.categories}
             interactions={filteredInteractions}
@@ -305,6 +334,8 @@ export function CRMPage() {
                 onDelete={bizEntities.deleteEntity}
                 onSetDefault={bizEntities.setDefault}
                 isAdmin={isAdmin}
+                allClients={b2b.clients}
+                entityClients={entityClients}
               />
             </CardContent>
           </Card>
@@ -319,6 +350,18 @@ export function CRMPage() {
           />
         </TabsContent>
       </Tabs>
+
+      {/* Entity Client Associator Dialog */}
+      {bizEntities.selectedEntity && (
+        <EntityClientAssociator
+          open={showAssociator}
+          onOpenChange={setShowAssociator}
+          entity={bizEntities.selectedEntity}
+          allClients={b2b.clients}
+          associatedClientIds={entityClientIds || []}
+          onToggle={entityClients.toggleClientEntity}
+        />
+      )}
     </div>
   );
 }

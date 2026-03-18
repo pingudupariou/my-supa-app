@@ -11,15 +11,21 @@ import { useAuth } from '@/context/AuthContext';
 interface ClientSubTabsProps {
   b2b: ReturnType<typeof import('@/hooks/useB2BClientsData').useB2BClientsData>;
   crm: ReturnType<typeof useCRMData>;
+  entityClientIds?: string[] | null; // null = no entity filter (show all)
 }
 
-export function ClientSubTabs({ b2b, crm }: ClientSubTabsProps) {
+export function ClientSubTabs({ b2b, crm, entityClientIds }: ClientSubTabsProps) {
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
   const { isAdmin } = useAuth();
   const { isEditableByOthers, togglePermission } = useColumnPermissions();
 
-  const activeClients = b2b.clients.filter(c => c.is_active);
-  const inactiveClients = b2b.clients.filter(c => !c.is_active);
+  // Filter by entity first, then by active/inactive
+  const entityFilteredClients = entityClientIds != null
+    ? b2b.clients.filter(c => entityClientIds.includes(c.id))
+    : b2b.clients;
+
+  const activeClients = entityFilteredClients.filter(c => c.is_active);
+  const inactiveClients = entityFilteredClients.filter(c => !c.is_active);
 
   const filterByCategory = (clients: typeof b2b.clients) => {
     if (categoryFilter === 'all') return clients;
@@ -57,6 +63,15 @@ export function ClientSubTabs({ b2b, crm }: ClientSubTabsProps) {
 
   return (
     <div className="space-y-4">
+      {/* Info when entity filter is active */}
+      {entityClientIds != null && (
+        <div className="flex items-center gap-2">
+          <Badge variant="outline" className="text-xs">
+            {entityFilteredClients.length} client(s) associé(s) à cette entité
+          </Badge>
+        </div>
+      )}
+
       {/* Category filter */}
       <div className="flex items-center gap-3">
         <span className="text-sm font-medium text-muted-foreground">Catégorie :</span>
