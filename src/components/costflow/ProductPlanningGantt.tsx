@@ -67,6 +67,8 @@ export function ProductPlanningGantt() {
 
   // Drag state
   const [dragging, setDragging] = useState<{ blockId: string; offsetMonth: number } | null>(null);
+  // Resize state
+  const [resizing, setResizing] = useState<{ blockId: string; edge: 'left' | 'right'; initialMonth: number; initialStart: number; initialDuration: number } | null>(null);
   const ganttRef = useRef<HTMLDivElement>(null);
 
   const visibleMonths = buildMonthLabels(rangeStart, rangeEnd);
