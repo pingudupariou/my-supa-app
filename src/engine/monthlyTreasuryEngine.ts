@@ -87,6 +87,17 @@ export function getDefaultPaymentTerms(): PaymentTermsConfig {
   return [{ delayMonths: 0, percentage: 100 }]; // Paiement comptant par défaut
 }
 
+export interface OpexPaymentConfig {
+  id: string;
+  productId: string;
+  productName: string;
+  type: 'rd' | 'marketing';
+  year: number;
+  month: MonthIndex;
+  percentageOfTotal: number;
+  amount: number;
+}
+
 // Configuration complète du plan de trésorerie mensuel
 export interface MonthlyTreasuryConfig {
   // Saisonnalité du CA (variations relatives)
@@ -101,6 +112,8 @@ export interface MonthlyTreasuryConfig {
   loans: LoanConfig[];
   // CAPEX (paiements liés aux produits)
   capexPayments: CapexPaymentConfig[];
+  // OPEX produit (paiements R&D/Marketing liés aux produits)
+  opexPayments?: OpexPaymentConfig[];
   // Autres entrées ponctuelles { "YYYY-MM": amount }
   otherInflows: Record<string, { amount: number; label: string }>;
   // Autres sorties ponctuelles
