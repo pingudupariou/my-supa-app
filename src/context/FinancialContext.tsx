@@ -157,6 +157,7 @@ export const defaultHiringSimulation: HiringSimulationConfig = {
 
 interface FinancialState {
   products: Product[];
+  productCategories: ProductPlanCategory[];
   roles: Role[];
   expenses: Expense[];
   fundingRounds: FundingRound[];
