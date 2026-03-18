@@ -12,6 +12,9 @@ interface ClientSubTabsProps {
   b2b: ReturnType<typeof import('@/hooks/useB2BClientsData').useB2BClientsData>;
   crm: ReturnType<typeof useCRMData>;
   entityClientIds?: string[] | null; // null = no entity filter (show all)
+  filteredMeetings?: ReturnType<typeof useCRMData>['meetings'];
+  filteredReminders?: ReturnType<typeof useCRMData>['reminders'];
+  filteredInteractions?: ReturnType<typeof useCRMData>['interactions'];
 }
 
 export function ClientSubTabs({ b2b, crm, entityClientIds }: ClientSubTabsProps) {
