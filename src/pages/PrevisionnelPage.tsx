@@ -412,7 +412,7 @@ export function PrevisionnelPage() {
                 </TabsTrigger>
                 <TabsTrigger value="params" className="flex items-center gap-2">
                   <Settings2 className="h-4 w-4" />
-                  Prêts & CAPEX
+                  Prêts, CAPEX & OPEX
                 </TabsTrigger>
               </TabsList>
             </Tabs>
