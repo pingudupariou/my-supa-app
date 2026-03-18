@@ -553,11 +553,22 @@ export function ProductPlanningGantt() {
                 </Select>
               </div>
               <div>
-                <Label>Durée (mois)</Label>
+                <Label>Durée</Label>
                 <Select value={String(blockForm.duration)} onValueChange={v => setBlockForm(f => ({ ...f, duration: Number(v) }))}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    {Array.from({ length: 24 }, (_, i) => i + 1).map(d => <SelectItem key={d} value={String(d)}>{d} mois</SelectItem>)}
+                    {Array.from({ length: 96 }, (_, i) => {
+                      const val = (i + 1) * WEEK_STEP;
+                      const months = Math.floor(val);
+                      const weeks = Math.round((val - months) * 4);
+                      const label = months > 0
+                        ? weeks > 0 ? `${months} mois ${weeks} sem` : `${months} mois`
+                        : `${weeks} sem`;
+                      return <SelectItem key={val} value={String(val)}>{label}</SelectItem>;
+                    })}
+                  </SelectContent>
+                </Select>
+              </div>
                   </SelectContent>
                 </Select>
               </div>
