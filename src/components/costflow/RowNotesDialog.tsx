@@ -19,6 +19,7 @@ export function RowNotesDialog({ open, onOpenChange, rowLabel, rowBlocks, notes,
   const getColor = (colorId: string | null) => colors.find(c => c.id === colorId);
 
   const sortedBlocks = [...rowBlocks].sort((a, b) => a.start_month - b.start_month);
+  const notesCount = notes.filter(n => n.content.trim() !== '').length;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -26,7 +27,12 @@ export function RowNotesDialog({ open, onOpenChange, rowLabel, rowBlocks, notes,
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <FileText className="h-5 w-5" />
-            Notes — {rowLabel}
+            Récap notes — {rowLabel}
+            {notesCount > 0 && (
+              <span className="text-xs font-normal bg-primary/10 text-primary px-2 py-0.5 rounded-full">
+                {notesCount} note{notesCount > 1 ? 's' : ''}
+              </span>
+            )}
           </DialogTitle>
         </DialogHeader>
         <ScrollArea className="max-h-[65vh] pr-2">
@@ -40,6 +46,7 @@ export function RowNotesDialog({ open, onOpenChange, rowLabel, rowBlocks, notes,
                 const startLabel = monthLabels[block.start_month - 1] || `M${block.start_month}`;
                 const endMonth = block.start_month + block.duration - 1;
                 const endLabel = monthLabels[endMonth - 1] || `M${endMonth}`;
+                const hasNote = note && note.content.trim() !== '';
 
                 return (
                   <div
@@ -51,15 +58,15 @@ export function RowNotesDialog({ open, onOpenChange, rowLabel, rowBlocks, notes,
                       {color && <div className="w-3 h-3 rounded" style={{ backgroundColor: color.color }} />}
                       <span className="font-medium text-sm">{block.label || color?.name || 'Bloc'}</span>
                       <span className="text-xs text-muted-foreground">
-                        {startLabel} → {endLabel}
+                        {startLabel} → {endLabel} ({block.duration} mois)
                       </span>
                     </div>
-                    {note ? (
-                      <p className="text-sm text-foreground whitespace-pre-wrap line-clamp-4">{note.content}</p>
+                    {hasNote ? (
+                      <p className="text-sm text-foreground whitespace-pre-wrap">{note.content}</p>
                     ) : (
                       <p className="text-xs text-muted-foreground italic">Aucune note — cliquez pour en ajouter</p>
                     )}
-                    {note && (
+                    {hasNote && (
                       <p className="text-xs text-muted-foreground mt-1">
                         Mis à jour le {new Date(note.updated_at).toLocaleDateString('fr-FR')}
                       </p>
