@@ -216,7 +216,7 @@ export function CRMPage() {
 
         {/* B2B Client Table - filtered by entity */}
         <TabsContent value="clients">
-          <ClientSubTabs b2b={b2b} crm={crm} entityClientIds={entityClientIds} />
+          <ClientSubTabs b2b={b2b} crm={crm} entityClientIds={entityClientIds} filteredMeetings={filteredMeetings} filteredReminders={filteredReminders} filteredInteractions={filteredInteractions} />
         </TabsContent>
 
         {/* Pipeline Kanban */}
