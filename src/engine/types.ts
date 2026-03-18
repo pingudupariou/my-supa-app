@@ -47,6 +47,7 @@ export interface Product {
   opexRD?: number;            // OPEX R&D one-shot (année de lancement)
   opexMarketing?: number;     // OPEX Marketing one-shot (année de lancement)
   productCategoryId?: string; // Catégorie produit (pour classement/couleur)
+  productComment?: string;    // Commentaire libre sur le produit
 }
 
 // ==================
