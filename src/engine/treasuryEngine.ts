@@ -143,13 +143,24 @@ function calculateOpexForYear(
   volumes: number,
   scenarioConfig: ScenarioConfig,
   opexMode: 'detailed' | 'simple' = 'detailed',
-  simpleOpexConfig?: SimpleOpexConfig
+  simpleOpexConfig?: SimpleOpexConfig,
+  products?: Product[]
 ): number {
   // Mode simplifié : un montant de base avec taux d'évolution
   if (opexMode === 'simple' && simpleOpexConfig) {
     const yearIndex = year - startYear;
-    const opex = simpleOpexConfig.baseAmount * Math.pow(1 + simpleOpexConfig.growthRate, yearIndex);
-    return opex * (1 + scenarioConfig.opexAdjustment);
+    const strategicTotal = (simpleOpexConfig.strategicOpex || []).reduce((s, l) => s + l.amount, 0);
+    let opex = (simpleOpexConfig.baseAmount + strategicTotal) * Math.pow(1 + simpleOpexConfig.growthRate, yearIndex);
+    opex *= (1 + scenarioConfig.opexAdjustment);
+    // Add product OPEX
+    if (products) {
+      products.forEach(p => {
+        if (p.launchYear === year) {
+          opex += (p.opexRD || 0) + (p.opexMarketing || 0);
+        }
+      });
+    }
+    return opex;
   }
 
   // Mode détaillé : calcul par poste
@@ -182,6 +193,15 @@ function calculateOpexForYear(
     cost = cost * (1 + scenarioConfig.opexAdjustment);
     opex += cost;
   });
+
+  // Add product OPEX (R&D + Marketing) one-shot
+  if (products) {
+    products.forEach(p => {
+      if (p.launchYear === year) {
+        opex += (p.opexRD || 0) + (p.opexMarketing || 0);
+      }
+    });
+  }
 
   return opex;
 }
@@ -292,7 +312,7 @@ export function calculateTreasuryProjection(
     const { revenue, cogs } = calculateRevenueForYear(products, year, scenarioConfig);
     const { payroll, headcount } = calculatePayrollForYear(roles, year);
     const volumes = calculateTotalVolumes(products, year, scenarioConfig);
-    const opex = calculateOpexForYear(expenses, year, startYear, revenue, volumes, scenarioConfig, opexMode, simpleOpexConfig);
+    const opex = calculateOpexForYear(expenses, year, startYear, revenue, volumes, scenarioConfig, opexMode, simpleOpexConfig, products);
     const capex = calculateCapexForYear(products, year);
     const { total: depreciation, byProduct: depreciationByProduct } = calculateDepreciationForYear(products, year);
 

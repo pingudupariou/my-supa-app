@@ -497,6 +497,23 @@ export function FinancialProvider({ children }: { children: ReactNode }) {
           byCategory[e.category] = (byCategory[e.category] || 0) + cost;
         });
       }
+      // Add product OPEX R&D and Marketing (one-shot on launch year)
+      let productOpexRD = 0;
+      let productOpexMarketing = 0;
+      products.forEach(p => {
+        if (p.launchYear === year) {
+          productOpexRD += (p.opexRD || 0);
+          productOpexMarketing += (p.opexMarketing || 0);
+        }
+      });
+      if (productOpexRD > 0) {
+        opex += productOpexRD;
+        byCategory['R&D'] = (byCategory['R&D'] || 0) + productOpexRD;
+      }
+      if (productOpexMarketing > 0) {
+        opex += productOpexMarketing;
+        byCategory['Sales & Marketing'] = (byCategory['Sales & Marketing'] || 0) + productOpexMarketing;
+      }
       return { year, opex, byCategory };
     });
 

@@ -87,6 +87,17 @@ export function getDefaultPaymentTerms(): PaymentTermsConfig {
   return [{ delayMonths: 0, percentage: 100 }]; // Paiement comptant par défaut
 }
 
+export interface OpexPaymentConfig {
+  id: string;
+  productId: string;
+  productName: string;
+  type: 'rd' | 'marketing';
+  year: number;
+  month: MonthIndex;
+  percentageOfTotal: number;
+  amount: number;
+}
+
 // Configuration complète du plan de trésorerie mensuel
 export interface MonthlyTreasuryConfig {
   // Saisonnalité du CA (variations relatives)
@@ -101,6 +112,8 @@ export interface MonthlyTreasuryConfig {
   loans: LoanConfig[];
   // CAPEX (paiements liés aux produits)
   capexPayments: CapexPaymentConfig[];
+  // OPEX produit (paiements R&D/Marketing liés aux produits)
+  opexPayments?: OpexPaymentConfig[];
   // Autres entrées ponctuelles { "YYYY-MM": amount }
   otherInflows: Record<string, { amount: number; label: string }>;
   // Autres sorties ponctuelles
@@ -423,8 +436,9 @@ export function calculateMonthlyTreasuryProjection(
     allLoanPayments.push(...getLoanPayments(loan, startYear, durationYears));
   });
   
-  // Récupérer tous les paiements CAPEX
+  // Récupérer tous les paiements CAPEX et OPEX
   const allCapexPayments = config.capexPayments || [];
+  const allOpexPayments = config.opexPayments || [];
 
   // Pré-calculer les COGS par mois (avant délais de paiement)
   const totalMonths = durationYears * 12;
@@ -523,11 +537,17 @@ export function calculateMonthlyTreasuryProjection(
       );
       const capexPaymentsAmount = monthCapexPayments.reduce((sum, p) => sum + p.amount, 0);
       totalCapexPayments += capexPaymentsAmount;
+
+      // Paiements OPEX produit (R&D + Marketing)
+      const monthOpexPayments = allOpexPayments.filter(
+        p => p.year === year && p.month === monthIndex
+      );
+      const opexProductPaymentsAmount = monthOpexPayments.reduce((sum, p) => sum + p.amount, 0);
       
       // Autres sorties
       const otherOutflow = config.otherOutflows[monthKey]?.amount || 0;
       
-      const totalOutflows = cogs + monthlyPayroll + monthlyOpex + variableChargesAmount + loanPaymentsAmount + capexPaymentsAmount + otherOutflow;
+      const totalOutflows = cogs + monthlyPayroll + monthlyOpex + variableChargesAmount + loanPaymentsAmount + capexPaymentsAmount + opexProductPaymentsAmount + otherOutflow;
 
       // === TRÉSORERIE ===
       const netCashFlow = totalInflows - totalOutflows;

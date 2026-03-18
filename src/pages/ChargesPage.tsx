@@ -465,6 +465,80 @@ export function ChargesPage() {
         )}
       </div>
 
+      {/* Product OPEX Detail (always visible) */}
+      {(() => {
+        const productOpexEntries = state.products
+          .filter(p => (p.opexRD || 0) > 0 || (p.opexMarketing || 0) > 0)
+          .map(p => ({
+            id: p.id,
+            name: p.name,
+            launchYear: p.launchYear,
+            opexRD: p.opexRD || 0,
+            opexMarketing: p.opexMarketing || 0,
+            total: (p.opexRD || 0) + (p.opexMarketing || 0),
+          }));
+
+        if (productOpexEntries.length === 0) return null;
+
+        const totalRD = productOpexEntries.reduce((s, e) => s + e.opexRD, 0);
+        const totalMktg = productOpexEntries.reduce((s, e) => s + e.opexMarketing, 0);
+
+        return (
+          <SectionCard title="OPEX Produits (R&D & Marketing)" id="charges-product-opex">
+            <p className="text-xs text-muted-foreground mb-4">
+              Dépenses one-shot associées à l'année de lancement de chaque produit. Ces montants sont automatiquement intégrés dans le calcul des charges.
+            </p>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Produit</TableHead>
+                  <TableHead className="text-center">Lancement</TableHead>
+                  <TableHead className="text-right">OPEX R&D</TableHead>
+                  <TableHead className="text-right">OPEX Marketing</TableHead>
+                  <TableHead className="text-right">Total</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {productOpexEntries.map(entry => (
+                  <TableRow key={entry.id}>
+                    <TableCell className="font-medium">{entry.name}</TableCell>
+                    <TableCell className="text-center">{entry.launchYear}</TableCell>
+                    <TableCell className="text-right font-mono-numbers">{formatCurrency(entry.opexRD)}</TableCell>
+                    <TableCell className="text-right font-mono-numbers">{formatCurrency(entry.opexMarketing)}</TableCell>
+                    <TableCell className="text-right font-mono-numbers font-medium">{formatCurrency(entry.total)}</TableCell>
+                  </TableRow>
+                ))}
+                <TableRow className="border-t-2">
+                  <TableCell className="font-bold" colSpan={2}>Total</TableCell>
+                  <TableCell className="text-right font-mono-numbers font-bold">{formatCurrency(totalRD)}</TableCell>
+                  <TableCell className="text-right font-mono-numbers font-bold">{formatCurrency(totalMktg)}</TableCell>
+                  <TableCell className="text-right font-mono-numbers font-bold">{formatCurrency(totalRD + totalMktg)}</TableCell>
+                </TableRow>
+              </TableBody>
+            </Table>
+            {/* Yearly breakdown */}
+            <div className="mt-4 p-3 bg-muted/50 rounded-lg">
+              <h4 className="text-sm font-medium mb-2">Répartition par année</h4>
+              <div className="flex gap-4 flex-wrap">
+                {years.map(year => {
+                  const yearTotal = productOpexEntries
+                    .filter(e => e.launchYear === year)
+                    .reduce((s, e) => s + e.total, 0);
+                  return (
+                    <div key={year} className="text-center">
+                      <div className="text-xs text-muted-foreground">{year}</div>
+                      <div className={cn("font-mono-numbers text-sm", yearTotal > 0 ? "font-medium" : "text-muted-foreground")}>
+                        {yearTotal > 0 ? formatCurrency(yearTotal, true) : '—'}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </SectionCard>
+        );
+      })()}
+
       {/* Expenses Table - Only show for detailed mode */}
       {state.opexMode === 'detailed' && (
         <SectionCard title="Détail des Charges" id="charges-table">

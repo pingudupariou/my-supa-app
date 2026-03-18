@@ -33,6 +33,8 @@ export interface Product {
   coef_oem: number;           // Coefficient OEM (> 1)
   volumesByYear: Record<number, number>;           // Legacy: volumes totaux (rétrocompatibilité)
   volumesByChannel?: VolumesByChannel;             // Nouveau: volumes par canal
+  opexRD?: number;            // OPEX R&D one-shot (année de lancement)
+  opexMarketing?: number;     // OPEX Marketing one-shot (année de lancement)
 }
 
 // ==================
