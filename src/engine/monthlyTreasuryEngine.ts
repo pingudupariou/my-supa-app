@@ -537,6 +537,12 @@ export function calculateMonthlyTreasuryProjection(
       );
       const capexPaymentsAmount = monthCapexPayments.reduce((sum, p) => sum + p.amount, 0);
       totalCapexPayments += capexPaymentsAmount;
+
+      // Paiements OPEX produit (R&D + Marketing)
+      const monthOpexPayments = allOpexPayments.filter(
+        p => p.year === year && p.month === monthIndex
+      );
+      const opexProductPaymentsAmount = monthOpexPayments.reduce((sum, p) => sum + p.amount, 0);
       
       // Autres sorties
       const otherOutflow = config.otherOutflows[monthKey]?.amount || 0;
