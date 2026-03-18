@@ -305,7 +305,7 @@ export function ProductPlanPage() {
         <TabsContent value="volumes">
           <div id="product-volumes">
             <VolumesByChannelTable
-              products={state.products}
+              products={state.products.filter(p => p.productStatus === 'validated')}
               years={YEARS}
               onChannelVolumeChange={handleChannelVolumeChange}
             />
