@@ -468,6 +468,8 @@ export function PrevisionnelPage() {
               products={state.products}
               startYear={startYear}
               durationYears={durationYears}
+              opexPayments={state.monthlyTreasuryConfig.opexPayments || []}
+              onOpexPaymentsChange={(opexPayments) => updateMonthlyTreasuryConfig({ ...state.monthlyTreasuryConfig, opexPayments })}
             />
           </div>
         ) : activeView === 'monthly' ? (

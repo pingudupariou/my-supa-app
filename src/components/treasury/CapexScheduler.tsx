@@ -5,7 +5,6 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Package, Plus, Trash2, Megaphone, FlaskConical } from 'lucide-react';
 import { formatCurrency } from '@/data/financialConfig';
 import { CapexPaymentConfig, MonthIndex, MONTHS, OpexPaymentConfig } from '@/engine/monthlyTreasuryEngine';
@@ -89,13 +88,59 @@ function PaymentTable({
   );
 }
 
+function CostSection({
+  label,
+  icon,
+  totalCost,
+  payments,
+  years,
+  onAdd,
+  onUpdate,
+  onRemove,
+}: {
+  label: string;
+  icon: React.ReactNode;
+  totalCost: number;
+  payments: any[];
+  years: number[];
+  onAdd: () => void;
+  onUpdate: (id: string, updates: any) => void;
+  onRemove: (id: string) => void;
+}) {
+  const totalPercent = payments.reduce((s: number, p: any) => s + p.percentageOfTotal, 0);
+  if (totalCost <= 0) return null;
+
+  return (
+    <div className="border rounded-md p-3 space-y-2 bg-muted/30">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2 text-sm font-medium">
+          {icon}
+          <span>{label}</span>
+          <span className="text-muted-foreground font-normal">({formatCurrency(totalCost, true)})</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <Badge variant={totalPercent === 100 ? 'default' : 'secondary'} className="text-xs">{totalPercent}%</Badge>
+          <Button size="sm" variant="outline" className="h-7 text-xs" onClick={onAdd} disabled={totalPercent >= 100}>
+            <Plus className="h-3 w-3 mr-1" /> Tranche
+          </Button>
+        </div>
+      </div>
+      {payments.length > 0 ? (
+        <PaymentTable payments={payments} years={years} onUpdate={onUpdate} onRemove={onRemove} />
+      ) : (
+        <p className="text-xs text-muted-foreground text-center py-1">
+          Non planifié — décaissé à l'année de lancement.
+        </p>
+      )}
+    </div>
+  );
+}
+
 export function CapexScheduler({ capexPayments, onChange, products, startYear, durationYears, opexPayments = [], onOpexPaymentsChange }: CapexSchedulerProps) {
   const years = Array.from({ length: durationYears }, (_, i) => startYear + i);
 
-  const capexProducts = products.filter(p => p.devCost > 0);
-  const opexRDProducts = products.filter(p => (p.opexRD || 0) > 0);
-  const opexMktgProducts = products.filter(p => (p.opexMarketing || 0) > 0);
-  const hasOpex = (opexRDProducts.length > 0 || opexMktgProducts.length > 0) && onOpexPaymentsChange;
+  // Products with any cost
+  const relevantProducts = products.filter(p => p.devCost > 0 || (p.opexRD || 0) > 0 || (p.opexMarketing || 0) > 0);
 
   // CAPEX helpers
   const addCapexPayment = (product: Product) => {
@@ -118,6 +163,10 @@ export function CapexScheduler({ capexPayments, onChange, products, startYear, d
       if (product) updated.amount = product.devCost * updated.percentageOfTotal / 100;
       return updated;
     }));
+  };
+
+  const removeCapexPayment = (id: string) => {
+    onChange(capexPayments.filter(p => p.id !== id));
   };
 
   // OPEX helpers
@@ -154,84 +203,79 @@ export function CapexScheduler({ capexPayments, onChange, products, startYear, d
     onOpexPaymentsChange(opexPayments.filter(p => p.id !== id));
   };
 
-  const renderProducts = (
-    productList: Product[],
-    allPayments: any[],
-    getCost: (p: Product) => number,
-    onAdd: (p: Product) => void,
-    onUpdate: (id: string, u: any) => void,
-    onRemove: (id: string) => void,
-    costLabel: string,
-    filterPayment?: (p: any) => boolean,
-  ) => {
-    if (productList.length === 0) {
-      return (
+  if (relevantProducts.length === 0) {
+    return (
+      <SectionCard title="Déblocage CAPEX & OPEX Produits">
         <div className="text-center py-8 text-muted-foreground">
           <Package className="h-10 w-10 mx-auto mb-3 opacity-40" />
-          <p>Aucun produit avec {costLabel}</p>
+          <p>Aucun produit avec des coûts CAPEX ou OPEX</p>
         </div>
-      );
-    }
-    return (
+      </SectionCard>
+    );
+  }
+
+  return (
+    <SectionCard title="Déblocage CAPEX & OPEX Produits">
       <div className="space-y-6">
-        {productList.map(product => {
-          const pmts = allPayments.filter((p: any) => p.productId === product.id && (!filterPayment || filterPayment(p)));
-          const totalPercent = pmts.reduce((s: number, p: any) => s + p.percentageOfTotal, 0);
-          const cost = getCost(product);
+        {relevantProducts.map(product => {
+          const capexPmts = capexPayments.filter(p => p.productId === product.id);
+          const opexRDPmts = opexPayments.filter(p => p.productId === product.id && p.type === 'rd');
+          const opexMktgPmts = opexPayments.filter(p => p.productId === product.id && p.type === 'marketing');
+
           return (
-            <div key={`${product.id}-${costLabel}`} className="border rounded-lg p-4 space-y-3">
+            <div key={product.id} className="border rounded-lg p-4 space-y-3">
               <div className="flex items-center justify-between">
                 <div>
                   <h4 className="font-medium">{product.name}</h4>
-                  <p className="text-xs text-muted-foreground">{costLabel} : {formatCurrency(cost, true)} • Lancement : {product.launchYear}</p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Badge variant={totalPercent === 100 ? 'default' : 'secondary'}>{totalPercent}% planifié</Badge>
-                  <Button size="sm" variant="outline" onClick={() => onAdd(product)} disabled={totalPercent >= 100}>
-                    <Plus className="h-3 w-3 mr-1" /> Tranche
-                  </Button>
+                  <p className="text-xs text-muted-foreground">Lancement : {product.launchYear}</p>
                 </div>
               </div>
-              {pmts.length > 0 ? (
-                <PaymentTable payments={pmts} years={years} onUpdate={onUpdate} onRemove={onRemove} />
-              ) : (
-                <p className="text-xs text-muted-foreground text-center py-2">
-                  Aucune tranche planifiée. Le montant sera considéré à l'année de lancement.
-                </p>
-              )}
+
+              <div className="space-y-3">
+                {/* CAPEX R&D */}
+                <CostSection
+                  label="CAPEX R&D"
+                  icon={<Package className="h-4 w-4 text-primary" />}
+                  totalCost={product.devCost}
+                  payments={capexPmts}
+                  years={years}
+                  onAdd={() => addCapexPayment(product)}
+                  onUpdate={updateCapexPayment}
+                  onRemove={removeCapexPayment}
+                />
+
+                {/* OPEX R&D */}
+                {onOpexPaymentsChange && (
+                  <CostSection
+                    label="OPEX R&D"
+                    icon={<FlaskConical className="h-4 w-4 text-blue-500" />}
+                    totalCost={product.opexRD || 0}
+                    payments={opexRDPmts}
+                    years={years}
+                    onAdd={() => addOpexPayment(product, 'rd')}
+                    onUpdate={updateOpexPayment}
+                    onRemove={removeOpexPayment}
+                  />
+                )}
+
+                {/* OPEX Marketing */}
+                {onOpexPaymentsChange && (
+                  <CostSection
+                    label="OPEX Marketing"
+                    icon={<Megaphone className="h-4 w-4 text-orange-500" />}
+                    totalCost={product.opexMarketing || 0}
+                    payments={opexMktgPmts}
+                    years={years}
+                    onAdd={() => addOpexPayment(product, 'marketing')}
+                    onUpdate={updateOpexPayment}
+                    onRemove={removeOpexPayment}
+                  />
+                )}
+              </div>
             </div>
           );
         })}
       </div>
-    );
-  };
-
-  return (
-    <SectionCard title="Déblocage CAPEX & OPEX Produits">
-      {hasOpex ? (
-        <Tabs defaultValue="capex" className="space-y-4">
-          <TabsList>
-            <TabsTrigger value="capex" className="gap-1.5"><Package className="h-3.5 w-3.5" /> CAPEX R&D</TabsTrigger>
-            {opexRDProducts.length > 0 && (
-              <TabsTrigger value="opex-rd" className="gap-1.5"><FlaskConical className="h-3.5 w-3.5" /> OPEX R&D</TabsTrigger>
-            )}
-            {opexMktgProducts.length > 0 && (
-              <TabsTrigger value="opex-mktg" className="gap-1.5"><Megaphone className="h-3.5 w-3.5" /> OPEX Marketing</TabsTrigger>
-            )}
-          </TabsList>
-          <TabsContent value="capex">
-            {renderProducts(capexProducts, capexPayments, p => p.devCost, addCapexPayment, updateCapexPayment, id => onChange(capexPayments.filter(p => p.id !== id)), 'R&D')}
-          </TabsContent>
-          <TabsContent value="opex-rd">
-            {renderProducts(opexRDProducts, opexPayments, p => p.opexRD || 0, p => addOpexPayment(p, 'rd'), updateOpexPayment, removeOpexPayment, 'OPEX R&D', (p: OpexPaymentConfig) => p.type === 'rd')}
-          </TabsContent>
-          <TabsContent value="opex-mktg">
-            {renderProducts(opexMktgProducts, opexPayments, p => p.opexMarketing || 0, p => addOpexPayment(p, 'marketing'), updateOpexPayment, removeOpexPayment, 'OPEX Marketing', (p: OpexPaymentConfig) => p.type === 'marketing')}
-          </TabsContent>
-        </Tabs>
-      ) : (
-        renderProducts(capexProducts, capexPayments, p => p.devCost, addCapexPayment, updateCapexPayment, id => onChange(capexPayments.filter(p => p.id !== id)), 'R&D')
-      )}
     </SectionCard>
   );
 }
