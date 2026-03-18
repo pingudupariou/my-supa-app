@@ -35,6 +35,7 @@ export interface Product {
   volumesByChannel?: VolumesByChannel;             // Nouveau: volumes par canal
   opexRD?: number;            // OPEX R&D one-shot (année de lancement)
   opexMarketing?: number;     // OPEX Marketing one-shot (année de lancement)
+  productCategoryId?: string; // Catégorie produit (pour classement/couleur)
 }
 
 // ==================
