@@ -93,7 +93,7 @@ export function SimplifiedPricingTable({ products, categories, onUpdateProduct, 
     return groups;
   }, [products, sortedCategories]);
 
-  const COL_COUNT = 16;
+  const COL_COUNT = 17;
 
   const marginPct = (price: number, cost: number) =>
     price > 0 ? ((1 - cost / price) * 100).toFixed(1) + '%' : '0%';
