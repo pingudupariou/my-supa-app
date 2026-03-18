@@ -105,6 +105,21 @@ export function ProductPlanningGantt() {
     setNewRowLabel('');
   };
 
+  const handleOpenImport = () => {
+    setSelectedImports(new Set());
+    setShowImportDialog(true);
+  };
+
+  const handleImportProducts = async () => {
+    for (const productId of selectedImports) {
+      const product = validatedProducts.find(p => p.id === productId);
+      if (product && !existingRowLabels.has(product.name.toLowerCase())) {
+        await createRow(product.name);
+      }
+    }
+    setShowImportDialog(false);
+  };
+
   const handleSaveRowEdit = (id: string) => {
     if (editingRowLabel.trim()) updateRow(id, editingRowLabel.trim());
     setEditingRow(null);
