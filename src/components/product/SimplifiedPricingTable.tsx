@@ -139,6 +139,22 @@ export function SimplifiedPricingTable({ products, onUpdateProduct, onAddProduct
                     className="h-8 w-16 text-center mx-auto"
                   />
                 </TableCell>
+                <TableCell className="text-right font-mono-numbers">
+                  <Input
+                    type="number"
+                    value={product.opexRD || 0}
+                    onChange={e => onUpdateProduct({ ...product, opexRD: Number(e.target.value) })}
+                    className="h-8 w-28 text-right"
+                  />
+                </TableCell>
+                <TableCell className="text-right font-mono-numbers">
+                  <Input
+                    type="number"
+                    value={product.opexMarketing || 0}
+                    onChange={e => onUpdateProduct({ ...product, opexMarketing: Number(e.target.value) })}
+                    className="h-8 w-28 text-right"
+                  />
+                </TableCell>
                 <TableCell>
                   <Button size="sm" variant="ghost" className="text-destructive" onClick={() => onRemoveProduct(product.id)}>
                     <Trash2 className="h-4 w-4" />
