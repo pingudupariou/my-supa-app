@@ -1,13 +1,15 @@
 import { useState, useRef, useCallback } from 'react';
 import { usePlanningData, PlanningBlock, PlanningColor } from '@/hooks/usePlanningData';
 import { usePlanningNotes } from '@/hooks/usePlanningNotes';
+import { useFinancial } from '@/context/FinancialContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Plus, Trash2, Pencil, X, FileText, StickyNote } from 'lucide-react';
+import { Plus, Trash2, Pencil, X, FileText, StickyNote, CheckCircle2, PackagePlus } from 'lucide-react';
 import { BlockNotesDialog } from './BlockNotesDialog';
 import { RowNotesDialog } from './RowNotesDialog';
 
@@ -31,6 +33,15 @@ export function ProductPlanningGantt() {
   } = usePlanningData();
 
   const { notes, getNotesForBlock, getNotesForBlocks, upsertNote } = usePlanningNotes();
+  const { state: financialState } = useFinancial();
+
+  // Validated products from Plan Produit
+  const validatedProducts = financialState.products.filter(p => p.productStatus === 'validated');
+  const existingRowLabels = new Set(rows.map(r => r.label.toLowerCase()));
+
+  // Import dialog
+  const [showImportDialog, setShowImportDialog] = useState(false);
+  const [selectedImports, setSelectedImports] = useState<Set<string>>(new Set());
 
   // Calendar range
   const [rangeStart, setRangeStart] = useState(1);
@@ -92,6 +103,21 @@ export function ProductPlanningGantt() {
     if (!newRowLabel.trim()) return;
     createRow(newRowLabel.trim());
     setNewRowLabel('');
+  };
+
+  const handleOpenImport = () => {
+    setSelectedImports(new Set());
+    setShowImportDialog(true);
+  };
+
+  const handleImportProducts = async () => {
+    for (const productId of selectedImports) {
+      const product = validatedProducts.find(p => p.id === productId);
+      if (product && !existingRowLabels.has(product.name.toLowerCase())) {
+        await createRow(product.name);
+      }
+    }
+    setShowImportDialog(false);
   };
 
   const handleSaveRowEdit = (id: string) => {
@@ -250,6 +276,11 @@ export function ProductPlanningGantt() {
                 <Button size="sm" variant="outline" className="h-7 text-xs" onClick={handleAddRow} disabled={!newRowLabel.trim()}>
                   <Plus className="h-3 w-3 mr-1" /> Ligne
                 </Button>
+                {validatedProducts.length > 0 && (
+                  <Button size="sm" variant="default" className="h-7 text-xs" onClick={handleOpenImport}>
+                    <PackagePlus className="h-3 w-3 mr-1" /> Importer produits validés
+                  </Button>
+                )}
               </div>
             </div>
             {/* Range selector */}
@@ -516,6 +547,74 @@ export function ProductPlanningGantt() {
           onOpenBlockNote={openBlockNote}
         />
       )}
+
+      {/* Import validated products dialog */}
+      <Dialog open={showImportDialog} onOpenChange={setShowImportDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <CheckCircle2 className="h-5 w-5 text-emerald-500" />
+              Importer des produits validés
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            {validatedProducts.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-4">
+                Aucun produit validé. Passez des produits en statut "Validé" dans le Plan Produit.
+              </p>
+            ) : (
+              <>
+                <p className="text-xs text-muted-foreground">
+                  Sélectionnez les produits à ajouter comme lignes dans le planning.
+                </p>
+                <div className="space-y-1 max-h-64 overflow-y-auto">
+                  {validatedProducts.map(p => {
+                    const alreadyExists = existingRowLabels.has(p.name.toLowerCase());
+                    return (
+                      <label
+                        key={p.id}
+                        className={`flex items-center gap-3 px-3 py-2 rounded-md cursor-pointer transition-colors ${
+                          alreadyExists ? 'opacity-40 cursor-not-allowed' : 'hover:bg-muted'
+                        }`}
+                      >
+                        <Checkbox
+                          checked={selectedImports.has(p.id)}
+                          disabled={alreadyExists}
+                          onCheckedChange={(checked) => {
+                            setSelectedImports(prev => {
+                              const next = new Set(prev);
+                              checked ? next.add(p.id) : next.delete(p.id);
+                              return next;
+                            });
+                          }}
+                        />
+                        <div className="flex-1 min-w-0">
+                          <span className="text-sm font-medium truncate block">{p.name}</span>
+                          <span className="text-[10px] text-muted-foreground">
+                            Lancement {p.launchYear}
+                            {alreadyExists && ' · Déjà dans le planning'}
+                          </span>
+                        </div>
+                        <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
+                      </label>
+                    );
+                  })}
+                </div>
+              </>
+            )}
+            <div className="flex gap-2 pt-2">
+              <Button
+                onClick={handleImportProducts}
+                disabled={selectedImports.size === 0}
+                className="flex-1"
+              >
+                <PackagePlus className="h-4 w-4 mr-1" />
+                Ajouter {selectedImports.size > 0 ? `(${selectedImports.size})` : ''}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
