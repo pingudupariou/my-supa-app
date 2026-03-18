@@ -215,24 +215,23 @@ export function ProductPlanningGantt() {
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
     if (!ganttRef.current) return;
     const rect = ganttRef.current.getBoundingClientRect();
-    const cellWidth = rect.width / monthCount;
-    const mouseMonth = Math.floor((e.clientX - rect.left) / cellWidth) + rangeStart;
+    const raw = ((e.clientX - rect.left) / rect.width) * monthCount + rangeStart;
+    const mouseMonth = snapToWeek(raw);
 
     if (resizing) {
       const block = blocks.find(b => b.id === resizing.blockId);
       if (!block) return;
       if (resizing.edge === 'right') {
-        const newDuration = Math.max(1, mouseMonth - block.start_month + 1);
+        const newDuration = Math.max(WEEK_STEP, snapToWeek(mouseMonth - block.start_month));
         if (newDuration !== block.duration) {
           updateBlock(resizing.blockId, { duration: Math.min(newDuration, 36 - block.start_month + 1) });
         }
       } else {
-        // left edge: move start, adjust duration
         const delta = mouseMonth - resizing.initialMonth;
-        let newStart = resizing.initialStart + delta;
-        let newDuration = resizing.initialDuration - delta;
-        if (newStart < 1) { newStart = 1; newDuration = resizing.initialStart + resizing.initialDuration - 1; }
-        if (newDuration < 1) { newDuration = 1; newStart = resizing.initialStart + resizing.initialDuration - 1; }
+        let newStart = snapToWeek(resizing.initialStart + delta);
+        let newDuration = snapToWeek(resizing.initialDuration - delta);
+        if (newStart < 1) { newStart = 1; newDuration = snapToWeek(resizing.initialStart + resizing.initialDuration - 1); }
+        if (newDuration < WEEK_STEP) { newDuration = WEEK_STEP; newStart = snapToWeek(resizing.initialStart + resizing.initialDuration - WEEK_STEP); }
         if (newStart !== block.start_month || newDuration !== block.duration) {
           updateBlock(resizing.blockId, { start_month: newStart, duration: newDuration });
         }
@@ -241,7 +240,7 @@ export function ProductPlanningGantt() {
     }
 
     if (dragging) {
-      let newStart = mouseMonth - dragging.offsetMonth;
+      let newStart = snapToWeek(mouseMonth - dragging.offsetMonth);
       const block = blocks.find(b => b.id === dragging.blockId);
       if (!block) return;
       newStart = Math.max(1, Math.min(newStart, 36 - block.duration));
