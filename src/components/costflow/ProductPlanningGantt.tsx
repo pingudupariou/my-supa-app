@@ -375,7 +375,14 @@ export function ProductPlanningGantt() {
             <div className="border-b bg-muted/50" style={{ display: 'grid', gridTemplateColumns: `200px repeat(${monthCount}, 1fr)` }}>
               <div className="px-3 py-2 text-xs font-semibold border-r">Produit</div>
               {visibleMonths.map((m, i) => (
-                <div key={i} className="px-1 py-2 text-xs font-semibold text-center border-r last:border-r-0">{m.label}</div>
+                <div key={i} className="text-xs font-semibold text-center border-r last:border-r-0">
+                  <div className="px-1 py-1 border-b">{m.label}</div>
+                  <div className="grid grid-cols-4">
+                    {[1, 2, 3, 4].map(w => (
+                      <div key={w} className="py-0.5 text-[9px] text-muted-foreground font-normal border-r last:border-r-0">S{w}</div>
+                    ))}
+                  </div>
+                </div>
               ))}
             </div>
 
@@ -428,15 +435,17 @@ export function ProductPlanningGantt() {
 
                   {/* Gantt cells */}
                   <div className={`relative`} style={{ gridColumn: `2 / ${monthCount + 2}`, minHeight: rowHeight }} ref={ganttRef}>
-                    {/* Grid lines */}
-                    <div className="absolute inset-0" style={{ display: 'grid', gridTemplateColumns: `repeat(${monthCount}, 1fr)` }}>
-                      {visibleMonths.map((m, i) => (
-                        <div
-                          key={i}
-                          className="border-r last:border-r-0 cursor-pointer hover:bg-primary/5"
-                          onDoubleClick={() => openNewBlock(row.id, m.globalIndex)}
-                        />
-                      ))}
+                    {/* Grid lines - week subdivisions */}
+                    <div className="absolute inset-0" style={{ display: 'grid', gridTemplateColumns: `repeat(${monthCount * 4}, 1fr)` }}>
+                      {visibleMonths.map((m, mi) =>
+                        [0, 1, 2, 3].map(w => (
+                          <div
+                            key={`${mi}-${w}`}
+                            className={`${w === 3 ? 'border-r' : 'border-r border-border/30'} last:border-r-0 cursor-pointer hover:bg-primary/5`}
+                            onDoubleClick={() => openNewBlock(row.id, m.globalIndex + w * WEEK_STEP)}
+                          />
+                        ))
+                      )}
                     </div>
 
                     {/* Blocks */}
