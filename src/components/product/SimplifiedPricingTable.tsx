@@ -58,6 +58,7 @@ export function SimplifiedPricingTable({ products, categories, onUpdateProduct, 
       coef_oem: 1.5,
       volumesByYear: {},
       productComment: '',
+      productStatus: 'standby',
     };
     onAddProduct(newProduct);
   };
