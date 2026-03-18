@@ -67,6 +67,8 @@ export function ProductPlanningGantt() {
 
   // Drag state
   const [dragging, setDragging] = useState<{ blockId: string; offsetMonth: number } | null>(null);
+  // Resize state
+  const [resizing, setResizing] = useState<{ blockId: string; edge: 'left' | 'right'; initialMonth: number; initialStart: number; initialDuration: number } | null>(null);
   const ganttRef = useRef<HTMLDivElement>(null);
 
   const visibleMonths = buildMonthLabels(rangeStart, rangeEnd);
@@ -181,6 +183,7 @@ export function ProductPlanningGantt() {
 
   // Drag handlers
   const handleDragStart = (e: React.MouseEvent, block: PlanningBlock) => {
+    if (resizing) return; // Don't drag while resizing
     e.preventDefault();
     const ganttEl = ganttRef.current;
     if (!ganttEl) return;
@@ -190,22 +193,60 @@ export function ProductPlanningGantt() {
     setDragging({ blockId: block.id, offsetMonth: mouseMonth - block.start_month });
   };
 
+  // Resize handlers
+  const handleResizeStart = (e: React.MouseEvent, block: PlanningBlock, edge: 'left' | 'right') => {
+    e.preventDefault();
+    e.stopPropagation();
+    const ganttEl = ganttRef.current;
+    if (!ganttEl) return;
+    const rect = ganttEl.getBoundingClientRect();
+    const cellWidth = rect.width / monthCount;
+    const mouseMonth = Math.floor((e.clientX - rect.left) / cellWidth) + rangeStart;
+    setResizing({ blockId: block.id, edge, initialMonth: mouseMonth, initialStart: block.start_month, initialDuration: block.duration });
+  };
+
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
-    if (!dragging || !ganttRef.current) return;
+    if (!ganttRef.current) return;
     const rect = ganttRef.current.getBoundingClientRect();
     const cellWidth = rect.width / monthCount;
     const mouseMonth = Math.floor((e.clientX - rect.left) / cellWidth) + rangeStart;
-    let newStart = mouseMonth - dragging.offsetMonth;
-    const block = blocks.find(b => b.id === dragging.blockId);
-    if (!block) return;
-    newStart = Math.max(1, Math.min(newStart, 36 - block.duration));
-    if (newStart !== block.start_month) {
-      updateBlock(dragging.blockId, { start_month: newStart });
+
+    if (resizing) {
+      const block = blocks.find(b => b.id === resizing.blockId);
+      if (!block) return;
+      if (resizing.edge === 'right') {
+        const newDuration = Math.max(1, mouseMonth - block.start_month + 1);
+        if (newDuration !== block.duration) {
+          updateBlock(resizing.blockId, { duration: Math.min(newDuration, 36 - block.start_month + 1) });
+        }
+      } else {
+        // left edge: move start, adjust duration
+        const delta = mouseMonth - resizing.initialMonth;
+        let newStart = resizing.initialStart + delta;
+        let newDuration = resizing.initialDuration - delta;
+        if (newStart < 1) { newStart = 1; newDuration = resizing.initialStart + resizing.initialDuration - 1; }
+        if (newDuration < 1) { newDuration = 1; newStart = resizing.initialStart + resizing.initialDuration - 1; }
+        if (newStart !== block.start_month || newDuration !== block.duration) {
+          updateBlock(resizing.blockId, { start_month: newStart, duration: newDuration });
+        }
+      }
+      return;
     }
-  }, [dragging, blocks, updateBlock, monthCount, rangeStart]);
+
+    if (dragging) {
+      let newStart = mouseMonth - dragging.offsetMonth;
+      const block = blocks.find(b => b.id === dragging.blockId);
+      if (!block) return;
+      newStart = Math.max(1, Math.min(newStart, 36 - block.duration));
+      if (newStart !== block.start_month) {
+        updateBlock(dragging.blockId, { start_month: newStart });
+      }
+    }
+  }, [dragging, resizing, blocks, updateBlock, monthCount, rangeStart]);
 
   const handleMouseUp = useCallback(() => {
     setDragging(null);
+    setResizing(null);
   }, []);
 
   if (loading) return <div className="text-muted-foreground text-center py-8">Chargement…</div>;
@@ -407,19 +448,29 @@ export function ProductPlanningGantt() {
                       const hasNote = blockNote.length > 0 && blockNote[0].content.trim() !== '';
 
                       return (
-                        <div
-                          key={block.id}
-                          className="absolute rounded-md flex items-center justify-center text-xs font-medium text-white shadow-sm select-none"
-                          style={{ left, width, backgroundColor: bgColor, top, height: 28, cursor: dragging ? 'grabbing' : 'grab', zIndex: dragging?.blockId === block.id ? 10 : 1 }}
-                          onMouseDown={e => handleDragStart(e, block)}
-                          onDoubleClick={() => openEditBlock(block)}
-                          onClick={e => { if (!dragging) { e.stopPropagation(); openBlockNote(block); } }}
-                          title="Clic pour notes, double-clic pour modifier, glisser pour déplacer"
-                        >
-                          <span className="truncate px-1 drop-shadow-sm">{block.label || colorObj?.name || ''}</span>
-                          {hasNote && <StickyNote className="h-3 w-3 ml-0.5 shrink-0 opacity-80" />}
-                        </div>
-                      );
+                          <div
+                            key={block.id}
+                            className="absolute rounded-md flex items-center text-xs font-medium text-white shadow-sm select-none group/block"
+                            style={{ left, width, backgroundColor: bgColor, top, height: 28, cursor: dragging?.blockId === block.id ? 'grabbing' : resizing?.blockId === block.id ? 'col-resize' : 'grab', zIndex: (dragging?.blockId === block.id || resizing?.blockId === block.id) ? 10 : 1 }}
+                            onMouseDown={e => handleDragStart(e, block)}
+                            onDoubleClick={() => openEditBlock(block)}
+                            onClick={e => { if (!dragging && !resizing) { e.stopPropagation(); openBlockNote(block); } }}
+                            title="Clic pour notes, double-clic pour modifier, glisser pour déplacer, étirer les bords pour redimensionner"
+                          >
+                            {/* Left resize handle */}
+                            <div
+                              className="absolute left-0 top-0 bottom-0 w-2 cursor-col-resize opacity-0 group-hover/block:opacity-100 rounded-l-md hover:bg-white/30 transition-opacity"
+                              onMouseDown={e => handleResizeStart(e, block, 'left')}
+                            />
+                            <span className="truncate px-2 drop-shadow-sm flex-1 text-center">{block.label || colorObj?.name || ''}</span>
+                            {hasNote && <StickyNote className="h-3 w-3 mr-1 shrink-0 opacity-80" />}
+                            {/* Right resize handle */}
+                            <div
+                              className="absolute right-0 top-0 bottom-0 w-2 cursor-col-resize opacity-0 group-hover/block:opacity-100 rounded-r-md hover:bg-white/30 transition-opacity"
+                              onMouseDown={e => handleResizeStart(e, block, 'right')}
+                            />
+                          </div>
+                        );
                     })}
                   </div>
                 </div>
