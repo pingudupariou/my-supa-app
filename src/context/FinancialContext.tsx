@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useMemo, ReactNode, useCallback, useEffect, useRef } from 'react';
-import { Product, Role, Expense, FundingRound } from '@/engine/types';
+import { Product, Role, Expense, FundingRound, ProductPlanCategory } from '@/engine/types';
 import { defaultProducts, defaultRoles, defaultExpenses, defaultFundingRounds } from '@/engine/defaults';
 import { calculateTotalRevenue, calculateCOGS, calculatePayroll, calculateHeadcount, calculateTotalOpex, calculateTotalVolumes, calculateDepreciation } from '@/engine/calculations';
 import { calculateTreasuryProjection, TreasuryProjection } from '@/engine/treasuryEngine';

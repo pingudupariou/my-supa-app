@@ -3,6 +3,17 @@
 // ============================================
 
 // ==================
+// CATÉGORIES PRODUIT (PLAN PRODUIT)
+// ==================
+
+export interface ProductPlanCategory {
+  id: string;
+  name: string;
+  color: string;       // Couleur HEX pour le visuel
+  sortOrder: number;   // Priorité / ordre d'affichage
+}
+
+// ==================
 // PLAN PRODUIT (SOURCE UNIQUE DU CA)
 // ==================
 
