@@ -14,6 +14,7 @@ import { BlockNotesDialog } from './BlockNotesDialog';
 import { RowNotesDialog } from './RowNotesDialog';
 
 const ALL_MONTHS = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Jun', 'Jul', 'Aoû', 'Sep', 'Oct', 'Nov', 'Déc'];
+const WEEK_STEP = 0.25; // 1 week = 0.25 month
 
 // Generate month labels with year for multi-year support
 function buildMonthLabels(startMonth: number, endMonth: number): { label: string; globalIndex: number }[] {
@@ -22,6 +23,11 @@ function buildMonthLabels(startMonth: number, endMonth: number): { label: string
     result.push({ label: ALL_MONTHS[(i - 1) % 12], globalIndex: i });
   }
   return result;
+}
+
+// Snap a value to the nearest week (0.25 increment)
+function snapToWeek(value: number): number {
+  return Math.round(value / WEEK_STEP) * WEEK_STEP;
 }
 
 export function ProductPlanningGantt() {
@@ -181,15 +187,20 @@ export function ProductPlanningGantt() {
     setShowNoteDialog(true);
   };
 
+  // Helper: get mouse position as fractional month snapped to weeks
+  const getMouseMonth = (e: React.MouseEvent) => {
+    const ganttEl = ganttRef.current;
+    if (!ganttEl) return rangeStart;
+    const rect = ganttEl.getBoundingClientRect();
+    const raw = ((e.clientX - rect.left) / rect.width) * monthCount + rangeStart;
+    return snapToWeek(raw);
+  };
+
   // Drag handlers
   const handleDragStart = (e: React.MouseEvent, block: PlanningBlock) => {
-    if (resizing) return; // Don't drag while resizing
+    if (resizing) return;
     e.preventDefault();
-    const ganttEl = ganttRef.current;
-    if (!ganttEl) return;
-    const rect = ganttEl.getBoundingClientRect();
-    const cellWidth = rect.width / monthCount;
-    const mouseMonth = Math.floor((e.clientX - rect.left) / cellWidth) + rangeStart;
+    const mouseMonth = getMouseMonth(e);
     setDragging({ blockId: block.id, offsetMonth: mouseMonth - block.start_month });
   };
 
@@ -197,35 +208,30 @@ export function ProductPlanningGantt() {
   const handleResizeStart = (e: React.MouseEvent, block: PlanningBlock, edge: 'left' | 'right') => {
     e.preventDefault();
     e.stopPropagation();
-    const ganttEl = ganttRef.current;
-    if (!ganttEl) return;
-    const rect = ganttEl.getBoundingClientRect();
-    const cellWidth = rect.width / monthCount;
-    const mouseMonth = Math.floor((e.clientX - rect.left) / cellWidth) + rangeStart;
+    const mouseMonth = getMouseMonth(e);
     setResizing({ blockId: block.id, edge, initialMonth: mouseMonth, initialStart: block.start_month, initialDuration: block.duration });
   };
 
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
     if (!ganttRef.current) return;
     const rect = ganttRef.current.getBoundingClientRect();
-    const cellWidth = rect.width / monthCount;
-    const mouseMonth = Math.floor((e.clientX - rect.left) / cellWidth) + rangeStart;
+    const raw = ((e.clientX - rect.left) / rect.width) * monthCount + rangeStart;
+    const mouseMonth = snapToWeek(raw);
 
     if (resizing) {
       const block = blocks.find(b => b.id === resizing.blockId);
       if (!block) return;
       if (resizing.edge === 'right') {
-        const newDuration = Math.max(1, mouseMonth - block.start_month + 1);
+        const newDuration = Math.max(WEEK_STEP, snapToWeek(mouseMonth - block.start_month));
         if (newDuration !== block.duration) {
           updateBlock(resizing.blockId, { duration: Math.min(newDuration, 36 - block.start_month + 1) });
         }
       } else {
-        // left edge: move start, adjust duration
         const delta = mouseMonth - resizing.initialMonth;
-        let newStart = resizing.initialStart + delta;
-        let newDuration = resizing.initialDuration - delta;
-        if (newStart < 1) { newStart = 1; newDuration = resizing.initialStart + resizing.initialDuration - 1; }
-        if (newDuration < 1) { newDuration = 1; newStart = resizing.initialStart + resizing.initialDuration - 1; }
+        let newStart = snapToWeek(resizing.initialStart + delta);
+        let newDuration = snapToWeek(resizing.initialDuration - delta);
+        if (newStart < 1) { newStart = 1; newDuration = snapToWeek(resizing.initialStart + resizing.initialDuration - 1); }
+        if (newDuration < WEEK_STEP) { newDuration = WEEK_STEP; newStart = snapToWeek(resizing.initialStart + resizing.initialDuration - WEEK_STEP); }
         if (newStart !== block.start_month || newDuration !== block.duration) {
           updateBlock(resizing.blockId, { start_month: newStart, duration: newDuration });
         }
@@ -234,7 +240,7 @@ export function ProductPlanningGantt() {
     }
 
     if (dragging) {
-      let newStart = mouseMonth - dragging.offsetMonth;
+      let newStart = snapToWeek(mouseMonth - dragging.offsetMonth);
       const block = blocks.find(b => b.id === dragging.blockId);
       if (!block) return;
       newStart = Math.max(1, Math.min(newStart, 36 - block.duration));
@@ -369,7 +375,14 @@ export function ProductPlanningGantt() {
             <div className="border-b bg-muted/50" style={{ display: 'grid', gridTemplateColumns: `200px repeat(${monthCount}, 1fr)` }}>
               <div className="px-3 py-2 text-xs font-semibold border-r">Produit</div>
               {visibleMonths.map((m, i) => (
-                <div key={i} className="px-1 py-2 text-xs font-semibold text-center border-r last:border-r-0">{m.label}</div>
+                <div key={i} className="text-xs font-semibold text-center border-r last:border-r-0">
+                  <div className="px-1 py-1 border-b">{m.label}</div>
+                  <div className="grid grid-cols-4">
+                    {[1, 2, 3, 4].map(w => (
+                      <div key={w} className="py-0.5 text-[9px] text-muted-foreground font-normal border-r last:border-r-0">S{w}</div>
+                    ))}
+                  </div>
+                </div>
               ))}
             </div>
 
@@ -422,15 +435,17 @@ export function ProductPlanningGantt() {
 
                   {/* Gantt cells */}
                   <div className={`relative`} style={{ gridColumn: `2 / ${monthCount + 2}`, minHeight: rowHeight }} ref={ganttRef}>
-                    {/* Grid lines */}
-                    <div className="absolute inset-0" style={{ display: 'grid', gridTemplateColumns: `repeat(${monthCount}, 1fr)` }}>
-                      {visibleMonths.map((m, i) => (
-                        <div
-                          key={i}
-                          className="border-r last:border-r-0 cursor-pointer hover:bg-primary/5"
-                          onDoubleClick={() => openNewBlock(row.id, m.globalIndex)}
-                        />
-                      ))}
+                    {/* Grid lines - week subdivisions */}
+                    <div className="absolute inset-0" style={{ display: 'grid', gridTemplateColumns: `repeat(${monthCount * 4}, 1fr)` }}>
+                      {visibleMonths.map((m, mi) =>
+                        [0, 1, 2, 3].map(w => (
+                          <div
+                            key={`${mi}-${w}`}
+                            className={`${w === 3 ? 'border-r' : 'border-r border-border/30'} last:border-r-0 cursor-pointer hover:bg-primary/5`}
+                            onDoubleClick={() => openNewBlock(row.id, m.globalIndex + w * WEEK_STEP)}
+                          />
+                        ))
+                      )}
                     </div>
 
                     {/* Blocks */}
@@ -538,11 +553,19 @@ export function ProductPlanningGantt() {
                 </Select>
               </div>
               <div>
-                <Label>Durée (mois)</Label>
+                <Label>Durée</Label>
                 <Select value={String(blockForm.duration)} onValueChange={v => setBlockForm(f => ({ ...f, duration: Number(v) }))}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    {Array.from({ length: 24 }, (_, i) => i + 1).map(d => <SelectItem key={d} value={String(d)}>{d} mois</SelectItem>)}
+                    {Array.from({ length: 96 }, (_, i) => {
+                      const val = (i + 1) * WEEK_STEP;
+                      const months = Math.floor(val);
+                      const weeks = Math.round((val - months) * 4);
+                      const label = months > 0
+                        ? weeks > 0 ? `${months} mois ${weeks} sem` : `${months} mois`
+                        : `${weeks} sem`;
+                      return <SelectItem key={val} value={String(val)}>{label}</SelectItem>;
+                    })}
                   </SelectContent>
                 </Select>
               </div>
