@@ -14,6 +14,7 @@ import { BlockNotesDialog } from './BlockNotesDialog';
 import { RowNotesDialog } from './RowNotesDialog';
 
 const ALL_MONTHS = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Jun', 'Jul', 'Aoû', 'Sep', 'Oct', 'Nov', 'Déc'];
+const WEEK_STEP = 0.25; // 1 week = 0.25 month
 
 // Generate month labels with year for multi-year support
 function buildMonthLabels(startMonth: number, endMonth: number): { label: string; globalIndex: number }[] {
@@ -22,6 +23,11 @@ function buildMonthLabels(startMonth: number, endMonth: number): { label: string
     result.push({ label: ALL_MONTHS[(i - 1) % 12], globalIndex: i });
   }
   return result;
+}
+
+// Snap a value to the nearest week (0.25 increment)
+function snapToWeek(value: number): number {
+  return Math.round(value / WEEK_STEP) * WEEK_STEP;
 }
 
 export function ProductPlanningGantt() {
