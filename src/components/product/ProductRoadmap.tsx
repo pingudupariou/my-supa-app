@@ -125,6 +125,14 @@ export function ProductRoadmap({ products, years, persistedBlocks, onBlocksChang
 
   return (
     <SectionCard title="🗺️ Roadmap Produit">
+      {validatedProducts.length === 0 ? (
+        <div className="p-8 text-center text-muted-foreground">
+          <CheckCircle2 className="h-10 w-10 mx-auto mb-3 opacity-40" />
+          <p className="text-sm font-medium">Aucun produit validé</p>
+          <p className="text-xs mt-1">Passez un produit en statut "Validé" dans le tableau de pricing pour le voir apparaître ici.</p>
+        </div>
+      ) : (
+      <>
       {!readOnly && (
         <div className="text-xs text-muted-foreground mb-3">
           Glissez les blocs pour ajuster la timeline · Étirez le bord droit pour modifier la durée
