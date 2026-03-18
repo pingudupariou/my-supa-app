@@ -448,19 +448,29 @@ export function ProductPlanningGantt() {
                       const hasNote = blockNote.length > 0 && blockNote[0].content.trim() !== '';
 
                       return (
-                        <div
-                          key={block.id}
-                          className="absolute rounded-md flex items-center justify-center text-xs font-medium text-white shadow-sm select-none"
-                          style={{ left, width, backgroundColor: bgColor, top, height: 28, cursor: dragging ? 'grabbing' : 'grab', zIndex: dragging?.blockId === block.id ? 10 : 1 }}
-                          onMouseDown={e => handleDragStart(e, block)}
-                          onDoubleClick={() => openEditBlock(block)}
-                          onClick={e => { if (!dragging) { e.stopPropagation(); openBlockNote(block); } }}
-                          title="Clic pour notes, double-clic pour modifier, glisser pour déplacer"
-                        >
-                          <span className="truncate px-1 drop-shadow-sm">{block.label || colorObj?.name || ''}</span>
-                          {hasNote && <StickyNote className="h-3 w-3 ml-0.5 shrink-0 opacity-80" />}
-                        </div>
-                      );
+                          <div
+                            key={block.id}
+                            className="absolute rounded-md flex items-center text-xs font-medium text-white shadow-sm select-none group/block"
+                            style={{ left, width, backgroundColor: bgColor, top, height: 28, cursor: dragging?.blockId === block.id ? 'grabbing' : resizing?.blockId === block.id ? 'col-resize' : 'grab', zIndex: (dragging?.blockId === block.id || resizing?.blockId === block.id) ? 10 : 1 }}
+                            onMouseDown={e => handleDragStart(e, block)}
+                            onDoubleClick={() => openEditBlock(block)}
+                            onClick={e => { if (!dragging && !resizing) { e.stopPropagation(); openBlockNote(block); } }}
+                            title="Clic pour notes, double-clic pour modifier, glisser pour déplacer, étirer les bords pour redimensionner"
+                          >
+                            {/* Left resize handle */}
+                            <div
+                              className="absolute left-0 top-0 bottom-0 w-2 cursor-col-resize opacity-0 group-hover/block:opacity-100 rounded-l-md hover:bg-white/30 transition-opacity"
+                              onMouseDown={e => handleResizeStart(e, block, 'left')}
+                            />
+                            <span className="truncate px-2 drop-shadow-sm flex-1 text-center">{block.label || colorObj?.name || ''}</span>
+                            {hasNote && <StickyNote className="h-3 w-3 mr-1 shrink-0 opacity-80" />}
+                            {/* Right resize handle */}
+                            <div
+                              className="absolute right-0 top-0 bottom-0 w-2 cursor-col-resize opacity-0 group-hover/block:opacity-100 rounded-r-md hover:bg-white/30 transition-opacity"
+                              onMouseDown={e => handleResizeStart(e, block, 'right')}
+                            />
+                          </div>
+                        );
                     })}
                   </div>
                 </div>
