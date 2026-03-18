@@ -104,7 +104,7 @@ export function SimplifiedPricingTable({ products, categories, onUpdateProduct, 
 
     return (
       <>
-        <TableRow key={product.id} className="group hover:bg-muted/30 transition-colors">
+        <TableRow key={product.id} className={cn("group transition-colors", product.productStatus === 'validated' ? 'hover:bg-muted/30' : 'hover:bg-muted/30 opacity-60')}>
           {/* Nom + bouton commentaire */}
           <TableCell className="py-1.5">
             <div className="flex items-center gap-1">
