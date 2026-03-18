@@ -40,6 +40,7 @@ function computeDefaultBlock(p: Product, years: number[], totalQuarters: number)
 }
 
 export function ProductRoadmap({ products, years, persistedBlocks, onBlocksChange, readOnly }: ProductRoadmapProps) {
+  const validatedProducts = products.filter(p => p.productStatus === 'validated');
   const totalQuarters = years.length * 4;
   const timelineRef = useRef<HTMLDivElement>(null);
 

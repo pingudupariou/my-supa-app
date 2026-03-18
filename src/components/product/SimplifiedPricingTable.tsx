@@ -297,6 +297,7 @@ export function SimplifiedPricingTable({ products, categories, onUpdateProduct, 
           <TableHeader>
             <TableRow className="border-b-2 border-border">
               <TableHead className="text-xs font-semibold">Produit</TableHead>
+              <TableHead className="text-xs font-semibold text-center">Statut</TableHead>
               <TableHead className="text-xs font-semibold text-center">Catégorie</TableHead>
               <TableHead className="text-xs font-semibold text-center">Lancement</TableHead>
               <TableHead className="text-xs font-semibold text-right">TTC B2C</TableHead>
