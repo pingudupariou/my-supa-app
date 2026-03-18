@@ -568,10 +568,6 @@ export function ProductPlanningGantt() {
                     })}
                   </SelectContent>
                 </Select>
-              </div>
-                  </SelectContent>
-                </Select>
-              </div>
             </div>
             <div>
               <Label>Couleur</Label>
