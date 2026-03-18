@@ -274,9 +274,14 @@ export function ProductPlanPage() {
         {/* Simplified Pricing Table (mode produit uniquement) */}
         <TabsContent value="pricing">
           {state.revenueMode === 'by-product' ? (
-            <div id="product-pricing">
+            <div id="product-pricing" className="space-y-4">
+              <ProductPlanCategoryManager
+                categories={state.productCategories}
+                onUpdate={updateProductCategories}
+              />
               <SimplifiedPricingTable
                 products={state.products}
+                categories={state.productCategories}
                 onUpdateProduct={handleUpdateProduct}
                 onAddProduct={handleAddProduct}
                 onRemoveProduct={removeProduct}
