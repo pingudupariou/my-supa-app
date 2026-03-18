@@ -598,7 +598,6 @@ export function FinancialProvider({ children }: { children: ReactNode }) {
       updateFundingPlan,
       updateProductCategories,
       saveAll,
-      saveAll,
     }}>
       {children}
     </FinancialContext.Provider>
