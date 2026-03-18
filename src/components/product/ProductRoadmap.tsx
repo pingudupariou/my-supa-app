@@ -58,13 +58,13 @@ export function ProductRoadmap({ products, years, persistedBlocks, onBlocksChang
   useEffect(() => {
     setBlocks(prev => {
       const existing = new Map(prev.map(b => [b.productId, b]));
-      return products.map(p => {
+      return validatedProducts.map(p => {
         if (existing.has(p.id)) return existing.get(p.id)!;
         if (persistedBlocks?.[p.id]) return { productId: p.id, ...persistedBlocks[p.id] };
         return computeDefaultBlock(p, years, totalQuarters);
       });
     });
-  }, [products, years, totalQuarters, persistedBlocks]);
+  }, [validatedProducts, years, totalQuarters, persistedBlocks]);
 
   // Drag state
   const [dragging, setDragging] = useState<{ productId: string; mode: 'move' | 'resize-right'; offsetQ: number } | null>(null);
