@@ -276,6 +276,11 @@ export function ProductPlanningGantt() {
                 <Button size="sm" variant="outline" className="h-7 text-xs" onClick={handleAddRow} disabled={!newRowLabel.trim()}>
                   <Plus className="h-3 w-3 mr-1" /> Ligne
                 </Button>
+                {validatedProducts.length > 0 && (
+                  <Button size="sm" variant="default" className="h-7 text-xs" onClick={handleOpenImport}>
+                    <PackagePlus className="h-3 w-3 mr-1" /> Importer produits validés
+                  </Button>
+                )}
               </div>
             </div>
             {/* Range selector */}
