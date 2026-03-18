@@ -64,6 +64,18 @@ export function VolumesByChannelTable({ products, years, onChannelVolumeChange }
 
   const grandTotal = yearTotals.reduce((s, t) => s + t.caTotal, 0);
 
+  if (products.length === 0) {
+    return (
+      <SectionCard title="Volumes par Année & Canal">
+        <div className="text-center py-12 text-muted-foreground">
+          <TrendingUp className="h-10 w-10 mx-auto mb-3 opacity-40" />
+          <p className="font-medium">Aucun produit validé</p>
+          <p className="text-sm mt-1">Passez vos produits en statut « Validé » dans l'onglet Pricing pour les voir apparaître ici.</p>
+        </div>
+      </SectionCard>
+    );
+  }
+
   return (
     <SectionCard title="Volumes par Année & Canal">
       {/* Growth rate controls */}
