@@ -125,6 +125,23 @@ export function SimplifiedPricingTable({ products, categories, onUpdateProduct, 
               </button>
             </div>
           </TableCell>
+          {/* Statut */}
+          <TableCell className="py-1.5 text-center">
+            <button
+              onClick={() => onUpdateProduct({ ...product, productStatus: product.productStatus === 'validated' ? 'standby' : 'validated' })}
+              className={cn(
+                'inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium transition-colors',
+                product.productStatus === 'validated'
+                  ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-500/25'
+                  : 'bg-muted text-muted-foreground hover:bg-muted/80'
+              )}
+              title={product.productStatus === 'validated' ? 'Validé — cliquer pour mettre en standby' : 'Standby — cliquer pour valider'}
+            >
+              {product.productStatus === 'validated'
+                ? <><CheckCircle2 className="h-3 w-3" /> Validé</>
+                : <><Clock className="h-3 w-3" /> Stby</>
+              }
+            </button>
           {/* Catégorie */}
           <TableCell className="py-1.5 text-center">
             {categories.length > 0 ? (
