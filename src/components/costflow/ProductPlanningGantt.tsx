@@ -187,15 +187,20 @@ export function ProductPlanningGantt() {
     setShowNoteDialog(true);
   };
 
+  // Helper: get mouse position as fractional month snapped to weeks
+  const getMouseMonth = (e: React.MouseEvent) => {
+    const ganttEl = ganttRef.current;
+    if (!ganttEl) return rangeStart;
+    const rect = ganttEl.getBoundingClientRect();
+    const raw = ((e.clientX - rect.left) / rect.width) * monthCount + rangeStart;
+    return snapToWeek(raw);
+  };
+
   // Drag handlers
   const handleDragStart = (e: React.MouseEvent, block: PlanningBlock) => {
-    if (resizing) return; // Don't drag while resizing
+    if (resizing) return;
     e.preventDefault();
-    const ganttEl = ganttRef.current;
-    if (!ganttEl) return;
-    const rect = ganttEl.getBoundingClientRect();
-    const cellWidth = rect.width / monthCount;
-    const mouseMonth = Math.floor((e.clientX - rect.left) / cellWidth) + rangeStart;
+    const mouseMonth = getMouseMonth(e);
     setDragging({ blockId: block.id, offsetMonth: mouseMonth - block.start_month });
   };
 
@@ -203,11 +208,7 @@ export function ProductPlanningGantt() {
   const handleResizeStart = (e: React.MouseEvent, block: PlanningBlock, edge: 'left' | 'right') => {
     e.preventDefault();
     e.stopPropagation();
-    const ganttEl = ganttRef.current;
-    if (!ganttEl) return;
-    const rect = ganttEl.getBoundingClientRect();
-    const cellWidth = rect.width / monthCount;
-    const mouseMonth = Math.floor((e.clientX - rect.left) / cellWidth) + rangeStart;
+    const mouseMonth = getMouseMonth(e);
     setResizing({ blockId: block.id, edge, initialMonth: mouseMonth, initialStart: block.start_month, initialDuration: block.duration });
   };
 
