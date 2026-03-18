@@ -12,9 +12,12 @@ interface ClientSubTabsProps {
   b2b: ReturnType<typeof import('@/hooks/useB2BClientsData').useB2BClientsData>;
   crm: ReturnType<typeof useCRMData>;
   entityClientIds?: string[] | null; // null = no entity filter (show all)
+  filteredMeetings?: ReturnType<typeof useCRMData>['meetings'];
+  filteredReminders?: ReturnType<typeof useCRMData>['reminders'];
+  filteredInteractions?: ReturnType<typeof useCRMData>['interactions'];
 }
 
-export function ClientSubTabs({ b2b, crm, entityClientIds }: ClientSubTabsProps) {
+export function ClientSubTabs({ b2b, crm, entityClientIds, filteredMeetings, filteredReminders, filteredInteractions }: ClientSubTabsProps) {
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
   const { isAdmin } = useAuth();
   const { isEditableByOthers, togglePermission } = useColumnPermissions();
@@ -53,9 +56,9 @@ export function ClientSubTabs({ b2b, crm, entityClientIds }: ClientSubTabsProps)
     onAddCategory: b2b.addCategory,
     onDeleteCategory: b2b.deleteCategory,
     onUpdateCategory: b2b.updateCategory,
-    meetings: crm.meetings,
-    reminders: crm.reminders,
-    interactions: crm.interactions,
+    meetings: filteredMeetings ?? crm.meetings,
+    reminders: filteredReminders ?? crm.reminders,
+    interactions: filteredInteractions ?? crm.interactions,
     isAdmin,
     isColumnEditableByOthers: isEditableByOthers,
     onToggleColumnPermission: togglePermission,
