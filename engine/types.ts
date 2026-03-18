@@ -3,6 +3,17 @@
 // ============================================
 
 // ==================
+// CATÉGORIES PRODUIT (PLAN PRODUIT)
+// ==================
+
+export interface ProductPlanCategory {
+  id: string;
+  name: string;
+  color: string;
+  sortOrder: number;
+}
+
+// ==================
 // PLAN PRODUIT (SOURCE UNIQUE DU CA)
 // ==================
 
@@ -33,6 +44,7 @@ export interface Product {
   coef_oem: number;           // Coefficient OEM (> 1)
   volumesByYear: Record<number, number>;           // Legacy: volumes totaux (rétrocompatibilité)
   volumesByChannel?: VolumesByChannel;             // Nouveau: volumes par canal
+  productCategoryId?: string; // Catégorie produit (pour classement/couleur)
 }
 
 // ==================

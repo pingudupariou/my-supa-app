@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useMemo, ReactNode, useCallback, useEffect, useRef } from 'react';
-import { Product, Role, Expense, FundingRound } from '@/engine/types';
+import { Product, Role, Expense, FundingRound, ProductPlanCategory } from '@/engine/types';
 import { defaultProducts, defaultRoles, defaultExpenses, defaultFundingRounds } from '@/engine/defaults';
 import { calculateTotalRevenue, calculateCOGS, calculatePayroll, calculateHeadcount, calculateTotalOpex, calculateTotalVolumes, calculateDepreciation } from '@/engine/calculations';
 import { calculateTreasuryProjection, TreasuryProjection } from '@/engine/treasuryEngine';
@@ -157,6 +157,7 @@ export const defaultHiringSimulation: HiringSimulationConfig = {
 
 interface FinancialState {
   products: Product[];
+  productCategories: ProductPlanCategory[];
   roles: Role[];
   expenses: Expense[];
   fundingRounds: FundingRound[];
@@ -219,6 +220,7 @@ interface FinancialContextType {
   updateRoadmapBlocks: (blocks: Record<string, { startQ: number; durationQ: number }>) => void;
   updateHiringSimulation: (config: Partial<HiringSimulationConfig>) => void;
   updateFundingPlan: (config: Partial<FundingPlanConfig>) => void;
+  updateProductCategories: (categories: ProductPlanCategory[]) => void;
   saveAll: () => void;
 }
 
@@ -263,8 +265,11 @@ function loadState(): FinancialState {
         parsed.hiringSimulation = { ...defaultHiringSimulation };
       }
       // Ensure fundingPlan exists
-      if (!parsed.fundingPlan) {
+       if (!parsed.fundingPlan) {
         parsed.fundingPlan = { enabled: false, entries: [] };
+      }
+      if (!parsed.productCategories) {
+        parsed.productCategories = [];
       }
       return parsed;
     }
@@ -275,6 +280,7 @@ function loadState(): FinancialState {
 function getDefaultState(): FinancialState {
   return {
     products: defaultProducts,
+    productCategories: [],
     roles: defaultRoles,
     expenses: defaultExpenses,
     fundingRounds: defaultFundingRounds,
@@ -348,8 +354,8 @@ export function FinancialProvider({ children }: { children: ReactNode }) {
            if (cloudState.simpleOpexConfig && !cloudState.simpleOpexConfig.strategicOpex) cloudState.simpleOpexConfig.strategicOpex = [];
            // Ensure hiringSimulation exists
            if (!cloudState.hiringSimulation) cloudState.hiringSimulation = { ...defaultHiringSimulation };
-           // Ensure fundingPlan exists
            if (!cloudState.fundingPlan) cloudState.fundingPlan = { enabled: false, entries: [] };
+           if (!cloudState.productCategories) cloudState.productCategories = [];
           setState({ ...cloudState, hasUnsavedChanges: false });
           localStorage.setItem(STATE_KEY, JSON.stringify(cloudState));
         }
@@ -392,6 +398,7 @@ export function FinancialProvider({ children }: { children: ReactNode }) {
   const updateRoadmapBlocks = useCallback((roadmapBlocks: Record<string, { startQ: number; durationQ: number }>) => { setState(prev => ({ ...prev, roadmapBlocks, hasUnsavedChanges: true })); }, []);
   const updateHiringSimulation = useCallback((config: Partial<HiringSimulationConfig>) => { setState(prev => ({ ...prev, hiringSimulation: { ...prev.hiringSimulation, ...config }, hasUnsavedChanges: true })); }, []);
   const updateFundingPlan = useCallback((config: Partial<FundingPlanConfig>) => { setState(prev => ({ ...prev, fundingPlan: { ...prev.fundingPlan, ...config }, hasUnsavedChanges: true })); }, []);
+  const updateProductCategories = useCallback((productCategories: ProductPlanCategory[]) => { setState(prev => ({ ...prev, productCategories, hasUnsavedChanges: true })); }, []);
 
   const saveAll = useCallback(async () => {
     try {
@@ -592,6 +599,7 @@ export function FinancialProvider({ children }: { children: ReactNode }) {
       updateRoadmapBlocks,
       updateHiringSimulation,
       updateFundingPlan,
+      updateProductCategories,
       saveAll,
     }}>
       {children}

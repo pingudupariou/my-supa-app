@@ -3,6 +3,17 @@
 // ============================================
 
 // ==================
+// CATÉGORIES PRODUIT (PLAN PRODUIT)
+// ==================
+
+export interface ProductPlanCategory {
+  id: string;
+  name: string;
+  color: string;       // Couleur HEX pour le visuel
+  sortOrder: number;   // Priorité / ordre d'affichage
+}
+
+// ==================
 // PLAN PRODUIT (SOURCE UNIQUE DU CA)
 // ==================
 
@@ -35,6 +46,7 @@ export interface Product {
   volumesByChannel?: VolumesByChannel;             // Nouveau: volumes par canal
   opexRD?: number;            // OPEX R&D one-shot (année de lancement)
   opexMarketing?: number;     // OPEX Marketing one-shot (année de lancement)
+  productCategoryId?: string; // Catégorie produit (pour classement/couleur)
 }
 
 // ==================

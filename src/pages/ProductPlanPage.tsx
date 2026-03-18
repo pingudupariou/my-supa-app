@@ -5,6 +5,7 @@ import { SectionCard, KPICard } from '@/components/ui/KPICard';
 import { HeroBanner } from '@/components/ui/HeroBanner';
 import { SaveButton } from '@/components/ui/SaveButton';
 import { SimplifiedPricingTable } from '@/components/product/SimplifiedPricingTable';
+import { ProductPlanCategoryManager } from '@/components/product/ProductPlanCategoryManager';
 import { RevenueVisualization } from '@/components/product/RevenueVisualization';
 import { VolumesByChannelTable } from '@/components/product/VolumesByChannelTable';
 import { ProductRoadmap } from '@/components/product/ProductRoadmap';
@@ -57,6 +58,7 @@ export function ProductPlanPage() {
     updateGlobalRevenueConfig,
     updateClientRevenueConfig,
     updateRoadmapBlocks,
+    updateProductCategories,
   } = useFinancial();
 
   const settings = state.scenarioSettings;
@@ -272,9 +274,14 @@ export function ProductPlanPage() {
         {/* Simplified Pricing Table (mode produit uniquement) */}
         <TabsContent value="pricing">
           {state.revenueMode === 'by-product' ? (
-            <div id="product-pricing">
+            <div id="product-pricing" className="space-y-4">
+              <ProductPlanCategoryManager
+                categories={state.productCategories}
+                onUpdate={updateProductCategories}
+              />
               <SimplifiedPricingTable
                 products={state.products}
+                categories={state.productCategories}
                 onUpdateProduct={handleUpdateProduct}
                 onAddProduct={handleAddProduct}
                 onRemoveProduct={removeProduct}
