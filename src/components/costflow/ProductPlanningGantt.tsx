@@ -1,13 +1,15 @@
 import { useState, useRef, useCallback } from 'react';
 import { usePlanningData, PlanningBlock, PlanningColor } from '@/hooks/usePlanningData';
 import { usePlanningNotes } from '@/hooks/usePlanningNotes';
+import { useFinancial } from '@/context/FinancialContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Plus, Trash2, Pencil, X, FileText, StickyNote } from 'lucide-react';
+import { Plus, Trash2, Pencil, X, FileText, StickyNote, CheckCircle2, PackagePlus } from 'lucide-react';
 import { BlockNotesDialog } from './BlockNotesDialog';
 import { RowNotesDialog } from './RowNotesDialog';
 
