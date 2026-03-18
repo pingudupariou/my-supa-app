@@ -168,7 +168,7 @@ export function ProductRoadmap({ products, years, persistedBlocks, onBlocksChang
 
         {/* Product rows */}
         <TooltipProvider delayDuration={200}>
-          {products.map((product, idx) => {
+          {validatedProducts.map((product, idx) => {
             const block = blocks.find(b => b.productId === product.id);
             if (!block) return null;
             const colors = PRODUCT_COLORS[idx % PRODUCT_COLORS.length];
