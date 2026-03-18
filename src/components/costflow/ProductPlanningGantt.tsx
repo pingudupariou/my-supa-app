@@ -33,6 +33,15 @@ export function ProductPlanningGantt() {
   } = usePlanningData();
 
   const { notes, getNotesForBlock, getNotesForBlocks, upsertNote } = usePlanningNotes();
+  const { state: financialState } = useFinancial();
+
+  // Validated products from Plan Produit
+  const validatedProducts = financialState.products.filter(p => p.productStatus === 'validated');
+  const existingRowLabels = new Set(rows.map(r => r.label.toLowerCase()));
+
+  // Import dialog
+  const [showImportDialog, setShowImportDialog] = useState(false);
+  const [selectedImports, setSelectedImports] = useState<Set<string>>(new Set());
 
   // Calendar range
   const [rangeStart, setRangeStart] = useState(1);
