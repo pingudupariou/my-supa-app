@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { formatCurrency } from '@/data/financialConfig';
-import { Plus, Trash2, ChevronDown, ChevronRight, MessageSquare } from 'lucide-react';
+import { Plus, Trash2, ChevronDown, ChevronRight, MessageSquare, CheckCircle2, Clock } from 'lucide-react';
 import { useMemo } from 'react';
 import { cn } from '@/lib/utils';
 
