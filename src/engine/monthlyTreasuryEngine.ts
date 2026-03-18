@@ -436,8 +436,9 @@ export function calculateMonthlyTreasuryProjection(
     allLoanPayments.push(...getLoanPayments(loan, startYear, durationYears));
   });
   
-  // Récupérer tous les paiements CAPEX
+  // Récupérer tous les paiements CAPEX et OPEX
   const allCapexPayments = config.capexPayments || [];
+  const allOpexPayments = config.opexPayments || [];
 
   // Pré-calculer les COGS par mois (avant délais de paiement)
   const totalMonths = durationYears * 12;
