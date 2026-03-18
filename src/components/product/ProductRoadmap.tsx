@@ -300,13 +300,8 @@ export function ProductRoadmap({ products, years, persistedBlocks, onBlocksChang
           </div>
         )}
 
-        {products.length === 0 && (
-          <div className="py-12 text-center text-muted-foreground">
-            <Calendar className="h-10 w-10 mx-auto mb-3 opacity-40" />
-            <p className="text-sm">Ajoutez des produits au plan pour visualiser la roadmap</p>
-          </div>
-        )}
-      </div>
+      </>
+      )}
     </SectionCard>
   );
 }
