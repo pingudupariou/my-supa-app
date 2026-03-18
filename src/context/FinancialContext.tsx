@@ -277,6 +277,7 @@ function loadState(): FinancialState {
 function getDefaultState(): FinancialState {
   return {
     products: defaultProducts,
+    productCategories: [],
     roles: defaultRoles,
     expenses: defaultExpenses,
     fundingRounds: defaultFundingRounds,
