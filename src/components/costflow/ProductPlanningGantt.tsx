@@ -183,6 +183,7 @@ export function ProductPlanningGantt() {
 
   // Drag handlers
   const handleDragStart = (e: React.MouseEvent, block: PlanningBlock) => {
+    if (resizing) return; // Don't drag while resizing
     e.preventDefault();
     const ganttEl = ganttRef.current;
     if (!ganttEl) return;
@@ -192,22 +193,60 @@ export function ProductPlanningGantt() {
     setDragging({ blockId: block.id, offsetMonth: mouseMonth - block.start_month });
   };
 
+  // Resize handlers
+  const handleResizeStart = (e: React.MouseEvent, block: PlanningBlock, edge: 'left' | 'right') => {
+    e.preventDefault();
+    e.stopPropagation();
+    const ganttEl = ganttRef.current;
+    if (!ganttEl) return;
+    const rect = ganttEl.getBoundingClientRect();
+    const cellWidth = rect.width / monthCount;
+    const mouseMonth = Math.floor((e.clientX - rect.left) / cellWidth) + rangeStart;
+    setResizing({ blockId: block.id, edge, initialMonth: mouseMonth, initialStart: block.start_month, initialDuration: block.duration });
+  };
+
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
-    if (!dragging || !ganttRef.current) return;
+    if (!ganttRef.current) return;
     const rect = ganttRef.current.getBoundingClientRect();
     const cellWidth = rect.width / monthCount;
     const mouseMonth = Math.floor((e.clientX - rect.left) / cellWidth) + rangeStart;
-    let newStart = mouseMonth - dragging.offsetMonth;
-    const block = blocks.find(b => b.id === dragging.blockId);
-    if (!block) return;
-    newStart = Math.max(1, Math.min(newStart, 36 - block.duration));
-    if (newStart !== block.start_month) {
-      updateBlock(dragging.blockId, { start_month: newStart });
+
+    if (resizing) {
+      const block = blocks.find(b => b.id === resizing.blockId);
+      if (!block) return;
+      if (resizing.edge === 'right') {
+        const newDuration = Math.max(1, mouseMonth - block.start_month + 1);
+        if (newDuration !== block.duration) {
+          updateBlock(resizing.blockId, { duration: Math.min(newDuration, 36 - block.start_month + 1) });
+        }
+      } else {
+        // left edge: move start, adjust duration
+        const delta = mouseMonth - resizing.initialMonth;
+        let newStart = resizing.initialStart + delta;
+        let newDuration = resizing.initialDuration - delta;
+        if (newStart < 1) { newStart = 1; newDuration = resizing.initialStart + resizing.initialDuration - 1; }
+        if (newDuration < 1) { newDuration = 1; newStart = resizing.initialStart + resizing.initialDuration - 1; }
+        if (newStart !== block.start_month || newDuration !== block.duration) {
+          updateBlock(resizing.blockId, { start_month: newStart, duration: newDuration });
+        }
+      }
+      return;
     }
-  }, [dragging, blocks, updateBlock, monthCount, rangeStart]);
+
+    if (dragging) {
+      let newStart = mouseMonth - dragging.offsetMonth;
+      const block = blocks.find(b => b.id === dragging.blockId);
+      if (!block) return;
+      newStart = Math.max(1, Math.min(newStart, 36 - block.duration));
+      if (newStart !== block.start_month) {
+        updateBlock(dragging.blockId, { start_month: newStart });
+      }
+    }
+  }, [dragging, resizing, blocks, updateBlock, monthCount, rangeStart]);
 
   const handleMouseUp = useCallback(() => {
     setDragging(null);
+    setResizing(null);
   }, []);
 
   if (loading) return <div className="text-muted-foreground text-center py-8">Chargement…</div>;
