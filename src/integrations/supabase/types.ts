@@ -934,6 +934,45 @@ export type Database = {
         }
         Relationships: []
       }
+      crm_entity_clients: {
+        Row: {
+          business_entity_id: string
+          client_id: string
+          created_at: string
+          id: string
+          user_id: string
+        }
+        Insert: {
+          business_entity_id: string
+          client_id: string
+          created_at?: string
+          id?: string
+          user_id: string
+        }
+        Update: {
+          business_entity_id?: string
+          client_id?: string
+          created_at?: string
+          id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "crm_entity_clients_business_entity_id_fkey"
+            columns: ["business_entity_id"]
+            isOneToOne: false
+            referencedRelation: "crm_business_entities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "crm_entity_clients_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "b2b_clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       crm_meetings: {
         Row: {
           action_items: string | null
