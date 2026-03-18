@@ -4,7 +4,7 @@ import { SectionCard } from '@/components/ui/KPICard';
 import { Badge } from '@/components/ui/badge';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { formatCurrency } from '@/data/financialConfig';
-import { GripHorizontal, Calendar, CircleDollarSign, Wrench } from 'lucide-react';
+import { GripHorizontal, Calendar, CircleDollarSign, Wrench, CheckCircle2 } from 'lucide-react';
 
 interface ProductRoadmapProps {
   products: Product[];
