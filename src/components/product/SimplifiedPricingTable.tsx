@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { formatCurrency } from '@/data/financialConfig';
-import { Plus, Trash2, ChevronDown, ChevronRight, MessageSquare } from 'lucide-react';
+import { Plus, Trash2, ChevronDown, ChevronRight, MessageSquare, CheckCircle2, Clock } from 'lucide-react';
 import { useMemo } from 'react';
 import { cn } from '@/lib/utils';
 
@@ -58,6 +58,7 @@ export function SimplifiedPricingTable({ products, categories, onUpdateProduct, 
       coef_oem: 1.5,
       volumesByYear: {},
       productComment: '',
+      productStatus: 'standby',
     };
     onAddProduct(newProduct);
   };
@@ -92,7 +93,7 @@ export function SimplifiedPricingTable({ products, categories, onUpdateProduct, 
     return groups;
   }, [products, sortedCategories]);
 
-  const COL_COUNT = 16;
+  const COL_COUNT = 17;
 
   const marginPct = (price: number, cost: number) =>
     price > 0 ? ((1 - cost / price) * 100).toFixed(1) + '%' : '0%';
@@ -103,7 +104,7 @@ export function SimplifiedPricingTable({ products, categories, onUpdateProduct, 
 
     return (
       <>
-        <TableRow key={product.id} className="group hover:bg-muted/30 transition-colors">
+        <TableRow key={product.id} className={cn("group transition-colors", product.productStatus === 'validated' ? 'hover:bg-muted/30' : 'hover:bg-muted/30 opacity-60')}>
           {/* Nom + bouton commentaire */}
           <TableCell className="py-1.5">
             <div className="flex items-center gap-1">
@@ -123,6 +124,24 @@ export function SimplifiedPricingTable({ products, categories, onUpdateProduct, 
                 <MessageSquare className="h-3.5 w-3.5" />
               </button>
             </div>
+          </TableCell>
+          {/* Statut */}
+          <TableCell className="py-1.5 text-center">
+            <button
+              onClick={() => onUpdateProduct({ ...product, productStatus: product.productStatus === 'validated' ? 'standby' : 'validated' })}
+              className={cn(
+                'inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium transition-colors',
+                product.productStatus === 'validated'
+                  ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-500/25'
+                  : 'bg-muted text-muted-foreground hover:bg-muted/80'
+              )}
+              title={product.productStatus === 'validated' ? 'Validé — cliquer pour mettre en standby' : 'Standby — cliquer pour valider'}
+            >
+              {product.productStatus === 'validated'
+                ? <><CheckCircle2 className="h-3 w-3" /> Validé</>
+                : <><Clock className="h-3 w-3" /> Stby</>
+              }
+            </button>
           </TableCell>
           {/* Catégorie */}
           <TableCell className="py-1.5 text-center">
@@ -279,6 +298,7 @@ export function SimplifiedPricingTable({ products, categories, onUpdateProduct, 
           <TableHeader>
             <TableRow className="border-b-2 border-border">
               <TableHead className="text-xs font-semibold">Produit</TableHead>
+              <TableHead className="text-xs font-semibold text-center">Statut</TableHead>
               <TableHead className="text-xs font-semibold text-center">Catégorie</TableHead>
               <TableHead className="text-xs font-semibold text-center">Lancement</TableHead>
               <TableHead className="text-xs font-semibold text-right">TTC B2C</TableHead>

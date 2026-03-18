@@ -4,7 +4,7 @@ import { SectionCard } from '@/components/ui/KPICard';
 import { Badge } from '@/components/ui/badge';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { formatCurrency } from '@/data/financialConfig';
-import { GripHorizontal, Calendar, CircleDollarSign, Wrench } from 'lucide-react';
+import { GripHorizontal, Calendar, CircleDollarSign, Wrench, CheckCircle2 } from 'lucide-react';
 
 interface ProductRoadmapProps {
   products: Product[];
@@ -40,12 +40,13 @@ function computeDefaultBlock(p: Product, years: number[], totalQuarters: number)
 }
 
 export function ProductRoadmap({ products, years, persistedBlocks, onBlocksChange, readOnly }: ProductRoadmapProps) {
+  const validatedProducts = products.filter(p => p.productStatus === 'validated');
   const totalQuarters = years.length * 4;
   const timelineRef = useRef<HTMLDivElement>(null);
 
   // Initialize blocks from persisted data or defaults
   const [blocks, setBlocks] = useState<RoadmapBlock[]>(() =>
-    products.map(p => {
+    validatedProducts.map(p => {
       if (persistedBlocks?.[p.id]) {
         return { productId: p.id, ...persistedBlocks[p.id] };
       }
@@ -57,13 +58,13 @@ export function ProductRoadmap({ products, years, persistedBlocks, onBlocksChang
   useEffect(() => {
     setBlocks(prev => {
       const existing = new Map(prev.map(b => [b.productId, b]));
-      return products.map(p => {
+      return validatedProducts.map(p => {
         if (existing.has(p.id)) return existing.get(p.id)!;
         if (persistedBlocks?.[p.id]) return { productId: p.id, ...persistedBlocks[p.id] };
         return computeDefaultBlock(p, years, totalQuarters);
       });
     });
-  }, [products, years, totalQuarters, persistedBlocks]);
+  }, [validatedProducts, years, totalQuarters, persistedBlocks]);
 
   // Drag state
   const [dragging, setDragging] = useState<{ productId: string; mode: 'move' | 'resize-right'; offsetQ: number } | null>(null);
@@ -124,6 +125,14 @@ export function ProductRoadmap({ products, years, persistedBlocks, onBlocksChang
 
   return (
     <SectionCard title="🗺️ Roadmap Produit">
+      {validatedProducts.length === 0 ? (
+        <div className="p-8 text-center text-muted-foreground">
+          <CheckCircle2 className="h-10 w-10 mx-auto mb-3 opacity-40" />
+          <p className="text-sm font-medium">Aucun produit validé</p>
+          <p className="text-xs mt-1">Passez un produit en statut "Validé" dans le tableau de pricing pour le voir apparaître ici.</p>
+        </div>
+      ) : (
+      <>
       {!readOnly && (
         <div className="text-xs text-muted-foreground mb-3">
           Glissez les blocs pour ajuster la timeline · Étirez le bord droit pour modifier la durée
@@ -167,7 +176,7 @@ export function ProductRoadmap({ products, years, persistedBlocks, onBlocksChang
 
         {/* Product rows */}
         <TooltipProvider delayDuration={200}>
-          {products.map((product, idx) => {
+          {validatedProducts.map((product, idx) => {
             const block = blocks.find(b => b.productId === product.id);
             if (!block) return null;
             const colors = PRODUCT_COLORS[idx % PRODUCT_COLORS.length];
@@ -290,14 +299,9 @@ export function ProductRoadmap({ products, years, persistedBlocks, onBlocksChang
             </div>
           </div>
         )}
-
-        {products.length === 0 && (
-          <div className="py-12 text-center text-muted-foreground">
-            <Calendar className="h-10 w-10 mx-auto mb-3 opacity-40" />
-            <p className="text-sm">Ajoutez des produits au plan pour visualiser la roadmap</p>
-          </div>
-        )}
       </div>
+      </>
+      )}
     </SectionCard>
   );
 }
