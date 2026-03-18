@@ -596,6 +596,8 @@ export function FinancialProvider({ children }: { children: ReactNode }) {
       updateRoadmapBlocks,
       updateHiringSimulation,
       updateFundingPlan,
+      updateProductCategories,
+      saveAll,
       saveAll,
     }}>
       {children}
