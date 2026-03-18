@@ -17,7 +17,7 @@ interface ClientSubTabsProps {
   filteredInteractions?: ReturnType<typeof useCRMData>['interactions'];
 }
 
-export function ClientSubTabs({ b2b, crm, entityClientIds }: ClientSubTabsProps) {
+export function ClientSubTabs({ b2b, crm, entityClientIds, filteredMeetings, filteredReminders, filteredInteractions }: ClientSubTabsProps) {
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
   const { isAdmin } = useAuth();
   const { isEditableByOthers, togglePermission } = useColumnPermissions();
