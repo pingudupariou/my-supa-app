@@ -54,6 +54,8 @@ export function SimplifiedPricingTable({ products, onUpdateProduct, onAddProduct
               <TableHead className="text-right">Marque OEM</TableHead>
               <TableHead className="text-right">CAPEX R&D</TableHead>
               <TableHead className="text-center">Amort. (ans)</TableHead>
+              <TableHead className="text-right">OPEX R&D</TableHead>
+              <TableHead className="text-right">OPEX Marketing</TableHead>
               <TableHead></TableHead>
             </TableRow>
           </TableHeader>
