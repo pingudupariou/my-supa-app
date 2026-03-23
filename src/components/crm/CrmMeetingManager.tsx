@@ -319,24 +319,24 @@ export function CrmMeetingManager({ meetings, customerId, onCreate, onUpdate, on
                     {m.responsible && <div><span className="text-muted-foreground">Responsable:</span> {m.responsible}</div>}
                     
                     <div>
-                      <label className="text-xs font-medium text-muted-foreground mb-1 block">Notes / Compte-rendu</label>
+                      <label className="text-xs font-medium text-muted-foreground mb-1.5 block">📝 Notes / Compte-rendu</label>
                       <Textarea
                         value={draft?.notes ?? m.notes ?? ''}
                         onChange={e => updateDraft(m.id, 'notes', e.target.value)}
-                        placeholder="Écrire les notes ici…"
-                        rows={3}
-                        className="text-xs resize-y"
+                        placeholder="Écrire le compte-rendu, les points abordés, décisions prises…"
+                        rows={6}
+                        className="text-sm resize-y min-h-[140px] leading-relaxed"
                       />
                     </div>
                     
                     <div>
-                      <label className="text-xs font-medium text-muted-foreground mb-1 block">Actions à suivre</label>
+                      <label className="text-xs font-medium text-muted-foreground mb-1.5 block">✅ Actions à suivre</label>
                       <Textarea
                         value={draft?.action_items ?? m.action_items ?? ''}
                         onChange={e => updateDraft(m.id, 'action_items', e.target.value)}
-                        placeholder="Lister les actions…"
-                        rows={2}
-                        className="text-xs resize-y"
+                        placeholder="• Action 1&#10;• Action 2&#10;• Action 3…"
+                        rows={4}
+                        className="text-sm resize-y min-h-[100px] leading-relaxed"
                       />
                     </div>
 
