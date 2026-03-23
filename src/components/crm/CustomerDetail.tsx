@@ -54,7 +54,7 @@ interface CustomerDetailProps {
   onUncompleteReminder?: (id: string) => Promise<boolean>;
   onDeleteReminder: (id: string) => Promise<boolean>;
   onCreateTask?: (task: any) => Promise<any>;
-  onUpdateTask?: (id: string, updates: any) => Promise<boolean>;
+  onUpdateTask?: (id: string, updates: any) => Promise<any>;
   users?: TeamMember[];
   isAdmin?: boolean;
   selectedEntityName?: string;
