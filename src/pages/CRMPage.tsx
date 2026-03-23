@@ -3,7 +3,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ClientSubTabs } from '@/components/crm/ClientSubTabs';
 import { Card, CardContent } from '@/components/ui/card';
 import { KPICard } from '@/components/ui/KPICard';
-import { Users, Kanban, Bell, Calendar, Trash2, ClipboardList, BarChart3, Building2 } from 'lucide-react';
+import { Users, Kanban, Bell, Trash2, ClipboardList, BarChart3, Building2, FolderOpen, Database } from 'lucide-react';
 import { CustomerList } from '@/components/crm/CustomerList';
 import { CustomerDetail } from '@/components/crm/CustomerDetail';
 import { PipelineKanban } from '@/components/crm/PipelineKanban';
@@ -161,19 +161,19 @@ export function CRMPage() {
         />
       </div>
 
-      <Tabs defaultValue="clients" className="space-y-4">
-        <TabsList>
-          <TabsTrigger value="clients">
-            <Users className="h-4 w-4 mr-2" />
-            Clients
+      <Tabs defaultValue="gestion" className="space-y-4">
+        <TabsList className="flex-wrap">
+          <TabsTrigger value="gestion">
+            <FolderOpen className="h-4 w-4 mr-2" />
+            Gestion clients
+          </TabsTrigger>
+          <TabsTrigger value="donnees">
+            <Database className="h-4 w-4 mr-2" />
+            Données clients
           </TabsTrigger>
           <TabsTrigger value="pipeline">
             <Kanban className="h-4 w-4 mr-2" />
             Pipeline
-          </TabsTrigger>
-          <TabsTrigger value="fiches">
-            <Users className="h-4 w-4 mr-2" />
-            Fiches Clients
           </TabsTrigger>
           <TabsTrigger value="suivi">
             <Bell className="h-4 w-4 mr-2" />
@@ -181,15 +181,6 @@ export function CRMPage() {
             {pendingReminders > 0 && (
               <span className="ml-1.5 inline-flex items-center justify-center h-5 min-w-5 px-1 rounded-full bg-destructive text-destructive-foreground text-[10px] font-bold">
                 {pendingReminders}
-              </span>
-            )}
-          </TabsTrigger>
-          <TabsTrigger value="tasks">
-            <ClipboardList className="h-4 w-4 mr-2" />
-            Tâches
-            {tasksData.tasks.filter(t => t.context === 'crm' && t.status !== 'done').length > 0 && (
-              <span className="ml-1.5 inline-flex items-center justify-center h-5 min-w-5 px-1 rounded-full bg-primary text-primary-foreground text-[10px] font-bold">
-                {tasksData.tasks.filter(t => t.context === 'crm' && t.status !== 'done').length}
               </span>
             )}
           </TabsTrigger>
@@ -214,24 +205,8 @@ export function CRMPage() {
           )}
         </TabsList>
 
-        {/* B2B Client Table - filtered by entity */}
-        <TabsContent value="clients">
-          <ClientSubTabs b2b={b2b} crm={crm} entityClientIds={entityClientIds} filteredMeetings={filteredMeetings} filteredReminders={filteredReminders} filteredInteractions={filteredInteractions} />
-        </TabsContent>
-
-        {/* Pipeline Kanban */}
-        <TabsContent value="pipeline">
-          <PipelineKanban
-            opportunities={crm.opportunities}
-            customers={customersForSelect}
-            onCreateOpportunity={crm.createOpportunity}
-            onUpdateOpportunity={crm.updateOpportunity}
-            onDeleteOpportunity={crm.deleteOpportunity}
-          />
-        </TabsContent>
-
-        {/* Customer Detail with interactions, meetings, reminders */}
-        <TabsContent value="fiches" className="space-y-4">
+        {/* Gestion clients — unified management view */}
+        <TabsContent value="gestion" className="space-y-4">
           <div className="grid gap-6 lg:grid-cols-3">
             <div className="lg:col-span-1">
               <CustomerList
@@ -250,6 +225,7 @@ export function CRMPage() {
                   opportunities={crm.getCustomerOpportunities(selectedClient.id)}
                   meetings={filteredMeetings.filter(m => m.customer_id === selectedClient.id)}
                   reminders={filteredReminders.filter(r => r.customer_id === selectedClient.id)}
+                  tasks={tasksData.tasks.filter(t => t.context === 'crm' && t.customer_id === selectedClient.id)}
                   onCreateInteraction={createInteractionWithEntity}
                   onCreateMeeting={createMeetingWithEntity}
                   onUpdateMeeting={crm.updateMeeting}
@@ -261,6 +237,9 @@ export function CRMPage() {
                   onCompleteReminder={crm.completeReminder}
                   onUncompleteReminder={crm.uncompleteReminder}
                   onDeleteReminder={crm.deleteReminder}
+                  onCreateTask={(t) => tasksData.createTask({ ...t, context: 'crm', customer_id: selectedClient.id })}
+                  onUpdateTask={tasksData.updateTask}
+                  users={members}
                   isAdmin={isAdmin}
                   selectedEntityName={bizEntities.selectedEntity?.name}
                 />
@@ -268,12 +247,17 @@ export function CRMPage() {
                 <Card className="h-full min-h-[400px] flex items-center justify-center">
                   <CardContent className="text-center text-muted-foreground">
                     <Users className="h-12 w-12 mx-auto mb-4 opacity-30" />
-                    <p>Sélectionnez un client pour voir ses détails</p>
+                    <p>Sélectionnez un client pour gérer ses RDV, notes et tâches</p>
                   </CardContent>
                 </Card>
               )}
             </div>
           </div>
+        </TabsContent>
+
+        {/* Données clients — B2B data table */}
+        <TabsContent value="donnees">
+          <ClientSubTabs b2b={b2b} crm={crm} entityClientIds={entityClientIds} filteredMeetings={filteredMeetings} filteredReminders={filteredReminders} filteredInteractions={filteredInteractions} />
         </TabsContent>
 
         {/* Centralized Reminders tab */}
@@ -288,25 +272,6 @@ export function CRMPage() {
                 onUncomplete={crm.uncompleteReminder}
                 onDelete={crm.deleteReminder}
                 showCustomerName
-              />
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* Tasks tab */}
-        <TabsContent value="tasks" className="space-y-4">
-          <Card>
-            <CardContent className="pt-6">
-              <TaskManager
-                tasks={tasksData.tasks.filter(t => t.context === 'crm')}
-                history={tasksData.history}
-                users={members}
-                customers={customersForSelect}
-                onCreateTask={(t) => tasksData.createTask({ ...t, context: 'crm' })}
-                onUpdateTask={tasksData.updateTask}
-                onDeleteTask={tasksData.deleteTask}
-                getTaskHistory={tasksData.getTaskHistory}
-                defaultContext="crm"
               />
             </CardContent>
           </Card>
