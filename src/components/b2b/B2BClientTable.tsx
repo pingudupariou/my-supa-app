@@ -242,9 +242,10 @@ export function B2BClientTable({
   const deliveryMethodLabels = deliveryMethods.map(m => m.label);
 
   const exportCSV = () => {
-    const headers = ['Actif', 'Client', 'Pays', 'Zone Géo', 'Email', 'Pricing', 'Délai paiement', 'Livraison', 'Frais livraison', 'MOQ', ...revenueYears.map(y => `CA ${y}`), 'Catégorie'];
+    const headers = ['Statut', 'Client', 'Pays', 'Zone Géo', 'Email', 'Pricing', 'Délai paiement', 'Livraison', 'Frais livraison', 'MOQ', ...revenueYears.map(y => `CA ${y}`), 'Catégorie'];
     const rows = clients.map(c => [
-      c.is_active ? 'Oui' : 'Non', c.company_name, c.country || '', c.geographic_zone || '',
+      c.client_type?.toLowerCase() === 'prospect' ? 'Prospect' : c.is_active ? 'Actif' : 'Inactif',
+      c.company_name, c.country || '', c.geographic_zone || '',
       c.contact_email || '', c.pricing_rule || '', c.payment_terms || '', c.delivery_method || '',
       c.delivery_fee_rule || '', c.moq || '', ...revenueYears.map(y => String(getRevenue(c.id, y) || '')),
       categories.find(cat => cat.id === c.category_id)?.name || '',
