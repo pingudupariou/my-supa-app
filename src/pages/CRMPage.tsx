@@ -163,11 +163,15 @@ export function CRMPage() {
         />
       </div>
 
-      <Tabs defaultValue="gestion" className="space-y-4">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
         <TabsList className="flex-wrap">
           <TabsTrigger value="gestion">
             <FolderOpen className="h-4 w-4 mr-2" />
             Gestion clients
+          </TabsTrigger>
+          <TabsTrigger value="historique">
+            <History className="h-4 w-4 mr-2" />
+            Historique
           </TabsTrigger>
           <TabsTrigger value="donnees">
             <Database className="h-4 w-4 mr-2" />
