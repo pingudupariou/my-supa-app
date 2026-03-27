@@ -38,6 +38,7 @@ export function CRMPage() {
   const entityClients = useEntityClients();
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
   const [showAssociator, setShowAssociator] = useState(false);
+  const [activeTab, setActiveTab] = useState('gestion');
 
   const entityId = bizEntities.selectedEntityId;
   const filterByEntity = entityId && entityId !== 'all';
