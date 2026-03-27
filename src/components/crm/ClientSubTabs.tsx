@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Users, UserX, UserSearch } from 'lucide-react';
@@ -7,12 +7,19 @@ import { useCRMData } from '@/hooks/useCRMData';
 import { useColumnPermissions } from '@/hooks/useColumnPermissions';
 import { useAuth } from '@/context/AuthContext';
 
-const CLIENT_STATUSES = [
-  { value: 'all', label: 'Tous les clients', icon: Users },
-  { value: 'active', label: 'Actifs', icon: Users },
-  { value: 'inactive', label: 'Inactifs', icon: UserX },
-  { value: 'prospect', label: 'Prospects', icon: UserSearch },
-] as const;
+type StatusKey = 'all' | 'active' | 'inactive' | 'prospect';
+
+const CLIENT_STATUSES: { value: StatusKey; label: string; icon: any; dot: string }[] = [
+  { value: 'all', label: 'Tous les clients', icon: Users, dot: '' },
+  { value: 'active', label: 'Actifs', icon: Users, dot: 'bg-emerald-500' },
+  { value: 'inactive', label: 'Inactifs', icon: UserX, dot: 'bg-muted-foreground' },
+  { value: 'prospect', label: 'Prospects', icon: UserSearch, dot: 'bg-blue-500' },
+];
+
+function getClientStatus(c: { is_active: boolean; client_type?: string | null }): 'active' | 'inactive' | 'prospect' {
+  if (c.client_type?.toLowerCase() === 'prospect') return 'prospect';
+  return c.is_active ? 'active' : 'inactive';
+}
 
 interface ClientSubTabsProps {
   b2b: ReturnType<typeof import('@/hooks/useB2BClientsData').useB2BClientsData>;
@@ -25,7 +32,7 @@ interface ClientSubTabsProps {
 
 export function ClientSubTabs({ b2b, crm, entityClientIds, filteredMeetings, filteredReminders, filteredInteractions }: ClientSubTabsProps) {
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
-  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [statusFilter, setStatusFilter] = useState<StatusKey>('all');
   const { isAdmin } = useAuth();
   const { isEditableByOthers, togglePermission } = useColumnPermissions();
 
@@ -34,30 +41,33 @@ export function ClientSubTabs({ b2b, crm, entityClientIds, filteredMeetings, fil
     ? b2b.clients.filter(c => entityClientIds.includes(c.id))
     : b2b.clients;
 
-  // Filter by status
-  const statusFilteredClients = entityFilteredClients.filter(c => {
-    if (statusFilter === 'all') return true;
-    if (statusFilter === 'active') return c.is_active && c.client_type?.toLowerCase() !== 'prospect';
-    if (statusFilter === 'inactive') return !c.is_active;
-    if (statusFilter === 'prospect') return c.client_type?.toLowerCase() === 'prospect';
-    return true;
-  });
+  // Apply category filter
+  const catFiltered = useMemo(() => {
+    if (categoryFilter === 'all') return entityFilteredClients;
+    if (categoryFilter === 'none') return entityFilteredClients.filter(c => !c.category_id);
+    return entityFilteredClients.filter(c => c.category_id === categoryFilter);
+  }, [entityFilteredClients, categoryFilter]);
 
-  // Count per status
-  const counts = {
-    all: entityFilteredClients.length,
-    active: entityFilteredClients.filter(c => c.is_active && c.client_type?.toLowerCase() !== 'prospect').length,
-    inactive: entityFilteredClients.filter(c => !c.is_active).length,
-    prospect: entityFilteredClients.filter(c => c.client_type?.toLowerCase() === 'prospect').length,
-  };
+  // Apply status filter
+  const displayed = useMemo(() => {
+    if (statusFilter === 'all') return catFiltered;
+    return catFiltered.filter(c => getClientStatus(c) === statusFilter);
+  }, [catFiltered, statusFilter]);
 
-  const filterByCategory = (clients: typeof b2b.clients) => {
-    if (categoryFilter === 'all') return clients;
-    if (categoryFilter === 'none') return clients.filter(c => !c.category_id);
-    return clients.filter(c => c.category_id === categoryFilter);
-  };
+  // Cross-filtered counts: status counts respect category, category counts respect status
+  const statusCounts = useMemo(() => ({
+    all: catFiltered.length,
+    active: catFiltered.filter(c => getClientStatus(c) === 'active').length,
+    inactive: catFiltered.filter(c => getClientStatus(c) === 'inactive').length,
+    prospect: catFiltered.filter(c => getClientStatus(c) === 'prospect').length,
+  }), [catFiltered]);
 
-  const displayedClients = filterByCategory(statusFilteredClients);
+  // Category summary chips (show status breakdown per selected category)
+  const selectedCatLabel = categoryFilter === 'all'
+    ? null
+    : categoryFilter === 'none'
+      ? 'Sans catégorie'
+      : b2b.categories.find(c => c.id === categoryFilter)?.name;
 
   const tableProps = {
     projections: b2b.projections,
@@ -89,13 +99,10 @@ export function ClientSubTabs({ b2b, crm, entityClientIds, filteredMeetings, fil
 
   return (
     <div className="space-y-4">
-      {/* Info when entity filter is active */}
       {entityClientIds != null && (
-        <div className="flex items-center gap-2">
-          <Badge variant="outline" className="text-xs">
-            {entityFilteredClients.length} client(s) associé(s) à cette entité
-          </Badge>
-        </div>
+        <Badge variant="outline" className="text-xs">
+          {entityFilteredClients.length} client(s) associé(s) à cette entité
+        </Badge>
       )}
 
       {/* Filters row */}
@@ -103,18 +110,18 @@ export function ClientSubTabs({ b2b, crm, entityClientIds, filteredMeetings, fil
         {/* Status filter */}
         <div className="flex items-center gap-2">
           <span className="text-sm font-medium text-muted-foreground">Statut :</span>
-          <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="w-[180px] h-8 text-sm">
+          <Select value={statusFilter} onValueChange={v => setStatusFilter(v as StatusKey)}>
+            <SelectTrigger className="w-[190px] h-8 text-sm">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
               {CLIENT_STATUSES.map(s => (
                 <SelectItem key={s.value} value={s.value}>
                   <div className="flex items-center gap-2">
-                    <s.icon className="h-3.5 w-3.5" />
+                    {s.dot && <span className={`h-2 w-2 rounded-full shrink-0 ${s.dot}`} />}
                     {s.label}
-                    <Badge variant="secondary" className="text-[10px] px-1 py-0 ml-1">
-                      {counts[s.value as keyof typeof counts]}
+                    <Badge variant="secondary" className="text-[10px] px-1 py-0 ml-auto">
+                      {statusCounts[s.value]}
                     </Badge>
                   </div>
                 </SelectItem>
@@ -136,7 +143,7 @@ export function ClientSubTabs({ b2b, crm, entityClientIds, filteredMeetings, fil
               {b2b.categories.map(cat => (
                 <SelectItem key={cat.id} value={cat.id}>
                   <div className="flex items-center gap-2">
-                    <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: cat.color || '#6366f1' }} />
+                    <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: cat.color || '#6366f1' }} />
                     {cat.name}
                   </div>
                 </SelectItem>
@@ -145,7 +152,7 @@ export function ClientSubTabs({ b2b, crm, entityClientIds, filteredMeetings, fil
           </Select>
         </div>
 
-        {/* Reset filters */}
+        {/* Reset */}
         {(statusFilter !== 'all' || categoryFilter !== 'all') && (
           <Badge
             variant="secondary"
@@ -157,13 +164,31 @@ export function ClientSubTabs({ b2b, crm, entityClientIds, filteredMeetings, fil
         )}
       </div>
 
+      {/* Status summary chips when a category is selected */}
+      {selectedCatLabel && (
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-xs text-muted-foreground">{selectedCatLabel} :</span>
+          {CLIENT_STATUSES.filter(s => s.value !== 'all').map(s => (
+            <Badge
+              key={s.value}
+              variant={statusFilter === s.value ? 'default' : 'outline'}
+              className="text-[11px] cursor-pointer gap-1.5 transition-colors"
+              onClick={() => setStatusFilter(statusFilter === s.value ? 'all' : s.value)}
+            >
+              {s.dot && <span className={`h-1.5 w-1.5 rounded-full ${s.dot}`} />}
+              {s.label} ({statusCounts[s.value]})
+            </Badge>
+          ))}
+        </div>
+      )}
+
       {/* Result count */}
       <p className="text-xs text-muted-foreground">
-        {displayedClients.length} client{displayedClients.length !== 1 ? 's' : ''} affiché{displayedClients.length !== 1 ? 's' : ''}
+        {displayed.length} client{displayed.length !== 1 ? 's' : ''} affiché{displayed.length !== 1 ? 's' : ''}
       </p>
 
       {/* Table */}
-      {displayedClients.length === 0 ? (
+      {displayed.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
           <UserX className="h-12 w-12 mb-4 opacity-30" />
           <p>Aucun client trouvé avec ces filtres</p>
@@ -171,7 +196,7 @@ export function ClientSubTabs({ b2b, crm, entityClientIds, filteredMeetings, fil
       ) : (
         <B2BClientTable
           {...tableProps}
-          clients={displayedClients}
+          clients={displayed}
         />
       )}
     </div>
