@@ -136,9 +136,17 @@ function ActivityReport({
     return [header, ...rows].join('\n');
   };
 
-  const handleCopy = async () => {
+  const handleCopy = () => {
     const text = buildExportText();
-    await navigator.clipboard.writeText(text);
+    // Use textarea fallback for clipboard (works in iframes)
+    const textarea = document.createElement('textarea');
+    textarea.value = text;
+    textarea.style.position = 'fixed';
+    textarea.style.opacity = '0';
+    document.body.appendChild(textarea);
+    textarea.select();
+    document.execCommand('copy');
+    document.body.removeChild(textarea);
     setCopied(true);
     toast.success(`${filtered.length} lignes copiées — collez dans Excel`);
     setTimeout(() => setCopied(false), 2000);
