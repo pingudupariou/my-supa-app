@@ -56,9 +56,11 @@ const TYPE_CONFIG: Record<string, { icon: any; label: string; borderColor: strin
 function ActivityReport({
   entries,
   clients,
+  onNavigateToClient,
 }: {
-  entries: Array<{ clientName: string; title: string; content: string; type: string; date: string }>;
+  entries: Array<{ clientName: string; customerId: string; title: string; content: string; type: string; date: string }>;
   clients: Client[];
+  onNavigateToClient: (customerId: string) => void;
 }) {
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
