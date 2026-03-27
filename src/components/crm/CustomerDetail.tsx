@@ -162,10 +162,10 @@ export function CustomerDetail({
         <Tabs defaultValue="meetings" className="w-full">
           <TabsList className="w-full">
             <TabsTrigger value="meetings" className="flex-1 text-xs">
-              <Calendar className="h-3.5 w-3.5 mr-1" />RDV ({meetings.length})
+              <Calendar className="h-3.5 w-3.5 mr-1" />Note RDV ({meetings.length})
             </TabsTrigger>
-            <TabsTrigger value="interactions" className="flex-1 text-xs">
-              <MessageSquare className="h-3.5 w-3.5 mr-1" />Notes ({interactions.length})
+            <TabsTrigger value="calendrier" className="flex-1 text-xs">
+              <MessageSquare className="h-3.5 w-3.5 mr-1" />Calendrier
             </TabsTrigger>
             <TabsTrigger value="tasks" className="flex-1 text-xs">
               <ClipboardList className="h-3.5 w-3.5 mr-1" />Tâches
@@ -195,11 +195,12 @@ export function CustomerDetail({
             />
           </TabsContent>
 
-          <TabsContent value="interactions" className="mt-3">
-            <InteractionHistory
+          <TabsContent value="calendrier" className="mt-3">
+            <ClientCalendarTimeline
               interactions={interactions}
-              customerId={client.id}
+              meetings={meetings}
               onCreate={onCreateInteraction}
+              customerId={client.id}
             />
           </TabsContent>
 

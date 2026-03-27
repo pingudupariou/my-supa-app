@@ -261,6 +261,21 @@ export function CRMPage() {
           </div>
         </TabsContent>
 
+        {/* Historique — all notes timeline */}
+        <TabsContent value="historique" className="space-y-4">
+          <Card>
+            <CardContent className="pt-6">
+              <CrmHistoryTimeline
+                interactions={filteredInteractions}
+                meetings={filteredMeetings}
+                clients={b2b.clients.map(c => ({ id: c.id, company_name: c.company_name }))}
+                onSelectClient={setSelectedClientId}
+                onSwitchToGestion={() => setActiveTab('gestion')}
+              />
+            </CardContent>
+          </Card>
+        </TabsContent>
+
         {/* Données clients — B2B data table */}
         <TabsContent value="donnees">
           <ClientSubTabs b2b={b2b} crm={crm} entityClientIds={entityClientIds} filteredMeetings={filteredMeetings} filteredReminders={filteredReminders} filteredInteractions={filteredInteractions} />
