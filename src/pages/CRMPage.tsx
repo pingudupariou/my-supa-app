@@ -18,6 +18,7 @@ import { EntityClientAssociator } from '@/components/crm/EntityClientAssociator'
 
 import { B2BTrashBin } from '@/components/b2b/B2BTrashBin';
 import { CrmAnalyticsDashboard } from '@/components/crm/CrmAnalyticsDashboard';
+import { CrmHistoryTimeline } from '@/components/crm/CrmHistoryTimeline';
 import { useCRMData } from '@/hooks/useCRMData';
 import { useAuth } from '@/context/AuthContext';
 import { useTasksData } from '@/hooks/useTasksData';
