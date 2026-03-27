@@ -176,7 +176,8 @@ export function PricingPage() {
       const { data } = await supabase
         .from('pricing_config')
         .select('config_data')
-        .eq('user_id', user.id)
+        .order('updated_at', { ascending: false })
+        .limit(1)
         .maybeSingle();
 
       if (data?.config_data) {
