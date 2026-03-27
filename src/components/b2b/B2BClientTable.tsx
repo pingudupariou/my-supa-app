@@ -55,7 +55,7 @@ const revenueYears = [2022, 2023, 2024, 2025];
 type ColumnKey = 'is_active' | 'company_name' | 'country' | 'geographic_zone' | 'contact_email' | 'contact_phone' | 'pricing_rule' | 'payment_terms' | 'delivery_method' | 'delivery_fee_rule' | 'moq' | 'ca_2022' | 'ca_2023' | 'ca_2024' | 'ca_2025' | 'category' | 'crm_activity' | 'last_note' | 'actions';
 
 const ALL_COLUMNS: { key: ColumnKey; label: string; minWidth: string; canHide: boolean }[] = [
-  { key: 'is_active', label: 'Actif', minWidth: '50px', canHide: true },
+  { key: 'is_active', label: 'Statut', minWidth: '90px', canHide: true },
   { key: 'company_name', label: 'Client', minWidth: '130px', canHide: false },
   { key: 'country', label: 'Pays', minWidth: '80px', canHide: true },
   { key: 'geographic_zone', label: 'Zone Géo', minWidth: '80px', canHide: true },
@@ -242,9 +242,10 @@ export function B2BClientTable({
   const deliveryMethodLabels = deliveryMethods.map(m => m.label);
 
   const exportCSV = () => {
-    const headers = ['Actif', 'Client', 'Pays', 'Zone Géo', 'Email', 'Pricing', 'Délai paiement', 'Livraison', 'Frais livraison', 'MOQ', ...revenueYears.map(y => `CA ${y}`), 'Catégorie'];
+    const headers = ['Statut', 'Client', 'Pays', 'Zone Géo', 'Email', 'Pricing', 'Délai paiement', 'Livraison', 'Frais livraison', 'MOQ', ...revenueYears.map(y => `CA ${y}`), 'Catégorie'];
     const rows = clients.map(c => [
-      c.is_active ? 'Oui' : 'Non', c.company_name, c.country || '', c.geographic_zone || '',
+      c.client_type?.toLowerCase() === 'prospect' ? 'Prospect' : c.is_active ? 'Actif' : 'Inactif',
+      c.company_name, c.country || '', c.geographic_zone || '',
       c.contact_email || '', c.pricing_rule || '', c.payment_terms || '', c.delivery_method || '',
       c.delivery_fee_rule || '', c.moq || '', ...revenueYears.map(y => String(getRevenue(c.id, y) || '')),
       categories.find(cat => cat.id === c.category_id)?.name || '',
@@ -274,7 +275,40 @@ export function B2BClientTable({
     <TableRow key={c.id} className="text-xs">
       {isVisible('is_active') && (
         <TableCell>
-          <Switch checked={c.is_active} onCheckedChange={v => onUpsertClient({ id: c.id, company_name: c.company_name, is_active: v })} disabled={!canEditColumn('is_active')} />
+          <Select
+            value={c.client_type?.toLowerCase() === 'prospect' ? 'prospect' : c.is_active ? 'active' : 'inactive'}
+            onValueChange={v => {
+              if (!canEditColumn('is_active')) return;
+              onUpsertClient({
+                id: c.id,
+                company_name: c.company_name,
+                is_active: v !== 'inactive',
+                client_type: v === 'prospect' ? 'Prospect' : c.client_type?.toLowerCase() === 'prospect' ? null : c.client_type,
+              });
+            }}
+            disabled={!canEditColumn('is_active')}
+          >
+            <SelectTrigger className="h-6 text-[11px] w-[85px] px-1.5">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="active">
+                <span className="flex items-center gap-1.5">
+                  <span className="h-2 w-2 rounded-full bg-emerald-500 shrink-0" />Actif
+                </span>
+              </SelectItem>
+              <SelectItem value="inactive">
+                <span className="flex items-center gap-1.5">
+                  <span className="h-2 w-2 rounded-full bg-muted-foreground shrink-0" />Inactif
+                </span>
+              </SelectItem>
+              <SelectItem value="prospect">
+                <span className="flex items-center gap-1.5">
+                  <span className="h-2 w-2 rounded-full bg-blue-500 shrink-0" />Prospect
+                </span>
+              </SelectItem>
+            </SelectContent>
+          </Select>
         </TableCell>
       )}
       {isVisible('company_name') && (
