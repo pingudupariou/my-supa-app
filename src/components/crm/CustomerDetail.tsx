@@ -12,7 +12,10 @@ import { Mail, Phone, Globe, FileText, Calendar, Bell, MessageSquare, Building2,
 import { formatDistanceToNow } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 // Inline calendar timeline component
 function ClientCalendarTimeline({
