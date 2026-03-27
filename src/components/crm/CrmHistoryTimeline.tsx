@@ -56,9 +56,11 @@ const TYPE_CONFIG: Record<string, { icon: any; label: string; borderColor: strin
 function ActivityReport({
   entries,
   clients,
+  onNavigateToClient,
 }: {
-  entries: Array<{ clientName: string; title: string; content: string; type: string; date: string }>;
+  entries: Array<{ clientName: string; customerId: string; title: string; content: string; type: string; date: string }>;
   clients: Client[];
+  onNavigateToClient: (customerId: string) => void;
 }) {
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
@@ -134,9 +136,17 @@ function ActivityReport({
     return [header, ...rows].join('\n');
   };
 
-  const handleCopy = async () => {
+  const handleCopy = () => {
     const text = buildExportText();
-    await navigator.clipboard.writeText(text);
+    // Use textarea fallback for clipboard (works in iframes)
+    const textarea = document.createElement('textarea');
+    textarea.value = text;
+    textarea.style.position = 'fixed';
+    textarea.style.opacity = '0';
+    document.body.appendChild(textarea);
+    textarea.select();
+    document.execCommand('copy');
+    document.body.removeChild(textarea);
     setCopied(true);
     toast.success(`${filtered.length} lignes copiées — collez dans Excel`);
     setTimeout(() => setCopied(false), 2000);
@@ -277,10 +287,17 @@ function ActivityReport({
             <Card key={clientName}>
               <CardHeader className="py-3 px-4">
                 <CardTitle className="text-sm flex items-center justify-between">
-                  <span className="flex items-center gap-2">
+                  <button
+                    className="flex items-center gap-2 hover:text-primary transition-colors cursor-pointer"
+                    onClick={() => {
+                      const client = clients.find(c => c.company_name === clientName);
+                      if (client) onNavigateToClient(client.id);
+                    }}
+                  >
                     <User className="h-4 w-4 text-primary" />
                     {clientName}
-                  </span>
+                    <ChevronRight className="h-3.5 w-3.5 opacity-50" />
+                  </button>
                   <Badge variant="secondary" className="text-[10px]">{items.length} action{items.length > 1 ? 's' : ''}</Badge>
                 </CardTitle>
               </CardHeader>
@@ -291,10 +308,14 @@ function ActivityReport({
                     const Icon = cfg.icon;
                     const d = new Date(item.date);
                     return (
-                      <div
+                      <button
                         key={idx}
+                        onClick={() => {
+                          const client = clients.find(c => c.company_name === item.clientName);
+                          if (client) onNavigateToClient(client.id);
+                        }}
                         className={cn(
-                          "flex items-start gap-2.5 rounded-md p-2 border-l-3 text-xs",
+                          "w-full text-left flex items-start gap-2.5 rounded-md p-2 border-l-3 text-xs cursor-pointer hover:shadow-sm transition-all group",
                           cfg.borderColor,
                           cfg.bgColor,
                         )}
@@ -309,10 +330,13 @@ function ActivityReport({
                             <p className="text-muted-foreground mt-0.5 line-clamp-3 whitespace-pre-wrap">{item.content}</p>
                           )}
                         </div>
-                        <span className="text-[10px] text-muted-foreground shrink-0 mt-0.5">
-                          {d.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })}
-                        </span>
-                      </div>
+                        <div className="flex items-center gap-1 shrink-0 mt-0.5">
+                          <span className="text-[10px] text-muted-foreground">
+                            {d.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })}
+                          </span>
+                          <ChevronRight className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+                        </div>
+                      </button>
                     );
                   })}
                 </div>
@@ -414,6 +438,7 @@ export function CrmHistoryTimeline({ interactions, meetings, clients, onSelectCl
         <ActivityReport
           entries={allEntries.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())}
           clients={clients}
+          onNavigateToClient={(customerId) => handleClick(customerId)}
         />
       ) : (
         <>
