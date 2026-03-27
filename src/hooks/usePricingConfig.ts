@@ -45,11 +45,22 @@ export function usePricingConfig() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) { setLoaded(true); return; }
 
-      const { data } = await supabase
+      // Try user's own config first, then fall back to any available (shared)
+      let { data } = await supabase
         .from('pricing_config')
         .select('config_data')
         .eq('user_id', user.id)
         .maybeSingle();
+
+      if (!data) {
+        const res = await supabase
+          .from('pricing_config')
+          .select('config_data')
+          .order('updated_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        data = res.data;
+      }
 
       if (data?.config_data) {
         const cfg = data.config_data as any;
