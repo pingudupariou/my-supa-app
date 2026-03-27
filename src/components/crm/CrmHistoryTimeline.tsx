@@ -424,6 +424,7 @@ export function CrmHistoryTimeline({ interactions, meetings, clients, onSelectCl
         <ActivityReport
           entries={allEntries.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())}
           clients={clients}
+          onNavigateToClient={(customerId) => handleClick(customerId)}
         />
       ) : (
         <>
