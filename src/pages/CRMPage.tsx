@@ -3,7 +3,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ClientSubTabs } from '@/components/crm/ClientSubTabs';
 import { Card, CardContent } from '@/components/ui/card';
 import { KPICard } from '@/components/ui/KPICard';
-import { Users, Kanban, Bell, Trash2, ClipboardList, BarChart3, Building2, FolderOpen, Database } from 'lucide-react';
+import { Users, Kanban, Bell, Trash2, ClipboardList, BarChart3, Building2, FolderOpen, Database, History } from 'lucide-react';
 import { CustomerList } from '@/components/crm/CustomerList';
 import { CustomerDetail } from '@/components/crm/CustomerDetail';
 import { PipelineKanban } from '@/components/crm/PipelineKanban';
@@ -18,6 +18,7 @@ import { EntityClientAssociator } from '@/components/crm/EntityClientAssociator'
 
 import { B2BTrashBin } from '@/components/b2b/B2BTrashBin';
 import { CrmAnalyticsDashboard } from '@/components/crm/CrmAnalyticsDashboard';
+import { CrmHistoryTimeline } from '@/components/crm/CrmHistoryTimeline';
 import { useCRMData } from '@/hooks/useCRMData';
 import { useAuth } from '@/context/AuthContext';
 import { useTasksData } from '@/hooks/useTasksData';
@@ -37,6 +38,7 @@ export function CRMPage() {
   const entityClients = useEntityClients();
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
   const [showAssociator, setShowAssociator] = useState(false);
+  const [activeTab, setActiveTab] = useState('gestion');
 
   const entityId = bizEntities.selectedEntityId;
   const filterByEntity = entityId && entityId !== 'all';
@@ -161,11 +163,15 @@ export function CRMPage() {
         />
       </div>
 
-      <Tabs defaultValue="gestion" className="space-y-4">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
         <TabsList className="flex-wrap">
           <TabsTrigger value="gestion">
             <FolderOpen className="h-4 w-4 mr-2" />
             Gestion clients
+          </TabsTrigger>
+          <TabsTrigger value="historique">
+            <History className="h-4 w-4 mr-2" />
+            Historique
           </TabsTrigger>
           <TabsTrigger value="donnees">
             <Database className="h-4 w-4 mr-2" />
@@ -253,6 +259,21 @@ export function CRMPage() {
               )}
             </div>
           </div>
+        </TabsContent>
+
+        {/* Historique — all notes timeline */}
+        <TabsContent value="historique" className="space-y-4">
+          <Card>
+            <CardContent className="pt-6">
+              <CrmHistoryTimeline
+                interactions={filteredInteractions}
+                meetings={filteredMeetings}
+                clients={b2b.clients.map(c => ({ id: c.id, company_name: c.company_name }))}
+                onSelectClient={setSelectedClientId}
+                onSwitchToGestion={() => setActiveTab('gestion')}
+              />
+            </CardContent>
+          </Card>
         </TabsContent>
 
         {/* Données clients — B2B data table */}

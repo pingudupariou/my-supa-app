@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
@@ -8,12 +8,193 @@ import { CrmMeetingManager } from './CrmMeetingManager';
 import { CrmReminderManager } from './CrmReminderManager';
 import { B2BClient } from '@/hooks/useB2BClientsData';
 import { CustomerInteraction, CustomerOpportunity, CrmMeeting, CrmReminder, PIPELINE_STAGES } from '@/hooks/useCRMData';
-import { Mail, Phone, Globe, FileText, Calendar, Bell, MessageSquare, Building2, ClipboardList, CheckCircle2, Clock, AlertCircle } from 'lucide-react';
+import { Mail, Phone, Globe, FileText, Calendar, Bell, MessageSquare, Building2, ClipboardList, CheckCircle2, Clock, AlertCircle, StickyNote, Plus } from 'lucide-react';
+import { formatDistanceToNow } from 'date-fns';
+import { fr } from 'date-fns/locale';
+import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { cn } from '@/lib/utils';
+
+// Inline calendar timeline component
+function ClientCalendarTimeline({
+  interactions,
+  meetings,
+  onCreate,
+  customerId,
+}: {
+  interactions: CustomerInteraction[];
+  meetings: CrmMeeting[];
+  onCreate: (interaction: any) => Promise<any>;
+  customerId: string;
+}) {
+  const [showAdd, setShowAdd] = useState(false);
+  const [newNote, setNewNote] = useState({ subject: '', content: '', type: 'note' });
+
+  // Merge and sort chronologically (newest first)
+  const timeline = useMemo(() => {
+    const items: Array<{
+      id: string;
+      date: string;
+      title: string;
+      content: string;
+      type: 'interaction' | 'meeting';
+      subType: string;
+      status?: string;
+    }> = [];
+
+    interactions.forEach(i => {
+      items.push({
+        id: i.id,
+        date: i.interaction_date,
+        title: i.subject,
+        content: i.content || '',
+        type: 'interaction',
+        subType: i.interaction_type,
+      });
+    });
+
+    meetings.forEach(m => {
+      items.push({
+        id: m.id,
+        date: m.meeting_date,
+        title: m.title || 'Réunion',
+        content: m.notes || '',
+        type: 'meeting',
+        subType: 'rdv',
+        status: m.status,
+      });
+    });
+
+    items.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    return items;
+  }, [interactions, meetings]);
+
+  // Group by date
+  const grouped = useMemo(() => {
+    const map: Record<string, typeof timeline> = {};
+    timeline.forEach(item => {
+      const key = new Date(item.date).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+      if (!map[key]) map[key] = [];
+      map[key].push(item);
+    });
+    return Object.entries(map);
+  }, [timeline]);
+
+  const handleAdd = async () => {
+    if (!newNote.subject.trim()) return;
+    await onCreate({
+      customer_id: customerId,
+      subject: newNote.subject,
+      content: newNote.content,
+      interaction_type: newNote.type,
+    });
+    setNewNote({ subject: '', content: '', type: 'note' });
+    setShowAdd(false);
+  };
+
+  const TYPE_ICON: Record<string, { icon: any; color: string }> = {
+    call: { icon: Phone, color: 'text-blue-500' },
+    email: { icon: Mail, color: 'text-emerald-500' },
+    meeting: { icon: Calendar, color: 'text-purple-500' },
+    note: { icon: StickyNote, color: 'text-amber-500' },
+    rdv: { icon: Calendar, color: 'text-violet-500' },
+  };
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <h4 className="font-medium text-sm">Calendrier ({timeline.length})</h4>
+        <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setShowAdd(!showAdd)}>
+          <Plus className="h-3 w-3 mr-1" />{showAdd ? 'Fermer' : 'Ajouter note'}
+        </Button>
+      </div>
+
+      {showAdd && (
+        <div className="p-3 rounded-lg border border-dashed border-primary/40 bg-primary/5 space-y-2">
+          <Input
+            placeholder="Sujet *"
+            value={newNote.subject}
+            onChange={e => setNewNote(n => ({ ...n, subject: e.target.value }))}
+            className="text-sm"
+            autoFocus
+          />
+          <Textarea
+            placeholder="Contenu (optionnel)"
+            value={newNote.content}
+            onChange={e => setNewNote(n => ({ ...n, content: e.target.value }))}
+            rows={3}
+            className="text-sm resize-y"
+          />
+          <div className="flex gap-2">
+            <select
+              className="h-8 text-xs rounded border px-2 bg-background"
+              value={newNote.type}
+              onChange={e => setNewNote(n => ({ ...n, type: e.target.value }))}
+            >
+              <option value="note">📝 Note</option>
+              <option value="call">📞 Appel</option>
+              <option value="email">📧 Email</option>
+              <option value="meeting">📅 RDV</option>
+            </select>
+            <Button size="sm" onClick={handleAdd} disabled={!newNote.subject.trim()} className="h-8 text-xs">
+              Créer
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {timeline.length === 0 ? (
+        <div className="text-center py-8 text-muted-foreground">
+          <Calendar className="h-8 w-8 mx-auto mb-2 opacity-20" />
+          <p className="text-sm">Aucun événement</p>
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {grouped.map(([dateLabel, items]) => (
+            <div key={dateLabel}>
+              <div className="flex items-center gap-2 mb-2">
+                <div className="h-px flex-1 bg-border" />
+                <span className="text-[11px] font-medium text-muted-foreground capitalize shrink-0">{dateLabel}</span>
+                <div className="h-px flex-1 bg-border" />
+              </div>
+              <div className="space-y-1.5 pl-2 border-l-2 border-muted ml-2">
+                {items.map(item => {
+                  const cfg = TYPE_ICON[item.subType] || TYPE_ICON.note;
+                  const Icon = cfg.icon;
+                  return (
+                    <div key={item.id} className="pl-3 py-1.5 relative">
+                      <div className="absolute -left-[9px] top-2.5 h-4 w-4 rounded-full bg-background border-2 border-muted flex items-center justify-center">
+                        <Icon className={cn("h-2.5 w-2.5", cfg.color)} />
+                      </div>
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="font-medium text-xs">{item.title}</span>
+                            {item.type === 'meeting' && item.status && (
+                              <Badge variant="outline" className="text-[9px]">{item.status}</Badge>
+                            )}
+                          </div>
+                          {item.content && (
+                            <p className="text-[11px] text-muted-foreground line-clamp-2 mt-0.5">{item.content}</p>
+                          )}
+                        </div>
+                        <span className="text-[10px] text-muted-foreground shrink-0">
+                          {new Date(item.date).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 interface Task {
   id: string;
@@ -162,10 +343,10 @@ export function CustomerDetail({
         <Tabs defaultValue="meetings" className="w-full">
           <TabsList className="w-full">
             <TabsTrigger value="meetings" className="flex-1 text-xs">
-              <Calendar className="h-3.5 w-3.5 mr-1" />RDV ({meetings.length})
+              <Calendar className="h-3.5 w-3.5 mr-1" />Note RDV ({meetings.length})
             </TabsTrigger>
-            <TabsTrigger value="interactions" className="flex-1 text-xs">
-              <MessageSquare className="h-3.5 w-3.5 mr-1" />Notes ({interactions.length})
+            <TabsTrigger value="calendrier" className="flex-1 text-xs">
+              <MessageSquare className="h-3.5 w-3.5 mr-1" />Calendrier
             </TabsTrigger>
             <TabsTrigger value="tasks" className="flex-1 text-xs">
               <ClipboardList className="h-3.5 w-3.5 mr-1" />Tâches
@@ -195,11 +376,12 @@ export function CustomerDetail({
             />
           </TabsContent>
 
-          <TabsContent value="interactions" className="mt-3">
-            <InteractionHistory
+          <TabsContent value="calendrier" className="mt-3">
+            <ClientCalendarTimeline
               interactions={interactions}
-              customerId={client.id}
+              meetings={meetings}
               onCreate={onCreateInteraction}
+              customerId={client.id}
             />
           </TabsContent>
 
