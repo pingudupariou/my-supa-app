@@ -274,7 +274,40 @@ export function B2BClientTable({
     <TableRow key={c.id} className="text-xs">
       {isVisible('is_active') && (
         <TableCell>
-          <Switch checked={c.is_active} onCheckedChange={v => onUpsertClient({ id: c.id, company_name: c.company_name, is_active: v })} disabled={!canEditColumn('is_active')} />
+          <Select
+            value={c.client_type?.toLowerCase() === 'prospect' ? 'prospect' : c.is_active ? 'active' : 'inactive'}
+            onValueChange={v => {
+              if (!canEditColumn('is_active')) return;
+              onUpsertClient({
+                id: c.id,
+                company_name: c.company_name,
+                is_active: v !== 'inactive',
+                client_type: v === 'prospect' ? 'Prospect' : c.client_type?.toLowerCase() === 'prospect' ? null : c.client_type,
+              });
+            }}
+            disabled={!canEditColumn('is_active')}
+          >
+            <SelectTrigger className="h-6 text-[11px] w-[85px] px-1.5">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="active">
+                <span className="flex items-center gap-1.5">
+                  <span className="h-2 w-2 rounded-full bg-emerald-500 shrink-0" />Actif
+                </span>
+              </SelectItem>
+              <SelectItem value="inactive">
+                <span className="flex items-center gap-1.5">
+                  <span className="h-2 w-2 rounded-full bg-muted-foreground shrink-0" />Inactif
+                </span>
+              </SelectItem>
+              <SelectItem value="prospect">
+                <span className="flex items-center gap-1.5">
+                  <span className="h-2 w-2 rounded-full bg-blue-500 shrink-0" />Prospect
+                </span>
+              </SelectItem>
+            </SelectContent>
+          </Select>
         </TableCell>
       )}
       {isVisible('company_name') && (
