@@ -32,7 +32,7 @@ interface ClientSubTabsProps {
   addClientToEntity?: (entityId: string, clientId: string) => Promise<boolean>;
 }
 
-export function ClientSubTabs({ b2b, crm, entityClientIds, filteredMeetings, filteredReminders, filteredInteractions }: ClientSubTabsProps) {
+export function ClientSubTabs({ b2b, crm, entityClientIds, filteredMeetings, filteredReminders, filteredInteractions, selectedEntityId, addClientToEntity }: ClientSubTabsProps) {
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
   const [statusFilter, setStatusFilter] = useState<StatusKey>('all');
   const { isAdmin } = useAuth();
