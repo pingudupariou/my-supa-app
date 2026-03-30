@@ -17,6 +17,7 @@ import { getCountryFlag } from '@/lib/countryFlags';
 import { B2BClientImportDialog } from './B2BClientImportDialog';
 import { B2BSettingsPanel } from './B2BSettingsPanel';
 import { usePricingConfig } from '@/hooks/usePricingConfig';
+import { B2BClientDetailDialog } from './B2BClientDetailDialog';
 import { toast } from 'sonner';
 
 interface Props {
