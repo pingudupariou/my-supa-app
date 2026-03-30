@@ -278,7 +278,7 @@ export function CRMPage() {
 
         {/* Données clients — B2B data table */}
         <TabsContent value="donnees">
-          <ClientSubTabs b2b={b2b} crm={crm} entityClientIds={entityClientIds} filteredMeetings={filteredMeetings} filteredReminders={filteredReminders} filteredInteractions={filteredInteractions} />
+          <ClientSubTabs b2b={b2b} crm={crm} entityClientIds={entityClientIds} filteredMeetings={filteredMeetings} filteredReminders={filteredReminders} filteredInteractions={filteredInteractions} selectedEntityId={entityId} addClientToEntity={entityClients.addClientToEntity} />
         </TabsContent>
 
         {/* Centralized Reminders tab */}
