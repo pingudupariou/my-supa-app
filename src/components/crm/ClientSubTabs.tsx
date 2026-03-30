@@ -28,6 +28,8 @@ interface ClientSubTabsProps {
   filteredMeetings?: ReturnType<typeof useCRMData>['meetings'];
   filteredReminders?: ReturnType<typeof useCRMData>['reminders'];
   filteredInteractions?: ReturnType<typeof useCRMData>['interactions'];
+  selectedEntityId?: string | null;
+  addClientToEntity?: (entityId: string, clientId: string) => Promise<boolean>;
 }
 
 export function ClientSubTabs({ b2b, crm, entityClientIds, filteredMeetings, filteredReminders, filteredInteractions }: ClientSubTabsProps) {
