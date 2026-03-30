@@ -17,6 +17,7 @@ import { getCountryFlag } from '@/lib/countryFlags';
 import { B2BClientImportDialog } from './B2BClientImportDialog';
 import { B2BSettingsPanel } from './B2BSettingsPanel';
 import { usePricingConfig } from '@/hooks/usePricingConfig';
+import { B2BClientDetailDialog } from './B2BClientDetailDialog';
 import { toast } from 'sonner';
 
 interface Props {
@@ -160,6 +161,7 @@ export function B2BClientTable({
   const [showCategoryDialog, setShowCategoryDialog] = useState(false);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [hiddenColumns, setHiddenColumns] = useState<Set<ColumnKey>>(new Set());
+  const [detailClient, setDetailClient] = useState<B2BClient | null>(null);
 
   const { salesRules } = usePricingConfig();
 
@@ -313,7 +315,15 @@ export function B2BClientTable({
       )}
       {isVisible('company_name') && (
         <TableCell className="font-medium">
-          {canEditColumn('company_name') ? <EditableCell value={c.company_name} onSave={v => saveField(c, 'company_name', v)} /> : <ReadOnlyCell value={c.company_name} />}
+          <div className="flex items-center gap-1">
+            <button
+              className="text-primary hover:underline cursor-pointer text-left text-xs font-medium truncate max-w-[140px]"
+              onClick={() => setDetailClient(c)}
+              title="Ouvrir la fiche client"
+            >
+              {c.company_name}
+            </button>
+          </div>
         </TableCell>
       )}
       {isVisible('country') && (
@@ -710,6 +720,18 @@ export function B2BClientTable({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      {/* Client detail dialog */}
+      <B2BClientDetailDialog
+        client={detailClient}
+        open={!!detailClient}
+        onOpenChange={open => { if (!open) setDetailClient(null); }}
+        onSave={onUpsertClient}
+        categories={categories}
+        paymentTermsOptions={paymentTermsOptions}
+        deliveryMethods={deliveryMethods}
+        deliveryFeeTiers={deliveryFeeTiers}
+        readOnly={!canEditColumn('company_name')}
+      />
     </div>
   );
 }
