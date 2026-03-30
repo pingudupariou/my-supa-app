@@ -28,9 +28,11 @@ interface ClientSubTabsProps {
   filteredMeetings?: ReturnType<typeof useCRMData>['meetings'];
   filteredReminders?: ReturnType<typeof useCRMData>['reminders'];
   filteredInteractions?: ReturnType<typeof useCRMData>['interactions'];
+  selectedEntityId?: string | null;
+  addClientToEntity?: (entityId: string, clientId: string) => Promise<boolean>;
 }
 
-export function ClientSubTabs({ b2b, crm, entityClientIds, filteredMeetings, filteredReminders, filteredInteractions }: ClientSubTabsProps) {
+export function ClientSubTabs({ b2b, crm, entityClientIds, filteredMeetings, filteredReminders, filteredInteractions, selectedEntityId, addClientToEntity }: ClientSubTabsProps) {
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
   const [statusFilter, setStatusFilter] = useState<StatusKey>('all');
   const { isAdmin } = useAuth();
@@ -75,7 +77,14 @@ export function ClientSubTabs({ b2b, crm, entityClientIds, filteredMeetings, fil
     paymentTermsOptions: b2b.paymentTermsOptions,
     deliveryMethods: b2b.deliveryMethods,
     categories: b2b.categories,
-    onUpsertClient: b2b.upsertClient,
+    onUpsertClient: async (data: any) => {
+      const result = await b2b.upsertClient(data);
+      // Auto-associate new client with selected entity
+      if (result && !data.id && selectedEntityId && selectedEntityId !== 'all' && addClientToEntity) {
+        await addClientToEntity(selectedEntityId, result.id);
+      }
+      return result;
+    },
     onDeleteClient: b2b.deleteClient,
     onBulkImport: b2b.bulkImportClients,
     onUpsertProjection: b2b.upsertProjection,
