@@ -77,7 +77,14 @@ export function ClientSubTabs({ b2b, crm, entityClientIds, filteredMeetings, fil
     paymentTermsOptions: b2b.paymentTermsOptions,
     deliveryMethods: b2b.deliveryMethods,
     categories: b2b.categories,
-    onUpsertClient: b2b.upsertClient,
+    onUpsertClient: async (data: any) => {
+      const result = await b2b.upsertClient(data);
+      // Auto-associate new client with selected entity
+      if (result && !data.id && selectedEntityId && selectedEntityId !== 'all' && addClientToEntity) {
+        await addClientToEntity(selectedEntityId, result.id);
+      }
+      return result;
+    },
     onDeleteClient: b2b.deleteClient,
     onBulkImport: b2b.bulkImportClients,
     onUpsertProjection: b2b.upsertProjection,
