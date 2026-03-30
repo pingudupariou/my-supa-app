@@ -720,6 +720,18 @@ export function B2BClientTable({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      {/* Client detail dialog */}
+      <B2BClientDetailDialog
+        client={detailClient}
+        open={!!detailClient}
+        onOpenChange={open => { if (!open) setDetailClient(null); }}
+        onSave={onUpsertClient}
+        categories={categories}
+        paymentTermsOptions={paymentTermsOptions}
+        deliveryMethods={deliveryMethods}
+        deliveryFeeTiers={deliveryFeeTiers}
+        readOnly={!canEditColumn('company_name')}
+      />
     </div>
   );
 }
