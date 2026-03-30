@@ -161,6 +161,7 @@ export function B2BClientTable({
   const [showCategoryDialog, setShowCategoryDialog] = useState(false);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [hiddenColumns, setHiddenColumns] = useState<Set<ColumnKey>>(new Set());
+  const [detailClient, setDetailClient] = useState<B2BClient | null>(null);
 
   const { salesRules } = usePricingConfig();
 
