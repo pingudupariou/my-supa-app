@@ -402,11 +402,15 @@ export function CustomerDetail({
           </TabsContent>
 
           <TabsContent value="calendrier" className="mt-3">
-            <ClientCalendarTimeline
-              interactions={interactions}
+            <ClientCalendarRecap
               meetings={meetings}
-              onCreate={onCreateInteraction}
               customerId={client.id}
+              onUpdateMeeting={onUpdateMeeting}
+              onDeleteMeeting={onDeleteMeeting}
+              onRestoreMeeting={onRestoreMeeting}
+              onPermanentDeleteMeeting={onPermanentDeleteMeeting}
+              getTrashedMeetings={getTrashedMeetings}
+              isAdmin={isAdmin}
             />
           </TabsContent>
 
