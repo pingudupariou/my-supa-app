@@ -164,6 +164,55 @@ export function B2BClientTable({
   const [hiddenColumns, setHiddenColumns] = useState<Set<ColumnKey>>(new Set());
   const [detailClient, setDetailClient] = useState<B2BClient | null>(null);
 
+  // Column order — persisted in localStorage
+  const COLUMN_ORDER_KEY = 'b2b_column_order';
+  const [columnOrder, setColumnOrder] = useState<ColumnKey[]>(() => {
+    try {
+      const saved = localStorage.getItem(COLUMN_ORDER_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved) as ColumnKey[];
+        // Merge: keep saved order for known keys, append any new columns
+        const allKeys = ALL_COLUMNS.map(c => c.key);
+        const ordered = parsed.filter(k => allKeys.includes(k));
+        const missing = allKeys.filter(k => !ordered.includes(k));
+        return [...ordered, ...missing];
+      }
+    } catch {}
+    return ALL_COLUMNS.map(c => c.key);
+  });
+
+  const saveColumnOrder = useCallback((order: ColumnKey[]) => {
+    setColumnOrder(order);
+    localStorage.setItem(COLUMN_ORDER_KEY, JSON.stringify(order));
+  }, []);
+
+  // Drag-and-drop state for column reordering
+  const dragColRef = useRef<ColumnKey | null>(null);
+  const dragOverColRef = useRef<ColumnKey | null>(null);
+
+  const handleDragStart = (key: ColumnKey) => {
+    dragColRef.current = key;
+  };
+
+  const handleDragOver = (e: React.DragEvent, key: ColumnKey) => {
+    e.preventDefault();
+    dragOverColRef.current = key;
+  };
+
+  const handleDrop = () => {
+    const from = dragColRef.current;
+    const to = dragOverColRef.current;
+    if (!from || !to || from === to) return;
+    const newOrder = [...columnOrder];
+    const fromIdx = newOrder.indexOf(from);
+    const toIdx = newOrder.indexOf(to);
+    newOrder.splice(fromIdx, 1);
+    newOrder.splice(toIdx, 0, from);
+    saveColumnOrder(newOrder);
+    dragColRef.current = null;
+    dragOverColRef.current = null;
+  };
+
   const { salesRules } = usePricingConfig();
 
   const [newForm, setNewForm] = useState({
@@ -172,8 +221,12 @@ export function B2BClientTable({
     delivery_method: '', delivery_fee_rule: '', moq: '', category_id: '',
   });
 
-  const visibleColumns = ALL_COLUMNS.filter(c => !hiddenColumns.has(c.key));
-  const hiddenList = ALL_COLUMNS.filter(c => hiddenColumns.has(c.key) && c.canHide);
+  // Use columnOrder to sort visible columns
+  const orderedAllColumns = columnOrder
+    .map(key => ALL_COLUMNS.find(c => c.key === key)!)
+    .filter(Boolean);
+  const visibleColumns = orderedAllColumns.filter(c => !hiddenColumns.has(c.key));
+  const hiddenList = orderedAllColumns.filter(c => hiddenColumns.has(c.key) && c.canHide);
   const colSpan = visibleColumns.length;
 
   const toggleColumn = (key: ColumnKey) => {
