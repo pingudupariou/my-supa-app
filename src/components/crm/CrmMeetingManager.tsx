@@ -5,7 +5,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { Plus, Calendar, MapPin, Clock, Users, CheckCircle2, XCircle, Trash2, Save, ChevronUp, RotateCcw, Archive, AlertTriangle } from 'lucide-react';
+import { Plus, Calendar, MapPin, Clock, Users, CheckCircle2, XCircle, Trash2, Save, ChevronUp, RotateCcw, Archive, AlertTriangle, StickyNote } from 'lucide-react';
 import { CrmMeeting } from '@/hooks/useCRMData';
 import { cn } from '@/lib/utils';
 
@@ -345,6 +345,9 @@ export function CrmMeetingManager({ meetings, customerId, onCreate, onUpdate, on
                         <RotateCcw className="h-3.5 w-3.5 text-primary" />
                       </Button>
                     )}
+                    <Button size="icon" variant="ghost" className="h-7 w-7" title="Ajouter une note" onClick={e => { e.stopPropagation(); handleExpand(m.id, m); }}>
+                      <StickyNote className="h-3.5 w-3.5 text-amber-500" />
+                    </Button>
                     <Button size="icon" variant="ghost" className="h-7 w-7" title="Supprimer" onClick={e => { e.stopPropagation(); onDelete(m.id); }}>
                       <Trash2 className="h-3.5 w-3.5 text-muted-foreground" />
                     </Button>
