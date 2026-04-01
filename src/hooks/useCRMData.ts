@@ -282,6 +282,33 @@ export function useCRMData() {
     }
   }, [user, toast]);
 
+  const deleteInteraction = useCallback(async (id: string) => {
+    if (!user) return false;
+    try {
+      const { error } = await supabase.from('customer_interactions').delete().eq('id', id);
+      if (error) throw error;
+      setInteractions(prev => prev.filter(i => i.id !== id));
+      toast({ title: 'Interaction supprimée' });
+      return true;
+    } catch {
+      toast({ title: 'Erreur', variant: 'destructive' });
+      return false;
+    }
+  }, [user, toast]);
+
+  const updateInteraction = useCallback(async (id: string, updates: Partial<CustomerInteraction>) => {
+    if (!user) return false;
+    try {
+      const { error } = await supabase.from('customer_interactions').update(updates as any).eq('id', id);
+      if (error) throw error;
+      setInteractions(prev => prev.map(i => i.id === id ? { ...i, ...updates } : i));
+      return true;
+    } catch {
+      toast({ title: 'Erreur', variant: 'destructive' });
+      return false;
+    }
+  }, [user, toast]);
+
   // Order CRUD
   const createOrder = useCallback(async (order: Omit<CustomerOrder, 'id' | 'created_at' | 'updated_at'>) => {
     if (!user) return null;
@@ -429,7 +456,7 @@ export function useCRMData() {
     createCustomer, updateCustomer, deleteCustomer,
     createOrder,
     createOpportunity, updateOpportunity, deleteOpportunity,
-    createInteraction,
+    createInteraction, deleteInteraction, updateInteraction,
     createMeeting, updateMeeting, deleteMeeting, restoreMeeting, getTrashedMeetings, permanentDeleteMeeting,
     createReminder, updateReminder, deleteReminder, completeReminder, uncompleteReminder,
     getCustomerInteractions: (id: string) => interactions.filter(i => i.customer_id === id),

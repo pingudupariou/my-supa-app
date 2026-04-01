@@ -249,6 +249,8 @@ interface CustomerDetailProps {
   reminders: CrmReminder[];
   tasks?: Task[];
   onCreateInteraction: (interaction: any) => Promise<any>;
+  onDeleteInteraction?: (id: string) => Promise<boolean>;
+  onUpdateInteraction?: (id: string, updates: any) => Promise<boolean>;
   onCreateMeeting: (meeting: any) => Promise<any>;
   onUpdateMeeting: (id: string, updates: any) => Promise<boolean>;
   onDeleteMeeting: (id: string) => Promise<boolean>;
@@ -280,7 +282,7 @@ const STATUS_CONFIG: Record<string, { label: string; icon: any }> = {
 
 export function CustomerDetail({
   client, interactions, opportunities, meetings, reminders, tasks = [],
-  onCreateInteraction, onCreateMeeting, onUpdateMeeting, onDeleteMeeting,
+  onCreateInteraction, onDeleteInteraction, onUpdateInteraction, onCreateMeeting, onUpdateMeeting, onDeleteMeeting,
   onRestoreMeeting, onPermanentDeleteMeeting, getTrashedMeetings,
   onCreateReminder, onCompleteReminder, onUncompleteReminder, onDeleteReminder,
   onCreateTask, onUpdateTask, users = [],
@@ -387,7 +389,7 @@ export function CustomerDetail({
             </TabsTrigger>
           </TabsList>
 
-          <TabsContent value="meetings" className="mt-3">
+          <TabsContent value="meetings" className="mt-3 space-y-6">
             <CrmMeetingManager
               meetings={meetings}
               customerId={client.id}
@@ -398,6 +400,14 @@ export function CustomerDetail({
               onPermanentDelete={onPermanentDeleteMeeting}
               getTrashedMeetings={getTrashedMeetings}
               isAdmin={isAdmin}
+            />
+            <Separator />
+            <InteractionHistory
+              interactions={interactions}
+              customerId={client.id}
+              onCreate={onCreateInteraction}
+              onDelete={onDeleteInteraction}
+              onUpdate={onUpdateInteraction}
             />
           </TabsContent>
 

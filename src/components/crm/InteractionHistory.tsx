@@ -6,8 +6,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerFooter } from '@/components/ui/drawer';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Plus, Phone, Mail, Calendar, FileText, ArrowUpDown, Clock, ChevronDown, ChevronUp, MessageSquare } from 'lucide-react';
+import { Plus, Phone, Mail, Calendar, FileText, ArrowUpDown, Clock, ChevronDown, ChevronUp, MessageSquare, Trash2, Pencil } from 'lucide-react';
 import { CustomerInteraction } from '@/hooks/useCRMData';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { cn } from '@/lib/utils';
@@ -23,13 +24,18 @@ interface InteractionHistoryProps {
   interactions: CustomerInteraction[];
   customerId: string;
   onCreate: (interaction: { customer_id: string; interaction_type: string; subject: string; content?: string; interaction_date?: string }) => Promise<any>;
+  onDelete?: (id: string) => Promise<boolean>;
+  onUpdate?: (id: string, updates: Partial<CustomerInteraction>) => Promise<boolean>;
 }
 
-export function InteractionHistory({ interactions, customerId, onCreate }: InteractionHistoryProps) {
+export function InteractionHistory({ interactions, customerId, onCreate, onDelete, onUpdate }: InteractionHistoryProps) {
   const [showAdd, setShowAdd] = useState(false);
   const [sortAsc, setSortAsc] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [form, setForm] = useState({ interaction_type: 'note', subject: '', content: '', interaction_date: new Date().toISOString().slice(0, 16) });
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editForm, setEditForm] = useState({ subject: '', content: '', interaction_type: '' });
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const isMobile = useIsMobile();
 
   const sorted = [...interactions].sort((a, b) => {
@@ -48,6 +54,28 @@ export function InteractionHistory({ interactions, customerId, onCreate }: Inter
     });
     setShowAdd(false);
     setForm({ interaction_type: 'note', subject: '', content: '', interaction_date: new Date().toISOString().slice(0, 16) });
+  };
+
+  const handleDelete = async () => {
+    if (!confirmDeleteId || !onDelete) return;
+    await onDelete(confirmDeleteId);
+    setConfirmDeleteId(null);
+    if (expandedId === confirmDeleteId) setExpandedId(null);
+  };
+
+  const startEdit = (int: CustomerInteraction) => {
+    setEditingId(int.id);
+    setEditForm({ subject: int.subject, content: int.content || '', interaction_type: int.interaction_type });
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editingId || !onUpdate || !editForm.subject.trim()) return;
+    await onUpdate(editingId, {
+      subject: editForm.subject,
+      content: editForm.content || null,
+      interaction_type: editForm.interaction_type as any,
+    });
+    setEditingId(null);
   };
 
   const formatDate = (date: string) => {
@@ -193,7 +221,27 @@ export function InteractionHistory({ interactions, customerId, onCreate }: Inter
                         </div>
                       </div>
                     </div>
-                    <div className="shrink-0 mt-1">
+                    <div className="shrink-0 mt-1 flex items-center gap-1">
+                      {isExpanded && onUpdate && (
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="h-6 w-6"
+                          onClick={(e) => { e.stopPropagation(); startEdit(int); }}
+                        >
+                          <Pencil className="h-3 w-3 text-muted-foreground" />
+                        </Button>
+                      )}
+                      {isExpanded && onDelete && (
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="h-6 w-6 text-destructive hover:text-destructive"
+                          onClick={(e) => { e.stopPropagation(); setConfirmDeleteId(int.id); }}
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </Button>
+                      )}
                       {hasContent && (
                         isExpanded
                           ? <ChevronUp className="h-4 w-4 text-muted-foreground" />
@@ -269,6 +317,69 @@ export function InteractionHistory({ interactions, customerId, onCreate }: Inter
           </DialogContent>
         </Dialog>
       )}
+
+      {/* Edit interaction dialog */}
+      <Dialog open={!!editingId} onOpenChange={(open) => !open && setEditingId(null)}>
+        <DialogContent className="sm:max-w-xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Pencil className="h-5 w-5" />
+              Modifier l'interaction
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div>
+              <label className="text-sm font-medium mb-1.5 block">Type</label>
+              <Select value={editForm.interaction_type} onValueChange={v => setEditForm(f => ({ ...f, interaction_type: v }))}>
+                <SelectTrigger className="h-10"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {Object.entries(TYPE_CONFIG).map(([key, cfg]) => {
+                    const Icon = cfg.icon;
+                    return (
+                      <SelectItem key={key} value={key}>
+                        <span className="flex items-center gap-2">
+                          <Icon className={cn("h-4 w-4", cfg.color)} />
+                          {cfg.label}
+                        </span>
+                      </SelectItem>
+                    );
+                  })}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <label className="text-sm font-medium mb-1.5 block">Sujet *</label>
+              <Input value={editForm.subject} onChange={e => setEditForm(f => ({ ...f, subject: e.target.value }))} className="h-10" />
+            </div>
+            <div>
+              <label className="text-sm font-medium mb-1.5 block">Détails</label>
+              <Textarea value={editForm.content} onChange={e => setEditForm(f => ({ ...f, content: e.target.value }))} rows={5} className="text-sm resize-y" />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditingId(null)}>Annuler</Button>
+            <Button onClick={handleSaveEdit} disabled={!editForm.subject.trim()}>Enregistrer</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete confirmation */}
+      <AlertDialog open={!!confirmDeleteId} onOpenChange={(open) => !open && setConfirmDeleteId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Supprimer cette interaction ?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Cette action est irréversible. L'interaction sera définitivement supprimée.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annuler</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Supprimer
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

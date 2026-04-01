@@ -232,7 +232,9 @@ export function CRMPage() {
                   meetings={filteredMeetings.filter(m => m.customer_id === selectedClient.id)}
                   reminders={filteredReminders.filter(r => r.customer_id === selectedClient.id)}
                   tasks={tasksData.tasks.filter(t => t.context === 'crm' && t.customer_id === selectedClient.id)}
-                  onCreateInteraction={createInteractionWithEntity}
+                   onCreateInteraction={createInteractionWithEntity}
+                   onDeleteInteraction={crm.deleteInteraction}
+                   onUpdateInteraction={crm.updateInteraction}
                   onCreateMeeting={createMeetingWithEntity}
                   onUpdateMeeting={crm.updateMeeting}
                   onDeleteMeeting={crm.deleteMeeting}
