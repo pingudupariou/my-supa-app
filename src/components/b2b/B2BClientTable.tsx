@@ -72,6 +72,7 @@ const ALL_COLUMNS: { key: ColumnKey; label: string; minWidth: string; canHide: b
   { key: 'ca_2024', label: 'CA 2024', minWidth: '80px', canHide: true },
   { key: 'ca_2025', label: 'CA 2025', minWidth: '80px', canHide: true },
   { key: 'category', label: 'Catégorie', minWidth: '90px', canHide: true },
+  { key: 'account_manager', label: 'Gestionnaire', minWidth: '120px', canHide: true },
   { key: 'crm_activity', label: 'Suivi CRM', minWidth: '120px', canHide: true },
   { key: 'last_note', label: 'Dernière note RDV', minWidth: '180px', canHide: true },
   { key: 'actions', label: 'Actions', minWidth: '70px', canHide: false },
