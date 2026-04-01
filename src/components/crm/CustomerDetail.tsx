@@ -17,181 +17,205 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
-// Inline calendar timeline component
-function ClientCalendarTimeline({
-  interactions,
+// Inline calendar recap component — shows all meetings with status, edit, delete/trash
+function ClientCalendarRecap({
   meetings,
-  onCreate,
   customerId,
+  onUpdateMeeting,
+  onDeleteMeeting,
+  onRestoreMeeting,
+  onPermanentDeleteMeeting,
+  getTrashedMeetings,
+  isAdmin,
 }: {
-  interactions: CustomerInteraction[];
   meetings: CrmMeeting[];
-  onCreate: (interaction: any) => Promise<any>;
   customerId: string;
+  onUpdateMeeting: (id: string, updates: any) => Promise<boolean>;
+  onDeleteMeeting: (id: string) => Promise<boolean>;
+  onRestoreMeeting?: (id: string) => Promise<boolean>;
+  onPermanentDeleteMeeting?: (id: string) => Promise<boolean>;
+  getTrashedMeetings?: () => Promise<CrmMeeting[]>;
+  isAdmin?: boolean;
 }) {
-  const [showAdd, setShowAdd] = useState(false);
-  const [newNote, setNewNote] = useState({ subject: '', content: '', type: 'note' });
+  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [showTrash, setShowTrash] = useState(false);
+  const [trashedMeetings, setTrashedMeetings] = useState<CrmMeeting[]>([]);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
-  // Merge and sort chronologically (newest first)
-  const timeline = useMemo(() => {
-    const items: Array<{
-      id: string;
-      date: string;
-      title: string;
-      content: string;
-      type: 'interaction' | 'meeting';
-      subType: string;
-      status?: string;
-    }> = [];
+  const filtered = meetings
+    .filter(m => statusFilter === 'all' || m.status === statusFilter)
+    .sort((a, b) => new Date(b.meeting_date).getTime() - new Date(a.meeting_date).getTime());
 
-    interactions.forEach(i => {
-      items.push({
-        id: i.id,
-        date: i.interaction_date,
-        title: i.subject,
-        content: i.content || '',
-        type: 'interaction',
-        subType: i.interaction_type,
-      });
-    });
+  const plannedCount = meetings.filter(m => m.status === 'planned').length;
+  const completedCount = meetings.filter(m => m.status === 'completed').length;
+  const cancelledCount = meetings.filter(m => m.status === 'cancelled').length;
 
-    meetings.forEach(m => {
-      items.push({
-        id: m.id,
-        date: m.meeting_date,
-        title: m.title || 'Réunion',
-        content: m.notes || '',
-        type: 'meeting',
-        subType: 'rdv',
-        status: m.status,
-      });
-    });
-
-    items.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-    return items;
-  }, [interactions, meetings]);
-
-  // Group by date
-  const grouped = useMemo(() => {
-    const map: Record<string, typeof timeline> = {};
-    timeline.forEach(item => {
-      const key = new Date(item.date).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
-      if (!map[key]) map[key] = [];
-      map[key].push(item);
-    });
-    return Object.entries(map);
-  }, [timeline]);
-
-  const handleAdd = async () => {
-    if (!newNote.subject.trim()) return;
-    await onCreate({
-      customer_id: customerId,
-      subject: newNote.subject,
-      content: newNote.content,
-      interaction_type: newNote.type,
-    });
-    setNewNote({ subject: '', content: '', type: 'note' });
-    setShowAdd(false);
+  const STATUS_MAP: Record<string, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline'; dot: string }> = {
+    planned: { label: 'Planifié', variant: 'outline', dot: 'bg-blue-500' },
+    completed: { label: 'Réalisé', variant: 'default', dot: 'bg-emerald-500' },
+    cancelled: { label: 'Annulé', variant: 'destructive', dot: 'bg-destructive' },
   };
 
-  const TYPE_ICON: Record<string, { icon: any; color: string }> = {
-    call: { icon: Phone, color: 'text-blue-500' },
-    email: { icon: Mail, color: 'text-emerald-500' },
-    meeting: { icon: Calendar, color: 'text-purple-500' },
-    note: { icon: StickyNote, color: 'text-amber-500' },
-    rdv: { icon: Calendar, color: 'text-violet-500' },
+  const loadTrash = async () => {
+    if (!getTrashedMeetings) return;
+    const all = await getTrashedMeetings();
+    setTrashedMeetings(all.filter(m => m.customer_id === customerId));
+  };
+
+  const toggleTrash = async () => {
+    if (!showTrash) await loadTrash();
+    setShowTrash(!showTrash);
+  };
+
+  const handleRestore = async (id: string) => {
+    if (!onRestoreMeeting) return;
+    await onRestoreMeeting(id);
+    setTrashedMeetings(prev => prev.filter(m => m.id !== id));
+  };
+
+  const handlePermanentDelete = async () => {
+    if (!confirmDeleteId || !onPermanentDeleteMeeting) return;
+    await onPermanentDeleteMeeting(confirmDeleteId);
+    setTrashedMeetings(prev => prev.filter(m => m.id !== confirmDeleteId));
+    setConfirmDeleteId(null);
   };
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center justify-between">
-        <h4 className="font-medium text-sm">Calendrier ({timeline.length})</h4>
-        <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setShowAdd(!showAdd)}>
-          <Plus className="h-3 w-3 mr-1" />{showAdd ? 'Fermer' : 'Ajouter note'}
-        </Button>
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <h4 className="font-medium text-sm flex items-center gap-1.5">
+          <Calendar className="h-4 w-4" /> Calendrier ({meetings.length})
+        </h4>
+        <div className="flex items-center gap-1.5 flex-wrap">
+          {/* Filter badges */}
+          <Badge variant={statusFilter === 'all' ? 'default' : 'outline'} className="text-[10px] cursor-pointer" onClick={() => setStatusFilter('all')}>
+            Tous ({meetings.length})
+          </Badge>
+          <Badge variant={statusFilter === 'planned' ? 'default' : 'outline'} className="text-[10px] cursor-pointer gap-1" onClick={() => setStatusFilter(statusFilter === 'planned' ? 'all' : 'planned')}>
+            <span className="h-1.5 w-1.5 rounded-full bg-blue-500" />Planifiés ({plannedCount})
+          </Badge>
+          <Badge variant={statusFilter === 'completed' ? 'default' : 'outline'} className="text-[10px] cursor-pointer gap-1" onClick={() => setStatusFilter(statusFilter === 'completed' ? 'all' : 'completed')}>
+            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />Réalisés ({completedCount})
+          </Badge>
+          {cancelledCount > 0 && (
+            <Badge variant={statusFilter === 'cancelled' ? 'default' : 'outline'} className="text-[10px] cursor-pointer gap-1" onClick={() => setStatusFilter(statusFilter === 'cancelled' ? 'all' : 'cancelled')}>
+              Annulés ({cancelledCount})
+            </Badge>
+          )}
+          {getTrashedMeetings && (
+            <Button size="sm" variant="ghost" onClick={toggleTrash} className={cn("h-6 text-[10px] px-2", showTrash && 'bg-muted')}>
+              <Trash2 className="h-3 w-3 mr-1" /> Corbeille
+            </Button>
+          )}
+        </div>
       </div>
 
-      {showAdd && (
-        <div className="p-3 rounded-lg border border-dashed border-primary/40 bg-primary/5 space-y-2">
-          <Input
-            placeholder="Sujet *"
-            value={newNote.subject}
-            onChange={e => setNewNote(n => ({ ...n, subject: e.target.value }))}
-            className="text-sm"
-            autoFocus
-          />
-          <Textarea
-            placeholder="Contenu (optionnel)"
-            value={newNote.content}
-            onChange={e => setNewNote(n => ({ ...n, content: e.target.value }))}
-            rows={3}
-            className="text-sm resize-y"
-          />
-          <div className="flex gap-2">
-            <select
-              className="h-8 text-xs rounded border px-2 bg-background"
-              value={newNote.type}
-              onChange={e => setNewNote(n => ({ ...n, type: e.target.value }))}
-            >
-              <option value="note">📝 Note</option>
-              <option value="call">📞 Appel</option>
-              <option value="email">📧 Email</option>
-              <option value="meeting">📅 RDV</option>
-            </select>
-            <Button size="sm" onClick={handleAdd} disabled={!newNote.subject.trim()} className="h-8 text-xs">
-              Créer
-            </Button>
-          </div>
+      {/* Trash section */}
+      {showTrash && (
+        <div className="p-3 rounded-lg border border-dashed border-destructive/30 bg-destructive/5 space-y-2">
+          <h5 className="text-xs font-medium text-muted-foreground">RDV supprimés</h5>
+          {trashedMeetings.length === 0 ? (
+            <p className="text-xs text-muted-foreground">Aucun RDV en corbeille.</p>
+          ) : (
+            trashedMeetings.map(m => (
+              <div key={m.id} className="flex items-center justify-between p-2 rounded border bg-background">
+                <div className="min-w-0">
+                  <span className="text-sm font-medium truncate block">{m.title}</span>
+                  <span className="text-[10px] text-muted-foreground">
+                    {new Date(m.meeting_date).toLocaleDateString('fr-FR')}
+                    {m.deleted_at && ` • Supprimé le ${new Date(m.deleted_at).toLocaleDateString('fr-FR')}`}
+                  </span>
+                </div>
+                <div className="flex items-center gap-1 shrink-0">
+                  <Button size="sm" variant="outline" className="h-6 text-[10px]" onClick={() => handleRestore(m.id)}>
+                    Restaurer
+                  </Button>
+                  {isAdmin && (
+                    <Button size="sm" variant="destructive" className="h-6 text-[10px]" onClick={() => setConfirmDeleteId(m.id)}>
+                      Supprimer
+                    </Button>
+                  )}
+                </div>
+              </div>
+            ))
+          )}
         </div>
       )}
 
-      {timeline.length === 0 ? (
+      {/* Meeting list */}
+      {filtered.length === 0 ? (
         <div className="text-center py-8 text-muted-foreground">
           <Calendar className="h-8 w-8 mx-auto mb-2 opacity-20" />
-          <p className="text-sm">Aucun événement</p>
+          <p className="text-sm">Aucun RDV</p>
         </div>
       ) : (
-        <div className="space-y-4">
-          {grouped.map(([dateLabel, items]) => (
-            <div key={dateLabel}>
-              <div className="flex items-center gap-2 mb-2">
-                <div className="h-px flex-1 bg-border" />
-                <span className="text-[11px] font-medium text-muted-foreground capitalize shrink-0">{dateLabel}</span>
-                <div className="h-px flex-1 bg-border" />
-              </div>
-              <div className="space-y-1.5 pl-2 border-l-2 border-muted ml-2">
-                {items.map(item => {
-                  const cfg = TYPE_ICON[item.subType] || TYPE_ICON.note;
-                  const Icon = cfg.icon;
-                  return (
-                    <div key={item.id} className="pl-3 py-1.5 relative">
-                      <div className="absolute -left-[9px] top-2.5 h-4 w-4 rounded-full bg-background border-2 border-muted flex items-center justify-center">
-                        <Icon className={cn("h-2.5 w-2.5", cfg.color)} />
-                      </div>
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-center gap-1.5 flex-wrap">
-                            <span className="font-medium text-xs">{item.title}</span>
-                            {item.type === 'meeting' && item.status && (
-                              <Badge variant="outline" className="text-[9px]">{item.status}</Badge>
-                            )}
-                          </div>
-                          {item.content && (
-                            <p className="text-[11px] text-muted-foreground line-clamp-2 mt-0.5">{item.content}</p>
-                          )}
-                        </div>
-                        <span className="text-[10px] text-muted-foreground shrink-0">
-                          {new Date(item.date).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
-                        </span>
-                      </div>
+        <div className="space-y-2">
+          {filtered.map(m => {
+            const st = STATUS_MAP[m.status] || STATUS_MAP.planned;
+            const date = new Date(m.meeting_date);
+            return (
+              <div key={m.id} className={cn(
+                "p-3 rounded-lg border transition-colors",
+                m.status === 'completed' ? 'bg-muted/20' : m.status === 'cancelled' ? 'bg-destructive/5 opacity-60' : 'bg-background'
+              )}>
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className={cn("h-2 w-2 rounded-full shrink-0", st.dot)} />
+                      <span className="font-medium text-sm truncate">{m.title}</span>
+                      <Badge variant={st.variant} className="text-[10px]">{st.label}</Badge>
                     </div>
-                  );
-                })}
+                    <div className="flex items-center gap-3 text-xs text-muted-foreground mt-1 flex-wrap">
+                      <span className="flex items-center gap-1">
+                        <Calendar className="h-3 w-3" />
+                        {date.toLocaleDateString('fr-FR', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' })}
+                        {' '}
+                        {date.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+                      </span>
+                      {m.duration_minutes && <span>{m.duration_minutes}min</span>}
+                      {m.location && <span>{m.location}</span>}
+                    </div>
+                    {m.notes && <p className="text-[11px] text-muted-foreground mt-1 line-clamp-2 italic">{m.notes}</p>}
+                    {m.action_items && <p className="text-[11px] text-muted-foreground mt-0.5 line-clamp-1"><span className="font-medium not-italic">Actions:</span> {m.action_items}</p>}
+                  </div>
+                  <div className="flex items-center gap-1 shrink-0">
+                    {/* Status change */}
+                    <Select value={m.status} onValueChange={v => onUpdateMeeting(m.id, { status: v })}>
+                      <SelectTrigger className="h-6 text-[10px] w-[90px] px-1.5"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="planned">📅 Planifié</SelectItem>
+                        <SelectItem value="completed">✅ Réalisé</SelectItem>
+                        <SelectItem value="cancelled">❌ Annulé</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Button size="icon" variant="ghost" className="h-7 w-7" title="Supprimer" onClick={() => onDeleteMeeting(m.id)}>
+                      <Trash2 className="h-3.5 w-3.5 text-muted-foreground" />
+                    </Button>
+                  </div>
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
+
+      {/* Permanent delete confirmation */}
+      <AlertDialog open={!!confirmDeleteId} onOpenChange={open => !open && setConfirmDeleteId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Suppression définitive</AlertDialogTitle>
+            <AlertDialogDescription>
+              Cette action est irréversible.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annuler</AlertDialogCancel>
+            <AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={handlePermanentDelete}>
+              Supprimer définitivement
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
