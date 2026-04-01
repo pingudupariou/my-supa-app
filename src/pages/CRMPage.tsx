@@ -191,6 +191,10 @@ export function CRMPage() {
               </span>
             )}
           </TabsTrigger>
+          <TabsTrigger value="agenda">
+            <Calendar className="h-4 w-4 mr-2" />
+            Agenda
+          </TabsTrigger>
           <TabsTrigger value="analytics">
             <BarChart3 className="h-4 w-4 mr-2" />
             Analyse
