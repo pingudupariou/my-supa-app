@@ -404,6 +404,11 @@ export function B2BClientTable({
           )}
         </TableCell>
       )}
+      {isVisible('account_manager') && (
+        <TableCell>
+          {canEditColumn('account_manager') ? <EditableCell value={c.account_manager || ''} onSave={v => saveField(c, 'account_manager', v)} /> : <ReadOnlyCell value={c.account_manager || ''} />}
+        </TableCell>
+      )}
       {isVisible('crm_activity') && (() => {
         const today = new Date().toISOString().slice(0, 10);
         const clientMeetings = meetings.filter(m => m.customer_id === c.id);
