@@ -29,20 +29,33 @@ const STATUS_MAP: Record<string, { label: string; variant: 'default' | 'secondar
 
 export function CrmMeetingManager({ meetings, customerId, onCreate, onUpdate, onDelete, onRestore, onPermanentDelete, getTrashedMeetings, isAdmin }: CrmMeetingManagerProps) {
   const [showAdd, setShowAdd] = useState(false);
+  const [createMode, setCreateMode] = useState<'plan' | 'note'>('plan');
   const [showTrash, setShowTrash] = useState(false);
   const [trashedMeetings, setTrashedMeetings] = useState<CrmMeeting[]>([]);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [newTitle, setNewTitle] = useState('');
   const [newDate, setNewDate] = useState(new Date().toISOString().slice(0, 16));
+  const [newNotes, setNewNotes] = useState('');
+  const [newActionItems, setNewActionItems] = useState('');
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [editDrafts, setEditDrafts] = useState<Record<string, { title: string; notes: string; action_items: string }>>({});
   const [savingId, setSavingId] = useState<string | null>(null);
 
   const handleCreate = async () => {
     if (!newTitle.trim()) return;
-    await onCreate({ customer_id: customerId, title: newTitle, meeting_date: newDate, status: 'planned', duration_minutes: 60 });
+    await onCreate({
+      customer_id: customerId,
+      title: newTitle,
+      meeting_date: newDate,
+      status: createMode === 'note' ? 'completed' : 'planned',
+      duration_minutes: 60,
+      notes: createMode === 'note' ? newNotes : '',
+      action_items: createMode === 'note' ? newActionItems : '',
+    });
     setNewTitle('');
     setNewDate(new Date().toISOString().slice(0, 16));
+    setNewNotes('');
+    setNewActionItems('');
     setShowAdd(false);
   };
 
@@ -166,24 +179,71 @@ export function CrmMeetingManager({ meetings, customerId, onCreate, onUpdate, on
 
       {/* Inline quick form */}
       {showAdd && (
-        <div className="mb-3 p-3 rounded-lg border border-dashed border-primary/40 bg-primary/5 space-y-2">
+        <div className="mb-3 p-3 rounded-lg border border-dashed border-primary/40 bg-primary/5 space-y-3">
+          {/* Mode selector */}
+          <div className="flex gap-2">
+            <Button
+              size="sm"
+              variant={createMode === 'plan' ? 'default' : 'outline'}
+              onClick={() => setCreateMode('plan')}
+              className="text-xs flex-1"
+            >
+              <Calendar className="h-3.5 w-3.5 mr-1" /> Planifier un RDV
+            </Button>
+            <Button
+              size="sm"
+              variant={createMode === 'note' ? 'default' : 'outline'}
+              onClick={() => setCreateMode('note')}
+              className="text-xs flex-1"
+            >
+              <Save className="h-3.5 w-3.5 mr-1" /> Rentrer une note / CR
+            </Button>
+          </div>
+
           <Input
-            placeholder="Titre du RDV *"
+            placeholder={createMode === 'plan' ? "Titre du RDV *" : "Titre de la note / réunion *"}
             value={newTitle}
             onChange={e => setNewTitle(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && handleCreate()}
             autoFocus
             className="text-sm"
           />
-          <div className="flex items-center gap-2">
-            <Input
-              type="datetime-local"
-              value={newDate}
-              onChange={e => setNewDate(e.target.value)}
-              className="text-sm flex-1"
-            />
+          <Input
+            type="datetime-local"
+            value={newDate}
+            onChange={e => setNewDate(e.target.value)}
+            className="text-sm"
+          />
+
+          {/* Notes fields for "note" mode */}
+          {createMode === 'note' && (
+            <>
+              <div>
+                <label className="text-xs font-medium text-muted-foreground mb-1 block">📝 Compte-rendu</label>
+                <Textarea
+                  value={newNotes}
+                  onChange={e => setNewNotes(e.target.value)}
+                  placeholder="Points abordés, décisions prises…"
+                  rows={4}
+                  className="text-sm resize-y min-h-[80px]"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-muted-foreground mb-1 block">✅ Actions à suivre</label>
+                <Textarea
+                  value={newActionItems}
+                  onChange={e => setNewActionItems(e.target.value)}
+                  placeholder="• Action 1&#10;• Action 2"
+                  rows={3}
+                  className="text-sm resize-y min-h-[60px]"
+                />
+              </div>
+            </>
+          )}
+
+          <div className="flex justify-end">
             <Button size="sm" onClick={handleCreate} disabled={!newTitle.trim()} className="shrink-0">
-              <Plus className="h-3.5 w-3.5 mr-1" /> Créer
+              <CheckCircle2 className="h-3.5 w-3.5 mr-1" />
+              {createMode === 'plan' ? 'Planifier' : 'Valider et enregistrer'}
             </Button>
           </div>
         </div>
