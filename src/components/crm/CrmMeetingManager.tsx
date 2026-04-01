@@ -29,20 +29,33 @@ const STATUS_MAP: Record<string, { label: string; variant: 'default' | 'secondar
 
 export function CrmMeetingManager({ meetings, customerId, onCreate, onUpdate, onDelete, onRestore, onPermanentDelete, getTrashedMeetings, isAdmin }: CrmMeetingManagerProps) {
   const [showAdd, setShowAdd] = useState(false);
+  const [createMode, setCreateMode] = useState<'plan' | 'note'>('plan');
   const [showTrash, setShowTrash] = useState(false);
   const [trashedMeetings, setTrashedMeetings] = useState<CrmMeeting[]>([]);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [newTitle, setNewTitle] = useState('');
   const [newDate, setNewDate] = useState(new Date().toISOString().slice(0, 16));
+  const [newNotes, setNewNotes] = useState('');
+  const [newActionItems, setNewActionItems] = useState('');
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [editDrafts, setEditDrafts] = useState<Record<string, { title: string; notes: string; action_items: string }>>({});
   const [savingId, setSavingId] = useState<string | null>(null);
 
   const handleCreate = async () => {
     if (!newTitle.trim()) return;
-    await onCreate({ customer_id: customerId, title: newTitle, meeting_date: newDate, status: 'planned', duration_minutes: 60 });
+    await onCreate({
+      customer_id: customerId,
+      title: newTitle,
+      meeting_date: newDate,
+      status: createMode === 'note' ? 'completed' : 'planned',
+      duration_minutes: 60,
+      notes: createMode === 'note' ? newNotes : '',
+      action_items: createMode === 'note' ? newActionItems : '',
+    });
     setNewTitle('');
     setNewDate(new Date().toISOString().slice(0, 16));
+    setNewNotes('');
+    setNewActionItems('');
     setShowAdd(false);
   };
 
