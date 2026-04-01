@@ -456,7 +456,7 @@ export function useCRMData() {
     createCustomer, updateCustomer, deleteCustomer,
     createOrder,
     createOpportunity, updateOpportunity, deleteOpportunity,
-    createInteraction,
+    createInteraction, deleteInteraction, updateInteraction,
     createMeeting, updateMeeting, deleteMeeting, restoreMeeting, getTrashedMeetings, permanentDeleteMeeting,
     createReminder, updateReminder, deleteReminder, completeReminder, uncompleteReminder,
     getCustomerInteractions: (id: string) => interactions.filter(i => i.customer_id === id),
