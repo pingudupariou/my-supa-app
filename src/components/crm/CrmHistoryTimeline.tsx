@@ -29,6 +29,7 @@ interface Meeting {
   action_items?: string | null;
   meeting_date: string;
   status: string;
+  deleted_at?: string | null;
 }
 
 interface Client {
@@ -374,16 +375,18 @@ export function CrmHistoryTimeline({ interactions, meetings, clients, onSelectCl
       source: 'interaction' as const,
     }));
 
-    const fromMeetings = meetings.map(m => ({
-      id: m.id,
-      customerId: m.customer_id,
-      clientName: clientMap[m.customer_id] || 'Client inconnu',
-      title: m.title || 'Réunion',
-      content: m.notes || '',
-      type: 'rdv',
-      date: m.meeting_date,
-      source: 'meeting' as const,
-    }));
+    const fromMeetings = meetings
+      .filter(m => !m.deleted_at)
+      .map(m => ({
+        id: m.id,
+        customerId: m.customer_id,
+        clientName: clientMap[m.customer_id] || 'Client inconnu',
+        title: m.title || 'Réunion',
+        content: m.notes || '',
+        type: 'rdv',
+        date: m.meeting_date,
+        source: 'meeting' as const,
+      }));
 
     return [...fromInteractions, ...fromMeetings];
   }, [interactions, meetings, clientMap]);
