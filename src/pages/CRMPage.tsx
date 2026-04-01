@@ -303,6 +303,17 @@ export function CRMPage() {
           </Card>
         </TabsContent>
 
+        {/* Agenda / Calendar recap */}
+        <TabsContent value="agenda" className="space-y-4">
+          <CrmCalendarRecap
+            meetings={filteredMeetings}
+            clients={b2b.clients.map(c => ({ id: c.id, company_name: c.company_name }))}
+            onDelete={crm.deleteMeeting}
+            onSelectClient={setSelectedClientId}
+            onSwitchToGestion={() => setActiveTab('gestion')}
+          />
+        </TabsContent>
+
         {/* Analytics */}
         <TabsContent value="analytics" className="space-y-4">
           <CrmAnalyticsDashboard
