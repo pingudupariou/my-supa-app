@@ -3,7 +3,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ClientSubTabs } from '@/components/crm/ClientSubTabs';
 import { Card, CardContent } from '@/components/ui/card';
 import { KPICard } from '@/components/ui/KPICard';
-import { Users, Kanban, Bell, Trash2, ClipboardList, BarChart3, Building2, FolderOpen, Database, History, Calendar } from 'lucide-react';
+import { Users, Kanban, Bell, Trash2, ClipboardList, BarChart3, Building2, FolderOpen, Database, History } from 'lucide-react';
 import { CustomerList } from '@/components/crm/CustomerList';
 import { CustomerDetail } from '@/components/crm/CustomerDetail';
 import { PipelineKanban } from '@/components/crm/PipelineKanban';
@@ -19,7 +19,6 @@ import { EntityClientAssociator } from '@/components/crm/EntityClientAssociator'
 import { B2BTrashBin } from '@/components/b2b/B2BTrashBin';
 import { CrmAnalyticsDashboard } from '@/components/crm/CrmAnalyticsDashboard';
 import { CrmHistoryTimeline } from '@/components/crm/CrmHistoryTimeline';
-import { CrmCalendarRecap } from '@/components/crm/CrmCalendarRecap';
 import { useCRMData } from '@/hooks/useCRMData';
 import { useAuth } from '@/context/AuthContext';
 import { useTasksData } from '@/hooks/useTasksData';
@@ -191,10 +190,6 @@ export function CRMPage() {
               </span>
             )}
           </TabsTrigger>
-          <TabsTrigger value="agenda">
-            <Calendar className="h-4 w-4 mr-2" />
-            Agenda
-          </TabsTrigger>
           <TabsTrigger value="analytics">
             <BarChart3 className="h-4 w-4 mr-2" />
             Analyse
@@ -303,16 +298,6 @@ export function CRMPage() {
           </Card>
         </TabsContent>
 
-        {/* Agenda / Calendar recap */}
-        <TabsContent value="agenda" className="space-y-4">
-          <CrmCalendarRecap
-            meetings={filteredMeetings}
-            clients={b2b.clients.map(c => ({ id: c.id, company_name: c.company_name }))}
-            onDelete={crm.deleteMeeting}
-            onSelectClient={setSelectedClientId}
-            onSwitchToGestion={() => setActiveTab('gestion')}
-          />
-        </TabsContent>
 
         {/* Analytics */}
         <TabsContent value="analytics" className="space-y-4">
