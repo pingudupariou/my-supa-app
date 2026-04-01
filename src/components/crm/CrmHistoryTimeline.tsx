@@ -29,6 +29,7 @@ interface Meeting {
   action_items?: string | null;
   meeting_date: string;
   status: string;
+  deleted_at?: string | null;
 }
 
 interface Client {
