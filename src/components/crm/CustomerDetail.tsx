@@ -249,6 +249,8 @@ interface CustomerDetailProps {
   reminders: CrmReminder[];
   tasks?: Task[];
   onCreateInteraction: (interaction: any) => Promise<any>;
+  onDeleteInteraction?: (id: string) => Promise<boolean>;
+  onUpdateInteraction?: (id: string, updates: any) => Promise<boolean>;
   onCreateMeeting: (meeting: any) => Promise<any>;
   onUpdateMeeting: (id: string, updates: any) => Promise<boolean>;
   onDeleteMeeting: (id: string) => Promise<boolean>;
