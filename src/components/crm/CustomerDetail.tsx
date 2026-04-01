@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { InteractionHistory } from './InteractionHistory';
+// InteractionHistory removed from this tab per user request
 import { CrmMeetingManager } from './CrmMeetingManager';
 import { CrmReminderManager } from './CrmReminderManager';
 import { B2BClient } from '@/hooks/useB2BClientsData';
