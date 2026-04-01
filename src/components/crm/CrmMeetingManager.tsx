@@ -345,6 +345,9 @@ export function CrmMeetingManager({ meetings, customerId, onCreate, onUpdate, on
                         <RotateCcw className="h-3.5 w-3.5 text-primary" />
                       </Button>
                     )}
+                    <Button size="icon" variant="ghost" className="h-7 w-7" title="Ajouter une note" onClick={e => { e.stopPropagation(); handleExpand(m.id, m); }}>
+                      <StickyNote className="h-3.5 w-3.5 text-amber-500" />
+                    </Button>
                     <Button size="icon" variant="ghost" className="h-7 w-7" title="Supprimer" onClick={e => { e.stopPropagation(); onDelete(m.id); }}>
                       <Trash2 className="h-3.5 w-3.5 text-muted-foreground" />
                     </Button>
