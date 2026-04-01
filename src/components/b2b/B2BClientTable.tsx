@@ -639,8 +639,17 @@ export function B2BClientTable({
                  const isPermColumn = EDITABLE_COLUMN_KEYS.includes(col.key);
                  const colEditable = isPermColumn ? isColumnEditableByOthers?.(col.key) ?? false : false;
                  return (
-                   <TableHead key={col.key} className={`text-[10px] min-w-[${col.minWidth}] ${col.key.startsWith('ca_') ? 'text-right bg-accent/20' : ''}`}>
-                     <div className="flex items-center gap-1.5">
+                   <TableHead
+                     key={col.key}
+                     className={`text-[10px] min-w-[${col.minWidth}] ${col.key.startsWith('ca_') ? 'text-right bg-accent/20' : ''}`}
+                     draggable
+                     onDragStart={() => handleDragStart(col.key)}
+                     onDragOver={e => handleDragOver(e, col.key)}
+                     onDrop={handleDrop}
+                     style={{ cursor: 'grab' }}
+                   >
+                     <div className="flex items-center gap-1">
+                       <GripVertical className="h-3 w-3 text-muted-foreground/40 shrink-0 cursor-grab" />
                        {col.canHide && (
                          <Checkbox
                            checked={true}
