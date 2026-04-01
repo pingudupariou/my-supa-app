@@ -389,7 +389,7 @@ export function CustomerDetail({
             </TabsTrigger>
           </TabsList>
 
-          <TabsContent value="meetings" className="mt-3 space-y-6">
+          <TabsContent value="meetings" className="mt-3">
             <CrmMeetingManager
               meetings={meetings}
               customerId={client.id}
@@ -400,14 +400,6 @@ export function CustomerDetail({
               onPermanentDelete={onPermanentDeleteMeeting}
               getTrashedMeetings={getTrashedMeetings}
               isAdmin={isAdmin}
-            />
-            <Separator />
-            <InteractionHistory
-              interactions={interactions}
-              customerId={client.id}
-              onCreate={onCreateInteraction}
-              onDelete={onDeleteInteraction}
-              onUpdate={onUpdateInteraction}
             />
           </TabsContent>
 
