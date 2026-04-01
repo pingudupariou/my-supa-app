@@ -198,7 +198,7 @@ export function B2BClientTable({
   };
 
   // Editable column keys that can be permission-controlled
-  const EDITABLE_COLUMN_KEYS = ['company_name', 'country', 'geographic_zone', 'contact_email', 'contact_phone', 'pricing_rule', 'payment_terms', 'delivery_method', 'delivery_fee_rule', 'moq', 'is_active', 'category', 'notes'];
+  const EDITABLE_COLUMN_KEYS = ['company_name', 'country', 'geographic_zone', 'contact_email', 'contact_phone', 'pricing_rule', 'payment_terms', 'delivery_method', 'delivery_fee_rule', 'moq', 'is_active', 'category', 'account_manager', 'notes'];
 
   const handleCreate = async () => {
     if (!newForm.company_name.trim()) return;
