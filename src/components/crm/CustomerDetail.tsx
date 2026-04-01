@@ -282,7 +282,7 @@ const STATUS_CONFIG: Record<string, { label: string; icon: any }> = {
 
 export function CustomerDetail({
   client, interactions, opportunities, meetings, reminders, tasks = [],
-  onCreateInteraction, onCreateMeeting, onUpdateMeeting, onDeleteMeeting,
+  onCreateInteraction, onDeleteInteraction, onUpdateInteraction, onCreateMeeting, onUpdateMeeting, onDeleteMeeting,
   onRestoreMeeting, onPermanentDeleteMeeting, getTrashedMeetings,
   onCreateReminder, onCompleteReminder, onUncompleteReminder, onDeleteReminder,
   onCreateTask, onUpdateTask, users = [],
