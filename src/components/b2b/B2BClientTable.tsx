@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -9,7 +9,7 @@ import { Switch } from '@/components/ui/switch';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Plus, Trash2, Upload, Save, X, Settings, ChevronDown, ChevronRight, FolderPlus, Download, Columns3, Eye, Calendar, Bell, MessageSquare, AlertTriangle, FileText, Lock, LockOpen } from 'lucide-react';
+import { Plus, Trash2, Upload, Save, X, Settings, ChevronDown, ChevronRight, FolderPlus, Download, Columns3, Eye, Calendar, Bell, MessageSquare, AlertTriangle, FileText, Lock, LockOpen, GripVertical } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { CrmMeeting, CrmReminder, CustomerInteraction } from '@/hooks/useCRMData';
 import { B2BClient, B2BClientProjection, B2BPaymentTermOption, B2BDeliveryMethod, B2BDeliveryFeeTier, B2BClientCategory } from '@/hooks/useB2BClientsData';
@@ -164,6 +164,55 @@ export function B2BClientTable({
   const [hiddenColumns, setHiddenColumns] = useState<Set<ColumnKey>>(new Set());
   const [detailClient, setDetailClient] = useState<B2BClient | null>(null);
 
+  // Column order — persisted in localStorage
+  const COLUMN_ORDER_KEY = 'b2b_column_order';
+  const [columnOrder, setColumnOrder] = useState<ColumnKey[]>(() => {
+    try {
+      const saved = localStorage.getItem(COLUMN_ORDER_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved) as ColumnKey[];
+        // Merge: keep saved order for known keys, append any new columns
+        const allKeys = ALL_COLUMNS.map(c => c.key);
+        const ordered = parsed.filter(k => allKeys.includes(k));
+        const missing = allKeys.filter(k => !ordered.includes(k));
+        return [...ordered, ...missing];
+      }
+    } catch {}
+    return ALL_COLUMNS.map(c => c.key);
+  });
+
+  const saveColumnOrder = useCallback((order: ColumnKey[]) => {
+    setColumnOrder(order);
+    localStorage.setItem(COLUMN_ORDER_KEY, JSON.stringify(order));
+  }, []);
+
+  // Drag-and-drop state for column reordering
+  const dragColRef = useRef<ColumnKey | null>(null);
+  const dragOverColRef = useRef<ColumnKey | null>(null);
+
+  const handleDragStart = (key: ColumnKey) => {
+    dragColRef.current = key;
+  };
+
+  const handleDragOver = (e: React.DragEvent, key: ColumnKey) => {
+    e.preventDefault();
+    dragOverColRef.current = key;
+  };
+
+  const handleDrop = () => {
+    const from = dragColRef.current;
+    const to = dragOverColRef.current;
+    if (!from || !to || from === to) return;
+    const newOrder = [...columnOrder];
+    const fromIdx = newOrder.indexOf(from);
+    const toIdx = newOrder.indexOf(to);
+    newOrder.splice(fromIdx, 1);
+    newOrder.splice(toIdx, 0, from);
+    saveColumnOrder(newOrder);
+    dragColRef.current = null;
+    dragOverColRef.current = null;
+  };
+
   const { salesRules } = usePricingConfig();
 
   const [newForm, setNewForm] = useState({
@@ -172,8 +221,12 @@ export function B2BClientTable({
     delivery_method: '', delivery_fee_rule: '', moq: '', category_id: '',
   });
 
-  const visibleColumns = ALL_COLUMNS.filter(c => !hiddenColumns.has(c.key));
-  const hiddenList = ALL_COLUMNS.filter(c => hiddenColumns.has(c.key) && c.canHide);
+  // Use columnOrder to sort visible columns
+  const orderedAllColumns = columnOrder
+    .map(key => ALL_COLUMNS.find(c => c.key === key)!)
+    .filter(Boolean);
+  const visibleColumns = orderedAllColumns.filter(c => !hiddenColumns.has(c.key));
+  const hiddenList = orderedAllColumns.filter(c => hiddenColumns.has(c.key) && c.canHide);
   const colSpan = visibleColumns.length;
 
   const toggleColumn = (key: ColumnKey) => {
@@ -274,142 +327,81 @@ export function B2BClientTable({
     <span className={`px-1 py-0.5 inline-block min-w-[2rem] text-muted-foreground ${className}`}>{value || '—'}</span>
   );
 
-  const renderClientRow = (c: B2BClient) => (
-    <TableRow key={c.id} className="text-xs">
-      {isVisible('is_active') && (
-        <TableCell>
-          <Select
-            value={c.client_type?.toLowerCase() === 'prospect' ? 'prospect' : c.is_active ? 'active' : 'inactive'}
-            onValueChange={v => {
-              if (!canEditColumn('is_active')) return;
-              onUpsertClient({
-                id: c.id,
-                company_name: c.company_name,
-                is_active: v !== 'inactive',
-                client_type: v === 'prospect' ? 'Prospect' : c.client_type?.toLowerCase() === 'prospect' ? null : c.client_type,
-              });
-            }}
-            disabled={!canEditColumn('is_active')}
-          >
-            <SelectTrigger className="h-6 text-[11px] w-[85px] px-1.5">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="active">
-                <span className="flex items-center gap-1.5">
-                  <span className="h-2 w-2 rounded-full bg-emerald-500 shrink-0" />Actif
-                </span>
-              </SelectItem>
-              <SelectItem value="inactive">
-                <span className="flex items-center gap-1.5">
-                  <span className="h-2 w-2 rounded-full bg-muted-foreground shrink-0" />Inactif
-                </span>
-              </SelectItem>
-              <SelectItem value="prospect">
-                <span className="flex items-center gap-1.5">
-                  <span className="h-2 w-2 rounded-full bg-blue-500 shrink-0" />Prospect
-                </span>
-              </SelectItem>
-            </SelectContent>
-          </Select>
-        </TableCell>
-      )}
-      {isVisible('company_name') && (
-        <TableCell className="font-medium">
-          <div className="flex items-center gap-1">
-            <button
-              className="text-primary hover:underline cursor-pointer text-left text-xs font-medium truncate max-w-[140px]"
-              onClick={() => setDetailClient(c)}
-              title="Ouvrir la fiche client"
-            >
-              {c.company_name}
-            </button>
-          </div>
-        </TableCell>
-      )}
-      {isVisible('country') && (
-        <TableCell>
-          <span className="flex items-center gap-1">
-            {getCountryFlag(c.country) && <span className="text-base leading-none">{getCountryFlag(c.country)}</span>}
-            {canEditColumn('country') ? <EditableCell value={c.country || ''} onSave={v => saveField(c, 'country', v)} /> : <ReadOnlyCell value={c.country || ''} />}
-          </span>
-        </TableCell>
-      )}
-      {isVisible('geographic_zone') && (
-        <TableCell>
-          {canEditColumn('geographic_zone') ? <EditableCell value={c.geographic_zone || ''} onSave={v => saveField(c, 'geographic_zone', v)} /> : <ReadOnlyCell value={c.geographic_zone || ''} />}
-        </TableCell>
-      )}
-      {isVisible('contact_email') && (
-        <TableCell>
-          {canEditColumn('contact_email') ? <EditableCell value={c.contact_email || ''} onSave={v => saveField(c, 'contact_email', v)} /> : <ReadOnlyCell value={c.contact_email || ''} />}
-        </TableCell>
-      )}
-      {isVisible('contact_phone') && (
-        <TableCell>
-          {canEditColumn('contact_phone') ? <EditableCell value={c.contact_phone || ''} onSave={v => saveField(c, 'contact_phone', v)} /> : <ReadOnlyCell value={c.contact_phone || ''} />}
-        </TableCell>
-      )}
-      {isVisible('pricing_rule') && (
-        <TableCell>
-          {canEditColumn('pricing_rule') ? <EditableSelectCell value={c.pricing_rule || ''} options={salesRules.map(r => r.name)} onSave={v => saveField(c, 'pricing_rule', v)} /> : <ReadOnlyCell value={c.pricing_rule || ''} />}
-        </TableCell>
-      )}
-      {isVisible('payment_terms') && (
-        <TableCell>
-          {canEditColumn('payment_terms') ? <EditableSelectCell value={c.payment_terms || ''} options={paymentTermLabels} onSave={v => saveField(c, 'payment_terms', v)} /> : <ReadOnlyCell value={c.payment_terms || ''} />}
-        </TableCell>
-      )}
-      {isVisible('delivery_method') && (
-        <TableCell>
-          {canEditColumn('delivery_method') ? <EditableSelectCell value={c.delivery_method || ''} options={deliveryMethodLabels} onSave={v => saveField(c, 'delivery_method', v)} /> : <ReadOnlyCell value={c.delivery_method || ''} />}
-        </TableCell>
-      )}
-      {isVisible('delivery_fee_rule') && (
-        <TableCell>
-          {canEditColumn('delivery_fee_rule') ? <EditableSelectCell value={c.delivery_fee_rule || ''} options={deliveryFeeLabels} onSave={v => saveField(c, 'delivery_fee_rule', v)} /> : <ReadOnlyCell value={c.delivery_fee_rule || ''} />}
-        </TableCell>
-      )}
-      {isVisible('moq') && (
-        <TableCell>
-          {canEditColumn('moq') ? <EditableCell value={c.moq || ''} onSave={v => saveField(c, 'moq', v)} /> : <ReadOnlyCell value={c.moq || ''} />}
-        </TableCell>
-      )}
-      {revenueYears.map((year, i) => {
-        const key = `ca_${year}` as ColumnKey;
-        if (!isVisible(key)) return null;
-        const rev = getRevenue(c.id, year);
+  const renderCell = (c: B2BClient, key: ColumnKey): React.ReactNode => {
+    switch (key) {
+      case 'is_active':
         return (
-          <TableCell key={year} className="text-right font-mono">
-            <EditableCell
-              value={rev ? String(rev) : ''}
-              type="number"
-              onSave={v => handleRevenueSave(c.id, year, v)}
-              className="text-right"
-            />
+          <TableCell key={key}>
+            <Select
+              value={c.client_type?.toLowerCase() === 'prospect' ? 'prospect' : c.is_active ? 'active' : 'inactive'}
+              onValueChange={v => {
+                if (!canEditColumn('is_active')) return;
+                onUpsertClient({
+                  id: c.id, company_name: c.company_name,
+                  is_active: v !== 'inactive',
+                  client_type: v === 'prospect' ? 'Prospect' : c.client_type?.toLowerCase() === 'prospect' ? null : c.client_type,
+                });
+              }}
+              disabled={!canEditColumn('is_active')}
+            >
+              <SelectTrigger className="h-6 text-[11px] w-[85px] px-1.5"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="active"><span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-emerald-500 shrink-0" />Actif</span></SelectItem>
+                <SelectItem value="inactive"><span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-muted-foreground shrink-0" />Inactif</span></SelectItem>
+                <SelectItem value="prospect"><span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-blue-500 shrink-0" />Prospect</span></SelectItem>
+              </SelectContent>
+            </Select>
           </TableCell>
         );
-      })}
-      {isVisible('category') && (
-        <TableCell>
-          {canEditColumn('category') ? (
-            <EditableSelectCell
-              value={c.category_id || ''}
-              optionItems={categories.map(cat => ({ value: cat.id, label: cat.name }))}
-              onSave={v => onUpsertClient({ id: c.id, company_name: c.company_name, category_id: v || null })}
-              placeholder="—"
-            />
-          ) : (
-            <ReadOnlyCell value={categories.find(cat => cat.id === c.category_id)?.name || ''} />
-          )}
-        </TableCell>
-      )}
-      {isVisible('account_manager') && (
-        <TableCell>
-          {canEditColumn('account_manager') ? <EditableCell value={c.account_manager || ''} onSave={v => saveField(c, 'account_manager', v)} /> : <ReadOnlyCell value={c.account_manager || ''} />}
-        </TableCell>
-      )}
-      {isVisible('crm_activity') && (() => {
+      case 'company_name':
+        return (
+          <TableCell key={key} className="font-medium">
+            <button className="text-primary hover:underline cursor-pointer text-left text-xs font-medium truncate max-w-[140px]" onClick={() => setDetailClient(c)} title="Ouvrir la fiche client">{c.company_name}</button>
+          </TableCell>
+        );
+      case 'country':
+        return (
+          <TableCell key={key}>
+            <span className="flex items-center gap-1">
+              {getCountryFlag(c.country) && <span className="text-base leading-none">{getCountryFlag(c.country)}</span>}
+              {canEditColumn('country') ? <EditableCell value={c.country || ''} onSave={v => saveField(c, 'country', v)} /> : <ReadOnlyCell value={c.country || ''} />}
+            </span>
+          </TableCell>
+        );
+      case 'geographic_zone':
+        return <TableCell key={key}>{canEditColumn('geographic_zone') ? <EditableCell value={c.geographic_zone || ''} onSave={v => saveField(c, 'geographic_zone', v)} /> : <ReadOnlyCell value={c.geographic_zone || ''} />}</TableCell>;
+      case 'contact_email':
+        return <TableCell key={key}>{canEditColumn('contact_email') ? <EditableCell value={c.contact_email || ''} onSave={v => saveField(c, 'contact_email', v)} /> : <ReadOnlyCell value={c.contact_email || ''} />}</TableCell>;
+      case 'contact_phone':
+        return <TableCell key={key}>{canEditColumn('contact_phone') ? <EditableCell value={c.contact_phone || ''} onSave={v => saveField(c, 'contact_phone', v)} /> : <ReadOnlyCell value={c.contact_phone || ''} />}</TableCell>;
+      case 'pricing_rule':
+        return <TableCell key={key}>{canEditColumn('pricing_rule') ? <EditableSelectCell value={c.pricing_rule || ''} options={salesRules.map(r => r.name)} onSave={v => saveField(c, 'pricing_rule', v)} /> : <ReadOnlyCell value={c.pricing_rule || ''} />}</TableCell>;
+      case 'payment_terms':
+        return <TableCell key={key}>{canEditColumn('payment_terms') ? <EditableSelectCell value={c.payment_terms || ''} options={paymentTermLabels} onSave={v => saveField(c, 'payment_terms', v)} /> : <ReadOnlyCell value={c.payment_terms || ''} />}</TableCell>;
+      case 'delivery_method':
+        return <TableCell key={key}>{canEditColumn('delivery_method') ? <EditableSelectCell value={c.delivery_method || ''} options={deliveryMethodLabels} onSave={v => saveField(c, 'delivery_method', v)} /> : <ReadOnlyCell value={c.delivery_method || ''} />}</TableCell>;
+      case 'delivery_fee_rule':
+        return <TableCell key={key}>{canEditColumn('delivery_fee_rule') ? <EditableSelectCell value={c.delivery_fee_rule || ''} options={deliveryFeeLabels} onSave={v => saveField(c, 'delivery_fee_rule', v)} /> : <ReadOnlyCell value={c.delivery_fee_rule || ''} />}</TableCell>;
+      case 'moq':
+        return <TableCell key={key}>{canEditColumn('moq') ? <EditableCell value={c.moq || ''} onSave={v => saveField(c, 'moq', v)} /> : <ReadOnlyCell value={c.moq || ''} />}</TableCell>;
+      case 'ca_2022': case 'ca_2023': case 'ca_2024': case 'ca_2025': {
+        const year = parseInt(key.split('_')[1]);
+        const rev = getRevenue(c.id, year);
+        return <TableCell key={key} className="text-right font-mono"><EditableCell value={rev ? String(rev) : ''} type="number" onSave={v => handleRevenueSave(c.id, year, v)} className="text-right" /></TableCell>;
+      }
+      case 'category':
+        return (
+          <TableCell key={key}>
+            {canEditColumn('category') ? (
+              <EditableSelectCell value={c.category_id || ''} optionItems={categories.map(cat => ({ value: cat.id, label: cat.name }))} onSave={v => onUpsertClient({ id: c.id, company_name: c.company_name, category_id: v || null })} placeholder="—" />
+            ) : (
+              <ReadOnlyCell value={categories.find(cat => cat.id === c.category_id)?.name || ''} />
+            )}
+          </TableCell>
+        );
+      case 'account_manager':
+        return <TableCell key={key}>{canEditColumn('account_manager') ? <EditableCell value={c.account_manager || ''} onSave={v => saveField(c, 'account_manager', v)} /> : <ReadOnlyCell value={c.account_manager || ''} />}</TableCell>;
+      case 'crm_activity': {
         const today = new Date().toISOString().slice(0, 10);
         const clientMeetings = meetings.filter(m => m.customer_id === c.id);
         const plannedMeetings = clientMeetings.filter(m => m.status === 'planned');
@@ -417,59 +409,50 @@ export function B2BClientTable({
         const overdueReminders = clientReminders.filter(r => r.due_date < today);
         const clientInteractions = interactions.filter(i => i.customer_id === c.id);
         return (
-          <TableCell>
+          <TableCell key={key}>
             <div className="flex items-center gap-1.5 flex-wrap">
-              {plannedMeetings.length > 0 && (
-                <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-primary/10 text-primary text-[10px] font-medium">
-                  <Calendar className="h-3 w-3" />{plannedMeetings.length}
-                </span>
-              )}
+              {plannedMeetings.length > 0 && <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-primary/10 text-primary text-[10px] font-medium"><Calendar className="h-3 w-3" />{plannedMeetings.length}</span>}
               {overdueReminders.length > 0 ? (
-                <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-destructive/10 text-destructive text-[10px] font-medium">
-                  <AlertTriangle className="h-3 w-3" />{overdueReminders.length}
-                </span>
+                <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-destructive/10 text-destructive text-[10px] font-medium"><AlertTriangle className="h-3 w-3" />{overdueReminders.length}</span>
               ) : clientReminders.length > 0 ? (
-                <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-amber-500/10 text-amber-700 text-[10px] font-medium">
-                  <Bell className="h-3 w-3" />{clientReminders.length}
-                </span>
+                <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-amber-500/10 text-amber-700 text-[10px] font-medium"><Bell className="h-3 w-3" />{clientReminders.length}</span>
               ) : null}
-              {clientInteractions.length > 0 && (
-                <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-muted text-muted-foreground text-[10px] font-medium">
-                  <MessageSquare className="h-3 w-3" />{clientInteractions.length}
-                </span>
-              )}
-              {plannedMeetings.length === 0 && clientReminders.length === 0 && clientInteractions.length === 0 && (
-                <span className="text-[10px] text-muted-foreground">—</span>
-              )}
+              {clientInteractions.length > 0 && <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-muted text-muted-foreground text-[10px] font-medium"><MessageSquare className="h-3 w-3" />{clientInteractions.length}</span>}
+              {plannedMeetings.length === 0 && clientReminders.length === 0 && clientInteractions.length === 0 && <span className="text-[10px] text-muted-foreground">—</span>}
             </div>
           </TableCell>
         );
-      })()}
-      {isVisible('last_note') && (() => {
+      }
+      case 'last_note': {
         const clientMeetingsWithNotes = meetings
           .filter(m => m.customer_id === c.id && m.notes && m.notes.trim().length > 0)
           .sort((a, b) => new Date(b.meeting_date).getTime() - new Date(a.meeting_date).getTime());
         const lastNote = clientMeetingsWithNotes[0]?.notes || null;
         return (
-          <TableCell>
+          <TableCell key={key}>
             {lastNote ? (
               <div className="flex items-start gap-1 max-w-[200px]">
                 <FileText className="h-3 w-3 mt-0.5 shrink-0 text-muted-foreground" />
                 <span className="text-[11px] text-muted-foreground line-clamp-2 leading-tight">{lastNote}</span>
               </div>
-            ) : (
-              <span className="text-[10px] text-muted-foreground">—</span>
-            )}
+            ) : <span className="text-[10px] text-muted-foreground">—</span>}
           </TableCell>
         );
-      })()}
-      {isVisible('actions') && (
-        <TableCell>
-          <Button size="sm" variant="ghost" onClick={() => setDeleteConfirmId(c.id)}>
-            <Trash2 className="h-3 w-3 text-destructive" />
-          </Button>
-        </TableCell>
-      )}
+      }
+      case 'actions':
+        return (
+          <TableCell key={key}>
+            <Button size="sm" variant="ghost" onClick={() => setDeleteConfirmId(c.id)}><Trash2 className="h-3 w-3 text-destructive" /></Button>
+          </TableCell>
+        );
+      default:
+        return null;
+    }
+  };
+
+  const renderClientRow = (c: B2BClient) => (
+    <TableRow key={c.id} className="text-xs">
+      {visibleColumns.map(col => renderCell(c, col.key))}
     </TableRow>
   );
 
@@ -586,8 +569,17 @@ export function B2BClientTable({
                  const isPermColumn = EDITABLE_COLUMN_KEYS.includes(col.key);
                  const colEditable = isPermColumn ? isColumnEditableByOthers?.(col.key) ?? false : false;
                  return (
-                   <TableHead key={col.key} className={`text-[10px] min-w-[${col.minWidth}] ${col.key.startsWith('ca_') ? 'text-right bg-accent/20' : ''}`}>
-                     <div className="flex items-center gap-1.5">
+                   <TableHead
+                     key={col.key}
+                     className={`text-[10px] min-w-[${col.minWidth}] ${col.key.startsWith('ca_') ? 'text-right bg-accent/20' : ''}`}
+                     draggable
+                     onDragStart={() => handleDragStart(col.key)}
+                     onDragOver={e => handleDragOver(e, col.key)}
+                     onDrop={handleDrop}
+                     style={{ cursor: 'grab' }}
+                   >
+                     <div className="flex items-center gap-1">
+                       <GripVertical className="h-3 w-3 text-muted-foreground/40 shrink-0 cursor-grab" />
                        {col.canHide && (
                          <Checkbox
                            checked={true}
