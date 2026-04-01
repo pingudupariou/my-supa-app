@@ -27,6 +27,7 @@ export interface B2BClient {
   specific_advantages: string | null;
   notes: string | null;
   category_id: string | null;
+  account_manager: string | null;
   deleted_at: string | null;
   created_at: string;
   updated_at: string;

@@ -81,6 +81,7 @@ export type Database = {
       }
       b2b_clients: {
         Row: {
+          account_manager: string | null
           category_id: string | null
           client_type: string | null
           company_name: string
@@ -109,6 +110,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          account_manager?: string | null
           category_id?: string | null
           client_type?: string | null
           company_name: string
@@ -137,6 +139,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          account_manager?: string | null
           category_id?: string | null
           client_type?: string | null
           company_name?: string

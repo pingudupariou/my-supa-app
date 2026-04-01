@@ -53,7 +53,7 @@ interface Props {
 
 const revenueYears = [2022, 2023, 2024, 2025];
 
-type ColumnKey = 'is_active' | 'company_name' | 'country' | 'geographic_zone' | 'contact_email' | 'contact_phone' | 'pricing_rule' | 'payment_terms' | 'delivery_method' | 'delivery_fee_rule' | 'moq' | 'ca_2022' | 'ca_2023' | 'ca_2024' | 'ca_2025' | 'category' | 'crm_activity' | 'last_note' | 'actions';
+type ColumnKey = 'is_active' | 'company_name' | 'country' | 'geographic_zone' | 'contact_email' | 'contact_phone' | 'pricing_rule' | 'payment_terms' | 'delivery_method' | 'delivery_fee_rule' | 'moq' | 'ca_2022' | 'ca_2023' | 'ca_2024' | 'ca_2025' | 'category' | 'account_manager' | 'crm_activity' | 'last_note' | 'actions';
 
 const ALL_COLUMNS: { key: ColumnKey; label: string; minWidth: string; canHide: boolean }[] = [
   { key: 'is_active', label: 'Statut', minWidth: '90px', canHide: true },
@@ -72,6 +72,7 @@ const ALL_COLUMNS: { key: ColumnKey; label: string; minWidth: string; canHide: b
   { key: 'ca_2024', label: 'CA 2024', minWidth: '80px', canHide: true },
   { key: 'ca_2025', label: 'CA 2025', minWidth: '80px', canHide: true },
   { key: 'category', label: 'Catégorie', minWidth: '90px', canHide: true },
+  { key: 'account_manager', label: 'Gestionnaire', minWidth: '120px', canHide: true },
   { key: 'crm_activity', label: 'Suivi CRM', minWidth: '120px', canHide: true },
   { key: 'last_note', label: 'Dernière note RDV', minWidth: '180px', canHide: true },
   { key: 'actions', label: 'Actions', minWidth: '70px', canHide: false },
@@ -197,7 +198,7 @@ export function B2BClientTable({
   };
 
   // Editable column keys that can be permission-controlled
-  const EDITABLE_COLUMN_KEYS = ['company_name', 'country', 'geographic_zone', 'contact_email', 'contact_phone', 'pricing_rule', 'payment_terms', 'delivery_method', 'delivery_fee_rule', 'moq', 'is_active', 'category', 'notes'];
+  const EDITABLE_COLUMN_KEYS = ['company_name', 'country', 'geographic_zone', 'contact_email', 'contact_phone', 'pricing_rule', 'payment_terms', 'delivery_method', 'delivery_fee_rule', 'moq', 'is_active', 'category', 'account_manager', 'notes'];
 
   const handleCreate = async () => {
     if (!newForm.company_name.trim()) return;
@@ -401,6 +402,11 @@ export function B2BClientTable({
           ) : (
             <ReadOnlyCell value={categories.find(cat => cat.id === c.category_id)?.name || ''} />
           )}
+        </TableCell>
+      )}
+      {isVisible('account_manager') && (
+        <TableCell>
+          {canEditColumn('account_manager') ? <EditableCell value={c.account_manager || ''} onSave={v => saveField(c, 'account_manager', v)} /> : <ReadOnlyCell value={c.account_manager || ''} />}
         </TableCell>
       )}
       {isVisible('crm_activity') && (() => {
