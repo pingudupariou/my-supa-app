@@ -40,6 +40,7 @@ export function CRMPage() {
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
   const [showAssociator, setShowAssociator] = useState(false);
   const [activeTab, setActiveTab] = useState('gestion');
+  const [searchQuery, setSearchQuery] = useState('');
 
   const entityId = bizEntities.selectedEntityId;
   const filterByEntity = entityId && entityId !== 'all';
@@ -210,6 +211,10 @@ export function CRMPage() {
               </span>
             </TabsTrigger>
           )}
+          <TabsTrigger value="recherche">
+            <Search className="h-4 w-4 mr-2" />
+            Recherche
+          </TabsTrigger>
         </TabsList>
 
         {/* Gestion clients — unified management view */}
