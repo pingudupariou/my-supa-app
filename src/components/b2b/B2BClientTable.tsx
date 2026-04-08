@@ -563,15 +563,15 @@ export function B2BClientTable({
       {/* Main table */}
       <div className="border rounded-lg overflow-auto max-h-[70vh]">
         <Table>
-           <TableHeader className="sticky top-0 z-10 bg-background shadow-sm">
-             <TableRow>
-               {visibleColumns.map(col => {
-                 const isPermColumn = EDITABLE_COLUMN_KEYS.includes(col.key);
-                 const colEditable = isPermColumn ? isColumnEditableByOthers?.(col.key) ?? false : false;
-                 return (
-                   <TableHead
-                     key={col.key}
-                     className={`text-[10px] min-w-[${col.minWidth}] ${col.key.startsWith('ca_') ? 'text-right bg-accent/20' : ''}`}
+            <TableHeader className="sticky top-0 z-20 bg-background shadow-sm [&_tr]:border-b">
+              <TableRow className="bg-background">
+                {visibleColumns.map(col => {
+                  const isPermColumn = EDITABLE_COLUMN_KEYS.includes(col.key);
+                  const colEditable = isPermColumn ? isColumnEditableByOthers?.(col.key) ?? false : false;
+                  return (
+                    <TableHead
+                      key={col.key}
+                      className={`text-[10px] min-w-[${col.minWidth}] bg-background ${col.key.startsWith('ca_') ? 'text-right !bg-accent/20' : ''}`}
                      draggable
                      onDragStart={() => handleDragStart(col.key)}
                      onDragOver={e => handleDragOver(e, col.key)}
