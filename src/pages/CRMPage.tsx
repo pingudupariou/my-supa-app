@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ClientSubTabs } from '@/components/crm/ClientSubTabs';
 import { Card, CardContent } from '@/components/ui/card';
 import { KPICard } from '@/components/ui/KPICard';
-import { Users, Kanban, Bell, Trash2, ClipboardList, BarChart3, Building2, FolderOpen, Database, History } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Users, Kanban, Bell, Trash2, ClipboardList, BarChart3, Building2, FolderOpen, Database, History, Search } from 'lucide-react';
 import { CustomerList } from '@/components/crm/CustomerList';
 import { CustomerDetail } from '@/components/crm/CustomerDetail';
 import { PipelineKanban } from '@/components/crm/PipelineKanban';

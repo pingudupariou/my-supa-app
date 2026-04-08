@@ -561,9 +561,9 @@ export function B2BClientTable({
       )}
 
       {/* Main table */}
-      <div className="border rounded-lg overflow-x-auto">
+      <div className="border rounded-lg overflow-auto max-h-[70vh]">
         <Table>
-           <TableHeader>
+           <TableHeader className="sticky top-0 z-10 bg-background shadow-sm">
              <TableRow>
                {visibleColumns.map(col => {
                  const isPermColumn = EDITABLE_COLUMN_KEYS.includes(col.key);
