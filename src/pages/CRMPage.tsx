@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ClientSubTabs } from '@/components/crm/ClientSubTabs';
 import { Card, CardContent } from '@/components/ui/card';
 import { KPICard } from '@/components/ui/KPICard';
-import { Users, Kanban, Bell, Trash2, ClipboardList, BarChart3, Building2, FolderOpen, Database, History } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Users, Kanban, Bell, Trash2, ClipboardList, BarChart3, Building2, FolderOpen, Database, History, Search } from 'lucide-react';
 import { CustomerList } from '@/components/crm/CustomerList';
 import { CustomerDetail } from '@/components/crm/CustomerDetail';
 import { PipelineKanban } from '@/components/crm/PipelineKanban';
@@ -39,6 +40,7 @@ export function CRMPage() {
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
   const [showAssociator, setShowAssociator] = useState(false);
   const [activeTab, setActiveTab] = useState('gestion');
+  const [searchQuery, setSearchQuery] = useState('');
 
   const entityId = bizEntities.selectedEntityId;
   const filterByEntity = entityId && entityId !== 'all';
@@ -209,6 +211,10 @@ export function CRMPage() {
               </span>
             </TabsTrigger>
           )}
+          <TabsTrigger value="recherche">
+            <Search className="h-4 w-4 mr-2" />
+            Recherche
+          </TabsTrigger>
         </TabsList>
 
         {/* Gestion clients — unified management view */}
@@ -337,6 +343,61 @@ export function CRMPage() {
             onPermanentDelete={b2b.permanentDeleteClient}
             isAdmin={isAdmin}
           />
+        </TabsContent>
+
+        {/* Recherche */}
+        <TabsContent value="recherche" className="space-y-4">
+          <Card>
+            <CardContent className="pt-6 space-y-4">
+              <div className="relative max-w-md">
+                <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Rechercher un client par nom, email, pays, gestionnaire..."
+                  value={searchQuery}
+                  onChange={e => setSearchQuery(e.target.value)}
+                  className="pl-9"
+                />
+              </div>
+              {searchQuery.trim().length > 0 ? (() => {
+                const q = searchQuery.toLowerCase();
+                const results = visibleClients.filter(c =>
+                  c.company_name.toLowerCase().includes(q) ||
+                  (c.contact_email || '').toLowerCase().includes(q) ||
+                  (c.contact_phone || '').toLowerCase().includes(q) ||
+                  (c.country || '').toLowerCase().includes(q) ||
+                  (c.geographic_zone || '').toLowerCase().includes(q) ||
+                  (c.account_manager || '').toLowerCase().includes(q) ||
+                  (c.notes || '').toLowerCase().includes(q)
+                );
+                return results.length > 0 ? (
+                  <div className="space-y-2">
+                    <p className="text-sm text-muted-foreground">{results.length} résultat{results.length > 1 ? 's' : ''}</p>
+                    {results.map(c => (
+                      <button
+                        key={c.id}
+                        onClick={() => { setSelectedClientId(c.id); setActiveTab('gestion'); }}
+                        className="w-full text-left p-3 rounded-lg border hover:bg-muted/50 transition-colors flex items-center justify-between"
+                      >
+                        <div>
+                          <div className="font-medium text-sm">{c.company_name}</div>
+                          <div className="text-xs text-muted-foreground flex items-center gap-3">
+                            {c.country && <span>{c.country}</span>}
+                            {c.contact_email && <span>{c.contact_email}</span>}
+                            {c.account_manager && <span>👤 {c.account_manager}</span>}
+                          </div>
+                        </div>
+                        <span className={`h-2 w-2 rounded-full shrink-0 ${c.is_active ? 'bg-emerald-500' : 'bg-muted-foreground'}`} />
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground py-8 text-center">Aucun résultat pour "{searchQuery}"</p>
+                );
+              })() : (
+                <p className="text-sm text-muted-foreground py-8 text-center">Tapez un terme pour rechercher parmi vos clients</p>
+              )}
+            </CardContent>
+          </Card>
         </TabsContent>
       </Tabs>
 

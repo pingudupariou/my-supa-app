@@ -26,11 +26,21 @@ export function useColumnPermissions() {
   }, [permissions]);
 
   const togglePermission = useCallback(async (columnKey: string, value: boolean) => {
-    await supabase
+    const { error } = await supabase
       .from('b2b_column_permissions')
-      .update({ is_editable_by_others: value, updated_at: new Date().toISOString() } as any)
-      .eq('column_key', columnKey);
-    setPermissions(prev => prev.map(p => p.column_key === columnKey ? { ...p, is_editable_by_others: value } : p));
+      .upsert(
+        { column_key: columnKey, is_editable_by_others: value, updated_at: new Date().toISOString() } as any,
+        { onConflict: 'column_key' }
+      );
+    if (!error) {
+      setPermissions(prev => {
+        const exists = prev.find(p => p.column_key === columnKey);
+        if (exists) {
+          return prev.map(p => p.column_key === columnKey ? { ...p, is_editable_by_others: value } : p);
+        }
+        return [...prev, { column_key: columnKey, is_editable_by_others: value }];
+      });
+    }
   }, []);
 
   return { permissions, isLoading, isEditableByOthers, togglePermission };
