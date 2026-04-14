@@ -170,8 +170,32 @@ export function AuthPage() {
             </TabsList>
 
             <TabsContent value="login" className="mt-4">
+              {lockdownMsg && (
+                <div className="mb-4 p-3 rounded-md bg-destructive/10 border border-destructive/30 text-destructive text-sm font-medium text-center">
+                  {lockdownMsg}
+                </div>
+              )}
+              {loginAttempts > 0 && loginAttempts < MAX_LOGIN_ATTEMPTS && !lockdownMsg && (
+                <div className="mb-4 text-xs text-muted-foreground text-center">
+                  Tentative {loginAttempts}/{MAX_LOGIN_ATTEMPTS}
+                </div>
+              )}
               <Form {...loginForm}>
                 <form onSubmit={loginForm.handleSubmit(handleLogin)} className="space-y-4">
+                  {/* Honeypot anti-bot — invisible pour les utilisateurs */}
+                  <div className="absolute -left-[9999px] opacity-0 h-0 overflow-hidden" aria-hidden="true" tabIndex={-1}>
+                    <FormField
+                      control={loginForm.control}
+                      name="honeypot"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormControl>
+                            <Input type="text" autoComplete="off" tabIndex={-1} {...field} />
+                          </FormControl>
+                        </FormItem>
+                      )}
+                    />
+                  </div>
                   <FormField
                     control={loginForm.control}
                     name="email"
@@ -198,7 +222,7 @@ export function AuthPage() {
                       </FormItem>
                     )}
                   />
-                  <Button type="submit" className="w-full" disabled={isSubmitting}>
+                  <Button type="submit" className="w-full" disabled={isSubmitting || !!lockedUntil}>
                     {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                     Se connecter
                   </Button>
