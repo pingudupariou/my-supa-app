@@ -119,7 +119,7 @@ export function AuthPage() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background to-muted p-4">
       <Card className="w-full max-w-md">
-        <CardHeader className="text-center">
+        <CardHeader className="text-center bg-primary text-primary-foreground">
           <div className="flex justify-center mb-4">
             <NovarideLogo variant="full" color="dark" />
           </div>
