@@ -119,8 +119,8 @@ export function AuthPage() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background to-muted p-4">
       <Card className="w-full max-w-md">
-        <CardHeader className="text-center bg-primary text-primary-foreground">
-          <div className="flex justify-center mb-4">
+        <CardHeader className="text-center bg-primary-foreground text-primary">
+          <div className="flex justify-center mb-4 bg-primary">
             <NovarideLogo variant="full" color="dark" />
           </div>
           <CardTitle className="whitespace-pre-line">We engage, we move</CardTitle>
@@ -157,7 +157,7 @@ export function AuthPage() {
               </Form>
             </div>
           ) : (
-          <Tabs defaultValue="login" className="w-full">
+          <Tabs defaultValue="login" className="w-full bg-secondary text-secondary-foreground">
             <TabsList className="grid w-full grid-cols-2">
               <TabsTrigger value="login">Connexion</TabsTrigger>
               <TabsTrigger value="signup">Inscription</TabsTrigger>
