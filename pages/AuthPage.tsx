@@ -13,9 +13,14 @@ import { NovarideLogo } from '@/components/ui/NovarideLogo';
 import { toast } from '@/hooks/use-toast';
 import { Loader2 } from 'lucide-react';
 
+const MAX_LOGIN_ATTEMPTS = 5;
+const LOCKOUT_DURATION_MS = 60_000; // 1 minute
+const PROGRESSIVE_DELAY_MS = 1_000; // +1s par tentative
+
 const loginSchema = z.object({
   email: z.string().trim().email({ message: "Email invalide" }),
   password: z.string().min(6, { message: "Le mot de passe doit contenir au moins 6 caractères" }),
+  honeypot: z.string().max(0).optional(), // champ invisible anti-bot
 });
 
 const signUpSchema = z.object({
