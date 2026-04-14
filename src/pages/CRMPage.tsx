@@ -276,7 +276,8 @@ export function CRMPage() {
               <CrmHistoryTimeline
                 interactions={filteredInteractions}
                 meetings={filteredMeetings}
-                clients={b2b.clients.map(c => ({ id: c.id, company_name: c.company_name }))}
+                clients={b2b.clients.map(c => ({ id: c.id, company_name: c.company_name, category_id: c.category_id }))}
+                categories={b2b.categories}
                 onSelectClient={setSelectedClientId}
                 onSwitchToGestion={() => setActiveTab('gestion')}
               />
