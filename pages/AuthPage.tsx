@@ -13,9 +13,14 @@ import { NovarideLogo } from '@/components/ui/NovarideLogo';
 import { toast } from '@/hooks/use-toast';
 import { Loader2 } from 'lucide-react';
 
+const MAX_LOGIN_ATTEMPTS = 5;
+const LOCKOUT_DURATION_MS = 60_000; // 1 minute
+const PROGRESSIVE_DELAY_MS = 1_000; // +1s par tentative
+
 const loginSchema = z.object({
   email: z.string().trim().email({ message: "Email invalide" }),
   password: z.string().min(6, { message: "Le mot de passe doit contenir au moins 6 caractères" }),
+  honeypot: z.string().max(0).optional(), // champ invisible anti-bot
 });
 
 const signUpSchema = z.object({
@@ -31,6 +36,9 @@ export function AuthPage() {
   const { user, loading, signIn, signUp } = useAuth();
   const navigate = useNavigate();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [loginAttempts, setLoginAttempts] = useState(0);
+  const [lockedUntil, setLockedUntil] = useState<number | null>(null);
+  const [lockdownMsg, setLockdownMsg] = useState('');
 
   useEffect(() => {
     if (user && !loading) {
@@ -38,9 +46,25 @@ export function AuthPage() {
     }
   }, [user, loading, navigate]);
 
+  // Vérifie le verrouillage
+  useEffect(() => {
+    if (!lockedUntil) return;
+    const interval = setInterval(() => {
+      const remaining = Math.ceil((lockedUntil - Date.now()) / 1000);
+      if (remaining <= 0) {
+        setLockedUntil(null);
+        setLockdownMsg('');
+        setLoginAttempts(0);
+      } else {
+        setLockdownMsg(`Trop de tentatives. Réessayez dans ${remaining}s`);
+      }
+    }, 500);
+    return () => clearInterval(interval);
+  }, [lockedUntil]);
+
   const loginForm = useForm<LoginFormData>({
     resolver: zodResolver(loginSchema),
-    defaultValues: { email: '', password: '' },
+    defaultValues: { email: '', password: '', honeypot: '' },
   });
 
   const signUpForm = useForm<SignUpFormData>({
@@ -49,31 +73,40 @@ export function AuthPage() {
   });
 
   const handleLogin = async (data: LoginFormData) => {
+    // Anti-bot : honeypot rempli = bot
+    if (data.honeypot) return;
+
+    // Vérifier le verrouillage
+    if (lockedUntil && Date.now() < lockedUntil) return;
+
+    // Délai progressif
+    const delay = loginAttempts * PROGRESSIVE_DELAY_MS;
+    if (delay > 0) {
+      await new Promise(r => setTimeout(r, delay));
+    }
+
     setIsSubmitting(true);
     const { error } = await signIn(data.email, data.password);
     setIsSubmitting(false);
 
     if (error) {
-      if (error.message.includes('Invalid login credentials')) {
-        toast({
-          title: "Erreur de connexion",
-          description: "Email ou mot de passe incorrect.",
-          variant: "destructive",
-        });
-      } else if (error.message.includes('Email not confirmed')) {
-        toast({
-          title: "Email non vérifié",
-          description: "Veuillez vérifier votre email avant de vous connecter.",
-          variant: "destructive",
-        });
-      } else {
-        toast({
-          title: "Erreur",
-          description: error.message,
-          variant: "destructive",
-        });
+      const newAttempts = loginAttempts + 1;
+      setLoginAttempts(newAttempts);
+
+      if (newAttempts >= MAX_LOGIN_ATTEMPTS) {
+        setLockedUntil(Date.now() + LOCKOUT_DURATION_MS);
+        setLockdownMsg(`Trop de tentatives. Réessayez dans 60s`);
+        return;
       }
+
+      // Message générique pour ne pas révéler si l'email existe
+      toast({
+        title: "Erreur de connexion",
+        description: "Identifiants incorrects. Veuillez réessayer.",
+        variant: "destructive",
+      });
     } else {
+      setLoginAttempts(0);
       toast({
         title: "Connexion réussie",
         description: "Bienvenue sur Novaride FinPlan Studio",
@@ -137,8 +170,32 @@ export function AuthPage() {
             </TabsList>
 
             <TabsContent value="login" className="mt-4">
+              {lockdownMsg && (
+                <div className="mb-4 p-3 rounded-md bg-destructive/10 border border-destructive/30 text-destructive text-sm font-medium text-center">
+                  {lockdownMsg}
+                </div>
+              )}
+              {loginAttempts > 0 && loginAttempts < MAX_LOGIN_ATTEMPTS && !lockdownMsg && (
+                <div className="mb-4 text-xs text-muted-foreground text-center">
+                  Tentative {loginAttempts}/{MAX_LOGIN_ATTEMPTS}
+                </div>
+              )}
               <Form {...loginForm}>
                 <form onSubmit={loginForm.handleSubmit(handleLogin)} className="space-y-4">
+                  {/* Honeypot anti-bot — invisible pour les utilisateurs */}
+                  <div className="absolute -left-[9999px] opacity-0 h-0 overflow-hidden" aria-hidden="true" tabIndex={-1}>
+                    <FormField
+                      control={loginForm.control}
+                      name="honeypot"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormControl>
+                            <Input type="text" autoComplete="off" tabIndex={-1} {...field} />
+                          </FormControl>
+                        </FormItem>
+                      )}
+                    />
+                  </div>
                   <FormField
                     control={loginForm.control}
                     name="email"
@@ -165,7 +222,7 @@ export function AuthPage() {
                       </FormItem>
                     )}
                   />
-                  <Button type="submit" className="w-full" disabled={isSubmitting}>
+                  <Button type="submit" className="w-full" disabled={isSubmitting || !!lockedUntil}>
                     {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                     Se connecter
                   </Button>
