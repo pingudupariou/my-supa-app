@@ -106,7 +106,7 @@ export function DashboardLayout({
       <aside className={cn('fixed inset-y-0 left-0 z-40 w-56 bg-sidebar text-sidebar-foreground flex flex-col transition-transform lg:translate-x-0', sidebarOpen ? 'translate-x-0' : '-translate-x-full')}>
         <div className="p-4 border-b border-sidebar-border">
           <div className="flex items-center justify-between">
-            <NovarideLogo variant="compact" color="light" />
+            <NovarideLogo variant="compact" color="light" canEdit={isAdmin} />
             <NotificationBell
               notifications={tasksData.notifications}
               unreadCount={tasksData.unreadCount}
