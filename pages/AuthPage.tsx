@@ -36,6 +36,9 @@ export function AuthPage() {
   const { user, loading, signIn, signUp } = useAuth();
   const navigate = useNavigate();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [loginAttempts, setLoginAttempts] = useState(0);
+  const [lockedUntil, setLockedUntil] = useState<number | null>(null);
+  const [lockdownMsg, setLockdownMsg] = useState('');
 
   useEffect(() => {
     if (user && !loading) {
@@ -43,9 +46,25 @@ export function AuthPage() {
     }
   }, [user, loading, navigate]);
 
+  // Vérifie le verrouillage
+  useEffect(() => {
+    if (!lockedUntil) return;
+    const interval = setInterval(() => {
+      const remaining = Math.ceil((lockedUntil - Date.now()) / 1000);
+      if (remaining <= 0) {
+        setLockedUntil(null);
+        setLockdownMsg('');
+        setLoginAttempts(0);
+      } else {
+        setLockdownMsg(`Trop de tentatives. Réessayez dans ${remaining}s`);
+      }
+    }, 500);
+    return () => clearInterval(interval);
+  }, [lockedUntil]);
+
   const loginForm = useForm<LoginFormData>({
     resolver: zodResolver(loginSchema),
-    defaultValues: { email: '', password: '' },
+    defaultValues: { email: '', password: '', honeypot: '' },
   });
 
   const signUpForm = useForm<SignUpFormData>({
@@ -54,31 +73,40 @@ export function AuthPage() {
   });
 
   const handleLogin = async (data: LoginFormData) => {
+    // Anti-bot : honeypot rempli = bot
+    if (data.honeypot) return;
+
+    // Vérifier le verrouillage
+    if (lockedUntil && Date.now() < lockedUntil) return;
+
+    // Délai progressif
+    const delay = loginAttempts * PROGRESSIVE_DELAY_MS;
+    if (delay > 0) {
+      await new Promise(r => setTimeout(r, delay));
+    }
+
     setIsSubmitting(true);
     const { error } = await signIn(data.email, data.password);
     setIsSubmitting(false);
 
     if (error) {
-      if (error.message.includes('Invalid login credentials')) {
-        toast({
-          title: "Erreur de connexion",
-          description: "Email ou mot de passe incorrect.",
-          variant: "destructive",
-        });
-      } else if (error.message.includes('Email not confirmed')) {
-        toast({
-          title: "Email non vérifié",
-          description: "Veuillez vérifier votre email avant de vous connecter.",
-          variant: "destructive",
-        });
-      } else {
-        toast({
-          title: "Erreur",
-          description: error.message,
-          variant: "destructive",
-        });
+      const newAttempts = loginAttempts + 1;
+      setLoginAttempts(newAttempts);
+
+      if (newAttempts >= MAX_LOGIN_ATTEMPTS) {
+        setLockedUntil(Date.now() + LOCKOUT_DURATION_MS);
+        setLockdownMsg(`Trop de tentatives. Réessayez dans 60s`);
+        return;
       }
+
+      // Message générique pour ne pas révéler si l'email existe
+      toast({
+        title: "Erreur de connexion",
+        description: "Identifiants incorrects. Veuillez réessayer.",
+        variant: "destructive",
+      });
     } else {
+      setLoginAttempts(0);
       toast({
         title: "Connexion réussie",
         description: "Bienvenue sur Novaride FinPlan Studio",
