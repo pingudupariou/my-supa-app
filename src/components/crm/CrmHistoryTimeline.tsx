@@ -3,10 +3,9 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Phone, Mail, Calendar, StickyNote, Search, ArrowUpDown, ChevronRight, User, FileText, Copy, Check, ChevronDown, ChevronUp, Filter } from 'lucide-react';
-import { formatDistanceToNow } from 'date-fns';
+import { Phone, Mail, Calendar, StickyNote, Search, ArrowUpDown, ChevronRight, User, FileText, Copy, Check, Filter, BarChart3, Users } from 'lucide-react';
+import { formatDistanceToNow, startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfQuarter, endOfQuarter, format, isWithinInterval, startOfYear, endOfYear } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
@@ -35,12 +34,20 @@ interface Meeting {
 interface Client {
   id: string;
   company_name: string;
+  category_id?: string | null;
+}
+
+interface Category {
+  id: string;
+  name: string;
+  color?: string | null;
 }
 
 interface Props {
   interactions: Interaction[];
   meetings: Meeting[];
   clients: Client[];
+  categories?: Category[];
   onSelectClient: (id: string) => void;
   onSwitchToGestion: () => void;
 }
@@ -53,78 +60,163 @@ const TYPE_CONFIG: Record<string, { icon: any; label: string; borderColor: strin
   rdv: { icon: Calendar, label: 'Réunion', borderColor: 'border-l-violet-500', bgColor: 'bg-violet-50 dark:bg-violet-950/20' },
 };
 
+type PeriodPreset = 'this_week' | 'last_week' | 'this_month' | 'last_month' | 'this_quarter' | 'this_year' | 'custom';
+type GroupBy = 'none' | 'client' | 'week' | 'month';
+
+function getPresetRange(preset: PeriodPreset): { from: Date; to: Date } | null {
+  const now = new Date();
+  switch (preset) {
+    case 'this_week':
+      return { from: startOfWeek(now, { weekStartsOn: 1 }), to: endOfWeek(now, { weekStartsOn: 1 }) };
+    case 'last_week': {
+      const lastWeek = new Date(now);
+      lastWeek.setDate(lastWeek.getDate() - 7);
+      return { from: startOfWeek(lastWeek, { weekStartsOn: 1 }), to: endOfWeek(lastWeek, { weekStartsOn: 1 }) };
+    }
+    case 'this_month':
+      return { from: startOfMonth(now), to: endOfMonth(now) };
+    case 'last_month': {
+      const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+      return { from: startOfMonth(lastMonth), to: endOfMonth(lastMonth) };
+    }
+    case 'this_quarter':
+      return { from: startOfQuarter(now), to: endOfQuarter(now) };
+    case 'this_year':
+      return { from: startOfYear(now), to: endOfYear(now) };
+    default:
+      return null;
+  }
+}
+
 // ──────────── Activity Report sub-component ────────────
 function ActivityReport({
   entries,
   clients,
+  categories = [],
   onNavigateToClient,
 }: {
   entries: Array<{ clientName: string; customerId: string; title: string; content: string; type: string; date: string }>;
   clients: Client[];
+  categories?: Category[];
   onNavigateToClient: (customerId: string) => void;
 }) {
+  const [periodPreset, setPeriodPreset] = useState<PeriodPreset>('this_month');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
-  const [selectedClients, setSelectedClients] = useState<string[]>([]);
-  const [selectedTypes, setSelectedTypes] = useState<string[]>([]);
+  const [selectedClient, setSelectedClient] = useState<string>('all');
+  const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const [selectedType, setSelectedType] = useState<string>('all');
+  const [groupBy, setGroupBy] = useState<GroupBy>('client');
   const [copied, setCopied] = useState(false);
-  const [showFilters, setShowFilters] = useState(true);
+
+  // Build category map
+  const categoryMap = useMemo(() => {
+    const map: Record<string, string> = {};
+    categories.forEach(c => { map[c.id] = c.name; });
+    return map;
+  }, [categories]);
+
+  // Client category lookup
+  const clientCategoryMap = useMemo(() => {
+    const map: Record<string, string> = {};
+    clients.forEach(c => {
+      if (c.category_id) map[c.id] = c.category_id;
+    });
+    return map;
+  }, [clients]);
 
   const uniqueClients = useMemo(() => {
-    const names = new Set(entries.map(e => e.clientName));
-    return [...names].sort();
+    const names = new Map<string, string>();
+    entries.forEach(e => {
+      if (!names.has(e.customerId)) names.set(e.customerId, e.clientName);
+    });
+    return [...names.entries()].sort((a, b) => a[1].localeCompare(b[1]));
   }, [entries]);
 
-  const uniqueTypes = useMemo(() => {
-    const types = new Set(entries.map(e => e.type));
-    return [...types];
-  }, [entries]);
+  const uniqueTypes = useMemo(() => [...new Set(entries.map(e => e.type))], [entries]);
 
   const filtered = useMemo(() => {
+    // Determine date range
+    let fromDate: Date | null = null;
+    let toDate: Date | null = null;
+
+    if (periodPreset === 'custom') {
+      if (dateFrom) fromDate = new Date(dateFrom);
+      if (dateTo) toDate = new Date(dateTo + 'T23:59:59');
+    } else {
+      const range = getPresetRange(periodPreset);
+      if (range) {
+        fromDate = range.from;
+        toDate = range.to;
+      }
+    }
+
     return entries.filter(e => {
-      if (dateFrom && e.date < dateFrom) return false;
-      if (dateTo && e.date > dateTo + 'T23:59:59') return false;
-      if (selectedClients.length > 0 && !selectedClients.includes(e.clientName)) return false;
-      if (selectedTypes.length > 0 && !selectedTypes.includes(e.type)) return false;
+      const eDate = new Date(e.date);
+      if (fromDate && eDate < fromDate) return false;
+      if (toDate && eDate > toDate) return false;
+      if (selectedClient !== 'all' && e.customerId !== selectedClient) return false;
+      if (selectedCategory !== 'all') {
+        const catId = clientCategoryMap[e.customerId];
+        if (catId !== selectedCategory) return false;
+      }
+      if (selectedType !== 'all' && e.type !== selectedType) return false;
       return true;
     });
-  }, [entries, dateFrom, dateTo, selectedClients, selectedTypes]);
+  }, [entries, periodPreset, dateFrom, dateTo, selectedClient, selectedCategory, selectedType, clientCategoryMap]);
 
-  // Group by client
-  const groupedByClient = useMemo(() => {
+  // Grouping
+  const grouped = useMemo(() => {
+    if (groupBy === 'none') {
+      return [{ label: '', items: filtered }];
+    }
+    if (groupBy === 'client') {
+      const map: Record<string, typeof filtered> = {};
+      filtered.forEach(e => {
+        if (!map[e.clientName]) map[e.clientName] = [];
+        map[e.clientName].push(e);
+      });
+      return Object.entries(map)
+        .sort((a, b) => a[0].localeCompare(b[0]))
+        .map(([label, items]) => ({ label, items }));
+    }
+    // Week or month grouping
     const map: Record<string, typeof filtered> = {};
     filtered.forEach(e => {
-      if (!map[e.clientName]) map[e.clientName] = [];
-      map[e.clientName].push(e);
+      const d = new Date(e.date);
+      let key: string;
+      if (groupBy === 'week') {
+        const ws = startOfWeek(d, { weekStartsOn: 1 });
+        key = `Sem. du ${format(ws, 'dd MMM yyyy', { locale: fr })}`;
+      } else {
+        key = format(d, 'MMMM yyyy', { locale: fr });
+      }
+      if (!map[key]) map[key] = [];
+      map[key].push(e);
     });
-    // Sort clients alphabetically
-    return Object.entries(map).sort((a, b) => a[0].localeCompare(b[0]));
-  }, [filtered]);
+    // Sort groups by most recent first
+    return Object.entries(map)
+      .sort((a, b) => {
+        const da = new Date(a[1][0].date).getTime();
+        const db = new Date(b[1][0].date).getTime();
+        return db - da;
+      })
+      .map(([label, items]) => ({ label, items }));
+  }, [filtered, groupBy]);
 
-  // Stats
+  // Summary stats
   const stats = useMemo(() => {
+    const clientSet = new Set(filtered.map(e => e.customerId));
     const typeCounts: Record<string, number> = {};
     filtered.forEach(e => {
       const label = TYPE_CONFIG[e.type]?.label || e.type;
       typeCounts[label] = (typeCounts[label] || 0) + 1;
     });
-    return { total: filtered.length, clients: groupedByClient.length, typeCounts };
-  }, [filtered, groupedByClient]);
-
-  const toggleClient = (name: string) => {
-    setSelectedClients(prev =>
-      prev.includes(name) ? prev.filter(n => n !== name) : [...prev, name]
-    );
-  };
-
-  const toggleType = (type: string) => {
-    setSelectedTypes(prev =>
-      prev.includes(type) ? prev.filter(t => t !== type) : [...prev, type]
-    );
-  };
+    return { total: filtered.length, clients: clientSet.size, typeCounts };
+  }, [filtered]);
 
   // Build tab-separated text for Excel paste
-  const buildExportText = () => {
+  const handleCopy = () => {
     const header = ['Client', 'Date', 'Type', 'Sujet', 'Contenu'].join('\t');
     const rows = filtered.map(e => {
       const d = new Date(e.date);
@@ -134,12 +226,7 @@ function ActivityReport({
       const subject = e.title.replace(/\t/g, ' ');
       return [e.clientName, dateStr, typeLabel, subject, content].join('\t');
     });
-    return [header, ...rows].join('\n');
-  };
-
-  const handleCopy = () => {
-    const text = buildExportText();
-    // Use textarea fallback for clipboard (works in iframes)
+    const text = [header, ...rows].join('\n');
     const textarea = document.createElement('textarea');
     textarea.value = text;
     textarea.style.position = 'fixed';
@@ -155,194 +242,183 @@ function ActivityReport({
 
   return (
     <div className="space-y-4">
-      {/* Toolbar */}
-      <div className="flex items-center justify-between flex-wrap gap-2">
+      {/* Filters row */}
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2">
+        <div>
+          <label className="text-[10px] font-medium text-muted-foreground mb-1 block">Période</label>
+          <Select value={periodPreset} onValueChange={(v) => setPeriodPreset(v as PeriodPreset)}>
+            <SelectTrigger className="h-8 text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="this_week">Cette semaine</SelectItem>
+              <SelectItem value="last_week">Semaine dernière</SelectItem>
+              <SelectItem value="this_month">Ce mois</SelectItem>
+              <SelectItem value="last_month">Mois dernier</SelectItem>
+              <SelectItem value="this_quarter">Ce trimestre</SelectItem>
+              <SelectItem value="this_year">Cette année</SelectItem>
+              <SelectItem value="custom">Personnalisé</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        {periodPreset === 'custom' && (
+          <>
+            <div>
+              <label className="text-[10px] font-medium text-muted-foreground mb-1 block">Du</label>
+              <Input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="h-8 text-xs" />
+            </div>
+            <div>
+              <label className="text-[10px] font-medium text-muted-foreground mb-1 block">Au</label>
+              <Input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className="h-8 text-xs" />
+            </div>
+          </>
+        )}
+
+        <div>
+          <label className="text-[10px] font-medium text-muted-foreground mb-1 block">Client</label>
+          <Select value={selectedClient} onValueChange={setSelectedClient}>
+            <SelectTrigger className="h-8 text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Tous les clients</SelectItem>
+              {uniqueClients.map(([id, name]) => (
+                <SelectItem key={id} value={id}>{name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        {categories.length > 0 && (
+          <div>
+            <label className="text-[10px] font-medium text-muted-foreground mb-1 block">Catégorie</label>
+            <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+              <SelectTrigger className="h-8 text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Toutes</SelectItem>
+                {categories.map(cat => (
+                  <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+
+        <div>
+          <label className="text-[10px] font-medium text-muted-foreground mb-1 block">Type</label>
+          <Select value={selectedType} onValueChange={setSelectedType}>
+            <SelectTrigger className="h-8 text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Tous</SelectItem>
+              {uniqueTypes.map(t => (
+                <SelectItem key={t} value={t}>{TYPE_CONFIG[t]?.label || t}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div>
+          <label className="text-[10px] font-medium text-muted-foreground mb-1 block">Grouper par</label>
+          <Select value={groupBy} onValueChange={(v) => setGroupBy(v as GroupBy)}>
+            <SelectTrigger className="h-8 text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="client">Client</SelectItem>
+              <SelectItem value="week">Semaine</SelectItem>
+              <SelectItem value="month">Mois</SelectItem>
+              <SelectItem value="none">Aucun</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
+      {/* Summary bar */}
+      <div className="flex items-center justify-between flex-wrap gap-2 py-2 px-3 bg-muted/50 rounded-lg">
+        <div className="flex items-center gap-3 flex-wrap">
+          <span className="text-xs font-medium flex items-center gap-1.5">
+            <FileText className="h-3.5 w-3.5 text-primary" />
+            {stats.total} action{stats.total !== 1 ? 's' : ''}
+          </span>
+          <span className="text-xs text-muted-foreground">•</span>
+          <span className="text-xs flex items-center gap-1.5">
+            <Users className="h-3.5 w-3.5 text-muted-foreground" />
+            {stats.clients} client{stats.clients !== 1 ? 's' : ''}
+          </span>
+          {Object.entries(stats.typeCounts).map(([label, count]) => (
+            <Badge key={label} variant="secondary" className="text-[10px] font-normal">
+              {label}: {count}
+            </Badge>
+          ))}
+        </div>
         <Button
+          size="sm"
           variant="outline"
-          size="sm"
-          className="h-8 text-xs gap-1.5"
-          onClick={() => setShowFilters(!showFilters)}
-        >
-          <Filter className="h-3.5 w-3.5" />
-          Filtres
-          {showFilters ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
-        </Button>
-        <Button
-          size="sm"
           onClick={handleCopy}
           disabled={filtered.length === 0}
-          className="h-8 text-xs gap-1.5"
+          className="h-7 text-[11px] gap-1.5"
         >
-          {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
-          {copied ? 'Copié !' : `Copier pour Excel (${filtered.length})`}
+          {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+          {copied ? 'Copié !' : 'Copier Excel'}
         </Button>
       </div>
 
-      {/* Filters */}
-      {showFilters && (
-        <Card>
-          <CardContent className="pt-4 space-y-3">
-            {/* Date range */}
-            <div className="flex items-center gap-3 flex-wrap">
-              <span className="text-xs font-medium text-muted-foreground w-16">Période :</span>
-              <Input
-                type="date"
-                value={dateFrom}
-                onChange={e => setDateFrom(e.target.value)}
-                className="h-7 text-xs w-[140px]"
-                placeholder="Du"
-              />
-              <span className="text-xs text-muted-foreground">→</span>
-              <Input
-                type="date"
-                value={dateTo}
-                onChange={e => setDateTo(e.target.value)}
-                className="h-7 text-xs w-[140px]"
-                placeholder="Au"
-              />
-              {(dateFrom || dateTo) && (
-                <Badge variant="secondary" className="text-[10px] cursor-pointer" onClick={() => { setDateFrom(''); setDateTo(''); }}>
-                  ✕ Période
-                </Badge>
-              )}
-            </div>
-
-            {/* Type filter */}
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-xs font-medium text-muted-foreground w-16">Type :</span>
-              {uniqueTypes.map(t => {
-                const cfg = TYPE_CONFIG[t] || TYPE_CONFIG.note;
-                const isSelected = selectedTypes.includes(t);
-                return (
-                  <Badge
-                    key={t}
-                    variant={isSelected ? 'default' : 'outline'}
-                    className="text-[11px] cursor-pointer gap-1 transition-colors"
-                    onClick={() => toggleType(t)}
-                  >
-                    {cfg.label}
-                  </Badge>
-                );
-              })}
-              {selectedTypes.length > 0 && (
-                <Badge variant="secondary" className="text-[10px] cursor-pointer" onClick={() => setSelectedTypes([])}>
-                  ✕ Types
-                </Badge>
-              )}
-            </div>
-
-            {/* Client filter */}
-            <div className="flex items-start gap-2 flex-wrap">
-              <span className="text-xs font-medium text-muted-foreground w-16 mt-0.5">Clients :</span>
-              <div className="flex flex-wrap gap-1 flex-1">
-                {uniqueClients.map(name => {
-                  const isSelected = selectedClients.includes(name);
-                  return (
-                    <Badge
-                      key={name}
-                      variant={isSelected ? 'default' : 'outline'}
-                      className="text-[11px] cursor-pointer transition-colors"
-                      onClick={() => toggleClient(name)}
-                    >
-                      {name}
-                    </Badge>
-                  );
-                })}
-                {selectedClients.length > 0 && (
-                  <Badge variant="secondary" className="text-[10px] cursor-pointer" onClick={() => setSelectedClients([])}>
-                    ✕ Clients
-                  </Badge>
-                )}
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Stats bar */}
-      <div className="flex items-center gap-3 flex-wrap">
-        <Badge variant="outline" className="text-xs gap-1">
-          <FileText className="h-3 w-3" />
-          {stats.total} actions
-        </Badge>
-        <Badge variant="outline" className="text-xs gap-1">
-          <User className="h-3 w-3" />
-          {stats.clients} client{stats.clients !== 1 ? 's' : ''}
-        </Badge>
-        {Object.entries(stats.typeCounts).map(([label, count]) => (
-          <Badge key={label} variant="secondary" className="text-[10px]">
-            {label}: {count}
-          </Badge>
-        ))}
-      </div>
-
-      {/* Report grouped by client */}
-      {groupedByClient.length === 0 ? (
+      {/* Report content */}
+      {grouped.length === 0 || (grouped.length === 1 && grouped[0].items.length === 0) ? (
         <div className="text-center py-10 text-muted-foreground">
           <FileText className="h-10 w-10 mx-auto mb-3 opacity-20" />
           <p className="text-sm">Aucune activité pour cette période</p>
         </div>
       ) : (
-        <div className="space-y-4">
-          {groupedByClient.map(([clientName, items]) => (
-            <Card key={clientName}>
-              <CardHeader className="py-3 px-4">
-                <CardTitle className="text-sm flex items-center justify-between">
-                  <button
-                    className="flex items-center gap-2 hover:text-primary transition-colors cursor-pointer"
-                    onClick={() => {
-                      const client = clients.find(c => c.company_name === clientName);
-                      if (client) onNavigateToClient(client.id);
-                    }}
-                  >
-                    <User className="h-4 w-4 text-primary" />
-                    {clientName}
-                    <ChevronRight className="h-3.5 w-3.5 opacity-50" />
-                  </button>
-                  <Badge variant="secondary" className="text-[10px]">{items.length} action{items.length > 1 ? 's' : ''}</Badge>
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="pt-0 px-4 pb-3">
-                <div className="space-y-1.5">
-                  {items.map((item, idx) => {
-                    const cfg = TYPE_CONFIG[item.type] || TYPE_CONFIG.note;
-                    const Icon = cfg.icon;
-                    const d = new Date(item.date);
-                    return (
-                      <button
-                        key={idx}
-                        onClick={() => {
-                          const client = clients.find(c => c.company_name === item.clientName);
-                          if (client) onNavigateToClient(client.id);
-                        }}
-                        className={cn(
-                          "w-full text-left flex items-start gap-2.5 rounded-md p-2 border-l-3 text-xs cursor-pointer hover:shadow-sm transition-all group",
-                          cfg.borderColor,
-                          cfg.bgColor,
-                        )}
-                      >
-                        <Icon className="h-3.5 w-3.5 text-muted-foreground mt-0.5 shrink-0" />
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <span className="font-medium">{item.title}</span>
-                            <Badge variant="outline" className="text-[9px]">{cfg.label}</Badge>
-                          </div>
-                          {item.content && (
-                            <p className="text-muted-foreground mt-0.5 line-clamp-3 whitespace-pre-wrap">{item.content}</p>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-1 shrink-0 mt-0.5">
-                          <span className="text-[10px] text-muted-foreground">
-                            {d.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })}
-                          </span>
-                          <ChevronRight className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
-                        </div>
-                      </button>
-                    );
-                  })}
+        <div className="space-y-3">
+          {grouped.map((group, gi) => (
+            <div key={gi}>
+              {group.label && (
+                <div className="flex items-center gap-2 mb-2">
+                  <h3 className="text-sm font-semibold">{group.label}</h3>
+                  <Badge variant="outline" className="text-[10px]">{group.items.length}</Badge>
                 </div>
-              </CardContent>
-            </Card>
+              )}
+              <div className="space-y-1">
+                {group.items.map((item, idx) => {
+                  const cfg = TYPE_CONFIG[item.type] || TYPE_CONFIG.note;
+                  const Icon = cfg.icon;
+                  const d = new Date(item.date);
+                  return (
+                    <button
+                      key={idx}
+                      onClick={() => {
+                        const client = clients.find(c => c.id === item.customerId);
+                        if (client) onNavigateToClient(client.id);
+                      }}
+                      className={cn(
+                        "w-full text-left flex items-center gap-3 rounded-md px-3 py-2 border-l-3 text-xs cursor-pointer hover:bg-accent/50 transition-colors",
+                        cfg.borderColor,
+                      )}
+                    >
+                      <Icon className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                      <span className="text-[10px] text-muted-foreground w-16 shrink-0">
+                        {d.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })}
+                      </span>
+                      {groupBy !== 'client' && (
+                        <span className="text-[11px] font-medium text-primary w-28 truncate shrink-0">{item.clientName}</span>
+                      )}
+                      <span className="font-medium truncate flex-1">{item.title}</span>
+                      {item.content && (
+                        <span className="text-muted-foreground truncate max-w-[200px] hidden lg:inline">{item.content}</span>
+                      )}
+                      <Badge variant="outline" className="text-[9px] shrink-0">{cfg.label}</Badge>
+                      <ChevronRight className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100 shrink-0" />
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
           ))}
         </div>
       )}
@@ -351,7 +427,7 @@ function ActivityReport({
 }
 
 // ──────────── Main Timeline component ────────────
-export function CrmHistoryTimeline({ interactions, meetings, clients, onSelectClient, onSwitchToGestion }: Props) {
+export function CrmHistoryTimeline({ interactions, meetings, clients, categories = [], onSelectClient, onSwitchToGestion }: Props) {
   const [search, setSearch] = useState('');
   const [ascending, setAscending] = useState(false);
   const [showReport, setShowReport] = useState(false);
@@ -432,7 +508,7 @@ export function CrmHistoryTimeline({ interactions, meetings, clients, onSelectCl
           className="h-8 text-xs"
           onClick={() => setShowReport(true)}
         >
-          <FileText className="h-3.5 w-3.5 mr-1.5" />
+          <BarChart3 className="h-3.5 w-3.5 mr-1.5" />
           Rapport d'activité
         </Button>
       </div>
@@ -441,6 +517,7 @@ export function CrmHistoryTimeline({ interactions, meetings, clients, onSelectCl
         <ActivityReport
           entries={allEntries.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())}
           clients={clients}
+          categories={categories}
           onNavigateToClient={(customerId) => handleClick(customerId)}
         />
       ) : (
