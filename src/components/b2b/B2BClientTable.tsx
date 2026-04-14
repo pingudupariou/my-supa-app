@@ -9,7 +9,7 @@ import { Switch } from '@/components/ui/switch';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Plus, Trash2, Upload, Save, X, Settings, ChevronDown, ChevronRight, FolderPlus, Download, Columns3, Eye, Calendar, Bell, MessageSquare, AlertTriangle, FileText, Lock, LockOpen, GripVertical } from 'lucide-react';
+import { Plus, Trash2, Upload, Save, X, Settings, ChevronDown, ChevronRight, FolderPlus, Download, Columns3, Eye, Calendar, Bell, MessageSquare, AlertTriangle, FileText, Lock, LockOpen, GripVertical, Search } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { CrmMeeting, CrmReminder, CustomerInteraction } from '@/hooks/useCRMData';
 import { B2BClient, B2BClientProjection, B2BPaymentTermOption, B2BDeliveryMethod, B2BDeliveryFeeTier, B2BClientCategory } from '@/hooks/useB2BClientsData';
@@ -163,6 +163,7 @@ export function B2BClientTable({
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [hiddenColumns, setHiddenColumns] = useState<Set<ColumnKey>>(new Set());
   const [detailClient, setDetailClient] = useState<B2BClient | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
 
   // Column order — persisted in localStorage
   const COLUMN_ORDER_KEY = 'b2b_column_order';
@@ -319,8 +320,20 @@ export function B2BClientTable({
     if (deleteConfirmId) { await onDeleteClient(deleteConfirmId); setDeleteConfirmId(null); }
   };
 
-  const uncategorized = clients.filter(c => !c.category_id);
-  const grouped = categories.map(cat => ({ category: cat, clients: clients.filter(c => c.category_id === cat.id) }));
+  // Filter clients by search query
+  const filteredClients = searchQuery.trim()
+    ? clients.filter(c => {
+        const q = searchQuery.toLowerCase();
+        return c.company_name.toLowerCase().includes(q) ||
+          (c.contact_email || '').toLowerCase().includes(q) ||
+          (c.country || '').toLowerCase().includes(q) ||
+          (c.account_manager || '').toLowerCase().includes(q) ||
+          (c.contact_phone || '').toLowerCase().includes(q);
+      })
+    : clients;
+
+  const uncategorized = filteredClients.filter(c => !c.category_id);
+  const grouped = categories.map(cat => ({ category: cat, clients: filteredClients.filter(c => c.category_id === cat.id) }));
 
   // Read-only cell for locked columns
   const ReadOnlyCell = ({ value, className = '' }: { value: string; className?: string }) => (
@@ -474,6 +487,17 @@ export function B2BClientTable({
 
   return (
     <div className="space-y-4">
+      {/* Search */}
+      <div className="relative max-w-xs">
+        <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
+        <Input
+          placeholder="Rechercher un client..."
+          value={searchQuery}
+          onChange={e => setSearchQuery(e.target.value)}
+          className="pl-8 h-9 text-sm"
+        />
+      </div>
+
       {/* Toolbar */}
       <div className="flex items-center gap-2 flex-wrap">
         <Button size="sm" onClick={() => setShowAdd(true)}><Plus className="h-4 w-4 mr-1" /> Nouveau client</Button>
@@ -509,7 +533,7 @@ export function B2BClientTable({
           </PopoverContent>
         </Popover>
 
-        <span className="text-xs text-muted-foreground">{clients.length} client(s)</span>
+        <span className="text-xs text-muted-foreground">{filteredClients.length}/{clients.length} client(s)</span>
       </div>
 
       {/* Hidden columns bar */}
@@ -611,7 +635,7 @@ export function B2BClientTable({
              </TableRow>
            </TableHeader>
           <TableBody>
-            {clients.length === 0 && (
+            {filteredClients.length === 0 && (
               <TableRow>
                 <TableCell colSpan={colSpan} className="text-center text-muted-foreground py-8 text-sm">
                   Aucun client — Ajoutez-en ou importez via copier-coller
