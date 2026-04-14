@@ -4,11 +4,13 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Phone, Mail, Calendar, StickyNote, Search, ArrowUpDown, ChevronRight, User, FileText, Copy, Check, Filter, BarChart3, Users } from 'lucide-react';
+import { Switch } from '@/components/ui/switch';
+import { Phone, Mail, Calendar, StickyNote, Search, ArrowUpDown, ChevronRight, User, FileText, Copy, Check, Filter, BarChart3, Users, Eye, EyeOff } from 'lucide-react';
 import { formatDistanceToNow, startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfQuarter, endOfQuarter, format, isWithinInterval, startOfYear, endOfYear } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
 
 interface Interaction {
   id: string;
