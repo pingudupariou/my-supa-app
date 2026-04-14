@@ -4,11 +4,13 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Phone, Mail, Calendar, StickyNote, Search, ArrowUpDown, ChevronRight, User, FileText, Copy, Check, Filter, BarChart3, Users } from 'lucide-react';
+import { Switch } from '@/components/ui/switch';
+import { Phone, Mail, Calendar, StickyNote, Search, ArrowUpDown, ChevronRight, User, FileText, Copy, Check, Filter, BarChart3, Users, Eye, EyeOff } from 'lucide-react';
 import { formatDistanceToNow, startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfQuarter, endOfQuarter, format, isWithinInterval, startOfYear, endOfYear } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
 
 interface Interaction {
   id: string;
@@ -108,6 +110,10 @@ function ActivityReport({
   const [selectedType, setSelectedType] = useState<string>('all');
   const [groupBy, setGroupBy] = useState<GroupBy>('client');
   const [copied, setCopied] = useState(false);
+  const [showDetails, setShowDetails] = useState(false);
+  const [showCharts, setShowCharts] = useState(true);
+
+  const CHART_COLORS = ['#3b82f6', '#10b981', '#8b5cf6', '#f59e0b', '#ef4444', '#06b6d4', '#ec4899', '#84cc16'];
 
   // Build category map
   const categoryMap = useMemo(() => {
@@ -136,7 +142,6 @@ function ActivityReport({
   const uniqueTypes = useMemo(() => [...new Set(entries.map(e => e.type))], [entries]);
 
   const filtered = useMemo(() => {
-    // Determine date range
     let fromDate: Date | null = null;
     let toDate: Date | null = null;
 
@@ -180,7 +185,6 @@ function ActivityReport({
         .sort((a, b) => a[0].localeCompare(b[0]))
         .map(([label, items]) => ({ label, items }));
     }
-    // Week or month grouping
     const map: Record<string, typeof filtered> = {};
     filtered.forEach(e => {
       const d = new Date(e.date);
@@ -194,7 +198,6 @@ function ActivityReport({
       if (!map[key]) map[key] = [];
       map[key].push(e);
     });
-    // Sort groups by most recent first
     return Object.entries(map)
       .sort((a, b) => {
         const da = new Date(a[1][0].date).getTime();
@@ -215,7 +218,43 @@ function ActivityReport({
     return { total: filtered.length, clients: clientSet.size, typeCounts };
   }, [filtered]);
 
-  // Build tab-separated text for Excel paste
+  // Chart data: actions by type (pie)
+  const pieData = useMemo(() => {
+    return Object.entries(stats.typeCounts).map(([name, value]) => ({ name, value }));
+  }, [stats.typeCounts]);
+
+  // Chart data: actions over time (bar)
+  const barData = useMemo(() => {
+    const map: Record<string, Record<string, number>> = {};
+    filtered.forEach(e => {
+      const d = new Date(e.date);
+      const key = format(d, 'dd/MM', { locale: fr });
+      const typeLabel = TYPE_CONFIG[e.type]?.label || e.type;
+      if (!map[key]) map[key] = {};
+      map[key][typeLabel] = (map[key][typeLabel] || 0) + 1;
+    });
+    // Sort by date
+    const allTypes = [...new Set(filtered.map(e => TYPE_CONFIG[e.type]?.label || e.type))];
+    return { 
+      data: Object.entries(map)
+        .sort((a, b) => a[0].localeCompare(b[0]))
+        .map(([date, counts]) => ({ date, ...counts })),
+      types: allTypes
+    };
+  }, [filtered]);
+
+  // Chart data: actions by client (top 10)
+  const clientBarData = useMemo(() => {
+    const map: Record<string, number> = {};
+    filtered.forEach(e => {
+      map[e.clientName] = (map[e.clientName] || 0) + 1;
+    });
+    return Object.entries(map)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 10)
+      .map(([name, count]) => ({ name: name.length > 15 ? name.slice(0, 15) + '…' : name, count }));
+  }, [filtered]);
+
   const handleCopy = () => {
     const header = ['Client', 'Date', 'Type', 'Sujet', 'Contenu'].join('\t');
     const rows = filtered.map(e => {
@@ -338,7 +377,7 @@ function ActivityReport({
         </div>
       </div>
 
-      {/* Summary bar */}
+      {/* Summary bar + toggles */}
       <div className="flex items-center justify-between flex-wrap gap-2 py-2 px-3 bg-muted/50 rounded-lg">
         <div className="flex items-center gap-3 flex-wrap">
           <span className="text-xs font-medium flex items-center gap-1.5">
@@ -356,17 +395,80 @@ function ActivityReport({
             </Badge>
           ))}
         </div>
-        <Button
-          size="sm"
-          variant="outline"
-          onClick={handleCopy}
-          disabled={filtered.length === 0}
-          className="h-7 text-[11px] gap-1.5"
-        >
-          {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
-          {copied ? 'Copié !' : 'Copier Excel'}
-        </Button>
+        <div className="flex items-center gap-3">
+          <label className="flex items-center gap-1.5 text-[11px] text-muted-foreground cursor-pointer">
+            <Switch checked={showDetails} onCheckedChange={setShowDetails} className="scale-75" />
+            <Eye className="h-3 w-3" />
+            Détails
+          </label>
+          <label className="flex items-center gap-1.5 text-[11px] text-muted-foreground cursor-pointer">
+            <Switch checked={showCharts} onCheckedChange={setShowCharts} className="scale-75" />
+            <BarChart3 className="h-3 w-3" />
+            Graphiques
+          </label>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={handleCopy}
+            disabled={filtered.length === 0}
+            className="h-7 text-[11px] gap-1.5"
+          >
+            {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+            {copied ? 'Copié !' : 'Copier Excel'}
+          </Button>
+        </div>
       </div>
+
+      {/* Charts section */}
+      {showCharts && filtered.length > 0 && (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {/* Pie: by type */}
+          <Card className="p-3">
+            <p className="text-xs font-medium mb-2 text-muted-foreground">Répartition par type</p>
+            <ResponsiveContainer width="100%" height={180}>
+              <PieChart>
+                <Pie data={pieData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={65} innerRadius={30} paddingAngle={3}>
+                  {pieData.map((_, i) => (
+                    <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />
+                  ))}
+                </Pie>
+                <Tooltip formatter={(v: number) => [`${v}`, 'Actions']} />
+                <Legend wrapperStyle={{ fontSize: '10px' }} />
+              </PieChart>
+            </ResponsiveContainer>
+          </Card>
+
+          {/* Bar: over time */}
+          <Card className="p-3">
+            <p className="text-xs font-medium mb-2 text-muted-foreground">Actions dans le temps</p>
+            <ResponsiveContainer width="100%" height={180}>
+              <BarChart data={barData.data}>
+                <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
+                <XAxis dataKey="date" tick={{ fontSize: 9 }} />
+                <YAxis allowDecimals={false} tick={{ fontSize: 9 }} width={25} />
+                <Tooltip wrapperStyle={{ fontSize: '11px' }} />
+                {barData.types.map((type, i) => (
+                  <Bar key={type} dataKey={type} stackId="a" fill={CHART_COLORS[i % CHART_COLORS.length]} radius={i === barData.types.length - 1 ? [2, 2, 0, 0] : undefined} />
+                ))}
+              </BarChart>
+            </ResponsiveContainer>
+          </Card>
+
+          {/* Bar: by client (top 10) */}
+          <Card className="p-3">
+            <p className="text-xs font-medium mb-2 text-muted-foreground">Top clients contactés</p>
+            <ResponsiveContainer width="100%" height={180}>
+              <BarChart data={clientBarData} layout="vertical">
+                <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
+                <XAxis type="number" allowDecimals={false} tick={{ fontSize: 9 }} />
+                <YAxis type="category" dataKey="name" tick={{ fontSize: 9 }} width={90} />
+                <Tooltip wrapperStyle={{ fontSize: '11px' }} />
+                <Bar dataKey="count" fill="#8b5cf6" radius={[0, 3, 3, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </Card>
+        </div>
+      )}
 
       {/* Report content */}
       {grouped.length === 0 || (grouped.length === 1 && grouped[0].items.length === 0) ? (
@@ -397,23 +499,31 @@ function ActivityReport({
                         if (client) onNavigateToClient(client.id);
                       }}
                       className={cn(
-                        "w-full text-left flex items-center gap-3 rounded-md px-3 py-2 border-l-3 text-xs cursor-pointer hover:bg-accent/50 transition-colors",
+                        "w-full text-left rounded-md px-3 py-2 border-l-3 text-xs cursor-pointer hover:bg-accent/50 transition-colors",
                         cfg.borderColor,
+                        showDetails ? 'py-3' : '',
                       )}
                     >
-                      <Icon className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                      <span className="text-[10px] text-muted-foreground w-16 shrink-0">
-                        {d.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })}
-                      </span>
-                      {groupBy !== 'client' && (
-                        <span className="text-[11px] font-medium text-primary w-28 truncate shrink-0">{item.clientName}</span>
+                      <div className="flex items-center gap-3">
+                        <Icon className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                        <span className="text-[10px] text-muted-foreground w-16 shrink-0">
+                          {d.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })}
+                        </span>
+                        {groupBy !== 'client' && (
+                          <span className="text-[11px] font-medium text-primary w-28 truncate shrink-0">{item.clientName}</span>
+                        )}
+                        <span className="font-medium truncate flex-1">{item.title}</span>
+                        {!showDetails && item.content && (
+                          <span className="text-muted-foreground truncate max-w-[200px] hidden lg:inline">{item.content}</span>
+                        )}
+                        <Badge variant="outline" className="text-[9px] shrink-0">{cfg.label}</Badge>
+                        <ChevronRight className="h-3 w-3 text-muted-foreground shrink-0" />
+                      </div>
+                      {showDetails && item.content && (
+                        <div className="mt-1.5 ml-7 pl-3 border-l-2 border-muted">
+                          <p className="text-[11px] text-muted-foreground whitespace-pre-line leading-relaxed">{item.content}</p>
+                        </div>
                       )}
-                      <span className="font-medium truncate flex-1">{item.title}</span>
-                      {item.content && (
-                        <span className="text-muted-foreground truncate max-w-[200px] hidden lg:inline">{item.content}</span>
-                      )}
-                      <Badge variant="outline" className="text-[9px] shrink-0">{cfg.label}</Badge>
-                      <ChevronRight className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100 shrink-0" />
                     </button>
                   );
                 })}
