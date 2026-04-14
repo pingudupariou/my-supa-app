@@ -124,9 +124,7 @@ export function AuthPage() {
             <NovarideLogo variant="full" color="dark" />
           </div>
           <CardTitle className="whitespace-pre-line">We engage, we move</CardTitle>
-          <CardDescription>
-            Plateforme de pilotage financier et de présentation investisseurs
-          </CardDescription>
+          <CardDescription>{"\n"}</CardDescription>
         </CardHeader>
         <CardContent>
           {showForgotPassword ? (
