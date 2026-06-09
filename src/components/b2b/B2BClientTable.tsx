@@ -12,7 +12,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Plus, Trash2, Upload, Save, X, Settings, ChevronDown, ChevronRight, FolderPlus, Download, Columns3, Eye, Calendar, Bell, MessageSquare, AlertTriangle, FileText, Lock, LockOpen, GripVertical, Search } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { CrmMeeting, CrmReminder, CustomerInteraction } from '@/hooks/useCRMData';
-import { B2BClient, B2BClientProjection, B2BPaymentTermOption, B2BDeliveryMethod, B2BDeliveryFeeTier, B2BClientCategory } from '@/hooks/useB2BClientsData';
+import { B2BClient, B2BClientProjection, B2BPaymentTermOption, B2BDeliveryMethod, B2BDeliveryFeeTier, B2BClientCategory, B2BCustomColumn, B2BCustomColumnType } from '@/hooks/useB2BClientsData';
 import { getCountryFlag } from '@/lib/countryFlags';
 import { B2BClientImportDialog } from './B2BClientImportDialog';
 import { B2BSettingsPanel } from './B2BSettingsPanel';
@@ -41,6 +41,13 @@ interface Props {
   onAddCategory: (name: string, color?: string) => Promise<void>;
   onDeleteCategory: (id: string) => Promise<void>;
   onUpdateCategory: (id: string, data: Partial<B2BClientCategory>) => Promise<void>;
+  // Custom columns
+  customColumns?: B2BCustomColumn[];
+  getCustomValue?: (clientId: string, columnId: string) => string;
+  onSetCustomValue?: (clientId: string, columnId: string, value: string | null) => Promise<void>;
+  onAddCustomColumn?: (name: string, type: B2BCustomColumnType, options: string[]) => Promise<void>;
+  onUpdateCustomColumn?: (id: string, data: Partial<B2BCustomColumn>) => Promise<void>;
+  onDeleteCustomColumn?: (id: string) => Promise<void>;
   // CRM activity data (optional)
   meetings?: CrmMeeting[];
   reminders?: CrmReminder[];
@@ -53,7 +60,8 @@ interface Props {
 
 const revenueYears = [2022, 2023, 2024, 2025];
 
-type ColumnKey = 'is_active' | 'company_name' | 'country' | 'geographic_zone' | 'contact_email' | 'contact_phone' | 'pricing_rule' | 'payment_terms' | 'delivery_method' | 'delivery_fee_rule' | 'moq' | 'ca_2022' | 'ca_2023' | 'ca_2024' | 'ca_2025' | 'category' | 'account_manager' | 'crm_activity' | 'last_note' | 'actions';
+type ColumnKey = string;
+type NativeColumnKey = 'is_active' | 'company_name' | 'country' | 'geographic_zone' | 'contact_email' | 'contact_phone' | 'pricing_rule' | 'payment_terms' | 'delivery_method' | 'delivery_fee_rule' | 'moq' | 'ca_2022' | 'ca_2023' | 'ca_2024' | 'ca_2025' | 'category' | 'account_manager' | 'crm_activity' | 'last_note' | 'actions';
 
 const ALL_COLUMNS: { key: ColumnKey; label: string; minWidth: string; canHide: boolean }[] = [
   { key: 'is_active', label: 'Statut', minWidth: '90px', canHide: true },
@@ -151,6 +159,8 @@ export function B2BClientTable({
   onAddPaymentTerm, onDeletePaymentTerm,
   onAddDeliveryMethod, onDeleteDeliveryMethod,
   onAddCategory, onDeleteCategory, onUpdateCategory,
+  customColumns = [], getCustomValue, onSetCustomValue,
+  onAddCustomColumn, onUpdateCustomColumn, onDeleteCustomColumn,
   meetings = [], reminders = [], interactions = [],
   isAdmin = false, isColumnEditableByOthers, onToggleColumnPermission,
 }: Props) {
@@ -222,9 +232,31 @@ export function B2BClientTable({
     delivery_method: '', delivery_fee_rule: '', moq: '', category_id: '',
   });
 
+  // Build combined columns list (native + custom). Custom columns appear before "actions" by default.
+  const customColumnDefs = customColumns.map(cc => ({
+    key: `custom:${cc.id}` as ColumnKey,
+    label: cc.name,
+    minWidth: '120px',
+    canHide: true,
+  }));
+  const combinedAllColumns = (() => {
+    const actionsIdx = ALL_COLUMNS.findIndex(c => c.key === 'actions');
+    return [
+      ...ALL_COLUMNS.slice(0, actionsIdx),
+      ...customColumnDefs,
+      ALL_COLUMNS[actionsIdx],
+    ];
+  })();
+
   // Use columnOrder to sort visible columns
-  const orderedAllColumns = columnOrder
-    .map(key => ALL_COLUMNS.find(c => c.key === key)!)
+  const knownKeys = combinedAllColumns.map(c => c.key);
+  const effectiveOrder = (() => {
+    const filtered = columnOrder.filter(k => knownKeys.includes(k));
+    const missing = knownKeys.filter(k => !filtered.includes(k));
+    return [...filtered, ...missing];
+  })();
+  const orderedAllColumns = effectiveOrder
+    .map(key => combinedAllColumns.find(c => c.key === key)!)
     .filter(Boolean);
   const visibleColumns = orderedAllColumns.filter(c => !hiddenColumns.has(c.key));
   const hiddenList = orderedAllColumns.filter(c => hiddenColumns.has(c.key) && c.canHide);
@@ -341,6 +373,32 @@ export function B2BClientTable({
   );
 
   const renderCell = (c: B2BClient, key: ColumnKey): React.ReactNode => {
+    // Custom column rendering
+    if (key.startsWith('custom:')) {
+      const colId = key.slice('custom:'.length);
+      const def = customColumns.find(cc => cc.id === colId);
+      if (!def) return <TableCell key={key} />;
+      const val = getCustomValue?.(c.id, colId) || '';
+      const save = (v: string | null) => onSetCustomValue?.(c.id, colId, v);
+      if (def.column_type === 'text') {
+        return <TableCell key={key}><EditableCell value={val} onSave={v => save(v || null)} /></TableCell>;
+      }
+      if (def.column_type === 'select') {
+        return <TableCell key={key}><EditableSelectCell value={val} options={def.options} onSave={v => save(v || null)} /></TableCell>;
+      }
+      if (def.column_type === 'checkbox') {
+        const checked = val === 'true';
+        return (
+          <TableCell key={key}>
+            <label className="flex items-center gap-1.5 cursor-pointer text-xs">
+              <Checkbox checked={checked} onCheckedChange={v => save(v ? 'true' : 'false')} />
+              <span className="text-muted-foreground">{def.name}</span>
+            </label>
+          </TableCell>
+        );
+      }
+      return <TableCell key={key} />;
+    }
     switch (key) {
       case 'is_active':
         return (
