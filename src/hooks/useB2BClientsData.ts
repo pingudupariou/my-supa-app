@@ -69,6 +69,23 @@ export interface B2BClientCategory {
   sort_order: number;
 }
 
+export type B2BCustomColumnType = 'text' | 'select' | 'checkbox';
+
+export interface B2BCustomColumn {
+  id: string;
+  name: string;
+  column_type: B2BCustomColumnType;
+  options: string[];
+  sort_order: number;
+}
+
+export interface B2BClientCustomValue {
+  id: string;
+  client_id: string;
+  column_id: string;
+  value: string | null;
+}
+
 export function useB2BClientsData() {
   const { toast } = useToast();
   const { user } = useAuth();
@@ -78,6 +95,8 @@ export function useB2BClientsData() {
   const [paymentTermsOptions, setPaymentTermsOptions] = useState<B2BPaymentTermOption[]>([]);
   const [deliveryMethods, setDeliveryMethods] = useState<B2BDeliveryMethod[]>([]);
   const [categories, setCategories] = useState<B2BClientCategory[]>([]);
+  const [customColumns, setCustomColumns] = useState<B2BCustomColumn[]>([]);
+  const [customValues, setCustomValues] = useState<B2BClientCustomValue[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   // Active clients (not deleted)
@@ -89,13 +108,15 @@ export function useB2BClientsData() {
     if (!user) return;
     try {
       setIsLoading(true);
-      const [cRes, pRes, dfRes, ptRes, dmRes, catRes] = await Promise.all([
+      const [cRes, pRes, dfRes, ptRes, dmRes, catRes, ccRes, cvRes] = await Promise.all([
         supabase.from('b2b_clients').select('*').order('company_name'),
         supabase.from('b2b_client_projections').select('*'),
         supabase.from('b2b_delivery_fee_tiers').select('*').order('min_pieces'),
         supabase.from('b2b_payment_terms_options').select('*').order('label'),
         supabase.from('b2b_delivery_methods').select('*').order('label'),
         supabase.from('b2b_client_categories').select('*').order('sort_order'),
+        supabase.from('b2b_custom_columns').select('*').order('sort_order'),
+        supabase.from('b2b_client_custom_values').select('*'),
       ]);
       if (cRes.error) throw cRes.error;
       if (pRes.error) throw pRes.error;
@@ -103,12 +124,20 @@ export function useB2BClientsData() {
       if (ptRes.error) throw ptRes.error;
       if (dmRes.error) throw dmRes.error;
       if (catRes.error) throw catRes.error;
+      if (ccRes.error) throw ccRes.error;
+      if (cvRes.error) throw cvRes.error;
       setAllClients(cRes.data as B2BClient[]);
       setProjections(pRes.data as B2BClientProjection[]);
       setDeliveryFeeTiers(dfRes.data as B2BDeliveryFeeTier[]);
       setPaymentTermsOptions(ptRes.data as B2BPaymentTermOption[]);
       setDeliveryMethods(dmRes.data as B2BDeliveryMethod[]);
       setCategories(catRes.data as B2BClientCategory[]);
+      setCustomColumns((ccRes.data || []).map((c: any) => ({
+        id: c.id, name: c.name, column_type: c.column_type,
+        options: Array.isArray(c.options) ? c.options : [],
+        sort_order: c.sort_order,
+      })));
+      setCustomValues(cvRes.data as B2BClientCustomValue[]);
     } catch (e: any) {
       console.error('B2B fetch error:', e);
       toast({ title: 'Erreur', description: 'Impossible de charger les données B2B', variant: 'destructive' });
@@ -230,6 +259,39 @@ export function useB2BClientsData() {
     return data?.length || 0;
   }, [user, toast, fetchAll]);
 
+  // ===== Custom columns =====
+  const addCustomColumn = useCallback(async (name: string, column_type: B2BCustomColumnType, options: string[] = []) => {
+    if (!user) return;
+    await supabase.from('b2b_custom_columns').insert({
+      name, column_type, options, sort_order: customColumns.length, user_id: user.id,
+    } as any);
+    await fetchAll();
+  }, [user, customColumns.length, fetchAll]);
+
+  const updateCustomColumn = useCallback(async (id: string, data: Partial<B2BCustomColumn>) => {
+    await supabase.from('b2b_custom_columns').update(data as any).eq('id', id);
+    await fetchAll();
+  }, [fetchAll]);
+
+  const deleteCustomColumn = useCallback(async (id: string) => {
+    await supabase.from('b2b_custom_columns').delete().eq('id', id);
+    await fetchAll();
+  }, [fetchAll]);
+
+  const setCustomValue = useCallback(async (clientId: string, columnId: string, value: string | null) => {
+    const existing = customValues.find(v => v.client_id === clientId && v.column_id === columnId);
+    if (existing) {
+      await supabase.from('b2b_client_custom_values').update({ value }).eq('id', existing.id);
+    } else {
+      await supabase.from('b2b_client_custom_values').insert({ client_id: clientId, column_id: columnId, value });
+    }
+    await fetchAll();
+  }, [customValues, fetchAll]);
+
+  const getCustomValue = useCallback((clientId: string, columnId: string): string => {
+    return customValues.find(v => v.client_id === clientId && v.column_id === columnId)?.value || '';
+  }, [customValues]);
+
   const getClientProjections = useCallback((clientId: string) => {
     return projections.filter(p => p.client_id === clientId);
   }, [projections]);
@@ -243,5 +305,8 @@ export function useB2BClientsData() {
     addPaymentTerm, deletePaymentTerm,
     addDeliveryMethod, deleteDeliveryMethod,
     addCategory, deleteCategory, updateCategory,
+    customColumns, customValues,
+    addCustomColumn, updateCustomColumn, deleteCustomColumn,
+    setCustomValue, getCustomValue,
   };
 }
