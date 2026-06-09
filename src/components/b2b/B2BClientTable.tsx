@@ -578,7 +578,7 @@ export function B2BClientTable({
           <PopoverContent className="w-56 p-3" align="end">
             <p className="text-xs font-medium mb-2 text-muted-foreground">Afficher / Masquer</p>
             <div className="space-y-1.5">
-              {ALL_COLUMNS.filter(c => c.canHide).map(col => (
+              {combinedAllColumns.filter(c => c.canHide).map(col => (
                 <label key={col.key} className="flex items-center gap-2 text-xs cursor-pointer hover:bg-accent/40 px-1.5 py-1 rounded">
                   <Checkbox
                     checked={!hiddenColumns.has(col.key)}
