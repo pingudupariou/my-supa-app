@@ -41,6 +41,48 @@ export type Database = {
         }
         Relationships: []
       }
+      b2b_client_custom_values: {
+        Row: {
+          client_id: string
+          column_id: string
+          created_at: string
+          id: string
+          updated_at: string
+          value: string | null
+        }
+        Insert: {
+          client_id: string
+          column_id: string
+          created_at?: string
+          id?: string
+          updated_at?: string
+          value?: string | null
+        }
+        Update: {
+          client_id?: string
+          column_id?: string
+          created_at?: string
+          id?: string
+          updated_at?: string
+          value?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "b2b_client_custom_values_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "b2b_clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "b2b_client_custom_values_column_id_fkey"
+            columns: ["column_id"]
+            isOneToOne: false
+            referencedRelation: "b2b_custom_columns"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       b2b_client_projections: {
         Row: {
           client_id: string
@@ -198,6 +240,39 @@ export type Database = {
           is_editable_by_others?: boolean
           updated_at?: string
           updated_by?: string | null
+        }
+        Relationships: []
+      }
+      b2b_custom_columns: {
+        Row: {
+          column_type: string
+          created_at: string
+          id: string
+          name: string
+          options: Json
+          sort_order: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          column_type: string
+          created_at?: string
+          id?: string
+          name: string
+          options?: Json
+          sort_order?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          column_type?: string
+          created_at?: string
+          id?: string
+          name?: string
+          options?: Json
+          sort_order?: number
+          updated_at?: string
+          user_id?: string
         }
         Relationships: []
       }
