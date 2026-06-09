@@ -618,12 +618,16 @@ export function B2BClientTable({
           deliveryFeeTiers={deliveryFeeTiers}
           paymentTermsOptions={paymentTermsOptions}
           deliveryMethods={deliveryMethods}
+          customColumns={customColumns}
           onAddDeliveryFee={onAddDeliveryFee}
           onDeleteDeliveryFee={onDeleteDeliveryFee}
           onAddPaymentTerm={onAddPaymentTerm}
           onDeletePaymentTerm={onDeletePaymentTerm}
           onAddDeliveryMethod={onAddDeliveryMethod}
           onDeleteDeliveryMethod={onDeleteDeliveryMethod}
+          onAddCustomColumn={onAddCustomColumn}
+          onUpdateCustomColumn={onUpdateCustomColumn}
+          onDeleteCustomColumn={onDeleteCustomColumn}
         />
       )}
 
