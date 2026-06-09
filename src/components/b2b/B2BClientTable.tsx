@@ -182,11 +182,13 @@ export function B2BClientTable({
       const saved = localStorage.getItem(COLUMN_ORDER_KEY);
       if (saved) {
         const parsed = JSON.parse(saved) as ColumnKey[];
-        // Merge: keep saved order for known keys, append any new columns
+        // Keep ALL saved keys (including custom:* columns). Unknown keys are
+        // filtered out later by effectiveOrder against the actual columns set,
+        // so preserving them here ensures custom column order persists across
+        // reloads (custom defs load asynchronously).
         const allKeys = ALL_COLUMNS.map(c => c.key);
-        const ordered = parsed.filter(k => allKeys.includes(k));
-        const missing = allKeys.filter(k => !ordered.includes(k));
-        return [...ordered, ...missing];
+        const missing = allKeys.filter(k => !parsed.includes(k));
+        return [...parsed, ...missing];
       }
     } catch {}
     return ALL_COLUMNS.map(c => c.key);
