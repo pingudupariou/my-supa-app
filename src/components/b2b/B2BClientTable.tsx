@@ -214,9 +214,10 @@ export function B2BClientTable({
     const from = dragColRef.current;
     const to = dragOverColRef.current;
     if (!from || !to || from === to) return;
-    const newOrder = [...columnOrder];
+    const newOrder = [...effectiveOrder];
     const fromIdx = newOrder.indexOf(from);
     const toIdx = newOrder.indexOf(to);
+    if (fromIdx === -1 || toIdx === -1) return;
     newOrder.splice(fromIdx, 1);
     newOrder.splice(toIdx, 0, from);
     saveColumnOrder(newOrder);
