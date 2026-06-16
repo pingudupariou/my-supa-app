@@ -5,9 +5,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { toast } from '@/hooks/use-toast';
-import { Loader2, Check, X } from 'lucide-react';
-import { AppRole } from '@/context/AuthContext';
+import { Loader2, Check, X, Trash2 } from 'lucide-react';
+import { AppRole, useAuth } from '@/context/AuthContext';
 
 const ROLES: AppRole[] = ['admin', 'finance', 'board', 'investisseur', 'lecteur', 'bureau_etude', 'production', 'marketing'];
 
@@ -22,6 +23,7 @@ interface UserWithRole {
 export function UserRolesManager() {
   const [users, setUsers] = useState<UserWithRole[]>([]);
   const [loading, setLoading] = useState(true);
+  const { user: currentUser } = useAuth();
 
   useEffect(() => { fetchUsers(); }, []);
 
@@ -80,6 +82,27 @@ export function UserRolesManager() {
     } catch { toast({ title: 'Erreur', variant: 'destructive' }); }
   };
 
+  const deleteUser = async (userId: string) => {
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const token = sessionData?.session?.access_token;
+      const res = await fetch(
+        `https://twkcoxagbajvopzzinor.supabase.co/functions/v1/delete-user`,
+        {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId }),
+        }
+      );
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || 'Erreur');
+      setUsers(prev => prev.filter(u => u.id !== userId));
+      toast({ title: 'Utilisateur supprimé' });
+    } catch (e: any) {
+      toast({ title: 'Erreur', description: e.message, variant: 'destructive' });
+    }
+  };
+
   if (loading) return <Loader2 className="h-6 w-6 animate-spin mx-auto" />;
 
   return (
@@ -121,6 +144,29 @@ export function UserRolesManager() {
                     <Button size="sm" onClick={() => setApproval(user.id, true)}>
                       <Check className="h-4 w-4 mr-1" /> Approuver
                     </Button>
+                  )}
+                  {currentUser?.id !== user.id && (
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button size="sm" variant="destructive" className="ml-2">
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Supprimer cet utilisateur ?</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            Cette action est irréversible. Le compte de <strong>{user.email}</strong> sera définitivement supprimé.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Annuler</AlertDialogCancel>
+                          <AlertDialogAction onClick={() => deleteUser(user.id)} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                            Supprimer
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
                   )}
                 </TableCell>
               </TableRow>
