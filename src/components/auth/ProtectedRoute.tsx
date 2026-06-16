@@ -9,9 +9,9 @@ interface ProtectedRouteProps {
 }
 
 export function ProtectedRoute({ children, tabKey }: ProtectedRouteProps) {
-  const { user, loading, getTabPermission } = useAuth();
+  const { user, loading, getTabPermission, isApproved, approvalLoading, isAdmin } = useAuth();
 
-  if (loading) {
+  if (loading || (user && approvalLoading)) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -21,6 +21,10 @@ export function ProtectedRoute({ children, tabKey }: ProtectedRouteProps) {
 
   if (!user) {
     return <Navigate to="/auth" replace />;
+  }
+
+  if (!isApproved && !isAdmin) {
+    return <Navigate to="/pending-approval" replace />;
   }
 
   if (tabKey) {

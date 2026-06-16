@@ -17,6 +17,7 @@ import { ScenariosPage } from "@/pages/ScenariosPage";
 import { ValuationAnalysisPage } from "@/pages/ValuationAnalysisPage";
 import { InvestmentSummaryPage } from "@/pages/InvestmentSummaryPage";
 import { AuthPage } from "@/pages/AuthPage";
+import { PendingApprovalPage } from "@/pages/PendingApprovalPage";
 import { PermissionsPage } from "@/pages/PermissionsPage";
 import { CostFlowPage } from "@/pages/CostFlowPage";
 import { TimeTrackingPage } from "@/pages/TimeTrackingPage";
@@ -45,6 +46,7 @@ const App = () => (
               {/* Auth route - public */}
               <Route path="/auth" element={<AuthPage />} />
               <Route path="/reset-password" element={<ResetPasswordPage />} />
+              <Route path="/pending-approval" element={<PendingApprovalPage />} />
               
               {/* Accueil - accessible to everyone */}
               <Route path="/accueil" element={
