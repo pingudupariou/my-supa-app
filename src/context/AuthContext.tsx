@@ -9,6 +9,8 @@ interface AuthContextType {
   user: User | null;
   loading: boolean;
   isAdmin: boolean;
+  isApproved: boolean;
+  approvalLoading: boolean;
   userRole: AppRole;
   signIn: (email: string, password: string) => Promise<{ error: AuthError | null }>;
   signUp: (email: string, password: string, displayName: string) => Promise<{ error: AuthError | null }>;
@@ -22,6 +24,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [userRole, setUserRole] = useState<AppRole>('lecteur');
+  const [isApproved, setIsApproved] = useState(false);
+  const [approvalLoading, setApprovalLoading] = useState(true);
   const [permissions, setPermissions] = useState<Record<string, Record<string, TabPermission>>>({});
 
   useEffect(() => {
@@ -29,23 +33,34 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(session?.user ?? null);
       setLoading(false);
       if (session?.user) {
-        setTimeout(() => fetchUserRole(session.user.id), 0);
+        setTimeout(() => fetchUserRoleAndApproval(session.user.id), 0);
         setTimeout(() => fetchPermissions(), 0);
+      } else {
+        setIsApproved(false);
+        setApprovalLoading(false);
       }
     });
     supabase.auth.getSession().then(({ data: { session } }) => {
       setUser(session?.user ?? null);
       setLoading(false);
-      if (session?.user) { fetchUserRole(session.user.id); fetchPermissions(); }
+      if (session?.user) { fetchUserRoleAndApproval(session.user.id); fetchPermissions(); }
+      else { setApprovalLoading(false); }
     });
     return () => subscription.unsubscribe();
   }, []);
 
-  const fetchUserRole = async (userId: string) => {
+  const fetchUserRoleAndApproval = async (userId: string) => {
+    setApprovalLoading(true);
     try {
-      const { data } = await supabase.from('user_roles' as any).select('role').eq('user_id', userId).single();
-      if (data) setUserRole((data as any).role as AppRole);
-    } catch { setUserRole('lecteur'); }
+      const { data } = await supabase.from('user_roles' as any).select('role, approved').eq('user_id', userId).single();
+      if (data) {
+        setUserRole((data as any).role as AppRole);
+        setIsApproved(!!(data as any).approved);
+      } else {
+        setIsApproved(false);
+      }
+    } catch { setUserRole('lecteur'); setIsApproved(false); }
+    finally { setApprovalLoading(false); }
   };
 
   const fetchPermissions = async () => {
@@ -77,7 +92,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, isAdmin, userRole, signIn, signUp, signOut, getTabPermission }}>
+    <AuthContext.Provider value={{ user, loading, isAdmin, isApproved, approvalLoading, userRole, signIn, signUp, signOut, getTabPermission }}>
       {children}
     </AuthContext.Provider>
   );
