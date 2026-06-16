@@ -179,7 +179,7 @@ export function DashboardLayout({
         {children}
       </main>
 
-      {/* Floating chat widget */}
-      <FloatingChat />
+      {/* Floating chat widget — only when user has access to chat tab */}
+      {getTabPermission('chat') !== 'hidden' && <FloatingChat />}
     </div>;
 }
