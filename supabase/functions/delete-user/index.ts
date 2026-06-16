@@ -57,6 +57,19 @@ Deno.serve(async (req: Request) => {
     }
 
     // Remove role row first, then delete auth user
+    // Fetch email for the audit log first
+    const { data: targetUser } = await supabaseAdmin.auth.admin.getUserById(userId);
+    const targetEmail = targetUser?.user?.email || null;
+
+    // Log to history BEFORE deletion (target_user_id has no FK so this remains)
+    await supabaseAdmin.from("user_approval_history").insert({
+      target_user_id: userId,
+      target_email: targetEmail,
+      action: "deleted",
+      performed_by: callerId,
+      details: {},
+    });
+
     await supabaseAdmin.from("user_roles").delete().eq("user_id", userId);
     const { error: delErr } = await supabaseAdmin.auth.admin.deleteUser(userId);
     if (delErr) throw delErr;
