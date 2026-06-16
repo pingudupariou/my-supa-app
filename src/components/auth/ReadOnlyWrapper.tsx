@@ -14,9 +14,15 @@ export function useIsReadOnly() {
 
 export function ReadOnlyWrapper({ children, tabKey }: ReadOnlyWrapperProps) {
   const { getTabPermission } = useAuth();
+  const alreadyReadOnly = useContext(ReadOnlyContext);
   const permission = getTabPermission(tabKey);
   const isReadOnly = permission === 'read';
   const containerRef = useRef<HTMLDivElement>(null);
+
+  // Avoid double-wrapping when an outer ReadOnlyWrapper is already active
+  if (alreadyReadOnly) {
+    return <>{children}</>;
+  }
 
   useEffect(() => {
     if (!isReadOnly) return;
