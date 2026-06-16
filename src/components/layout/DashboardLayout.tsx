@@ -5,7 +5,6 @@ import { NovarideLogo } from '@/components/ui/NovarideLogo';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { FloatingChat } from '@/components/chat/FloatingChat';
-import { useAuth } from '@/context/AuthContext';
 import { NotificationBell } from '@/components/tasks/NotificationBell';
 import { useTasksData } from '@/hooks/useTasksData';
 import { useTeamMembers } from '@/hooks/useTeamMembers';
