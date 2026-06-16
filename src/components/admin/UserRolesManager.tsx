@@ -6,8 +6,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { toast } from '@/hooks/use-toast';
-import { Loader2, Check, X, Trash2 } from 'lucide-react';
+import { Loader2, Check, X, Trash2, History } from 'lucide-react';
 import { AppRole, useAuth } from '@/context/AuthContext';
 
 const ROLES: AppRole[] = ['admin', 'finance', 'board', 'investisseur', 'lecteur', 'bureau_etude', 'production', 'marketing'];
@@ -18,12 +19,46 @@ interface UserWithRole {
   display_name: string;
   role: AppRole;
   approved: boolean;
+  created_at: string | null;
+  last_sign_in_at: string | null;
+}
+
+interface HistoryEntry {
+  id: string;
+  action: string;
+  created_at: string;
+  performed_by: string | null;
+  details: any;
+}
+
+const ACTION_LABELS: Record<string, string> = {
+  signup: "Inscription",
+  approved: "Approuvé",
+  revoked: "Révoqué",
+  deleted: "Supprimé",
+  role_changed: "Rôle modifié",
+};
+
+const ACTION_VARIANTS: Record<string, 'default' | 'secondary' | 'destructive' | 'outline'> = {
+  signup: 'outline',
+  approved: 'secondary',
+  revoked: 'destructive',
+  deleted: 'destructive',
+  role_changed: 'default',
+};
+
+function formatDate(iso: string | null) {
+  if (!iso) return '—';
+  return new Date(iso).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 }
 
 export function UserRolesManager() {
   const [users, setUsers] = useState<UserWithRole[]>([]);
   const [loading, setLoading] = useState(true);
   const { user: currentUser } = useAuth();
+  const [historyOpen, setHistoryOpen] = useState<string | null>(null);
+  const [history, setHistory] = useState<HistoryEntry[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
 
   useEffect(() => { fetchUsers(); }, []);
 
@@ -55,6 +90,8 @@ export function UserRolesManager() {
           display_name: u.display_name,
           role: r?.role || 'lecteur',
           approved: r?.approved ?? false,
+          created_at: (u as any).created_at ?? null,
+          last_sign_in_at: (u as any).last_sign_in_at ?? null,
         };
       });
 
@@ -68,7 +105,15 @@ export function UserRolesManager() {
 
   const updateRole = async (userId: string, newRole: AppRole) => {
     try {
+      const previous = users.find(u => u.id === userId)?.role;
       await supabase.from('user_roles' as any).upsert({ user_id: userId, role: newRole } as any, { onConflict: 'user_id' });
+      await supabase.from('user_approval_history' as any).insert({
+        target_user_id: userId,
+        target_email: users.find(u => u.id === userId)?.email ?? null,
+        action: 'role_changed',
+        performed_by: currentUser?.id,
+        details: { from: previous, to: newRole },
+      } as any);
       setUsers(prev => prev.map(u => u.id === userId ? { ...u, role: newRole } : u));
       toast({ title: 'Rôle mis à jour' });
     } catch { toast({ title: 'Erreur', variant: 'destructive' }); }
@@ -77,6 +122,13 @@ export function UserRolesManager() {
   const setApproval = async (userId: string, approved: boolean) => {
     try {
       await supabase.from('user_roles' as any).update({ approved } as any).eq('user_id', userId);
+      await supabase.from('user_approval_history' as any).insert({
+        target_user_id: userId,
+        target_email: users.find(u => u.id === userId)?.email ?? null,
+        action: approved ? 'approved' : 'revoked',
+        performed_by: currentUser?.id,
+        details: {},
+      } as any);
       setUsers(prev => prev.map(u => u.id === userId ? { ...u, approved } : u));
       toast({ title: approved ? 'Utilisateur approuvé' : 'Approbation révoquée' });
     } catch { toast({ title: 'Erreur', variant: 'destructive' }); }
@@ -103,7 +155,25 @@ export function UserRolesManager() {
     }
   };
 
+  const openHistory = async (userId: string) => {
+    setHistoryOpen(userId);
+    setHistory([]);
+    setHistoryLoading(true);
+    try {
+      const { data } = await supabase
+        .from('user_approval_history' as any)
+        .select('*')
+        .eq('target_user_id', userId)
+        .order('created_at', { ascending: false });
+      setHistory((data as any) || []);
+    } finally {
+      setHistoryLoading(false);
+    }
+  };
+
   if (loading) return <Loader2 className="h-6 w-6 animate-spin mx-auto" />;
+
+  const activeUser = users.find(u => u.id === historyOpen);
 
   return (
     <Card>
@@ -114,6 +184,8 @@ export function UserRolesManager() {
             <TableRow>
               <TableHead>Nom</TableHead>
               <TableHead>Email</TableHead>
+              <TableHead>Inscription</TableHead>
+              <TableHead>Dernière connexion</TableHead>
               <TableHead>Statut</TableHead>
               <TableHead>Rôle</TableHead>
               <TableHead>Actions</TableHead>
@@ -124,6 +196,8 @@ export function UserRolesManager() {
               <TableRow key={user.id}>
                 <TableCell className="font-medium">{user.display_name || '—'}</TableCell>
                 <TableCell className="text-sm text-muted-foreground">{user.email}</TableCell>
+                <TableCell className="text-xs text-muted-foreground whitespace-nowrap">{formatDate(user.created_at)}</TableCell>
+                <TableCell className="text-xs text-muted-foreground whitespace-nowrap">{formatDate(user.last_sign_in_at)}</TableCell>
                 <TableCell>
                   {user.approved
                     ? <Badge variant="secondary">Approuvé</Badge>
@@ -136,6 +210,9 @@ export function UserRolesManager() {
                   </Select>
                 </TableCell>
                 <TableCell>
+                  <Button size="sm" variant="ghost" className="mr-1" onClick={() => openHistory(user.id)} title="Historique">
+                    <History className="h-4 w-4" />
+                  </Button>
                   {user.approved ? (
                     <Button size="sm" variant="outline" onClick={() => setApproval(user.id, false)}>
                       <X className="h-4 w-4 mr-1" /> Révoquer
@@ -171,9 +248,42 @@ export function UserRolesManager() {
                 </TableCell>
               </TableRow>
             ))}
-            {users.length === 0 && <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground">Aucun utilisateur</TableCell></TableRow>}
+            {users.length === 0 && <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground">Aucun utilisateur</TableCell></TableRow>}
           </TableBody>
         </Table>
+
+        <Dialog open={!!historyOpen} onOpenChange={(o) => { if (!o) setHistoryOpen(null); }}>
+          <DialogContent className="max-w-lg">
+            <DialogHeader>
+              <DialogTitle>Historique — {activeUser?.email || ''}</DialogTitle>
+            </DialogHeader>
+            {historyLoading ? (
+              <Loader2 className="h-5 w-5 animate-spin mx-auto my-6" />
+            ) : history.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-6">Aucun évènement</p>
+            ) : (
+              <div className="space-y-2 max-h-[400px] overflow-y-auto">
+                {history.map(h => (
+                  <div key={h.id} className="flex items-start gap-3 p-3 rounded-md border border-border bg-muted/30">
+                    <Badge variant={ACTION_VARIANTS[h.action] || 'outline'} className="shrink-0">
+                      {ACTION_LABELS[h.action] || h.action}
+                    </Badge>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs text-muted-foreground">{formatDate(h.created_at)}</p>
+                      {h.details && Object.keys(h.details).length > 0 && (
+                        <p className="text-xs mt-1 font-mono break-all">
+                          {h.action === 'role_changed' && h.details.from && h.details.to
+                            ? `${h.details.from} → ${h.details.to}`
+                            : JSON.stringify(h.details)}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
       </CardContent>
     </Card>
   );

@@ -63,6 +63,8 @@ Deno.serve(async (req: Request) => {
       id: u.id,
       email: u.email || "",
       display_name: u.user_metadata?.display_name || u.user_metadata?.name || "",
+      created_at: u.created_at || null,
+      last_sign_in_at: u.last_sign_in_at || null,
     }));
 
     return new Response(JSON.stringify(result), {
