@@ -256,8 +256,10 @@
   cursor: default !important;
 }
 
-/* Allow mode selector buttons (By Product / CA Global) to stay visible but disabled */
-.read-only-mode .read-only-allow {
+/* Allow explicit actions such as navigation/logout in read-only mode */
+.read-only-mode .read-only-allow,
+.read-only-mode [data-readonly-allow="true"],
+.read-only-mode [data-readonly-allow="true"] * {
   pointer-events: auto !important;
   opacity: 1 !important;
   cursor: pointer !important;
