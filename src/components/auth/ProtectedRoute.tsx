@@ -2,6 +2,7 @@ import { ReactNode } from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { Loader2 } from 'lucide-react';
+import { ReadOnlyWrapper } from './ReadOnlyWrapper';
 
 interface ProtectedRouteProps {
   children: ReactNode;
@@ -31,6 +32,9 @@ export function ProtectedRoute({ children, tabKey }: ProtectedRouteProps) {
     const permission = getTabPermission(tabKey);
     if (permission === 'hidden') {
       return <Navigate to="/accueil" replace />;
+    }
+    if (permission === 'read') {
+      return <ReadOnlyWrapper tabKey={tabKey}>{children}</ReadOnlyWrapper>;
     }
   }
 
