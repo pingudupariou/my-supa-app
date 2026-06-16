@@ -1791,6 +1791,39 @@ export type Database = {
           },
         ]
       }
+      user_approval_history: {
+        Row: {
+          action: string
+          created_at: string
+          details: Json | null
+          id: string
+          performed_by: string | null
+          performed_by_email: string | null
+          target_email: string | null
+          target_user_id: string
+        }
+        Insert: {
+          action: string
+          created_at?: string
+          details?: Json | null
+          id?: string
+          performed_by?: string | null
+          performed_by_email?: string | null
+          target_email?: string | null
+          target_user_id: string
+        }
+        Update: {
+          action?: string
+          created_at?: string
+          details?: Json | null
+          id?: string
+          performed_by?: string | null
+          performed_by_email?: string | null
+          target_email?: string | null
+          target_user_id?: string
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           approved: boolean
