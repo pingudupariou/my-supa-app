@@ -162,8 +162,8 @@ export function DashboardLayout({
             </NavLink>}
         </nav>
 
-        <div className="p-4 border-t border-sidebar-border">
-          <Button variant="ghost" size="sm" className="w-full justify-start text-sidebar-foreground/70 hover:text-sidebar-foreground" onClick={handleSignOut}>
+        <div className="p-4 border-t border-sidebar-border" data-readonly-allow="true">
+          <Button data-readonly-allow="true" variant="ghost" size="sm" className="w-full justify-start text-sidebar-foreground/70 hover:text-sidebar-foreground" onClick={handleSignOut}>
             <LogOut className="h-4 w-4 mr-2" />
             Déconnexion
           </Button>

@@ -87,8 +87,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const getTabPermission = (tabKey: string): TabPermission => {
     if (isAdmin) return 'write';
     const rolePerms = permissions[userRole];
-    if (!rolePerms) return 'write';
-    return rolePerms[tabKey] || 'write';
+    const explicit = rolePerms?.[tabKey];
+    if (explicit) return explicit;
+    // Chat must be explicitly granted (read or write); hidden otherwise
+    if (tabKey === 'chat') return 'hidden';
+    return 'write';
   };
 
   return (
