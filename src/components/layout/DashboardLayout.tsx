@@ -93,7 +93,13 @@ export function DashboardLayout({
   };
   const visibleGroups = navGroups.map(group => ({
     ...group,
-    items: group.items.filter(item => getTabPermission(item.tabKey) !== 'hidden'),
+    items: group.items.filter(item => {
+      const perm = getTabPermission(item.tabKey);
+      if (perm === 'hidden') return false;
+      // Chat is interaction-only: hide it when user only has read access
+      if (item.tabKey === 'chat' && perm !== 'write') return false;
+      return true;
+    }),
   })).filter(group => group.items.length > 0);
 
   return <div className="flex min-h-screen">
@@ -178,7 +184,7 @@ export function DashboardLayout({
         {children}
       </main>
 
-      {/* Floating chat widget — only when user has access to chat tab */}
-      {getTabPermission('chat') !== 'hidden' && <FloatingChat />}
+      {/* Floating chat widget — only when user has write access to chat tab */}
+      {getTabPermission('chat') === 'write' && <FloatingChat />}
     </div>;
 }
