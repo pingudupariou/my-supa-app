@@ -219,6 +219,20 @@ export function ReferenceStockSync({ references, products = [], onConfirm, onClo
                       <div className="w-56 shrink-0">
                         <p className="font-mono text-xs">{a.sku}</p>
                         {a.label && <p className="text-xs text-muted-foreground truncate">{a.label}</p>}
+                        {cols.label && a.label && (
+                          <div className="flex gap-1 mt-1">
+                            {(['auto', 'code', 'label'] as const).map(m => (
+                              <button
+                                key={m}
+                                type="button"
+                                onClick={() => setMatchMode(mm => ({ ...mm, [a.idx]: m }))}
+                                className={`text-[10px] px-1.5 py-0.5 rounded border ${(matchMode[a.idx] ?? 'auto') === m ? 'bg-primary text-primary-foreground border-primary' : 'bg-background text-muted-foreground'}`}
+                              >
+                                {m === 'auto' ? 'Les deux' : m === 'code' ? 'Code' : 'Libellé'}
+                              </button>
+                            ))}
+                          </div>
+                        )}
                       </div>
                       <Select value={choices[a.idx] ?? ''} onValueChange={v => setChoices(c => ({ ...c, [a.idx]: v }))}>
                         <SelectTrigger className="flex-1"><SelectValue placeholder={a.cands.length ? 'Choisir une correspondance…' : 'Aucune proposition'} /></SelectTrigger>
