@@ -264,13 +264,14 @@ export function StockImportWizard({ references, products, onImportComplete, onCl
 
   // Final import
   const handleImport = () => {
-    const entries = matchResults
-      .filter(r => r.accepted && r.matchedItem)
-      .map(r => ({
-        itemType: r.matchedItem!.type,
-        itemId: r.matchedItem!.id,
+    const entries = matchResults.flatMap(r => {
+      if (!r.accepted || !r.matchedItem) return [];
+      return [{
+        itemType: r.matchedItem.type,
+        itemId: r.matchedItem.id,
         quantity: r.excelQty,
-      }));
+      }];
+    });
 
     const mappings = loadMappings();
     matchResults.forEach((r, i) => {
