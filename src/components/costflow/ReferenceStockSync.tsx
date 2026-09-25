@@ -37,7 +37,7 @@ const smartScore = (a: string, b: string) => {
   const pa = parts(a), pb = parts(b);
   let dScore = 0, dWeight = 0;
   if (pa.digits && pb.digits) {
-    dWeight = 0.6;
+    dWeight = 0.95; // les chiffres sont l'identifiant principal : poids quasi total
     dScore = pa.digits === pb.digits ? 1 : dice(bigrams(pa.digits), pa.digits.length, bigrams(pb.digits), pb.digits.length);
   } else if (!pa.digits && !pb.digits) {
     dWeight = 0;
