@@ -879,36 +879,48 @@ export type Database = {
       }
       costflow_stock: {
         Row: {
+          available_quantity: number | null
           created_at: string
           id: string
+          incoming_quantity: number | null
           item_id: string
           item_type: string
           last_updated_at: string
           location: string | null
           notes: string | null
           quantity: number
+          reorder_point: number | null
+          reserved_quantity: number | null
           user_id: string
         }
         Insert: {
+          available_quantity?: number | null
           created_at?: string
           id?: string
+          incoming_quantity?: number | null
           item_id: string
           item_type: string
           last_updated_at?: string
           location?: string | null
           notes?: string | null
           quantity?: number
+          reorder_point?: number | null
+          reserved_quantity?: number | null
           user_id: string
         }
         Update: {
+          available_quantity?: number | null
           created_at?: string
           id?: string
+          incoming_quantity?: number | null
           item_id?: string
           item_type?: string
           last_updated_at?: string
           location?: string | null
           notes?: string | null
           quantity?: number
+          reorder_point?: number | null
+          reserved_quantity?: number | null
           user_id?: string
         }
         Relationships: []
