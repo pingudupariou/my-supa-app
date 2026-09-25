@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Slider } from '@/components/ui/slider';
 import { Upload, ChevronLeft, Check } from 'lucide-react';
 
 interface Props {
@@ -20,6 +21,14 @@ const norm = (s: unknown) => String(s ?? '').trim().toUpperCase();
 const loose = (s: unknown) => norm(s).normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[\s\-_./]/g, '');
 const keyNorm = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z]/g, '');
 const NONE = '__none__';
+const IGNORE = '__ignore__';
+const bigrams = (s: string) => { const m = new Map<string, number>(); for (let i = 0; i < s.length - 1; i++) { const b = s.slice(i, i + 2); m.set(b, (m.get(b) ?? 0) + 1); } return m; };
+const dice = (a: Map<string, number>, al: number, b: Map<string, number>, bl: number) => {
+  if (al < 2 || bl < 2) return 0;
+  let inter = 0; for (const [k, v] of a) inter += Math.min(v, b.get(k) ?? 0);
+  return (2 * inter) / (al - 1 + bl - 1);
+};
+type Cand = { key: string; type: 'reference' | 'product'; id: string; code: string; name: string; score: number };
 
 const FIELDS: { key: string; label: string; aliases: string[] }[] = [
   { key: 'sku', label: 'Code / Sku (clé de correspondance)', aliases: ['sku'] },
@@ -44,6 +53,8 @@ export function ReferenceStockSync({ references, products = [], onConfirm, onClo
   const [cols, setCols] = useState<Record<string, string | null>>({});
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
+  const [threshold, setThreshold] = useState(85);
+  const [choices, setChoices] = useState<Record<number, string>>({});
 
   const handleFile = async (file: File) => {
     setError('');
@@ -58,40 +69,65 @@ export function ReferenceStockSync({ references, products = [], onConfirm, onClo
       setHeaders(hs);
       setCols(found);
       setRows(data);
+      setChoices({});
       if (!data.length) setError('Le fichier ne contient aucune ligne de stock (uniquement les en-têtes).');
     } catch {
       setError('Fichier illisible.');
     }
   };
 
-  const { matched, ignored } = useMemo(() => {
-    const matched: { type: 'reference' | 'product'; code: string; name: string; entry: StockSyncEntry }[] = [];
-    if (!cols.sku) return { matched, ignored: 0 };
-    const refByCode = new Map(references.filter(r => !r.deleted_at).map(r => [loose(r.code), r]));
-    const prodByName = new Map(products.filter(p => !p.deleted_at).map(p => [loose(p.name), p]));
+  const items = useMemo(() => [
+    ...references.filter(r => !r.deleted_at).map(r => ({ key: 'reference:' + r.id, type: 'reference' as const, id: r.id, code: r.code, name: r.name, k: loose(r.code) })),
+    ...products.filter(p => !p.deleted_at).map(p => ({ key: 'product:' + p.id, type: 'product' as const, id: p.id, code: '', name: p.name, k: loose(p.name) })),
+  ].map(i => ({ ...i, bg: bigrams(i.k) })), [references, products]);
+
+  const analyzed = useMemo(() => {
+    if (!cols.sku) return [];
+    const out: { idx: number; sku: string; label: string; cands: Cand[]; row: Record<string, unknown> }[] = [];
+    rows.forEach((row, idx) => {
+      const sku = String(row[cols.sku!] ?? '').trim();
+      if (!sku) return;
+      const label = cols.label ? String(row[cols.label] ?? '') : '';
+      const keys = [loose(sku), label ? loose(label) : ''].filter(Boolean).map(k => ({ k, bg: bigrams(k) }));
+      const scored: Cand[] = [];
+      for (const it of items) {
+        let best = 0;
+        for (const q of keys) {
+          const sc = q.k === it.k ? 1 : dice(q.bg, q.k.length, it.bg, it.k.length);
+          if (it.type === 'reference' && q !== keys[0]) continue; // refs: code vs sku only
+          if (sc > best) best = sc;
+        }
+        if (best > 0.3) scored.push({ key: it.key, type: it.type, id: it.id, code: it.code, name: it.name, score: Math.round(best * 100) });
+      }
+      scored.sort((a, b) => b.score - a.score);
+      out.push({ idx, sku, label, cands: scored.slice(0, 5), row });
+    });
+    return out;
+  }, [rows, cols.sku, cols.label, items]);
+
+  const { matched, ignored, toReview } = useMemo(() => {
+    const matched: { type: 'reference' | 'product'; code: string; name: string; score: number; manual: boolean; entry: StockSyncEntry }[] = [];
+    const toReview: typeof analyzed = [];
     const seen = new Set<string>();
     let ignored = 0;
-    for (const row of rows) {
-      const sku = row[cols.sku];
-      if (!norm(sku)) continue;
-      const g = (f: string) => (cols[f] ? num(row[cols[f]!]) : null);
-      const ref = refByCode.get(loose(sku));
-      const prod = !ref ? (prodByName.get(loose(sku)) ?? (cols.label ? prodByName.get(loose(row[cols.label])) : undefined)) : undefined;
-      const item = ref ? { type: 'reference' as const, id: ref.id, code: ref.code, name: ref.name }
-        : prod ? { type: 'product' as const, id: prod.id, code: String(sku), name: prod.name } : null;
-      if (!item || seen.has(item.type + item.id)) { if (!item) ignored++; continue; }
-      seen.add(item.type + item.id);
+    for (const a of analyzed) {
+      const choice = choices[a.idx];
+      const auto = a.cands[0] && a.cands[0].score >= threshold ? a.cands[0] : undefined;
+      if (!auto) toReview.push(a);
+      const selKey = choice ?? auto?.key;
+      if (!selKey || selKey === IGNORE) { ignored++; continue; }
+      const it = items.find(i => i.key === selKey);
+      if (!it || seen.has(selKey)) continue;
+      seen.add(selKey);
+      const g = (f: string) => (cols[f] ? num(a.row[cols[f]!]) : null);
       matched.push({
-        type: item.type, code: item.code, name: item.name,
-        entry: {
-          referenceId: item.id, itemType: item.type,
-          quantity: g('real') ?? 0, available: g('available'), reserved: g('reserved'),
-          incoming: g('incoming'), reorderPoint: g('reorder'),
-        },
+        type: it.type, code: it.code || a.sku, name: it.name,
+        score: a.cands.find(c => c.key === selKey)?.score ?? 0, manual: !!choice,
+        entry: { referenceId: it.id, itemType: it.type, quantity: g('real') ?? 0, available: g('available'), reserved: g('reserved'), incoming: g('incoming'), reorderPoint: g('reorder') },
       });
     }
-    return { matched, ignored };
-  }, [rows, cols, references, products]);
+    return { matched, ignored, toReview };
+  }, [analyzed, choices, threshold, items, cols]);
 
   const confirm = async () => {
     setSaving(true);
@@ -137,6 +173,41 @@ export function ReferenceStockSync({ references, products = [], onConfirm, onClo
 
         {rows.length > 0 && cols.sku && (
           <>
+            <div className="space-y-2 border rounded-md p-3">
+              <div className="flex justify-between text-sm">
+                <span className="font-medium">Seuil de pré-validation automatique</span>
+                <span className="font-mono">{threshold}%</span>
+              </div>
+              <Slider min={30} max={100} step={1} value={[threshold]} onValueChange={v => setThreshold(v[0])} />
+              <p className="text-xs text-muted-foreground">Au-dessus du seuil : correspondance validée automatiquement. En dessous : à choisir à la main ci-dessous.</p>
+            </div>
+            {toReview.length > 0 && (
+              <div className="space-y-2">
+                <p className="text-sm font-medium">À valider manuellement ({toReview.filter(a => !choices[a.idx]).length} restantes / {toReview.length})</p>
+                <div className="border rounded-md max-h-[350px] overflow-auto divide-y">
+                  {toReview.slice(0, 200).map(a => (
+                    <div key={a.idx} className="flex items-center gap-3 p-2">
+                      <div className="w-56 shrink-0">
+                        <p className="font-mono text-xs">{a.sku}</p>
+                        {a.label && <p className="text-xs text-muted-foreground truncate">{a.label}</p>}
+                      </div>
+                      <Select value={choices[a.idx] ?? ''} onValueChange={v => setChoices(c => ({ ...c, [a.idx]: v }))}>
+                        <SelectTrigger className="flex-1"><SelectValue placeholder={a.cands.length ? 'Choisir une correspondance…' : 'Aucune proposition'} /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value={IGNORE}>— Ignorer —</SelectItem>
+                          {a.cands.map(c => (
+                            <SelectItem key={c.key} value={c.key}>{c.score}% · {c.type === 'reference' ? 'Réf' : 'Produit'} · {c.code ? c.code + ' — ' : ''}{c.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      {a.cands[0] && !choices[a.idx] && (
+                        <Button size="sm" variant="outline" onClick={() => setChoices(c => ({ ...c, [a.idx]: a.cands[0].key }))}>Valider {a.cands[0].score}%</Button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
             <div className="flex flex-wrap gap-3 text-sm">
               <Badge>{refCount} références</Badge>
               <Badge variant="secondary">{matched.length - refCount} produits</Badge>
@@ -146,16 +217,17 @@ export function ReferenceStockSync({ references, products = [], onConfirm, onClo
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Type</TableHead><TableHead>Code</TableHead><TableHead>Nom</TableHead>
+                    <TableHead>Type</TableHead><TableHead>Score</TableHead><TableHead>Code</TableHead><TableHead>Nom</TableHead>
                     <TableHead className="text-right">Réel</TableHead><TableHead className="text-right">Dispo</TableHead>
                     <TableHead className="text-right">Réservé</TableHead><TableHead className="text-right">À venir</TableHead>
                     <TableHead className="text-right">Pt cde</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {matched.slice(0, 300).map(({ type, code, name, entry }) => (
+                  {matched.slice(0, 300).map(({ type, code, name, score, manual, entry }) => (
                     <TableRow key={type + entry.referenceId}>
                       <TableCell><Badge variant={type === 'reference' ? 'default' : 'secondary'} className="text-xs">{type === 'reference' ? 'Réf' : 'Produit'}</Badge></TableCell>
+                      <TableCell className="text-xs">{score}%{manual ? ' ✋' : ''}</TableCell>
                       <TableCell className="font-mono text-xs">{code}</TableCell>
                       <TableCell className="text-sm">{name}</TableCell>
                       <TableCell className="text-right font-mono">{entry.quantity}</TableCell>
