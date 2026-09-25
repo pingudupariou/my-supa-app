@@ -2,6 +2,7 @@ import { useState, useMemo } from 'react';
 import { CostFlowReference, CostFlowProduct } from '@/hooks/useCostFlowData';
 import { useStockData, StockEntry } from '@/hooks/useStockData';
 import { StockImportWizard } from './StockImportWizard';
+import { ReferenceStockSync } from './ReferenceStockSync';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -23,9 +24,10 @@ interface Props {
 }
 
 export function StockManager({ references, products }: Props) {
-  const { stock, imports, loading, upsertStock, bulkUpsertStock, getStockForItem } = useStockData();
+  const { stock, imports, loading, upsertStock, bulkUpsertStock, syncReferenceStock, getStockForItem } = useStockData();
   const [search, setSearch] = useState('');
   const [showImport, setShowImport] = useState(false);
+  const [showSync, setShowSync] = useState(false);
   const [editItem, setEditItem] = useState<{ type: 'reference' | 'product'; id: string; name: string; qty: number } | null>(null);
   const [editQty, setEditQty] = useState('');
   const [activeTab, setActiveTab] = useState('references');
@@ -66,6 +68,19 @@ export function StockManager({ references, products }: Props) {
     await upsertStock(editItem.type, editItem.id, Number(editQty) || 0);
     setEditItem(null);
   };
+
+  if (showSync) {
+    return (
+      <ReferenceStockSync
+        references={references}
+        onConfirm={async (entries, fileName, matched, ignored) => {
+          await syncReferenceStock(entries, fileName, matched, ignored);
+          setShowSync(false);
+        }}
+        onClose={() => setShowSync(false)}
+      />
+    );
+  }
 
   if (showImport) {
     return (
@@ -134,9 +149,13 @@ export function StockManager({ references, products }: Props) {
             className="pl-10"
           />
         </div>
-        <Button onClick={() => setShowImport(true)}>
+        <Button onClick={() => setShowSync(true)}>
           <Upload className="h-4 w-4 mr-2" />
-          Importer Excel
+          MAJ stock références
+        </Button>
+        <Button variant="outline" onClick={() => setShowImport(true)}>
+          <Upload className="h-4 w-4 mr-2" />
+          Import avancé
         </Button>
       </div>
 
@@ -156,7 +175,11 @@ export function StockManager({ references, products }: Props) {
                   <TableHead>Code</TableHead>
                   <TableHead>Nom</TableHead>
                   <TableHead>Fournisseur</TableHead>
-                  <TableHead className="text-right">Stock</TableHead>
+                  <TableHead className="text-right">Réel</TableHead>
+                  <TableHead className="text-right">Disponible</TableHead>
+                  <TableHead className="text-right">Réservé</TableHead>
+                  <TableHead className="text-right">À venir</TableHead>
+                  <TableHead className="text-right">Pt de commande</TableHead>
                   <TableHead className="text-right">Dernière MAJ</TableHead>
                   <TableHead className="w-10"></TableHead>
                 </TableRow>
@@ -174,8 +197,18 @@ export function StockManager({ references, products }: Props) {
                         {s ? s.quantity : '—'}
                       </span>
                     </TableCell>
+                    <TableCell className="text-right font-mono">{s?.available_quantity ?? '—'}</TableCell>
+                    <TableCell className="text-right font-mono">{s?.reserved_quantity ?? '—'}</TableCell>
+                    <TableCell className="text-right font-mono">{s?.incoming_quantity ?? '—'}</TableCell>
+                    <TableCell className="text-right font-mono">
+                      {s?.reorder_point != null ? (
+                        <span className={s.reorder_point > 0 && (s.available_quantity ?? s.quantity) <= s.reorder_point ? 'text-destructive font-bold' : ''}>
+                          {s.reorder_point}
+                        </span>
+                      ) : '—'}
+                    </TableCell>
                     <TableCell className="text-right text-xs text-muted-foreground">
-                      {s ? format(new Date(s.last_updated_at), 'dd/MM HH:mm', { locale: fr }) : '—'}
+                      {s ? format(new Date(s.last_updated_at), 'dd/MM/yy HH:mm', { locale: fr }) : '—'}
                     </TableCell>
                     <TableCell>
                       <Button
@@ -194,7 +227,7 @@ export function StockManager({ references, products }: Props) {
                 ))}
                 {filteredRefs.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-center text-muted-foreground py-8">Aucune référence trouvée</TableCell>
+                    <TableCell colSpan={10} className="text-center text-muted-foreground py-8">Aucune référence trouvée</TableCell>
                   </TableRow>
                 )}
               </TableBody>
