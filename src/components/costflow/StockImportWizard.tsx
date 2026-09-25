@@ -56,6 +56,9 @@ function similarity(a: string, b: string): number {
   return union > 0 ? intersection / union : 0;
 }
 
+const bigrams = (v: string) => { const n = v.toLowerCase().replace(/\s+/g, ''); const out = new Set<string>(); for (let i = 0; i < n.length - 1; i++) out.add(n.slice(i, i + 2)); return out; };
+const dice = (a: Set<string>, b: Set<string>) => { if (!a.size || !b.size) return 0; let c = 0; a.forEach(x => { if (b.has(x)) c++; }); return (2 * c) / (a.size + b.size); };
+
 const PREFIX_KEY = 'stock_import_prefixes';
 const MAPPING_KEY = 'stock_import_mappings';
 const DEFAULT_PREFIXES = { reference: 'PR, NR, NRC, NRM, CA, WS', product: 'BB, CCD, CBB, OSPWH' };
@@ -83,6 +86,8 @@ export function StockImportWizard({ references, products, onImportComplete, onCl
   const [qtyColumn, setQtyColumn] = useState('');
   const [matchResults, setMatchResults] = useState<MatchResult[]>([]);
   const [labelColumn, setLabelColumn] = useState('');
+  const [filter, setFilter] = useState<'all' | 'exact' | 'partial' | 'none'>('partial');
+  const [visible, setVisible] = useState(150);
   const [prefixes, setPrefixes] = useState<{ reference: string; product: string }>(() => {
     try { return { ...DEFAULT_PREFIXES, ...JSON.parse(localStorage.getItem(PREFIX_KEY) || '{}') }; } catch { return DEFAULT_PREFIXES; }
   });
@@ -133,6 +138,7 @@ export function StockImportWizard({ references, products, onImportComplete, onCl
     ];
 
     localStorage.setItem(PREFIX_KEY, JSON.stringify(prefixes));
+    const withTargets = allItems.map(i => ({ ...i, targets: [i.code, i.name].filter(Boolean).map(v => ({ n: norm(v as string), g: bigrams(v as string) })) }));
     const refP = splitPrefixes(prefixes.reference);
     const prodP = splitPrefixes(prefixes.product);
     const mappings = loadMappings();
@@ -148,7 +154,7 @@ export function StockImportWizard({ references, products, onImportComplete, onCl
       }
       const display = label && label !== excelSku ? `${excelSku} — ${label}` : excelSku;
       const type = excelSku ? detectType(excelSku, refP, prodP) : undefined;
-      const pool = type ? allItems.filter(i => i.type === type) : allItems;
+      const pool = type ? withTargets.filter(i => i.type === type) : withTargets;
 
       // Remembered mapping
       const mem = mappings[norm(excelSku || label)];
@@ -163,16 +169,16 @@ export function StockImportWizard({ references, products, onImportComplete, onCl
         return { excelSku: display, excelQty, matchType: 'exact' as const, matchedItem: exact, accepted: true };
       }
 
+      const srcs = [excelSku, label, bracket].filter(Boolean).map(v => ({ n: norm(v), g: bigrams(v) }));
       const scored = pool
-        .map(item => ({
-          ...item,
-          score: Math.max(
-            ...[excelSku, label, bracket].filter(Boolean).flatMap(src => [
-              item.code ? similarity(src, item.code) : 0,
-              similarity(src, item.name),
-            ]),
-          ),
-        }))
+        .map(item => {
+          let score = 0;
+          for (const src of srcs) for (const t of item.targets) {
+            const sc = src.n && t.n && (src.n.includes(t.n) || t.n.includes(src.n)) ? 0.85 : dice(src.g, t.g);
+            if (sc > score) score = sc;
+          }
+          return { id: item.id, type: item.type, name: item.name, code: item.code, score };
+        })
         .filter(item => item.score >= 0.5)
         .sort((a, b) => b.score - a.score)
         .slice(0, 5);
@@ -184,6 +190,8 @@ export function StockImportWizard({ references, products, onImportComplete, onCl
     });
 
     setMatchResults(results);
+    setFilter(results.some(r => r.matchType === 'partial') ? 'partial' : 'all');
+    setVisible(150);
     setStep('matching');
   }, [skuColumn, qtyColumn, labelColumn, prefixes, rows, references, products]);
 
@@ -413,6 +421,13 @@ export function StockImportWizard({ references, products, onImportComplete, onCl
               <Badge variant="default">{stats.accepted} accepté{stats.accepted > 1 ? 's' : ''}</Badge>
             </div>
 
+            <div className="flex gap-2">
+              {(['partial', 'none', 'exact', 'all'] as const).map(f => (
+                <Button key={f} size="sm" variant={filter === f ? 'default' : 'outline'} onClick={() => { setFilter(f); setVisible(150); }}>
+                  {f === 'partial' ? 'À valider' : f === 'none' ? 'Non trouvés' : f === 'exact' ? 'Exacts' : 'Tous'}
+                </Button>
+              ))}
+            </div>
             <ScrollArea className="h-[400px]">
               <Table>
                 <TableHeader>
@@ -426,7 +441,7 @@ export function StockImportWizard({ references, products, onImportComplete, onCl
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {matchResults.map((r, i) => (
+                  {matchResults.map((r, i) => ({ r, i })).filter(({ r }) => filter === 'all' || r.matchType === filter).slice(0, visible).map(({ r, i }) => (
                     <TableRow key={i} className={
                       r.matchType === 'exact' ? 'bg-green-500/5' :
                       r.matchType === 'partial' ? 'bg-amber-500/5' : 'bg-red-500/5'
@@ -496,6 +511,9 @@ export function StockImportWizard({ references, products, onImportComplete, onCl
                   ))}
                 </TableBody>
               </Table>
+              {matchResults.filter(r => filter === 'all' || r.matchType === filter).length > visible && (
+                <div className="p-2 text-center"><Button size="sm" variant="ghost" onClick={() => setVisible(v => v + 150)}>Afficher plus</Button></div>
+              )}
             </ScrollArea>
 
             <div className="flex justify-between">
