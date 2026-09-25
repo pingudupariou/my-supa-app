@@ -73,6 +73,7 @@ export function StockManager({ references, products }: Props) {
     return (
       <ReferenceStockSync
         references={references}
+        products={products}
         onConfirm={async (entries, fileName, matched, ignored) => {
           await syncReferenceStock(entries, fileName, matched, ignored);
           setShowSync(false);
