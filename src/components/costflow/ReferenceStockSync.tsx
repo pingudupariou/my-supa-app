@@ -28,6 +28,30 @@ const dice = (a: Map<string, number>, al: number, b: Map<string, number>, bl: nu
   let inter = 0; for (const [k, v] of a) inter += Math.min(v, b.get(k) ?? 0);
   return (2 * inter) / (al - 1 + bl - 1);
 };
+// Compare séparément les chiffres et les lettres : les chiffres pèsent plus (identifiant),
+// les lettres/mots affinent (préfixe, famille). Score combiné 0..1.
+const parts = (s: string) => ({ digits: s.replace(/\D/g, ''), letters: s.replace(/\d/g, '') });
+const smartScore = (a: string, b: string) => {
+  if (a === b) return 1;
+  if (!a || !b) return 0;
+  const pa = parts(a), pb = parts(b);
+  let dScore = 0, dWeight = 0;
+  if (pa.digits && pb.digits) {
+    dWeight = 0.6;
+    dScore = pa.digits === pb.digits ? 1 : dice(bigrams(pa.digits), pa.digits.length, bigrams(pb.digits), pb.digits.length);
+  } else if (!pa.digits && !pb.digits) {
+    dWeight = 0;
+  } else {
+    return 0; // l'un a des chiffres, pas l'autre : pas le même type de code
+  }
+  let lScore = 0, lWeight = 0;
+  if (pa.letters && pb.letters) {
+    lWeight = 1 - dWeight;
+    lScore = pa.letters === pb.letters ? 1 : dice(bigrams(pa.letters), pa.letters.length, bigrams(pb.letters), pb.letters.length);
+  }
+  if (dWeight + lWeight === 0) return 0;
+  return (dScore * dWeight + lScore * lWeight) / (dWeight + lWeight);
+};
 type Cand = { key: string; type: 'reference' | 'product'; id: string; code: string; name: string; score: number };
 
 const FIELDS: { key: string; label: string; aliases: string[] }[] = [
