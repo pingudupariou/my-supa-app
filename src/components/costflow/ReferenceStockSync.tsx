@@ -79,6 +79,7 @@ export function ReferenceStockSync({ references, products = [], onConfirm, onClo
   const [saving, setSaving] = useState(false);
   const [threshold, setThreshold] = useState(85);
   const [choices, setChoices] = useState<Record<number, string>>({});
+  const [matchMode, setMatchMode] = useState<Record<number, 'auto' | 'code' | 'label'>>({});
 
   const handleFile = async (file: File) => {
     setError('');
@@ -112,13 +113,17 @@ export function ReferenceStockSync({ references, products = [], onConfirm, onClo
       const sku = String(row[cols.sku!] ?? '').trim();
       if (!sku) return;
       const label = cols.label ? String(row[cols.label] ?? '') : '';
-      const keys = [loose(sku), label ? loose(label) : ''].filter(Boolean);
+      const kSku = loose(sku);
+      const kLabel = label ? loose(label) : '';
+      const mode = matchMode[idx] ?? 'auto';
+      // mode 'code' : comparer uniquement le code/sku ; 'label' : uniquement le libellé ; 'auto' : les deux
+      const keys = mode === 'code' ? [kSku] : mode === 'label' ? (kLabel ? [kLabel] : [kSku]) : [kSku, kLabel].filter(Boolean);
       const scored: Cand[] = [];
       for (const it of items) {
         let best = 0;
         for (const q of keys) {
           const sc = smartScore(q, it.k);
-          if (it.type === 'reference' && q !== keys[0]) continue; // refs: code vs sku only
+          if (it.type === 'reference' && mode === 'auto' && q !== keys[0]) continue; // refs: code vs sku only en mode auto
           if (sc > best) best = sc;
         }
         if (best > 0.3) scored.push({ key: it.key, type: it.type, id: it.id, code: it.code, name: it.name, score: Math.round(best * 100) });
@@ -127,7 +132,7 @@ export function ReferenceStockSync({ references, products = [], onConfirm, onClo
       out.push({ idx, sku, label, cands: scored.slice(0, 5), row });
     });
     return out;
-  }, [rows, cols.sku, cols.label, items]);
+  }, [rows, cols.sku, cols.label, items, matchMode]);
 
   const { matched, ignored, toReview } = useMemo(() => {
     const matched: { type: 'reference' | 'product'; code: string; name: string; score: number; manual: boolean; entry: StockSyncEntry }[] = [];
