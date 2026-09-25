@@ -86,6 +86,8 @@ export function StockImportWizard({ references, products, onImportComplete, onCl
   const [qtyColumn, setQtyColumn] = useState('');
   const [matchResults, setMatchResults] = useState<MatchResult[]>([]);
   const [labelColumn, setLabelColumn] = useState('');
+  const [uploadError, setUploadError] = useState('');
+  const [isReadingFile, setIsReadingFile] = useState(false);
   const [filter, setFilter] = useState<'all' | 'exact' | 'partial' | 'none'>('partial');
   const [visible, setVisible] = useState(150);
   const [prefixes, setPrefixes] = useState<{ reference: string; product: string }>(() => {
@@ -97,15 +99,37 @@ export function StockImportWizard({ references, products, onImportComplete, onCl
     const file = e.target.files?.[0];
     if (!file) return;
     setFileName(file.name);
+    setUploadError('');
+    setIsReadingFile(true);
 
     const reader = new FileReader();
     reader.onload = (evt) => {
-      const data = evt.target?.result;
-      const wb = XLSX.read(data, { type: 'binary' });
-      const ws = wb.Sheets[wb.SheetNames[0]];
-      const json: ExcelRow[] = XLSX.utils.sheet_to_json(ws, { defval: '' });
-      if (json.length > 0) {
-        const hs = Object.keys(json[0]);
+      try {
+        const data = evt.target?.result;
+        if (!(data instanceof ArrayBuffer)) throw new Error('Lecture du fichier impossible');
+        const wb = XLSX.read(data, { type: 'array' });
+        const candidates = wb.SheetNames.map(name => {
+          const ws = wb.Sheets[name];
+          const matrix = XLSX.utils.sheet_to_json<unknown[]>(ws, { header: 1, defval: '', raw: false });
+          const headerIndex = matrix.findIndex(row => row.some(cell => String(cell).trim()));
+          const json = headerIndex >= 0
+            ? XLSX.utils.sheet_to_json<ExcelRow>(ws, { defval: '', range: headerIndex })
+            : [];
+          return { json, headers: headerIndex >= 0 ? matrix[headerIndex].map(String) : [] };
+        });
+        const selected = candidates.sort((a, b) => b.json.length - a.json.length)[0];
+        const json = selected?.json ?? [];
+        const hs = selected?.headers.filter(Boolean) ?? [];
+
+        if (!hs.length) {
+          setUploadError('Aucun en-tête de colonne n’a été trouvé dans ce fichier.');
+          return;
+        }
+        if (!json.length) {
+          setUploadError('Ce fichier contient les titres de colonnes, mais aucune ligne de stock à importer.');
+          return;
+        }
+
         setHeaders(hs);
         setRows(json);
         const find = (...keys: string[]) => hs.find(h => keys.some(k => h.toLowerCase().trim() === k)) || hs.find(h => keys.some(k => h.toLowerCase().includes(k))) || '';
@@ -113,9 +137,17 @@ export function StockImportWizard({ references, products, onImportComplete, onCl
         setQtyColumn(find('réel', 'reel', 'quantité', 'quantite', 'qty', 'stock'));
         setLabelColumn(find('label', 'libellé', 'libelle', 'désignation', 'nom'));
         setStep('columns');
+      } catch {
+        setUploadError('Le fichier n’a pas pu être lu. Réexportez-le au format .xlsx ou .csv, puis réessayez.');
+      } finally {
+        setIsReadingFile(false);
       }
     };
-    reader.readAsBinaryString(file);
+    reader.onerror = () => {
+      setIsReadingFile(false);
+      setUploadError('Le fichier n’a pas pu être lu. Veuillez le sélectionner à nouveau.');
+    };
+    reader.readAsArrayBuffer(file);
   }, []);
 
   // Step 2 -> 3: Run matching
@@ -296,8 +328,13 @@ export function StockImportWizard({ references, products, onImportComplete, onCl
                 type="file"
                 accept=".xlsx,.xls,.csv"
                 onChange={handleFileUpload}
+                disabled={isReadingFile}
                 className="block w-full text-sm text-muted-foreground file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-primary file:text-primary-foreground hover:file:bg-primary/90 cursor-pointer"
               />
+              {isReadingFile && <p className="mt-3 text-sm text-muted-foreground">Lecture du fichier en cours…</p>}
+              {uploadError && (
+                <p className="mt-3 max-w-md text-sm font-medium text-destructive" role="alert">{uploadError}</p>
+              )}
             </div>
           </div>
         )}
