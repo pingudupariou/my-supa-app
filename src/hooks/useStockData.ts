@@ -11,6 +11,19 @@ export interface StockEntry {
   location: string;
   notes: string;
   last_updated_at: string;
+  available_quantity?: number | null;
+  reserved_quantity?: number | null;
+  incoming_quantity?: number | null;
+  reorder_point?: number | null;
+}
+
+export interface StockSyncEntry {
+  referenceId: string;
+  quantity: number;
+  available: number | null;
+  reserved: number | null;
+  incoming: number | null;
+  reorderPoint: number | null;
 }
 
 export interface StockImportRecord {
@@ -126,6 +139,35 @@ export function useStockData() {
     toast.success(`Stock importé : ${entries.length} entrées mises à jour`);
   }, [user, stock, loadStock, loadImports]);
 
+  const syncReferenceStock = useCallback(async (
+    entries: StockSyncEntry[], fileName: string, matched: number, ignored: number,
+  ) => {
+    if (!user) return;
+    const now = new Date().toISOString();
+    let errors = 0;
+    for (const e of entries) {
+      const payload = {
+        quantity: e.quantity,
+        available_quantity: e.available,
+        reserved_quantity: e.reserved,
+        incoming_quantity: e.incoming,
+        reorder_point: e.reorderPoint,
+        last_updated_at: now,
+      };
+      const existing = stock.find(s => s.item_type === 'reference' && s.item_id === e.referenceId);
+      const { error } = existing
+        ? await supabase.from('costflow_stock').update(payload as any).eq('id', existing.id)
+        : await supabase.from('costflow_stock').insert({ ...payload, user_id: user.id, item_type: 'reference', item_id: e.referenceId } as any);
+      if (error) errors++;
+    }
+    await supabase.from('costflow_stock_imports').insert({
+      user_id: user.id, file_name: fileName, matched_count: matched, partial_count: 0, unmatched_count: ignored,
+    });
+    await Promise.all([loadStock(), loadImports()]);
+    if (errors) toast.error(`${errors} références n'ont pas pu être mises à jour`);
+    else toast.success(`Stock mis à jour pour ${entries.length} références`);
+  }, [user, stock, loadStock, loadImports]);
+
   const getStockForItem = useCallback((itemType: 'reference' | 'product', itemId: string) => {
     return stock.find(s => s.item_type === itemType && s.item_id === itemId);
   }, [stock]);
@@ -136,6 +178,7 @@ export function useStockData() {
     loading,
     upsertStock,
     bulkUpsertStock,
+    syncReferenceStock,
     getStockForItem,
     reload: loadStock,
   };
