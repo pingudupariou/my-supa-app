@@ -103,7 +103,7 @@ export function ReferenceStockSync({ references, products = [], onConfirm, onClo
   const items = useMemo(() => [
     ...references.filter(r => !r.deleted_at).map(r => ({ key: 'reference:' + r.id, type: 'reference' as const, id: r.id, code: r.code, name: r.name, k: loose(r.code) })),
     ...products.filter(p => !p.deleted_at).map(p => ({ key: 'product:' + p.id, type: 'product' as const, id: p.id, code: '', name: p.name, k: loose(p.name) })),
-  ].map(i => ({ ...i, bg: bigrams(i.k) })), [references, products]);
+  ].map(i => ({ ...i })), [references, products]);
 
   const analyzed = useMemo(() => {
     if (!cols.sku) return [];
