@@ -56,6 +56,24 @@ function similarity(a: string, b: string): number {
   return union > 0 ? intersection / union : 0;
 }
 
+const PREFIX_KEY = 'stock_import_prefixes';
+const MAPPING_KEY = 'stock_import_mappings';
+const DEFAULT_PREFIXES = { reference: 'PR, NR, NRC, NRM, CA, WS', product: 'BB, CCD, CBB, OSPWH' };
+
+const norm = (v: string) => v.toLowerCase().replace(/[\s_\-.\/]+/g, '').trim();
+const splitPrefixes = (v: string) => v.split(/[,;\s]+/).map(x => x.trim().toUpperCase()).filter(Boolean).sort((a, b) => b.length - a.length);
+
+function detectType(sku: string, refP: string[], prodP: string[]): 'reference' | 'product' | undefined {
+  const u = sku.toUpperCase();
+  const all = [...refP.map(p => ({ p, t: 'reference' as const })), ...prodP.map(p => ({ p, t: 'product' as const }))]
+    .sort((a, b) => b.p.length - a.p.length);
+  return all.find(x => u.startsWith(x.p))?.t;
+}
+
+function loadMappings(): Record<string, { id: string; type: 'reference' | 'product' }> {
+  try { return JSON.parse(localStorage.getItem(MAPPING_KEY) || '{}'); } catch { return {}; }
+}
+
 export function StockImportWizard({ references, products, onImportComplete, onClose }: Props) {
   const [step, setStep] = useState<Step>('upload');
   const [fileName, setFileName] = useState('');
@@ -64,6 +82,10 @@ export function StockImportWizard({ references, products, onImportComplete, onCl
   const [skuColumn, setSkuColumn] = useState('');
   const [qtyColumn, setQtyColumn] = useState('');
   const [matchResults, setMatchResults] = useState<MatchResult[]>([]);
+  const [labelColumn, setLabelColumn] = useState('');
+  const [prefixes, setPrefixes] = useState<{ reference: string; product: string }>(() => {
+    try { return { ...DEFAULT_PREFIXES, ...JSON.parse(localStorage.getItem(PREFIX_KEY) || '{}') }; } catch { return DEFAULT_PREFIXES; }
+  });
 
   // Step 1: Upload
   const handleFileUpload = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
@@ -78,8 +100,13 @@ export function StockImportWizard({ references, products, onImportComplete, onCl
       const ws = wb.Sheets[wb.SheetNames[0]];
       const json: ExcelRow[] = XLSX.utils.sheet_to_json(ws, { defval: '' });
       if (json.length > 0) {
-        setHeaders(Object.keys(json[0]));
+        const hs = Object.keys(json[0]);
+        setHeaders(hs);
         setRows(json);
+        const find = (...keys: string[]) => hs.find(h => keys.some(k => h.toLowerCase().trim() === k)) || hs.find(h => keys.some(k => h.toLowerCase().includes(k))) || '';
+        setSkuColumn(find('sku', 'code', 'référence', 'reference'));
+        setQtyColumn(find('réel', 'reel', 'quantité', 'quantite', 'qty', 'stock'));
+        setLabelColumn(find('label', 'libellé', 'libelle', 'désignation', 'nom'));
         setStep('columns');
       }
     };
@@ -105,59 +132,60 @@ export function StockImportWizard({ references, products, onImportComplete, onCl
       })),
     ];
 
+    localStorage.setItem(PREFIX_KEY, JSON.stringify(prefixes));
+    const refP = splitPrefixes(prefixes.reference);
+    const prodP = splitPrefixes(prefixes.product);
+    const mappings = loadMappings();
+
     const results: MatchResult[] = rows.map(row => {
       const excelSku = String(row[skuColumn] || '').trim();
       const excelQty = Number(row[qtyColumn]) || 0;
+      const label = labelColumn ? String(row[labelColumn] || '').trim() : '';
+      const bracket = label.match(/\[([^\]]+)\]/)?.[1] || '';
 
-      if (!excelSku) {
+      if (!excelSku && !label) {
         return { excelSku: '(vide)', excelQty, matchType: 'none' as const, accepted: false };
       }
+      const display = label && label !== excelSku ? `${excelSku} — ${label}` : excelSku;
+      const type = excelSku ? detectType(excelSku, refP, prodP) : undefined;
+      const pool = type ? allItems.filter(i => i.type === type) : allItems;
 
-      // Exact match
-      const exact = allItems.find(item =>
-        (item.code && item.code.toLowerCase() === excelSku.toLowerCase()) ||
-        item.name.toLowerCase() === excelSku.toLowerCase()
-      );
-
-      if (exact) {
-        return {
-          excelSku,
-          excelQty,
-          matchType: 'exact' as const,
-          matchedItem: exact,
-          accepted: true,
-        };
+      // Remembered mapping
+      const mem = mappings[norm(excelSku || label)];
+      const memItem = mem && allItems.find(i => i.id === mem.id && i.type === mem.type);
+      if (memItem) {
+        return { excelSku: display, excelQty, matchType: 'exact' as const, matchedItem: memItem, accepted: true };
       }
 
-      // Partial matches
-      const scored = allItems
+      const keys = [excelSku, label, bracket].filter(Boolean).map(norm);
+      const exact = pool.find(item => keys.some(k => (item.code && norm(item.code) === k) || norm(item.name) === k));
+      if (exact) {
+        return { excelSku: display, excelQty, matchType: 'exact' as const, matchedItem: exact, accepted: true };
+      }
+
+      const scored = pool
         .map(item => ({
           ...item,
           score: Math.max(
-            item.code ? similarity(excelSku, item.code) : 0,
-            similarity(excelSku, item.name),
+            ...[excelSku, label, bracket].filter(Boolean).flatMap(src => [
+              item.code ? similarity(src, item.code) : 0,
+              similarity(src, item.name),
+            ]),
           ),
         }))
-        .filter(item => item.score >= 0.4)
+        .filter(item => item.score >= 0.5)
         .sort((a, b) => b.score - a.score)
         .slice(0, 5);
 
       if (scored.length > 0) {
-        return {
-          excelSku,
-          excelQty,
-          matchType: 'partial' as const,
-          partialCandidates: scored,
-          accepted: false,
-        };
+        return { excelSku: display, excelQty, matchType: 'partial' as const, partialCandidates: scored, accepted: false };
       }
-
-      return { excelSku, excelQty, matchType: 'none' as const, accepted: false };
+      return { excelSku: display, excelQty, matchType: 'none' as const, accepted: false };
     });
 
     setMatchResults(results);
     setStep('matching');
-  }, [skuColumn, qtyColumn, rows, references, products]);
+  }, [skuColumn, qtyColumn, labelColumn, prefixes, rows, references, products]);
 
   // Accept/reject partial
   const handleAcceptPartial = (index: number, itemId: string) => {
@@ -203,6 +231,16 @@ export function StockImportWizard({ references, products, onImportComplete, onCl
         itemId: r.matchedItem!.id,
         quantity: r.excelQty,
       }));
+
+    const mappings = loadMappings();
+    matchResults.forEach((r, i) => {
+      if (r.accepted && r.matchedItem && r.matchType === 'partial') {
+        const row = rows[i];
+        const key = norm(String(row?.[skuColumn] || '') || String(row?.[labelColumn] || ''));
+        if (key) mappings[key] = { id: r.matchedItem.id, type: r.matchedItem.type };
+      }
+    });
+    localStorage.setItem(MAPPING_KEY, JSON.stringify(mappings));
 
     onImportComplete(
       entries,
@@ -297,6 +335,27 @@ export function StockImportWizard({ references, products, onImportComplete, onCl
                     Ex : « {String(rows[0][qtyColumn]).slice(0, 20)} »
                   </p>
                 )}
+              </div>
+              <div>
+                <label className="text-sm font-medium mb-1 block">Colonne Libellé (optionnel)</label>
+                <Select value={labelColumn || '__none'} onValueChange={v => setLabelColumn(v === '__none' ? '' : v)}>
+                  <SelectTrigger><SelectValue placeholder="Aucune" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none">Aucune</SelectItem>
+                    {headers.map(h => (<SelectItem key={h} value={h}>{h}</SelectItem>))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground mt-1">Sert aussi à trouver le produit/la référence par son nom</p>
+              </div>
+              <div />
+              <div>
+                <label className="text-sm font-medium mb-1 block">Préfixes SKU → Références</label>
+                <input className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm" value={prefixes.reference} onChange={e => setPrefixes(p => ({ ...p, reference: e.target.value }))} />
+              </div>
+              <div>
+                <label className="text-sm font-medium mb-1 block">Préfixes SKU → Produits</label>
+                <input className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm" value={prefixes.product} onChange={e => setPrefixes(p => ({ ...p, product: e.target.value }))} />
+                <p className="text-xs text-muted-foreground mt-1">Séparés par des virgules. Les correspondances validées sont mémorisées pour les prochains imports.</p>
               </div>
             </div>
 
