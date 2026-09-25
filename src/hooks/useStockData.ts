@@ -19,6 +19,7 @@ export interface StockEntry {
 
 export interface StockSyncEntry {
   referenceId: string;
+  itemType?: 'reference' | 'product';
   quantity: number;
   available: number | null;
   reserved: number | null;
@@ -154,10 +155,10 @@ export function useStockData() {
         reorder_point: e.reorderPoint,
         last_updated_at: now,
       };
-      const existing = stock.find(s => s.item_type === 'reference' && s.item_id === e.referenceId);
+      const existing = stock.find(s => s.item_type === (e.itemType ?? 'reference') && s.item_id === e.referenceId);
       const { error } = existing
         ? await supabase.from('costflow_stock').update(payload as any).eq('id', existing.id)
-        : await supabase.from('costflow_stock').insert({ ...payload, user_id: user.id, item_type: 'reference', item_id: e.referenceId } as any);
+        : await supabase.from('costflow_stock').insert({ ...payload, user_id: user.id, item_type: e.itemType ?? 'reference', item_id: e.referenceId } as any);
       if (error) errors++;
     }
     await supabase.from('costflow_stock_imports').insert({
@@ -165,7 +166,7 @@ export function useStockData() {
     });
     await Promise.all([loadStock(), loadImports()]);
     if (errors) toast.error(`${errors} références n'ont pas pu être mises à jour`);
-    else toast.success(`Stock mis à jour pour ${entries.length} références`);
+    else toast.success(`Stock mis à jour pour ${entries.length} articles`);
   }, [user, stock, loadStock, loadImports]);
 
   const getStockForItem = useCallback((itemType: 'reference' | 'product', itemId: string) => {
