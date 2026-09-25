@@ -112,12 +112,12 @@ export function ReferenceStockSync({ references, products = [], onConfirm, onClo
       const sku = String(row[cols.sku!] ?? '').trim();
       if (!sku) return;
       const label = cols.label ? String(row[cols.label] ?? '') : '';
-      const keys = [loose(sku), label ? loose(label) : ''].filter(Boolean).map(k => ({ k, bg: bigrams(k) }));
+      const keys = [loose(sku), label ? loose(label) : ''].filter(Boolean);
       const scored: Cand[] = [];
       for (const it of items) {
         let best = 0;
         for (const q of keys) {
-          const sc = q.k === it.k ? 1 : dice(q.bg, q.k.length, it.bg, it.k.length);
+          const sc = smartScore(q, it.k);
           if (it.type === 'reference' && q !== keys[0]) continue; // refs: code vs sku only
           if (sc > best) best = sc;
         }
