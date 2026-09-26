@@ -141,7 +141,7 @@ export function ReferenceStockSync({ references, products = [], onConfirm, onClo
       out.push({ idx, sku, label, cands: scored.slice(0, 5), row });
     });
     return out;
-  }, [rows, cols.sku, cols.label, items, matchMode]);
+  }, [rows, cols.sku, cols.label, items, matchMode, cutRef, cutProd]);
 
   const { matched, ignored, toReview } = useMemo(() => {
     const matched: { type: 'reference' | 'product'; code: string; name: string; score: number; manual: boolean; entry: StockSyncEntry }[] = [];
@@ -191,6 +191,34 @@ export function ReferenceStockSync({ references, products = [], onConfirm, onClo
           <input type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={e => e.target.files?.[0] && handleFile(e.target.files[0])} />
         </label>
         {error && <p className="text-sm text-destructive">{error}</p>}
+
+        {headers.length > 0 && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 border rounded-md p-3">
+            <div className="space-y-1">
+              <label className="text-xs font-medium">Références : partie du code comparée</label>
+              <Select value={cutRef} onValueChange={v => setCutRef(v as CutMode)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="full">Code en entier (ex : NR20210041_GTAICNC)</SelectItem>
+                  <SelectItem value="underscore">Jusqu'au premier « _ » non inclus (ex : NR20210041)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-medium">Produits : partie du nom comparée</label>
+              <Select value={cutProd} onValueChange={v => setCutProd(v as CutMode)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="full">Nom en entier</SelectItem>
+                  <SelectItem value="underscore">Jusqu'au premier « _ » non inclus</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <p className="text-xs text-muted-foreground md:col-span-2">
+              La coupure s'applique des deux côtés (fichier et application) : « NR20210041_GTAICNC » dans l'app et « NR20210041 » dans le fichier matcheront à 100 %.
+            </p>
+          </div>
+        )}
 
         {headers.length > 0 && (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
