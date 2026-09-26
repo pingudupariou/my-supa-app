@@ -14,6 +14,7 @@ import { MeetingManager } from '@/components/costflow/MeetingManager';
 import { ProductPlanningGantt } from '@/components/costflow/ProductPlanningGantt';
 import { TrashManager } from '@/components/costflow/TrashManager';
 import { ReferenceUsageMap } from '@/components/costflow/ReferenceUsageMap';
+import { ColorVariantManager } from '@/components/costflow/ColorVariantManager';
 import { StockManager } from '@/components/costflow/StockManager';
 import { ReadOnlyWrapper } from '@/components/auth/ReadOnlyWrapper';
 import { TaskManager } from '@/components/tasks/TaskManager';
@@ -71,6 +72,7 @@ export function CostFlowPage() {
         <TabsList>
           <TabsTrigger value="references">📦 Références</TabsTrigger>
           <TabsTrigger value="products">🎯 Produits</TabsTrigger>
+          <TabsTrigger value="variants">🎨 Déclinaisons</TabsTrigger>
           <TabsTrigger value="suppliers">🏭 Fournisseurs</TabsTrigger>
           <TabsTrigger value="costs">💰 Coûts & Export</TabsTrigger>
           <TabsTrigger value="stock">📊 Stock</TabsTrigger>
@@ -154,6 +156,10 @@ export function CostFlowPage() {
               />
             </div>
           )}
+        </TabsContent>
+
+        <TabsContent value="variants">
+          <ColorVariantManager references={data.references} products={data.products} bom={data.bom} onChanged={data.refetch} />
         </TabsContent>
 
         <TabsContent value="suppliers">
