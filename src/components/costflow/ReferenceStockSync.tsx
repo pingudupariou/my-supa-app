@@ -155,7 +155,8 @@ export function ReferenceStockSync({ references, products = [], onConfirm, onClo
       if (!auto) toReview.push(a);
       const chosen = choices[a.item.key];
       const selIdx = chosen ?? auto?.idx;
-      if (selIdx === undefined) { if (!a.cands.length) notFound++; continue; }
+      // choix -1 = « ignorer cet article » choisi à la main
+      if (selIdx === undefined || selIdx < 0) { if (!a.cands.length) notFound++; continue; }
       if (usedRows.has(selIdx)) continue;
       usedRows.add(selIdx);
       const row = rows[selIdx];
