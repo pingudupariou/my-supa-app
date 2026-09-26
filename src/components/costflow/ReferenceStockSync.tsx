@@ -279,7 +279,7 @@ export function ReferenceStockSync({ references, products = [], onConfirm, onClo
                       </div>
                       <Select
                         value={choices[a.item.key] !== undefined ? String(choices[a.item.key]) : ''}
-                        onValueChange={v => setChoices(c => ({ ...c, [a.item.key]: Number(v) }))}
+                        onValueChange={v => setChoices(c => ({ ...c, [a.item.key]: v === IGNORE ? -1 : Number(v) }))}
                       >
                         <SelectTrigger className="flex-1"><SelectValue placeholder={a.cands.length ? 'Choisir la ligne du fichier…' : 'Aucune ligne ressemblante dans le fichier'} /></SelectTrigger>
                         <SelectContent>
