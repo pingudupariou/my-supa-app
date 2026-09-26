@@ -52,10 +52,14 @@ const smartScore = (a: string, b: string) => {
   if (dWeight + lWeight === 0) return 0;
   return (dScore * dWeight + lScore * lWeight) / (dWeight + lWeight);
 };
-type Cand = { key: string; type: 'reference' | 'product'; id: string; code: string; name: string; score: number };
+type Item = { key: string; type: 'reference' | 'product'; id: string; code: string; name: string; k: string };
 type CutMode = 'full' | 'underscore';
 // Coupe la chaîne au premier '_' non inclus si mode 'underscore' : NR20210041_GTAICNC → NR20210041
 const cutAt = (s: string, mode: CutMode) => (mode === 'underscore' ? s.split('_')[0] : s);
+type RowCand = { idx: number; sku: string; label: string; score: number };
+// Une entrée analysée = un article de l'app (référence ou produit) et ses meilleures
+// lignes candidates dans le fichier importé. Le sens de recherche part de l'app.
+type Analyzed = { item: Item; mode: 'auto' | 'code' | 'label'; cands: RowCand[] };
 
 const FIELDS: { key: string; label: string; aliases: string[] }[] = [
   { key: 'sku', label: 'Code / Sku (clé de correspondance)', aliases: ['sku'] },
@@ -81,8 +85,8 @@ export function ReferenceStockSync({ references, products = [], onConfirm, onClo
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
   const [threshold, setThreshold] = useState(85);
-  const [choices, setChoices] = useState<Record<number, string>>({});
-  const [matchMode, setMatchMode] = useState<Record<number, 'auto' | 'code' | 'label'>>({});
+  const [choices, setChoices] = useState<Record<string, number>>({});
+  const [matchMode, setMatchMode] = useState<Record<string, 'auto' | 'code' | 'label'>>({});
   const [cutRef, setCutRef] = useState<CutMode>('full');
   const [cutProd, setCutProd] = useState<CutMode>('full');
 
@@ -106,74 +110,76 @@ export function ReferenceStockSync({ references, products = [], onConfirm, onClo
     }
   };
 
-  const items = useMemo(() => [
+  // Point de départ : les articles déjà présents dans l'app (référentiel maître).
+  const items = useMemo<Item[]>(() => [
     ...references.filter(r => !r.deleted_at).map(r => ({ key: 'reference:' + r.id, type: 'reference' as const, id: r.id, code: r.code, name: r.name, k: loose(cutAt(r.code, cutRef)) })),
     ...products.filter(p => !p.deleted_at).map(p => ({ key: 'product:' + p.id, type: 'product' as const, id: p.id, code: '', name: p.name, k: loose(cutAt(p.name, cutProd)) })),
-  ].map(i => ({ ...i })), [references, products, cutRef, cutProd]);
+  ], [references, products, cutRef, cutProd]);
 
-  const analyzed = useMemo(() => {
+  // Pour chaque article de l'app, on cherche ses meilleures lignes dans le fichier.
+  const analyzed = useMemo<Analyzed[]>(() => {
     if (!cols.sku) return [];
-    const out: { idx: number; sku: string; label: string; cands: Cand[]; row: Record<string, unknown> }[] = [];
-    rows.forEach((row, idx) => {
+    const rowKeys = rows.map(row => {
       const sku = String(row[cols.sku!] ?? '').trim();
-      if (!sku) return;
       const label = cols.label ? String(row[cols.label] ?? '') : '';
-      const mode = matchMode[idx] ?? 'auto';
-      // La coupure au '_' s'applique des deux côtés, selon le type comparé :
-      // références → cutRef sur le sku du fichier, produits → cutProd sur sku et libellé.
-      const kSkuRef = loose(cutAt(sku, cutRef));
-      const kSkuProd = loose(cutAt(sku, cutProd));
-      const kLabelProd = label ? loose(cutAt(label, cutProd)) : '';
-      // mode 'code' : comparer uniquement le code/sku ; 'label' : uniquement le libellé ; 'auto' : les deux
-      const scored: Cand[] = [];
-      for (const it of items) {
-        const keys = it.type === 'reference'
-          ? [kSkuRef]
-          : mode === 'code' ? [kSkuProd] : mode === 'label' ? (kLabelProd ? [kLabelProd] : [kSkuProd]) : [kSkuProd, kLabelProd].filter(Boolean);
+      return { sku, label, kSkuRef: loose(cutAt(sku, cutRef)), kSkuProd: loose(cutAt(sku, cutProd)), kLabelProd: label ? loose(cutAt(label, cutProd)) : '' };
+    });
+    return items.map(item => {
+      const mode = matchMode[item.key] ?? 'auto';
+      const scored: RowCand[] = [];
+      rowKeys.forEach((rk, idx) => {
+        if (!rk.sku) return;
+        // Références : comparaison sur le code uniquement. Produits : code et/ou libellé.
+        const qs = item.type === 'reference'
+          ? [rk.kSkuRef]
+          : mode === 'code' ? [rk.kSkuProd] : mode === 'label' ? (rk.kLabelProd ? [rk.kLabelProd] : [rk.kSkuProd]) : [rk.kSkuProd, rk.kLabelProd].filter(Boolean);
         let best = 0;
-        for (const q of keys) {
-          const sc = smartScore(q, it.k);
+        for (const q of qs) {
+          const sc = smartScore(q, item.k);
           if (sc > best) best = sc;
         }
-        if (best > 0.3) scored.push({ key: it.key, type: it.type, id: it.id, code: it.code, name: it.name, score: Math.round(best * 100) });
-      }
+        if (best > 0.3) scored.push({ idx, sku: rk.sku, label: rk.label, score: Math.round(best * 100) });
+      });
       scored.sort((a, b) => b.score - a.score);
-      out.push({ idx, sku, label, cands: scored.slice(0, 5), row });
+      return { item, mode, cands: scored.slice(0, 5) };
     });
-    return out;
   }, [rows, cols.sku, cols.label, items, matchMode, cutRef, cutProd]);
 
-  const { matched, ignored, toReview } = useMemo(() => {
+  const { matched, toReview, notFound, ignoredRows } = useMemo(() => {
     const matched: { type: 'reference' | 'product'; code: string; name: string; score: number; manual: boolean; entry: StockSyncEntry }[] = [];
-    const toReview: typeof analyzed = [];
-    const seen = new Set<string>();
-    let ignored = 0;
+    const toReview: Analyzed[] = [];
+    let notFound = 0;
+    const usedRows = new Set<number>();
     for (const a of analyzed) {
-      const choice = choices[a.idx];
       const auto = a.cands[0] && a.cands[0].score >= threshold ? a.cands[0] : undefined;
       if (!auto) toReview.push(a);
-      const selKey = choice ?? auto?.key;
-      if (!selKey || selKey === IGNORE) { ignored++; continue; }
-      const it = items.find(i => i.key === selKey);
-      if (!it || seen.has(selKey)) continue;
-      seen.add(selKey);
-      const g = (f: string) => (cols[f] ? num(a.row[cols[f]!]) : null);
+      const chosen = choices[a.item.key];
+      const selIdx = chosen ?? auto?.idx;
+      // choix -1 = « ignorer cet article » choisi à la main
+      if (selIdx === undefined || selIdx < 0) { if (!a.cands.length) notFound++; continue; }
+      if (usedRows.has(selIdx)) continue;
+      usedRows.add(selIdx);
+      const row = rows[selIdx];
+      const g = (f: string) => (cols[f] ? num(row[cols[f]!]) : null);
       matched.push({
-        type: it.type, code: it.code || a.sku, name: it.name,
-        score: a.cands.find(c => c.key === selKey)?.score ?? 0, manual: !!choice,
-        entry: { referenceId: it.id, itemType: it.type, quantity: g('real') ?? 0, available: g('available'), reserved: g('reserved'), incoming: g('incoming'), reorderPoint: g('reorder') },
+        type: a.item.type, code: a.item.code, name: a.item.name,
+        score: a.cands.find(c => c.idx === selIdx)?.score ?? 0, manual: chosen !== undefined && !auto,
+        entry: { referenceId: a.item.id, itemType: a.item.type, quantity: g('real') ?? 0, available: g('available'), reserved: g('reserved'), incoming: g('incoming'), reorderPoint: g('reorder') },
       });
     }
-    return { matched, ignored, toReview };
-  }, [analyzed, choices, threshold, items, cols]);
+    // Lignes du fichier qu'aucun article de l'app n'utilise : ignorées.
+    const ignoredRows = rows.filter(r => String(r[cols.sku!] ?? '').trim()).length - usedRows.size;
+    return { matched, toReview, notFound, ignoredRows };
+  }, [analyzed, choices, threshold, rows, cols]);
 
   const confirm = async () => {
     setSaving(true);
-    await onConfirm(matched.map(m => m.entry), fileName, matched.length, ignored);
+    await onConfirm(matched.map(m => m.entry), fileName, matched.length, Math.max(0, ignoredRows));
     setSaving(false);
   };
 
   const refCount = matched.filter(m => m.type === 'reference').length;
+  const pendingReview = toReview.filter(a => choices[a.item.key] === undefined).length;
 
   return (
     <Card>
@@ -183,7 +189,7 @@ export function ReferenceStockSync({ references, products = [], onConfirm, onClo
       </CardHeader>
       <CardContent className="space-y-4">
         <p className="text-sm text-muted-foreground">
-          Choisis la colonne du fichier qui contient le code, puis les colonnes de stock à récupérer. Références : Code = colonne choisie. Produits : nom = code ou libellé. Rien n'est créé.
+          On part de vos références et produits déjà dans l'application : pour chacun, on cherche sa ligne dans le fichier importé pour récupérer les quantités. Les lignes du fichier sans correspondance sont ignorées, rien n'est créé.
         </p>
         <label className="flex items-center justify-center gap-2 border-2 border-dashed rounded-md p-6 cursor-pointer hover:bg-muted/50">
           <Upload className="h-5 w-5" />
@@ -249,21 +255,21 @@ export function ReferenceStockSync({ references, products = [], onConfirm, onClo
             </div>
             {toReview.length > 0 && (
               <div className="space-y-2">
-                <p className="text-sm font-medium">À valider manuellement ({toReview.filter(a => !choices[a.idx]).length} restantes / {toReview.length})</p>
+                <p className="text-sm font-medium">À valider manuellement ({pendingReview} restants / {toReview.length})</p>
                 <div className="border rounded-md max-h-[350px] overflow-auto divide-y">
                   {toReview.slice(0, 200).map(a => (
-                    <div key={a.idx} className="flex items-center gap-3 p-2">
+                    <div key={a.item.key} className="flex items-center gap-3 p-2">
                       <div className="w-56 shrink-0">
-                        <p className="font-mono text-xs">{a.sku}</p>
-                        {a.label && <p className="text-xs text-muted-foreground truncate">{a.label}</p>}
-                        {cols.label && a.label && (
+                        <p className="font-mono text-xs">{a.item.code || a.item.name}</p>
+                        <p className="text-xs text-muted-foreground truncate">{a.item.name}</p>
+                        {a.item.type === 'product' && cols.label && (
                           <div className="flex gap-1 mt-1">
                             {(['auto', 'code', 'label'] as const).map(m => (
                               <button
                                 key={m}
                                 type="button"
-                                onClick={() => setMatchMode(mm => ({ ...mm, [a.idx]: m }))}
-                                className={`text-[10px] px-1.5 py-0.5 rounded border ${(matchMode[a.idx] ?? 'auto') === m ? 'bg-primary text-primary-foreground border-primary' : 'bg-background text-muted-foreground'}`}
+                                onClick={() => setMatchMode(mm => ({ ...mm, [a.item.key]: m }))}
+                                className={`text-[10px] px-1.5 py-0.5 rounded border ${(matchMode[a.item.key] ?? 'auto') === m ? 'bg-primary text-primary-foreground border-primary' : 'bg-background text-muted-foreground'}`}
                               >
                                 {m === 'auto' ? 'Les deux' : m === 'code' ? 'Code' : 'Libellé'}
                               </button>
@@ -271,17 +277,20 @@ export function ReferenceStockSync({ references, products = [], onConfirm, onClo
                           </div>
                         )}
                       </div>
-                      <Select value={choices[a.idx] ?? ''} onValueChange={v => setChoices(c => ({ ...c, [a.idx]: v }))}>
-                        <SelectTrigger className="flex-1"><SelectValue placeholder={a.cands.length ? 'Choisir une correspondance…' : 'Aucune proposition'} /></SelectTrigger>
+                      <Select
+                        value={choices[a.item.key] !== undefined ? String(choices[a.item.key]) : ''}
+                        onValueChange={v => setChoices(c => ({ ...c, [a.item.key]: v === IGNORE ? -1 : Number(v) }))}
+                      >
+                        <SelectTrigger className="flex-1"><SelectValue placeholder={a.cands.length ? 'Choisir la ligne du fichier…' : 'Aucune ligne ressemblante dans le fichier'} /></SelectTrigger>
                         <SelectContent>
-                          <SelectItem value={IGNORE}>— Ignorer —</SelectItem>
+                          <SelectItem value={IGNORE}>— Ignorer cet article —</SelectItem>
                           {a.cands.map(c => (
-                            <SelectItem key={c.key} value={c.key}>{c.score}% · {c.type === 'reference' ? 'Réf' : 'Produit'} · {c.code ? c.code + ' — ' : ''}{c.name}</SelectItem>
+                            <SelectItem key={c.idx} value={String(c.idx)}>{c.score}% · {c.sku}{c.label ? ` — ${c.label}` : ''}</SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
-                      {a.cands[0] && !choices[a.idx] && (
-                        <Button size="sm" variant="outline" onClick={() => setChoices(c => ({ ...c, [a.idx]: a.cands[0].key }))}>Valider {a.cands[0].score}%</Button>
+                      {a.cands[0] && choices[a.item.key] === undefined && (
+                        <Button size="sm" variant="outline" onClick={() => setChoices(c => ({ ...c, [a.item.key]: a.cands[0].idx }))}>Valider {a.cands[0].score}%</Button>
                       )}
                     </div>
                   ))}
@@ -291,7 +300,8 @@ export function ReferenceStockSync({ references, products = [], onConfirm, onClo
             <div className="flex flex-wrap gap-3 text-sm">
               <Badge>{refCount} références</Badge>
               <Badge variant="secondary">{matched.length - refCount} produits</Badge>
-              <Badge variant="outline">{ignored} lignes ignorées (absentes de l'app)</Badge>
+              <Badge variant="outline">{notFound} articles sans ligne dans le fichier</Badge>
+              <Badge variant="outline">{Math.max(0, ignoredRows)} lignes du fichier non utilisées</Badge>
             </div>
             <div className="border rounded-md max-h-[400px] overflow-auto">
               <Table>
