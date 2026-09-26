@@ -444,6 +444,33 @@ export type Database = {
           },
         ]
       }
+      costflow_colors: {
+        Row: {
+          code: string
+          created_at: string
+          hex: string | null
+          id: string
+          name: string
+          user_id: string
+        }
+        Insert: {
+          code: string
+          created_at?: string
+          hex?: string | null
+          id?: string
+          name: string
+          user_id: string
+        }
+        Update: {
+          code?: string
+          created_at?: string
+          hex?: string | null
+          id?: string
+          name?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       costflow_meeting_tasks: {
         Row: {
           created_at: string
@@ -709,6 +736,7 @@ export type Database = {
         Row: {
           category_id: string | null
           coefficient: number | null
+          color_id: string | null
           comments: string | null
           cost_mode: string
           created_at: string
@@ -719,6 +747,7 @@ export type Database = {
           main_supplier: string | null
           manual_unit_cost: number | null
           name: string
+          parent_product_id: string | null
           price_ttc: number | null
           updated_at: string
           user_id: string
@@ -726,6 +755,7 @@ export type Database = {
         Insert: {
           category_id?: string | null
           coefficient?: number | null
+          color_id?: string | null
           comments?: string | null
           cost_mode?: string
           created_at?: string
@@ -736,6 +766,7 @@ export type Database = {
           main_supplier?: string | null
           manual_unit_cost?: number | null
           name: string
+          parent_product_id?: string | null
           price_ttc?: number | null
           updated_at?: string
           user_id: string
@@ -743,6 +774,7 @@ export type Database = {
         Update: {
           category_id?: string | null
           coefficient?: number | null
+          color_id?: string | null
           comments?: string | null
           cost_mode?: string
           created_at?: string
@@ -753,6 +785,7 @@ export type Database = {
           main_supplier?: string | null
           manual_unit_cost?: number | null
           name?: string
+          parent_product_id?: string | null
           price_ttc?: number | null
           updated_at?: string
           user_id?: string
@@ -763,6 +796,20 @@ export type Database = {
             columns: ["category_id"]
             isOneToOne: false
             referencedRelation: "costflow_product_categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "costflow_products_color_id_fkey"
+            columns: ["color_id"]
+            isOneToOne: false
+            referencedRelation: "costflow_colors"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "costflow_products_parent_product_id_fkey"
+            columns: ["parent_product_id"]
+            isOneToOne: false
+            referencedRelation: "costflow_products"
             referencedColumns: ["id"]
           },
         ]
@@ -812,12 +859,14 @@ export type Database = {
         Row: {
           category: string | null
           code: string
+          color_id: string | null
           comments: string | null
           created_at: string
           currency: string | null
           deleted_at: string | null
           id: string
           name: string
+          parent_reference_id: string | null
           price_vol_100: number | null
           price_vol_1000: number | null
           price_vol_10000: number | null
@@ -834,12 +883,14 @@ export type Database = {
         Insert: {
           category?: string | null
           code: string
+          color_id?: string | null
           comments?: string | null
           created_at?: string
           currency?: string | null
           deleted_at?: string | null
           id?: string
           name: string
+          parent_reference_id?: string | null
           price_vol_100?: number | null
           price_vol_1000?: number | null
           price_vol_10000?: number | null
@@ -856,12 +907,14 @@ export type Database = {
         Update: {
           category?: string | null
           code?: string
+          color_id?: string | null
           comments?: string | null
           created_at?: string
           currency?: string | null
           deleted_at?: string | null
           id?: string
           name?: string
+          parent_reference_id?: string | null
           price_vol_100?: number | null
           price_vol_1000?: number | null
           price_vol_10000?: number | null
@@ -875,7 +928,22 @@ export type Database = {
           updated_at?: string
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "costflow_references_color_id_fkey"
+            columns: ["color_id"]
+            isOneToOne: false
+            referencedRelation: "costflow_colors"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "costflow_references_parent_reference_id_fkey"
+            columns: ["parent_reference_id"]
+            isOneToOne: false
+            referencedRelation: "costflow_references"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       costflow_stock: {
         Row: {
