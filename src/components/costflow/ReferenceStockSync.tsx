@@ -107,9 +107,9 @@ export function ReferenceStockSync({ references, products = [], onConfirm, onClo
   };
 
   const items = useMemo(() => [
-    ...references.filter(r => !r.deleted_at).map(r => ({ key: 'reference:' + r.id, type: 'reference' as const, id: r.id, code: r.code, name: r.name, k: loose(r.code) })),
-    ...products.filter(p => !p.deleted_at).map(p => ({ key: 'product:' + p.id, type: 'product' as const, id: p.id, code: '', name: p.name, k: loose(p.name) })),
-  ].map(i => ({ ...i })), [references, products]);
+    ...references.filter(r => !r.deleted_at).map(r => ({ key: 'reference:' + r.id, type: 'reference' as const, id: r.id, code: r.code, name: r.name, k: loose(cutAt(r.code, cutRef)) })),
+    ...products.filter(p => !p.deleted_at).map(p => ({ key: 'product:' + p.id, type: 'product' as const, id: p.id, code: '', name: p.name, k: loose(cutAt(p.name, cutProd)) })),
+  ].map(i => ({ ...i })), [references, products, cutRef, cutProd]);
 
   const analyzed = useMemo(() => {
     if (!cols.sku) return [];
@@ -118,17 +118,21 @@ export function ReferenceStockSync({ references, products = [], onConfirm, onClo
       const sku = String(row[cols.sku!] ?? '').trim();
       if (!sku) return;
       const label = cols.label ? String(row[cols.label] ?? '') : '';
-      const kSku = loose(sku);
-      const kLabel = label ? loose(label) : '';
       const mode = matchMode[idx] ?? 'auto';
+      // La coupure au '_' s'applique des deux côtés, selon le type comparé :
+      // références → cutRef sur le sku du fichier, produits → cutProd sur sku et libellé.
+      const kSkuRef = loose(cutAt(sku, cutRef));
+      const kSkuProd = loose(cutAt(sku, cutProd));
+      const kLabelProd = label ? loose(cutAt(label, cutProd)) : '';
       // mode 'code' : comparer uniquement le code/sku ; 'label' : uniquement le libellé ; 'auto' : les deux
-      const keys = mode === 'code' ? [kSku] : mode === 'label' ? (kLabel ? [kLabel] : [kSku]) : [kSku, kLabel].filter(Boolean);
       const scored: Cand[] = [];
       for (const it of items) {
+        const keys = it.type === 'reference'
+          ? [kSkuRef]
+          : mode === 'code' ? [kSkuProd] : mode === 'label' ? (kLabelProd ? [kLabelProd] : [kSkuProd]) : [kSkuProd, kLabelProd].filter(Boolean);
         let best = 0;
         for (const q of keys) {
           const sc = smartScore(q, it.k);
-          if (it.type === 'reference' && mode === 'auto' && q !== keys[0]) continue; // refs: code vs sku only en mode auto
           if (sc > best) best = sc;
         }
         if (best > 0.3) scored.push({ key: it.key, type: it.type, id: it.id, code: it.code, name: it.name, score: Math.round(best * 100) });
