@@ -53,6 +53,9 @@ const smartScore = (a: string, b: string) => {
   return (dScore * dWeight + lScore * lWeight) / (dWeight + lWeight);
 };
 type Cand = { key: string; type: 'reference' | 'product'; id: string; code: string; name: string; score: number };
+type CutMode = 'full' | 'underscore';
+// Coupe la chaîne au premier '_' non inclus si mode 'underscore' : NR20210041_GTAICNC → NR20210041
+const cutAt = (s: string, mode: CutMode) => (mode === 'underscore' ? s.split('_')[0] : s);
 
 const FIELDS: { key: string; label: string; aliases: string[] }[] = [
   { key: 'sku', label: 'Code / Sku (clé de correspondance)', aliases: ['sku'] },
@@ -80,6 +83,8 @@ export function ReferenceStockSync({ references, products = [], onConfirm, onClo
   const [threshold, setThreshold] = useState(85);
   const [choices, setChoices] = useState<Record<number, string>>({});
   const [matchMode, setMatchMode] = useState<Record<number, 'auto' | 'code' | 'label'>>({});
+  const [cutRef, setCutRef] = useState<CutMode>('full');
+  const [cutProd, setCutProd] = useState<CutMode>('full');
 
   const handleFile = async (file: File) => {
     setError('');
