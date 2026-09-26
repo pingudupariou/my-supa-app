@@ -53,6 +53,9 @@ const smartScore = (a: string, b: string) => {
   return (dScore * dWeight + lScore * lWeight) / (dWeight + lWeight);
 };
 type Cand = { key: string; type: 'reference' | 'product'; id: string; code: string; name: string; score: number };
+type CutMode = 'full' | 'underscore';
+// Coupe la chaîne au premier '_' non inclus si mode 'underscore' : NR20210041_GTAICNC → NR20210041
+const cutAt = (s: string, mode: CutMode) => (mode === 'underscore' ? s.split('_')[0] : s);
 
 const FIELDS: { key: string; label: string; aliases: string[] }[] = [
   { key: 'sku', label: 'Code / Sku (clé de correspondance)', aliases: ['sku'] },
@@ -80,6 +83,8 @@ export function ReferenceStockSync({ references, products = [], onConfirm, onClo
   const [threshold, setThreshold] = useState(85);
   const [choices, setChoices] = useState<Record<number, string>>({});
   const [matchMode, setMatchMode] = useState<Record<number, 'auto' | 'code' | 'label'>>({});
+  const [cutRef, setCutRef] = useState<CutMode>('full');
+  const [cutProd, setCutProd] = useState<CutMode>('full');
 
   const handleFile = async (file: File) => {
     setError('');
@@ -102,9 +107,9 @@ export function ReferenceStockSync({ references, products = [], onConfirm, onClo
   };
 
   const items = useMemo(() => [
-    ...references.filter(r => !r.deleted_at).map(r => ({ key: 'reference:' + r.id, type: 'reference' as const, id: r.id, code: r.code, name: r.name, k: loose(r.code) })),
-    ...products.filter(p => !p.deleted_at).map(p => ({ key: 'product:' + p.id, type: 'product' as const, id: p.id, code: '', name: p.name, k: loose(p.name) })),
-  ].map(i => ({ ...i })), [references, products]);
+    ...references.filter(r => !r.deleted_at).map(r => ({ key: 'reference:' + r.id, type: 'reference' as const, id: r.id, code: r.code, name: r.name, k: loose(cutAt(r.code, cutRef)) })),
+    ...products.filter(p => !p.deleted_at).map(p => ({ key: 'product:' + p.id, type: 'product' as const, id: p.id, code: '', name: p.name, k: loose(cutAt(p.name, cutProd)) })),
+  ].map(i => ({ ...i })), [references, products, cutRef, cutProd]);
 
   const analyzed = useMemo(() => {
     if (!cols.sku) return [];
@@ -113,17 +118,21 @@ export function ReferenceStockSync({ references, products = [], onConfirm, onClo
       const sku = String(row[cols.sku!] ?? '').trim();
       if (!sku) return;
       const label = cols.label ? String(row[cols.label] ?? '') : '';
-      const kSku = loose(sku);
-      const kLabel = label ? loose(label) : '';
       const mode = matchMode[idx] ?? 'auto';
+      // La coupure au '_' s'applique des deux côtés, selon le type comparé :
+      // références → cutRef sur le sku du fichier, produits → cutProd sur sku et libellé.
+      const kSkuRef = loose(cutAt(sku, cutRef));
+      const kSkuProd = loose(cutAt(sku, cutProd));
+      const kLabelProd = label ? loose(cutAt(label, cutProd)) : '';
       // mode 'code' : comparer uniquement le code/sku ; 'label' : uniquement le libellé ; 'auto' : les deux
-      const keys = mode === 'code' ? [kSku] : mode === 'label' ? (kLabel ? [kLabel] : [kSku]) : [kSku, kLabel].filter(Boolean);
       const scored: Cand[] = [];
       for (const it of items) {
+        const keys = it.type === 'reference'
+          ? [kSkuRef]
+          : mode === 'code' ? [kSkuProd] : mode === 'label' ? (kLabelProd ? [kLabelProd] : [kSkuProd]) : [kSkuProd, kLabelProd].filter(Boolean);
         let best = 0;
         for (const q of keys) {
           const sc = smartScore(q, it.k);
-          if (it.type === 'reference' && mode === 'auto' && q !== keys[0]) continue; // refs: code vs sku only en mode auto
           if (sc > best) best = sc;
         }
         if (best > 0.3) scored.push({ key: it.key, type: it.type, id: it.id, code: it.code, name: it.name, score: Math.round(best * 100) });
@@ -132,7 +141,7 @@ export function ReferenceStockSync({ references, products = [], onConfirm, onClo
       out.push({ idx, sku, label, cands: scored.slice(0, 5), row });
     });
     return out;
-  }, [rows, cols.sku, cols.label, items, matchMode]);
+  }, [rows, cols.sku, cols.label, items, matchMode, cutRef, cutProd]);
 
   const { matched, ignored, toReview } = useMemo(() => {
     const matched: { type: 'reference' | 'product'; code: string; name: string; score: number; manual: boolean; entry: StockSyncEntry }[] = [];
@@ -182,6 +191,34 @@ export function ReferenceStockSync({ references, products = [], onConfirm, onClo
           <input type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={e => e.target.files?.[0] && handleFile(e.target.files[0])} />
         </label>
         {error && <p className="text-sm text-destructive">{error}</p>}
+
+        {headers.length > 0 && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 border rounded-md p-3">
+            <div className="space-y-1">
+              <label className="text-xs font-medium">Références : partie du code comparée</label>
+              <Select value={cutRef} onValueChange={v => setCutRef(v as CutMode)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="full">Code en entier (ex : NR20210041_GTAICNC)</SelectItem>
+                  <SelectItem value="underscore">Jusqu'au premier « _ » non inclus (ex : NR20210041)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-medium">Produits : partie du nom comparée</label>
+              <Select value={cutProd} onValueChange={v => setCutProd(v as CutMode)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="full">Nom en entier</SelectItem>
+                  <SelectItem value="underscore">Jusqu'au premier « _ » non inclus</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <p className="text-xs text-muted-foreground md:col-span-2">
+              La coupure s'applique des deux côtés (fichier et application) : « NR20210041_GTAICNC » dans l'app et « NR20210041 » dans le fichier matcheront à 100 %.
+            </p>
+          </div>
+        )}
 
         {headers.length > 0 && (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
