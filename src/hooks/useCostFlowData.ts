@@ -16,6 +16,8 @@ export interface CostFlowReference {
   created_at: string;
   updated_at: string;
   deleted_at: string | null;
+  parent_reference_id?: string | null;
+  color_id?: string | null;
 }
 
 export interface CostFlowReferenceFile {
@@ -42,6 +44,8 @@ export interface CostFlowProduct {
   category_id: string | null;
   cost_mode: CostMode;
   manual_unit_cost: number;
+  parent_product_id?: string | null;
+  color_id?: string | null;
   created_at: string;
   updated_at: string;
   deleted_at: string | null;
@@ -106,6 +110,8 @@ function rowToReference(row: any): CostFlowReference {
     created_at: row.created_at,
     updated_at: row.updated_at,
     deleted_at: row.deleted_at || null,
+    parent_reference_id: row.parent_reference_id || null,
+    color_id: row.color_id || null,
   };
 }
 
@@ -149,6 +155,8 @@ export function useCostFlowData() {
         comments: r.comments || '', category_id: r.category_id || null,
         cost_mode: (r.cost_mode as CostMode) || 'bom',
         manual_unit_cost: Number(r.manual_unit_cost) || 0,
+        parent_product_id: r.parent_product_id || null,
+        color_id: r.color_id || null,
         created_at: r.created_at, updated_at: r.updated_at,
         deleted_at: r.deleted_at || null,
       })));
@@ -540,6 +548,7 @@ export function useCostFlowData() {
   };
 
   return {
+    refetch: fetchAll,
     references, products, bom, referenceFiles, suppliers, productCategories, productChannels, loading,
     trashedReferences, trashedProducts,
     createReference, updateReference, deleteReference, bulkCreateReferences,
