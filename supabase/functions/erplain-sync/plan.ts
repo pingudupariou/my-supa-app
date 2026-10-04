@@ -76,9 +76,10 @@ export function computePlan(data: { lines: any[]; stocks: any[]; mos: any[]; bom
     if (need === null) issues.push("Quantité commandée ou expédiée manquante sur une ligne.");
     const reservedInScope = sum(lines.map((l: any) => l.own_reserved));
     if (reservedInScope === null) issues.push("Quantité réservée manquante sur une ligne de commande.");
-    const alreadyLinked = lines.filter((l: any) => l.linked_mo);
-    if (alreadyLinked.length) issues.push(`Commande déjà associée à un OF : ${[...new Set(alreadyLinked.map((l: any) => `${l.order_label ?? l.order_id} → ${l.linked_mo}`))].join(", ")}. Désélectionnez-la pour créer un OF.`);
+    // Per line: what is still uncovered after own reservation and linked MOs (only the complement may be produced).
+    for (const l of lines) l.to_cover = l.remaining == null ? null : Math.max(0, l.remaining - (l.own_reserved ?? 0) - l.mo_alloc);
     const linkedMo = lines.reduce((s: number, l: any) => s + l.mo_alloc, 0);
+    const allCovered = lines.length > 0 && lines.every((l: any) => l.to_cover === 0 && l.own_reserved !== null);
     const st = stockBy.get(g.key);
     if (!st) issues.push("Aucun niveau de stock Erplain pour cette variante à cet emplacement.");
     else if (st.available == null || st.on_hand == null) issues.push("Stock disponible ou réel non renseigné par Erplain.");
@@ -97,17 +98,19 @@ export function computePlan(data: { lines: any[]; stocks: any[]; mos: any[]; bom
     if (routingId != null && !routing) issues.push("Gamme de la variante introuvable parmi les gammes actives.");
 
     const firstDate = lines.map((l: any) => l.line_shipping_at ?? l.order_shipping_at).filter(Boolean).sort()[0] ?? null;
-    const freeLineIds = lines.filter((l: any) => !l.linked_mo && (l.remaining ?? 0) > 0).map((l: any) => Number(l.line_id)).sort((a: number, b: number) => a - b);
+    const uncovered = lines.filter((l: any) => (l.to_cover ?? 0) > 0).sort((a: any, b: any) => Number(a.line_id) - Number(b.line_id));
+    const freeLineIds = uncovered.map((l: any) => Number(l.line_id));
+    const coverage = lines.map((l: any) => ({ line_id: Number(l.line_id), order_label: l.order_label ?? l.order_id, remaining: l.remaining, reserved: l.own_reserved, mo_covered: l.mo_alloc, linked_mo: l.linked_mo, to_cover: l.to_cover }));
     return {
       key: g.key, variant_id: g.variant_id, sku: g.sku, variant_label: g.variant_label, location_id: g.location_id, location_label: g.location_label,
       first_shipping_at: firstDate, lines, other_open_lines: others,
       need, stock: st ? { on_hand: st.on_hand, available: st.available, reserved: st.reserved } : null, reserved_in_scope: reservedInScope, usable,
       mos: mos.map((m) => ({ id: m.id, label: m.label, status: m.status, quantity: m.quantity, remaining_to_produce: m.remaining_to_produce, linked: (m.order_line_item_ids ?? []).length > 0 })),
-      mo_linked: linkedMo, mo_free: freeMo, mo_remaining: moRemaining, to_build: toBuild,
+      mo_linked: linkedMo, mo_free: freeMo, mo_remaining: moRemaining, to_build: allCovered ? 0 : toBuild, all_covered: allCovered, coverage,
       bom: bom ? { id: bom.id, label: bom.label } : null, routing: routing ? { id: routing.id, label: routing.label, steps: (routing.steps ?? []).length } : null,
       bom_components: bom?.components ?? [], free_line_ids: freeLineIds,
       components: [] as any[], buildable: null as number | null, status: "pending" as string, issues,
-      idempotency_key: `v${g.variant_id}|l${g.location_id ?? "none"}|${freeLineIds.join(",")}`,
+      idempotency_key: `v${g.variant_id}|l${g.location_id ?? "none"}|${uncovered.map((l: any) => `${l.line_id}:${l.to_cover}`).join(",")}`,
     };
   }).filter((p) => p.lines.length > 0);
 
@@ -129,6 +132,7 @@ export function computePlan(data: { lines: any[]; stocks: any[]; mos: any[]; bom
 
   proposals.sort((a, b) => String(a.first_shipping_at ?? "9999").localeCompare(String(b.first_shipping_at ?? "9999")));
   for (const p of proposals) {
+    if (p.all_covered) { p.status = "covered"; continue; }
     if (p.to_build === null || p.issues.some((i) => !i.startsWith("Plusieurs"))) { p.status = "incomplete"; continue; }
     if (p.to_build === 0) { p.status = "covered"; continue; }
     if (!p.bom_components.length) { p.status = "incomplete"; p.issues.push("Nomenclature sans composant."); continue; }
