@@ -177,7 +177,20 @@ export function PlanAtelierBoard({ isAdmin }: { isAdmin: boolean }) {
       </Card>
 
       <Card>
-        <CardHeader><CardTitle className="text-base">Plan atelier — besoins par variante et emplacement</CardTitle></CardHeader>
+        <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-3 space-y-0">
+          <CardTitle className="text-base">Plan atelier — besoins par variante et emplacement</CardTitle>
+          <div className="flex items-center gap-2">
+            <Button
+              onClick={sendAll}
+              disabled={!isAdmin || loading || syncing || sending || !proposals.some((p: any) => p.status === 'ready')}
+              variant={realMode ? 'default' : 'outline'}
+              data-readonly-allow="true"
+            >
+              {sending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : realMode ? <Send className="h-4 w-4 mr-2" /> : null}
+              {realMode ? 'Actualiser puis créer les OF dans Erplain' : 'Préparer tous les OF groupés (simulation)'}
+            </Button>
+          </div>
+        </CardHeader>
         <CardContent className="space-y-4">
           <details className="text-xs text-muted-foreground" data-readonly-allow="true">
             <summary className="cursor-pointer">Méthode de calcul</summary>
