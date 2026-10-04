@@ -52,11 +52,11 @@ export function PlanAtelierBoard({ isAdmin }: { isAdmin: boolean }) {
 
   useEffect(() => { loadPlan(); }, [loadPlan]);
 
-  const sync = async (restart: boolean, reload = true) => {
+  const sync = async (restart: boolean, reload = true, quick = false) => {
     setSyncing(true); setError(null);
     try {
       for (let i = 0, first = true; i < 60; i++, first = false) {
-        const d = await call({ action: 'sync', restart: restart && first });
+        const d = await call({ action: 'sync', restart: restart && first, quick });
         if (d.status !== 'success') { setError(`Synchronisation interrompue : ${d.failure ?? d.message}`); break; }
         const c = d.counts ?? {};
         setSyncInfo(`${d.done ? 'Terminé' : `En cours : ${d.current} page ${d.page}`} — commandes ${c.orders ?? 0} (${c.order_lines ?? 0} lignes), stocks ${c.stocks ?? 0}, OF ${c.mos ?? 0}, nomenclatures ${c.boms ?? 0}, gammes ${c.routings ?? 0}`);
@@ -83,7 +83,7 @@ export function PlanAtelierBoard({ isAdmin }: { isAdmin: boolean }) {
     if (real && !window.confirm(`Actualiser puis créer réellement ${ready.length} OF dans Erplain ?`)) return;
     setSending(true);
     if (real) {
-      try { await sync(false, false); } catch (e) { setError((e as Error).message); setSending(false); return; }
+      try { await sync(false, false, true); } catch (e) { setError((e as Error).message); setSending(false); return; }
     }
     for (const p of ready) await createFor(p, real);
     setSending(false);
