@@ -24,13 +24,20 @@ export function PlanAtelierPage() {
   const [sdl, setSdl] = useState<string | null>(null);
   const [schemaLoading, setSchemaLoading] = useState(false);
   const [schemaError, setSchemaError] = useState<string | null>(null);
+  const [steps, setSteps] = useState<any[]>([]);
 
   const loadSchema = async () => {
-    setSchemaLoading(true); setSchemaError(null);
+    setSchemaLoading(true); setSchemaError(null); setSteps([]); setSdl(null);
     const { data, error } = await supabase.functions.invoke('erplain-sync', { body: { action: 'schema_detail' } });
-    if (error) setSchemaError('Appel impossible : ' + error.message);
-    else if ((data as any)?.status !== 'success') setSchemaError((data as any)?.message ?? 'Erreur inconnue');
-    else setSdl((data as any).sdl);
+    const d = data as any;
+    if (error) {
+      const status = (error as any)?.context?.status;
+      setSchemaError(`Appel de la fonction impossible${status ? ` (HTTP ${status})` : ''} : ${error.message}`);
+    } else {
+      setSteps(d?.steps ?? []);
+      if (d?.status !== 'success') setSchemaError(`Échec à l'étape « ${d?.failedStep ?? '?'} » : ${d?.message ?? 'Erreur inconnue'}`);
+      else { setSdl(d.sdl); if (d.partial) setSchemaError(`Résultat partiel (${d.typesCount} types lus) — voir les étapes en échec ci-dessous.`); }
+    }
     setSchemaLoading(false);
   };
 
@@ -113,6 +120,19 @@ export function PlanAtelierPage() {
             }}>Télécharger</Button>}
           </div>
           {schemaError && <p className="text-sm text-destructive">{schemaError}</p>}
+          {steps.length > 0 && (
+            <details className="text-xs" open={!!schemaError}>
+              <summary className="cursor-pointer text-muted-foreground" data-readonly-allow="true">Étapes ({steps.length})</summary>
+              <ul className="mt-2 space-y-1">
+                {steps.map((s, i) => (
+                  <li key={i} className={s.ok ? 'text-muted-foreground' : 'text-destructive'}>
+                    {s.ok ? '✓' : '✗'} {s.step} — HTTP {s.httpStatus ?? 'n/a'} — {s.ms} ms{s.bytes ? ` — ${Math.round(s.bytes / 1024)} Ko` : ''}
+                    {s.errors?.length ? <ul className="pl-4 list-disc">{s.errors.map((e: string, j: number) => <li key={j}>{e}</li>)}</ul> : null}
+                  </li>
+                ))}
+              </ul>
+            </details>
+          )}
           {sdl && <pre className="text-xs max-h-[500px] overflow-auto rounded-md border bg-muted p-3 whitespace-pre">{sdl}</pre>}
         </CardContent>
       </Card>
