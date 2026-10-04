@@ -35,8 +35,9 @@ async function handleData(action: string, body: any, admin: any, token: string, 
     const data = await loadPlanData(admin);
     const { data: run } = await admin.from("erplain_sync_runs").select("*").order("started_at", { ascending: false }).limit(1).maybeSingle();
     const { data: subs } = await admin.from("erplain_mo_submissions").select("*").order("created_at", { ascending: false });
+    const { data: settings } = await admin.from("erplain_mo_settings").select("reference_prefix").eq("id", 1).maybeSingle();
     const plan = computePlan(data, { includePending: !!body.includePending, selectedLineIds: Array.isArray(body.selectedLineIds) ? body.selectedLineIds : null });
-    return json({ status: "success", lastRun: run, ...plan, submissions: subs ?? [],
+    return json({ status: "success", lastRun: run, ...plan, submissions: subs ?? [], referencePrefix: settings?.reference_prefix ?? "NOV-OF-",
       stocks: data.stocks.map((s: any) => ({ variant_id: s.variant_id, location_id: s.location_id, on_hand: s.on_hand, available: s.available, reserved: s.reserved, incoming: s.incoming, synced_at: s.synced_at })),
       writeEnabled: Deno.env.get("ERPLAIN_ALLOW_WRITE") === "true",
       counts: { lines: data.lines.length, stocks: data.stocks.length, mos: data.mos.length, boms: data.boms.length, routings: data.routings.length } });
@@ -113,7 +114,13 @@ async function handleData(action: string, body: any, admin: any, token: string, 
       current: DATASETS[list[cursor.ds]]?.root ?? null, page: cursor.page, steps: steps.slice(-30), durationMs: Date.now() - t0 });
   }
 
-  if (["mo_refresh", "mo_update", "mo_delete", "mo_transition"].includes(action)) return await handleMo(action, body, admin, gql, steps);
+  if (action === "set_prefix") {
+    const prefix = String(body.prefix ?? "").trim();
+    if (!/^[A-Za-z0-9._\-\/]{1,20}$/.test(prefix)) return json({ status: "blocked", message: "Racine invalide (1 à 20 caractères : lettres, chiffres, - _ . /)." });
+    const { error } = await admin.from("erplain_mo_settings").update({ reference_prefix: prefix, updated_at: new Date().toISOString(), updated_by: userId }).eq("id", 1);
+    return json(error ? { status: "api_error", message: error.message } : { status: "success", message: `Racine enregistrée : ${prefix}` });
+  }
+  if (["mo_refresh", "mo_update", "mo_transition"].includes(action)) return await handleMo(action, body, admin, gql, steps);
 
   // create_mo: re-check everything server-side, never trust the client figures.
   const wanted: string = String(body.key ?? "");
@@ -327,7 +334,7 @@ Deno.serve(async (req) => {
     let body: any = {};
     try { body = (await req.json()) ?? {}; action = body.action ?? "test"; } catch { /* no body */ }
 
-    if (["sync", "plan", "create_mo", "mo_refresh", "mo_update", "mo_delete", "mo_transition"].includes(action)) {
+    if (["sync", "plan", "create_mo", "mo_refresh", "mo_update", "mo_transition", "set_prefix"].includes(action)) {
       return await handleData(action, body, admin, token, claims.claims.sub as string);
     }
 
