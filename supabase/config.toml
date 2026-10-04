@@ -2,3 +2,6 @@ project_id = "twkcoxagbajvopzzinor"
 
 [functions.list-users]
 verify_jwt = false
+
+[functions.erplain-sync]
+verify_jwt = false

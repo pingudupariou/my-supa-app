@@ -30,6 +30,7 @@ import { ChatPage } from "@/pages/ChatPage";
 import { ResetPasswordPage } from "@/pages/ResetPasswordPage";
 import { TasksPage } from "@/pages/TasksPage";
 import { SAVPage } from "@/pages/SAVPage";
+import { PlanAtelierPage } from "@/pages/PlanAtelierPage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -158,6 +159,13 @@ const App = () => (
               </ProtectedRoute>
               } />
               
+              <Route path="/plan-atelier" element={
+                <ProtectedRoute tabKey="plan-atelier">
+                  <DashboardLayout>
+                    <PlanAtelierPage />
+                  </DashboardLayout>
+                </ProtectedRoute>
+              } />
               <Route path="/planning-dev" element={
                 <ProtectedRoute tabKey="planning-dev">
                   <DashboardLayout>
