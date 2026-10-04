@@ -267,6 +267,11 @@ async function refreshMo(admin: any, gql: any, sub: any) {
       await admin.from("erplain_mo_submissions").update({ ...(cancelled ? { status: "cancelled" } : {}), erplain_status: hit.status, erplain_snapshot: { ...(sub.erplain_snapshot ?? {}), ...hit }, erplain_synced_at: new Date().toISOString(), updated_at: new Date().toISOString() }).eq("id", sub.id);
       return { erplain: hit };
     }
+    // Fallback list read succeeded without error but the MO is not there: confirmed absence.
+    if (f.httpStatus === 200 && !f.timeout && f.errors.length === 0) {
+      await admin.from("erplain_mo_submissions").update({ status: "deleted", erplain_status: "absent", deleted_at: new Date().toISOString(), erplain_synced_at: new Date().toISOString() }).eq("id", sub.id);
+      return { refreshError: "OF introuvable dans Erplain (supprimé ?)." };
+    }
     return { refreshError: (r.errors.join(" | ") || "délai dépassé").slice(0, 200) };
   }
   const m = notFound ? null : r.data?.ManufacturingOrder;
