@@ -169,7 +169,7 @@ export function PlanAtelierBoard({ isAdmin }: { isAdmin: boolean }) {
                     <Fragment key={o.id}>
                       <tr className="border-t bg-muted/30">
                         <td className="p-2" data-readonly-allow="true"><Checkbox checked={all} onCheckedChange={(v) => toggle(ids, !!v)} /></td>
-                        <td className="p-2 font-medium" colSpan={9}>{o.label ?? o.id} <span className="text-xs text-muted-foreground">({o.status}, {o.lines.length} ligne(s){o.created ? `, créée ${String(o.created).slice(0, 10)}` : ''})</span></td>
+                        <td className="p-2 font-medium" colSpan={11}>{o.label ?? o.id} <span className="text-xs text-muted-foreground">({o.status}, {o.lines.length} ligne(s){o.created ? `, créée ${String(o.created).slice(0, 10)}` : ''})</span></td>
                       </tr>
                       {o.lines.map((l: any) => (
                         <tr key={l.line_id} className="border-t">
@@ -179,13 +179,13 @@ export function PlanAtelierBoard({ isAdmin }: { isAdmin: boolean }) {
                           <td className="p-2"><div>{l.sku}</div><div className="text-xs text-muted-foreground">{l.variant_label}</div></td>
                           <td className="p-2">{l.location_label ?? '—'}</td>
                           <td className="p-2">{fmt(l.quantity)}</td><td className="p-2">{fmt(l.shipped_quantity)}</td>
-                          <td className="p-2 font-semibold">{fmt(l.remaining)}</td><td className="p-2">{fmt(l.reserved_quantity)}</td><td className="p-2">{l.linked_mo ?? '—'}</td>
+                          <td className="p-2 font-semibold">{fmt(l.remaining)}</td><td className="p-2">{fmt(l.reserved_quantity)}</td>{(() => { const st = stockBy.get(`${l.variant_id}|${l.location_id ?? 'none'}`); return <><td className="p-2">{st ? fmt(st.on_hand) : '—'}</td><td className="p-2">{st ? fmt(st.reserved) : '—'}</td></>; })()}<td className="p-2">{l.linked_mo ?? '—'}</td>
                         </tr>
                       ))}
                     </Fragment>
                   );
                 })}
-                {!orders.length && <tr><td colSpan={10} className="p-4 text-center text-muted-foreground">Aucune commande active restant à expédier.</td></tr>}
+                {!orders.length && <tr><td colSpan={12} className="p-4 text-center text-muted-foreground">Aucune commande active restant à expédier.</td></tr>}
               </tbody>
             </table>
           </div>
