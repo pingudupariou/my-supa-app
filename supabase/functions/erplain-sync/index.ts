@@ -51,92 +51,180 @@ Deno.serve(async (req) => {
 
     if (action === "schema_detail") {
       const t0 = Date.now();
+      const BUDGET_MS = 110000;
+      const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
       const TR = `kind name ofType { kind name ofType { kind name ofType { kind name } } }`;
-      const TYPE_BODY = `kind name description
-        fields(includeDeprecated: true) { name description args { name description type { ${TR} } } type { ${TR} } }
-        inputFields { name description type { ${TR} } }
-        enumValues(includeDeprecated: true) { name description }`;
       const steps: { step: string; endpoint?: string; httpStatus: number | null; ms: number; bytes?: number; errors?: string[]; ok: boolean }[] = [];
-      const gql = async (step: string, endpoint: string, query: string) => {
-        const s = Date.now();
-        try {
-          const r = await fetch(endpoint, { method: "POST",
-            headers: { "Content-Type": "application/json", Accept: "application/json", Authorization: `Bearer ${token}` },
-            body: JSON.stringify({ query }), signal: AbortSignal.timeout(20000) });
-          const text = await r.text();
-          let body: any = null; try { body = JSON.parse(text); } catch { /* */ }
-          const errors = body ? (body.errors ?? []).map((e: any) => String(e?.message ?? "")).slice(0, 8) : [`Réponse non JSON: ${text.slice(0, 200)}`];
-          const ok = r.ok && !!body?.data;
-          steps.push({ step, endpoint, httpStatus: r.status, ms: Date.now() - s, bytes: text.length, errors: errors.length ? errors : undefined, ok });
-          if (!ok) console.error(`erplain schema step "${step}" failed`, r.status, errors.join(" | ").slice(0, 500));
-          return ok ? body.data : null;
-        } catch (e) {
-          const msg = String((e as Error).message).slice(0, 200);
-          steps.push({ step, endpoint, httpStatus: null, ms: Date.now() - s, errors: [msg], ok: false });
-          console.error(`erplain schema step "${step}" exception`, msg);
-          return null;
+      let lastCall = 0;
+      let gap = 2000;
+      const isComplexity = (errs: string[]) => errs.some((m) => /complex/i.test(m));
+
+      // One sequential call: 2s between calls, 429 => Retry-After or exponential backoff.
+      const gql = async (step: string, endpoint: string, query: string): Promise<{ data: any; errors: string[]; complexity: boolean; timeout?: boolean }> => {
+        for (let attempt = 0; attempt < 4; attempt++) {
+          const wait = lastCall + gap - Date.now();
+          if (wait > 0) await sleep(wait);
+          if (Date.now() - t0 > BUDGET_MS) return { data: null, errors: ["Délai d'exécution atteint"], complexity: false, timeout: true };
+          const s = Date.now(); lastCall = s;
+          try {
+            const r = await fetch(endpoint, { method: "POST",
+              headers: { "Content-Type": "application/json", Accept: "application/json", Authorization: `Bearer ${token}` },
+              body: JSON.stringify({ query }), signal: AbortSignal.timeout(20000) });
+            const text = await r.text();
+            if (r.status === 429) {
+              const ra = Number(r.headers.get("Retry-After"));
+              const delay = Number.isFinite(ra) && ra > 0 ? ra * 1000 : gap * 2;
+              gap = Math.min(Math.max(gap * 1.5, 2000), 15000);
+              steps.push({ step: `${step} (429, attente ${Math.round(delay / 1000)} s)`, endpoint, httpStatus: 429, ms: Date.now() - s, ok: false, errors: ["Trop de requêtes"] });
+              console.error(`erplain schema 429 on "${step}", waiting ${delay}ms`);
+              if (Date.now() - t0 + delay > BUDGET_MS) return { data: null, errors: ["Délai d'exécution atteint"], complexity: false, timeout: true };
+              await sleep(delay);
+              continue;
+            }
+            let body: any = null; try { body = JSON.parse(text); } catch { /* */ }
+            const errors: string[] = body ? (body.errors ?? []).map((e: any) => String(e?.message ?? "")).slice(0, 8) : [`Réponse non JSON: ${text.slice(0, 200)}`];
+            const ok = r.ok && !!body?.data && !errors.length;
+            steps.push({ step, endpoint, httpStatus: r.status, ms: Date.now() - s, bytes: text.length, errors: errors.length ? errors : undefined, ok });
+            if (!ok) console.error(`erplain schema step "${step}" failed`, r.status, errors.join(" | ").slice(0, 500));
+            return { data: ok ? body.data : null, errors, complexity: isComplexity(errors) };
+          } catch (e) {
+            const msg = String((e as Error).message).slice(0, 200);
+            steps.push({ step, endpoint, httpStatus: null, ms: Date.now() - s, errors: [msg], ok: false });
+            console.error(`erplain schema step "${step}" exception`, msg);
+            return { data: null, errors: [msg], complexity: false };
+          }
         }
+        return { data: null, errors: ["429 persistant"], complexity: false };
       };
 
-      // Step 1: find working endpoint (same as test)
-      let endpoint = ""; let root: any = null;
-      for (const ep of ENDPOINTS) {
-        root = await gql("racine", ep, `{ __schema { queryType { name } mutationType { name } } }`);
-        if (root) { endpoint = ep; break; }
+      // Cache (resume without restarting)
+      const cache = new Map<string, any>();
+      const { data: cached } = await admin.from("erplain_schema_cache").select("type_name, data");
+      (cached ?? []).forEach((c: any) => cache.set(c.type_name, c.data));
+      const save = async (name: string, data: any) => {
+        cache.set(name, data);
+        await admin.from("erplain_schema_cache").upsert({ type_name: name, data, fetched_at: new Date().toISOString() });
+      };
+
+      // Step 1: endpoint + root names
+      let endpoint = cache.get("__root")?.endpoint ?? "";
+      if (!endpoint) {
+        for (const ep of ENDPOINTS) {
+          const r = await gql("racine", ep, `{ __schema { queryType { name } mutationType { name } } }`);
+          if (r.data) { endpoint = ep; await save("__root", { endpoint: ep, query: r.data.__schema.queryType?.name, mutation: r.data.__schema.mutationType?.name }); break; }
+        }
+        if (!endpoint) return json({ status: "api_error", failedStep: "racine", message: "Lecture des types racines impossible.", steps });
       }
-      if (!root) return json({ status: "api_error", failedStep: "racine", message: "Lecture des types racines impossible.", steps });
+      const root = cache.get("__root");
 
-      const types = new Map<string, any>();
-      const fetchTypes = async (names: string[], label: string) => {
-        for (let i = 0; i < names.length; i += 8) {
-          if (Date.now() - t0 > 100000) { steps.push({ step: "arrêt (délai)", httpStatus: null, ms: 0, ok: false, errors: ["Limite de temps atteinte, résultat partiel"] }); return false; }
-          const batch = names.slice(i, i + 8);
-          const q = `{ ${batch.map((n, k) => `t${k}: __type(name: ${JSON.stringify(n)}) { ${TYPE_BODY} }`).join(" ")} }`;
-          const d = await gql(`${label} [${batch.join(", ")}]`, endpoint, q);
-          if (d) batch.forEach((_, k) => { if (d[`t${k}`]) types.set(d[`t${k}`].name, d[`t${k}`]); });
+      // Read ONE type, progressively simplified if complexity is exceeded.
+      const readType = async (name: string): Promise<"ok" | "fail" | "timeout"> => {
+        const n = JSON.stringify(name);
+        const head = await gql(`${name} : nature`, endpoint, `{ __type(name: ${n}) { kind name description } }`);
+        if (head.timeout) return "timeout";
+        if (!head.data?.__type) return "fail";
+        const t: any = { ...head.data.__type };
+        const part = async (label: string, sel: string): Promise<any[] | null | "timeout"> => {
+          const r = await gql(`${name} : ${label}`, endpoint, `{ __type(name: ${n}) { ${sel} } }`);
+          if (r.timeout) return "timeout";
+          if (!r.data?.__type) return r.complexity ? null : [];
+          const key = Object.keys(r.data.__type)[0];
+          return r.data.__type[key] ?? [];
+        };
+        if (t.kind === "ENUM") {
+          const v = await part("valeurs", `enumValues(includeDeprecated: true) { name description }`);
+          if (v === "timeout") return "timeout";
+          t.enumValues = v ?? [];
+        } else if (t.kind === "INPUT_OBJECT") {
+          let v = await part("champs d'entrée", `inputFields { name description type { ${TR} } }`);
+          if (v === "timeout") return "timeout";
+          if (v === null) { v = await part("champs d'entrée (simplifié)", `inputFields { name type { ${TR} } }`); if (v === "timeout") return "timeout"; }
+          t.inputFields = v ?? [];
+        } else if (t.kind === "OBJECT" || t.kind === "INTERFACE") {
+          let f = await part("champs", `fields(includeDeprecated: true) { name description type { ${TR} } }`);
+          if (f === "timeout") return "timeout";
+          if (f === null) { f = await part("champs (simplifié)", `fields(includeDeprecated: true) { name type { ${TR} } }`); if (f === "timeout") return "timeout"; }
+          const a = await part("arguments", `fields(includeDeprecated: true) { name args { name type { ${TR} } } }`);
+          if (a === "timeout") return "timeout";
+          let argMap = new Map<string, any[]>();
+          if (a === null) {
+            // too complex: read args field-by-field is impossible via __type; fall back to arg names + shallow type
+            const a2 = await part("arguments (simplifié)", `fields(includeDeprecated: true) { name args { name type { kind name ofType { kind name ofType { kind name } } } } }`);
+            if (a2 === "timeout") return "timeout";
+            (a2 ?? []).forEach((x: any) => argMap.set(x.name, x.args ?? []));
+          } else (a ?? []).forEach((x: any) => argMap.set(x.name, x.args ?? []));
+          t.fields = (f ?? []).map((x: any) => ({ ...x, args: argMap.get(x.name) ?? [] }));
+        } else if (t.kind === "UNION") {
+          const p = await part("types possibles", `possibleTypes { kind name }`);
+          if (p === "timeout") return "timeout";
+          t.possibleTypes = p ?? [];
         }
-        return true;
+        await save(name, t);
+        return "ok";
       };
-      const rootNames = [root.__schema.queryType?.name, root.__schema.mutationType?.name].filter(Boolean);
-      await fetchTypes(rootNames, "Query/Mutation");
-      if (!types.size) return json({ status: "api_error", failedStep: "Query/Mutation", message: "Champs racines illisibles.", steps });
 
       const named = (t: any): string | null => { while (t?.ofType) t = t.ofType; return t?.name ?? null; };
-      const refs = (t: any): string[] => {
-        const out: string[] = [];
-        for (const f of [...(t.fields ?? []), ...(t.inputFields ?? [])]) {
-          const n = named(f.type); if (n) out.push(n);
-          for (const a of f.args ?? []) { const m = named(a.type); if (m) out.push(m); }
-        }
-        return out;
-      };
-      const KW = /order|stock|inventor|manufactur|production|work|bom|nomencl|component|routing|gamme|operation|variant|location|warehouse|product|item|reserv|ship|deliver|status|page|connection|edge|filter/i;
       const BUILTIN = new Set(["String", "Int", "Float", "Boolean", "ID"]);
-      // Relevant root fields only (query side), plus all their arg/return types
-      const q = types.get(root.__schema.queryType.name);
-      let frontier = new Set<string>();
-      for (const f of q?.fields ?? []) if (KW.test(f.name)) {
-        const n = named(f.type); if (n) frontier.add(n);
-        for (const a of f.args ?? []) { const m = named(a.type); if (m) frontier.add(m); }
+      const KW = /order|stock|inventor|manufactur|production|assembl|bom|nomencl|component|routing|gamme|operation|variant|location|warehouse|reserv|shipment|deliver/i;
+      const MAX_TYPES = 200;
+
+      // Root Query (and Mutation names only, never executed)
+      let stopped = false;
+      for (const rn of [root.query, root.mutation].filter(Boolean)) {
+        if (!cache.has(rn)) { const r = await readType(rn); if (r === "timeout") { stopped = true; break; } }
       }
-      for (let depth = 0; depth < 4 && frontier.size; depth++) {
-        const todo = [...frontier].filter((n) => !types.has(n) && !BUILTIN.has(n) && !n.startsWith("__")).slice(0, 120);
-        if (!todo.length) break;
-        if (!(await fetchTypes(todo, `types niveau ${depth + 1}`))) break;
-        const next = new Set<string>();
-        for (const n of todo) { const t = types.get(n); if (t) refs(t).forEach((r) => (depth < 1 || KW.test(r) || types.get(r)?.kind === "ENUM" || true) && next.add(r)); }
-        frontier = next;
-        if (types.size > 400) break;
+
+      // BFS from relevant Query fields only
+      const failed = new Set<string>();
+      const relevant: string[] = [];
+      if (!stopped && cache.has(root.query)) {
+        const q = cache.get(root.query);
+        const roots = (q.fields ?? []).filter((f: any) => KW.test(f.name));
+        let frontier: string[] = [];
+        for (const f of roots) {
+          const n = named(f.type); if (n) frontier.push(n);
+          for (const a of f.args ?? []) { const m = named(a.type); if (m) frontier.push(m); }
+        }
+        const seen = new Set<string>();
+        for (let depth = 0; depth < 4 && frontier.length && !stopped; depth++) {
+          const next: string[] = [];
+          for (const n of frontier) {
+            if (seen.has(n) || BUILTIN.has(n) || n.startsWith("__")) continue;
+            seen.add(n);
+            if (seen.size > MAX_TYPES) break;
+            relevant.push(n);
+            if (!cache.has(n)) {
+              const r = await readType(n);
+              if (r === "timeout") { stopped = true; break; }
+              if (r === "fail") { failed.add(n); continue; }
+            }
+            const t = cache.get(n);
+            // Dependencies: fields' return types, args' input types, input fields
+            for (const f of [...(t.fields ?? []), ...(t.inputFields ?? [])]) {
+              const r = named(f.type); if (r && (depth < 2 || KW.test(r) || /status|state|type|input|filter|page|connection|edge|node/i.test(r))) next.push(r);
+              for (const a of f.args ?? []) { const m = named(a.type); if (m) next.push(m); }
+            }
+            (t.possibleTypes ?? []).forEach((p: any) => p.name && next.push(p.name));
+          }
+          frontier = next;
+        }
       }
 
       const fmt = (t: any): string => !t ? "?" : t.kind === "NON_NULL" ? fmt(t.ofType) + "!" : t.kind === "LIST" ? `[${fmt(t.ofType)}]` : t.name;
-      const lines: string[] = [`# Endpoint: ${endpoint}`, `# Types lus: ${types.size}`, ""];
-      const order = [...rootNames, ...[...types.keys()].filter((n) => !rootNames.includes(n)).sort()];
-      for (const n of order) {
-        const t = types.get(n); if (!t) continue;
+      const complete = !stopped && failed.size === 0;
+      const lines: string[] = [`# Endpoint: ${endpoint}`, `# Types lus: ${[...cache.keys()].filter((k) => k !== "__root").length}`,
+        `# Statut: ${complete ? "complet" : "partiel — relancer pour reprendre"}`, ""];
+      const typeNames = [root.query, root.mutation, ...[...cache.keys()].filter((k) => k !== "__root" && k !== root.query && k !== root.mutation).sort()].filter(Boolean);
+      for (const n of typeNames) {
+        const t = cache.get(n); if (!t) continue;
+        if (n === root.mutation) {
+          lines.push(`type ${n} {  # noms uniquement, jamais exécutées`);
+          (t.fields ?? []).forEach((f: any) => lines.push(`  ${f.name}`)); lines.push("}"); continue;
+        }
         if (t.kind === "SCALAR") { lines.push(`scalar ${t.name}`); continue; }
-        if (t.kind === "ENUM") { lines.push(`enum ${t.name} {`); (t.enumValues ?? []).forEach((v: any) => lines.push(`  ${v.name}${v.description ? "  # " + v.description : ""}`)); lines.push("}"); continue; }
-        const kw = t.kind === "INPUT_OBJECT" ? "input" : t.kind === "INTERFACE" ? "interface" : t.kind === "UNION" ? "union" : "type";
+        if (t.kind === "ENUM") { lines.push(`enum ${t.name} {${t.description ? "  # " + t.description : ""}`); (t.enumValues ?? []).forEach((v: any) => lines.push(`  ${v.name}${v.description ? "  # " + v.description : ""}`)); lines.push("}"); continue; }
+        if (t.kind === "UNION") { lines.push(`union ${t.name} = ${(t.possibleTypes ?? []).map((p: any) => p.name).join(" | ")}`); continue; }
+        const kw = t.kind === "INPUT_OBJECT" ? "input" : t.kind === "INTERFACE" ? "interface" : "type";
         lines.push(`${kw} ${t.name} {${t.description ? "  # " + t.description : ""}`);
         for (const f of t.fields ?? t.inputFields ?? []) {
           const args = f.args?.length ? `(${f.args.map((a: any) => `${a.name}: ${fmt(a.type)}`).join(", ")})` : "";
@@ -144,9 +232,9 @@ Deno.serve(async (req) => {
         }
         lines.push("}");
       }
-      const failed = steps.filter((s) => !s.ok && s.step !== "racine");
-      return json({ status: "success", partial: failed.length > 0, endpoint, typesCount: types.size,
-        durationMs: Date.now() - t0, sdl: lines.join("\n"), steps });
+      if (failed.size) lines.push("", `# Types illisibles: ${[...failed].join(", ")}`);
+      return json({ status: "success", partial: !complete, endpoint, typesCount: typeNames.length,
+        failedTypes: [...failed], durationMs: Date.now() - t0, sdl: lines.join("\n"), steps });
     }
 
 
