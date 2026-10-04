@@ -1,0 +1,1 @@
+ALTER TABLE public.erplain_order_lines ADD COLUMN line_type text, ADD COLUMN parent_id bigint, ADD COLUMN kit_line_item_id text, ADD COLUMN variant_type text;

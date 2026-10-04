@@ -1634,14 +1634,17 @@ export type Database = {
           committed_quantity: number | null
           delivered_quantity: number | null
           delivery_status: string | null
+          kit_line_item_id: string | null
           line_id: number
           line_shipping_at: string | null
+          line_type: string | null
           location_id: number | null
           location_label: string | null
           order_id: number
           order_label: string | null
           order_shipping_at: string | null
           order_status: string | null
+          parent_id: number | null
           quantity: number | null
           reserved_quantity: number | null
           run_id: string | null
@@ -1652,19 +1655,23 @@ export type Database = {
           synced_at: string
           variant_id: number | null
           variant_label: string | null
+          variant_type: string | null
         }
         Insert: {
           committed_quantity?: number | null
           delivered_quantity?: number | null
           delivery_status?: string | null
+          kit_line_item_id?: string | null
           line_id: number
           line_shipping_at?: string | null
+          line_type?: string | null
           location_id?: number | null
           location_label?: string | null
           order_id: number
           order_label?: string | null
           order_shipping_at?: string | null
           order_status?: string | null
+          parent_id?: number | null
           quantity?: number | null
           reserved_quantity?: number | null
           run_id?: string | null
@@ -1675,19 +1682,23 @@ export type Database = {
           synced_at?: string
           variant_id?: number | null
           variant_label?: string | null
+          variant_type?: string | null
         }
         Update: {
           committed_quantity?: number | null
           delivered_quantity?: number | null
           delivery_status?: string | null
+          kit_line_item_id?: string | null
           line_id?: number
           line_shipping_at?: string | null
+          line_type?: string | null
           location_id?: number | null
           location_label?: string | null
           order_id?: number
           order_label?: string | null
           order_shipping_at?: string | null
           order_status?: string | null
+          parent_id?: number | null
           quantity?: number | null
           reserved_quantity?: number | null
           run_id?: string | null
@@ -1698,6 +1709,7 @@ export type Database = {
           synced_at?: string
           variant_id?: number | null
           variant_label?: string | null
+          variant_type?: string | null
         }
         Relationships: []
       }

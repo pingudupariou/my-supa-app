@@ -1,6 +1,170 @@
-// Erplain connection test — READ-ONLY. Only runs a GraphQL introspection query.
-// No mutation is ever sent to Erplain from this function.
+// Erplain connection, schema reading, read-only data sync and workshop plan.
+// The only mutation ever sent is CreateManufacturingOrder, and only when the server secret
+// ERPLAIN_ALLOW_WRITE is "true" and the admin explicitly confirms. Otherwise it is a dry run.
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { DATASETS, FILTER_TYPES, makeGql, pageQuery, whereColumns } from "./erplain.ts";
+import { computePlan, moPayload } from "./plan.ts";
+
+const DEFAULT_ENDPOINT = "https://api.erplain.app/graphql";
+
+async function loadAll(admin: any, table: string) {
+  const out: any[] = [];
+  for (let from = 0; ; from += 1000) {
+    const { data, error } = await admin.from(table).select("*").range(from, from + 999);
+    if (error) throw new Error(`${table}: ${error.message}`);
+    out.push(...(data ?? []));
+    if (!data || data.length < 1000) break;
+  }
+  return out;
+}
+
+async function loadPlanData(admin: any) {
+  const [lines, stocks, mos, boms, routings] = await Promise.all(
+    ["erplain_order_lines", "erplain_stock_levels", "erplain_manufacturing_orders", "erplain_boms", "erplain_routings"].map((t) => loadAll(admin, t)));
+  return { lines, stocks, mos, boms, routings };
+}
+
+async function handleData(action: string, body: any, admin: any, token: string, userId: string): Promise<Response> {
+  const t0 = Date.now();
+  const steps: any[] = [];
+  const { data: rootRow } = await admin.from("erplain_schema_cache").select("data").eq("type_name", "__root").maybeSingle();
+  const endpoint = rootRow?.data?.endpoint ?? DEFAULT_ENDPOINT;
+  const gql = makeGql(token, endpoint, t0 + 105000, (s) => steps.push(s));
+
+  if (action === "plan") {
+    const data = await loadPlanData(admin);
+    const { data: run } = await admin.from("erplain_sync_runs").select("*").order("started_at", { ascending: false }).limit(1).maybeSingle();
+    const { data: subs } = await admin.from("erplain_mo_submissions").select("*").order("created_at", { ascending: false });
+    const plan = computePlan(data, { includePending: !!body.includePending });
+    return json({ status: "success", lastRun: run, ...plan, submissions: subs ?? [],
+      writeEnabled: Deno.env.get("ERPLAIN_ALLOW_WRITE") === "true",
+      counts: { lines: data.lines.length, stocks: data.stocks.length, mos: data.mos.length, boms: data.boms.length, routings: data.routings.length } });
+  }
+
+  if (action === "sync") {
+    // Resume the last unfinished run, or start a new one.
+    let { data: run } = await admin.from("erplain_sync_runs").select("*").eq("status", "running").order("started_at", { ascending: false }).limit(1).maybeSingle();
+    if (body.restart && run) { await admin.from("erplain_sync_runs").update({ status: "abandoned", finished_at: new Date().toISOString() }).eq("id", run.id); run = null; }
+    if (!run) {
+      const { data: created, error } = await admin.from("erplain_sync_runs").insert({ cursor: { ds: 0, page: 1 }, started_by: userId }).select().single();
+      if (error) return json({ status: "api_error", message: error.message });
+      run = created;
+    }
+    const cursor = { ...run.cursor };
+    const counts = { ...run.counts };
+    const notes: string[] = [...(run.notes ?? [])];
+    let failure: string | null = null;
+    let timedOut = false;
+
+    while (cursor.ds < DATASETS.length) {
+      const ds = DATASETS[cursor.ds];
+      if (cursor.filter === undefined) {
+        const ft = FILTER_TYPES[ds.key];
+        if (ft) {
+          const cols = await whereColumns(admin, gql, ft.type);
+          if (cols === "timeout") { timedOut = true; break; }
+          cursor.filter = cols ? ft.build(cols) : null;
+          notes.push(cursor.filter ? `${ds.root} : filtre statut appliqué côté Erplain.` : `${ds.root} : colonne STATUS absente du schéma, lecture complète puis filtre local.`);
+        } else cursor.filter = null;
+      }
+      cursor.size = cursor.size ?? ds.size;
+      const r = await gql(`${ds.root} page ${cursor.page} (×${cursor.size})`, pageQuery(ds, cursor.filter, cursor.size, cursor.page));
+      if (r.timeout) { timedOut = true; break; }
+      if (r.complexity && cursor.size > 1) { cursor.size = Math.max(1, Math.floor(cursor.size / 2)); continue; }
+      if (r.errors.length && cursor.filter && cursor.page === 1 && !cursor.filterFailed) {
+        notes.push(`${ds.root} : filtre statut refusé (${r.errors[0]}), lecture sans filtre.`);
+        cursor.filter = null; cursor.filterFailed = true; continue;
+      }
+      const page = r.data?.[ds.root];
+      if (r.errors.length || !page) {
+        failure = `${ds.root} page ${cursor.page} : HTTP ${r.httpStatus ?? "n/a"} — ${r.errors.join(" | ") || "réponse vide"}`;
+        break;
+      }
+      const rows = (page.data ?? []).flatMap((item: any) => ds.rows(item, run.id));
+      if (rows.length) {
+        const { error } = await admin.from(ds.table).upsert(rows, { onConflict: ds.idCol });
+        if (error) { failure = `Enregistrement ${ds.table} : ${error.message}`; break; }
+      }
+      counts[ds.key] = (counts[ds.key] ?? 0) + (page.data ?? []).length;
+      if (ds.key === "orders") counts.order_lines = (counts.order_lines ?? 0) + rows.length;
+      if (page.paginatorInfo?.hasMorePages) { cursor.page++; }
+      else {
+        // Dataset complete: remove rows no longer returned by Erplain.
+        await admin.from(ds.table).delete().or(`run_id.is.null,run_id.neq.${run.id}`);
+        cursor.ds++; cursor.page = 1; cursor.size = undefined; cursor.filter = undefined; cursor.filterFailed = undefined;
+      }
+      await admin.from("erplain_sync_runs").update({ cursor, counts, notes }).eq("id", run.id);
+    }
+    const done = cursor.ds >= DATASETS.length;
+    const status = failure ? "failed" : done ? "completed" : "running";
+    await admin.from("erplain_sync_runs").update({ cursor, counts, notes, status, error: failure,
+      finished_at: done || failure ? new Date().toISOString() : null }).eq("id", run.id);
+    return json({ status: failure ? "api_error" : "success", done, timedOut, failure, runId: run.id, counts, notes,
+      current: DATASETS[cursor.ds]?.root ?? null, page: cursor.page, steps: steps.slice(-30), durationMs: Date.now() - t0 });
+  }
+
+  // create_mo: re-check everything server-side, never trust the client figures.
+  const wanted: string = String(body.key ?? "");
+  const confirm = body.confirm === true;
+  const { data: lastRun } = await admin.from("erplain_sync_runs").select("*").eq("status", "completed").order("finished_at", { ascending: false }).limit(1).maybeSingle();
+  if (!lastRun || Date.now() - new Date(lastRun.finished_at).getTime() > 30 * 60 * 1000)
+    return json({ status: "blocked", message: "Données Erplain trop anciennes (plus de 30 min) : actualisez depuis Erplain avant l'envoi." });
+
+  // Fresh read of open MOs (duplicate protection against MOs created meanwhile in Erplain).
+  const mosDs = DATASETS.find((d) => d.key === "mos")!;
+  const cols = await whereColumns(admin, gql, FILTER_TYPES.mos.type);
+  const filter = Array.isArray(cols) ? FILTER_TYPES.mos.build(cols) : null;
+  const freshMos: any[] = [];
+  for (let page = 1, size = 10; ; ) {
+    const r = await gql(`OF actuels page ${page}`, pageQuery(mosDs, filter, size, page));
+    if (r.complexity && size > 1) { size = Math.max(1, Math.floor(size / 2)); continue; }
+    const pg = r.data?.ManufacturingOrders;
+    if (r.timeout || r.errors.length || !pg) return json({ status: "blocked", message: `Relecture des OF impossible : ${r.errors.join(" | ") || "délai dépassé"}`, steps });
+    freshMos.push(...(pg.data ?? []).flatMap((m: any) => mosDs.rows(m, lastRun.id)));
+    if (!pg.paginatorInfo?.hasMorePages) break;
+    page++;
+  }
+  const data = await loadPlanData(admin);
+  data.mos = freshMos;
+  const plan = computePlan(data, { includePending: !!body.includePending });
+  const p = plan.proposals.find((x: any) => x.idempotency_key === wanted || x.key === body.groupKey);
+  if (!p) return json({ status: "blocked", message: "Proposition introuvable après relecture : le besoin a changé ou est couvert." });
+  if (p.idempotency_key !== wanted) return json({ status: "blocked", message: "Les lignes de commande concernées ont changé depuis l'affichage. Rechargez le plan." });
+  if (p.status !== "ready") return json({ status: "blocked", message: p.status === "shortage" ? "Composants insuffisants : OF bloqué." : p.status === "covered" ? "Besoin déjà couvert par le stock ou les OF existants." : `Données incomplètes : ${p.issues.join(" ")}` });
+  if (Number(body.quantity) !== p.to_build) return json({ status: "blocked", message: `La quantité à fabriquer a changé (${p.to_build}). Rechargez le plan.` });
+  const linked = freshMos.filter((m) => !["completed", "cancelled"].includes(m.status) && m.order_line_item_ids.some((id: number) => p.free_line_ids.includes(id)));
+  if (linked.length) return json({ status: "blocked", message: `Lignes déjà liées à l'OF ${linked.map((m) => m.label ?? m.id).join(", ")}.` });
+
+  const { data: prev } = await admin.from("erplain_mo_submissions").select("*").eq("idempotency_key", p.idempotency_key).maybeSingle();
+  if (prev && ["sending", "created", "unknown"].includes(prev.status))
+    return json({ status: "blocked", message: `Déjà envoyé (statut ${prev.status}${prev.erplain_mo_id ? `, OF Erplain ${prev.erplain_mo_id}` : ""}).`, submission: prev });
+
+  const input = moPayload(p);
+  const writeEnabled = Deno.env.get("ERPLAIN_ALLOW_WRITE") === "true";
+  const mutation = `mutation CreateMO($input: ManufacturingOrderInput!) { CreateManufacturingOrder(input: $input) { id label status } }`;
+  const row = { idempotency_key: p.idempotency_key, variant_id: p.variant_id, location_id: p.location_id, quantity: p.to_build,
+    order_line_item_ids: p.free_line_ids, payload: input, created_by: userId, updated_at: new Date().toISOString() };
+
+  if (!writeEnabled || !confirm) {
+    await admin.from("erplain_mo_submissions").upsert({ ...row, status: "prepared", steps: [{ step: "simulation", at: new Date().toISOString() }] }, { onConflict: "idempotency_key" });
+    return json({ status: "dry_run", writeEnabled, message: writeEnabled ? "Simulation : confirmez pour envoyer." : "Simulation uniquement : l'envoi réel est désactivé sur le serveur.", mutation, variables: { input } });
+  }
+
+  // Lock (unique key) before sending.
+  const { error: lockErr } = await admin.from("erplain_mo_submissions").upsert({ ...row, status: "sending", steps: [{ step: "envoi", at: new Date().toISOString() }] }, { onConflict: "idempotency_key" });
+  if (lockErr) return json({ status: "blocked", message: lockErr.message });
+  const r = await gql("CreateManufacturingOrder", mutation, { input });
+  const mo = r.data?.CreateManufacturingOrder;
+  if (mo?.id) {
+    await admin.from("erplain_mo_submissions").update({ status: "created", erplain_mo_id: mo.id, updated_at: new Date().toISOString(),
+      steps: [{ step: "envoi", at: new Date().toISOString() }, { step: "créé", id: mo.id, label: mo.label, status: mo.status }] }).eq("idempotency_key", p.idempotency_key);
+    return json({ status: "created", mo });
+  }
+  // Unknown outcome (timeout/network) must not be retried blindly.
+  const st = r.errors.length && r.httpStatus && r.httpStatus < 500 ? "failed" : "unknown";
+  await admin.from("erplain_mo_submissions").update({ status: st, error: r.errors.join(" | ") || "Réponse vide", updated_at: new Date().toISOString() }).eq("idempotency_key", p.idempotency_key);
+  return json({ status: "api_error", message: `Création refusée ou incertaine (HTTP ${r.httpStatus ?? "n/a"}) : ${r.errors.join(" | ")}` });
+}
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -47,7 +211,12 @@ Deno.serve(async (req) => {
     if (!token) return json({ status: "config_error", message: "Secret ERPLAIN_API_TOKEN absent côté serveur." });
 
     let action = "test";
-    try { action = (await req.json())?.action ?? "test"; } catch { /* no body */ }
+    let body: any = {};
+    try { body = (await req.json()) ?? {}; action = body.action ?? "test"; } catch { /* no body */ }
+
+    if (action === "sync" || action === "plan" || action === "create_mo") {
+      return await handleData(action, body, admin, token, claims.claims.sub as string);
+    }
 
     if (action === "schema_detail") {
       const t0 = Date.now();
