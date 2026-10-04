@@ -35,8 +35,9 @@ async function handleData(action: string, body: any, admin: any, token: string, 
     const data = await loadPlanData(admin);
     const { data: run } = await admin.from("erplain_sync_runs").select("*").order("started_at", { ascending: false }).limit(1).maybeSingle();
     const { data: subs } = await admin.from("erplain_mo_submissions").select("*").order("created_at", { ascending: false });
+    const { data: settings } = await admin.from("erplain_mo_settings").select("reference_prefix").eq("id", 1).maybeSingle();
     const plan = computePlan(data, { includePending: !!body.includePending, selectedLineIds: Array.isArray(body.selectedLineIds) ? body.selectedLineIds : null });
-    return json({ status: "success", lastRun: run, ...plan, submissions: subs ?? [],
+    return json({ status: "success", lastRun: run, ...plan, submissions: subs ?? [], referencePrefix: settings?.reference_prefix ?? "NOV-OF-",
       stocks: data.stocks.map((s: any) => ({ variant_id: s.variant_id, location_id: s.location_id, on_hand: s.on_hand, available: s.available, reserved: s.reserved, incoming: s.incoming, synced_at: s.synced_at })),
       writeEnabled: Deno.env.get("ERPLAIN_ALLOW_WRITE") === "true",
       counts: { lines: data.lines.length, stocks: data.stocks.length, mos: data.mos.length, boms: data.boms.length, routings: data.routings.length } });
@@ -113,7 +114,13 @@ async function handleData(action: string, body: any, admin: any, token: string, 
       current: DATASETS[list[cursor.ds]]?.root ?? null, page: cursor.page, steps: steps.slice(-30), durationMs: Date.now() - t0 });
   }
 
-  if (["mo_refresh", "mo_update", "mo_delete", "mo_transition"].includes(action)) return await handleMo(action, body, admin, gql, steps);
+  if (action === "set_prefix") {
+    const prefix = String(body.prefix ?? "").trim();
+    if (!/^[A-Za-z0-9._\-\/]{1,20}$/.test(prefix)) return json({ status: "blocked", message: "Racine invalide (1 à 20 caractères : lettres, chiffres, - _ . /)." });
+    const { error } = await admin.from("erplain_mo_settings").update({ reference_prefix: prefix, updated_at: new Date().toISOString(), updated_by: userId }).eq("id", 1);
+    return json(error ? { status: "api_error", message: error.message } : { status: "success", message: `Racine enregistrée : ${prefix}` });
+  }
+  if (["mo_refresh", "mo_update", "mo_transition"].includes(action)) return await handleMo(action, body, admin, gql, steps);
 
   // create_mo: re-check everything server-side, never trust the client figures.
   const wanted: string = String(body.key ?? "");
@@ -152,6 +159,9 @@ async function handleData(action: string, body: any, admin: any, token: string, 
   const { data: prev } = await admin.from("erplain_mo_submissions").select("*").eq("idempotency_key", p.idempotency_key).maybeSingle();
   if (prev && ["sending", "created", "unknown"].includes(prev.status))
     return json({ status: "blocked", message: `Déjà envoyé (statut ${prev.status}${prev.erplain_mo_id ? `, OF Erplain ${prev.erplain_mo_id}` : ""}).`, submission: prev });
+  // Keep history of cancelled/deleted MOs: move them off the idempotency key before reusing it.
+  if (prev && ["cancelled", "deleted"].includes(prev.status))
+    await admin.from("erplain_mo_submissions").update({ idempotency_key: `${prev.idempotency_key}#${prev.id}` }).eq("id", prev.id);
   // Any in-flight/created submission on the same lines not yet visible in Erplain blocks a duplicate.
   const { data: pending } = await admin.from("erplain_mo_submissions").select("id,status,erplain_mo_id,order_line_item_ids").in("status", ["sending", "unknown"]).is("deleted_at", null);
   const clash = (pending ?? []).filter((s: any) => (s.order_line_item_ids ?? []).some((id: any) => p.free_line_ids.includes(Number(id))));
@@ -169,14 +179,20 @@ async function handleData(action: string, body: any, admin: any, token: string, 
     return json({ status: "dry_run", writeEnabled, message: writeEnabled ? "Simulation : confirmez pour envoyer." : "Simulation uniquement : l'envoi réel est désactivé sur le serveur.", mutation, variables: { input } });
   }
 
+  // App reference: sequence never reused (even if the prefix changes), sent as label.
+  const { data: refRows, error: refErr } = await admin.rpc("next_erplain_mo_reference");
+  const ref = Array.isArray(refRows) ? refRows[0] : refRows;
+  if (refErr || !ref?.reference) return json({ status: "blocked", message: `Référence OF indisponible : ${refErr?.message ?? "vide"}` });
+  input.label = ref.reference;
   // Lock (unique key) before sending.
-  const { error: lockErr } = await admin.from("erplain_mo_submissions").upsert({ ...row, status: "sending", steps: [{ step: "envoi", at: new Date().toISOString() }] }, { onConflict: "idempotency_key" });
+  const { error: lockErr } = await admin.from("erplain_mo_submissions").upsert({ ...row, payload: { ...row.payload, label: ref.reference }, app_reference: ref.reference, reference_number: ref.num, status: "sending", steps: [{ step: "envoi", reference: ref.reference, at: new Date().toISOString() }] }, { onConflict: "idempotency_key" });
   if (lockErr) return json({ status: "blocked", message: lockErr.message });
   const r = await gql("CreateManufacturingOrder", mutation, { input });
   const mo = r.data?.CreateManufacturingOrder;
   if (mo?.id) {
-    await admin.from("erplain_mo_submissions").update({ status: "created", erplain_mo_id: mo.id, updated_at: new Date().toISOString(),
-      steps: [{ step: "envoi", at: new Date().toISOString() }, { step: "créé", id: mo.id, label: mo.label, status: mo.status }] }).eq("idempotency_key", p.idempotency_key);
+    // Erplain technical id = tracking key.
+    await admin.from("erplain_mo_submissions").update({ status: "created", erplain_mo_id: mo.id, erplain_status: mo.status, updated_at: new Date().toISOString(),
+      steps: [{ step: "envoi", reference: ref.reference, at: new Date().toISOString() }, { step: "créé", id: mo.id, label: mo.label, status: mo.status }] }).eq("idempotency_key", p.idempotency_key);
     const { data: sub } = await admin.from("erplain_mo_submissions").select("*").eq("idempotency_key", p.idempotency_key).single();
     const refreshed = await refreshMo(admin, gql, sub);
     return json({ status: "created", mo, ...refreshed });
@@ -193,16 +209,17 @@ async function reconcileSubmissions(admin: any, gql: any, runId: string): Promis
   const { data: subs } = await admin.from("erplain_mo_submissions").select("*").eq("status", "created").not("erplain_mo_id", "is", null);
   if (!subs?.length) return "OF de l'appli : aucun à contrôler.";
   const ids = subs.map((s: any) => Number(s.erplain_mo_id));
-  const { data: rows } = await admin.from("erplain_manufacturing_orders").select("id,status,run_id").in("id", ids);
+  const { data: rows } = await admin.from("erplain_manufacturing_orders").select("id,label,status,run_id").in("id", ids);
   const seen = new Map((rows ?? []).filter((r: any) => r.run_id === runId).map((r: any) => [Number(r.id), r]));
   const c = { open: 0, completed: 0, cancelled: 0, deleted: 0, unchecked: 0 };
   for (const sub of subs) {
     const row = seen.get(Number(sub.erplain_mo_id));
     if (row) {
       c.open++;
-      await admin.from("erplain_mo_submissions").update({ erplain_status: row.status, erplain_synced_at: new Date().toISOString() }).eq("id", sub.id);
+      await admin.from("erplain_mo_submissions").update({ erplain_status: row.status, erplain_snapshot: { ...(sub.erplain_snapshot ?? {}), label: row.label, status: row.status }, erplain_synced_at: new Date().toISOString() }).eq("id", sub.id);
       continue;
     }
+    // Absent from a filtered list: proves nothing, re-read directly.
     const res: any = await refreshMo(admin, gql, sub);
     if (res.erplain) { const st = String(res.erplain.status); if (st === "completed") c.completed++; else if (st === "cancelled") c.cancelled++; else c.open++; }
     else if (/introuvable/.test(res.refreshError ?? "")) c.deleted++;
@@ -241,7 +258,10 @@ async function refreshMo(admin: any, gql: any, sub: any) {
     quantity: Number(m.quantity) === Number(sub.quantity),
     order_lines: (sub.order_line_item_ids ?? []).every((id: number) => (m.order_line_items ?? []).some((x: any) => Number(x.id) === Number(id))),
   };
-  await admin.from("erplain_mo_submissions").update({ erplain_status: m.status, erplain_snapshot: m, checks, erplain_synced_at: new Date().toISOString(), updated_at: new Date().toISOString() }).eq("id", sub.id);
+  // Keep the synced MO table in step (completed/cancelled MOs are filtered out of the list read).
+  await admin.from("erplain_manufacturing_orders").update({ status: m.status, label: m.label, quantity: m.quantity, remaining_to_produce: m.remaining_to_produce, actually_produced: m.actually_produced, synced_at: new Date().toISOString() }).eq("id", Number(m.id));
+  const cancelled = m.status === "cancelled";
+  await admin.from("erplain_mo_submissions").update({ ...(cancelled ? { status: "cancelled" } : {}), erplain_status: m.status, erplain_snapshot: m, checks, erplain_synced_at: new Date().toISOString(), updated_at: new Date().toISOString() }).eq("id", sub.id);
   return { erplain: m, checks };
 }
 
@@ -327,7 +347,7 @@ Deno.serve(async (req) => {
     let body: any = {};
     try { body = (await req.json()) ?? {}; action = body.action ?? "test"; } catch { /* no body */ }
 
-    if (["sync", "plan", "create_mo", "mo_refresh", "mo_update", "mo_delete", "mo_transition"].includes(action)) {
+    if (["sync", "plan", "create_mo", "mo_refresh", "mo_update", "mo_transition", "set_prefix"].includes(action)) {
       return await handleData(action, body, admin, token, claims.claims.sub as string);
     }
 
