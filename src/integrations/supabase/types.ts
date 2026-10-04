@@ -1470,6 +1470,264 @@ export type Database = {
         }
         Relationships: []
       }
+      erplain_boms: {
+        Row: {
+          active: boolean | null
+          components: Json
+          id: number
+          is_default: boolean | null
+          label: string | null
+          manufacturing_routing_id: number | null
+          run_id: string | null
+          sku: string | null
+          synced_at: string
+          variant_id: number | null
+          variant_label: string | null
+        }
+        Insert: {
+          active?: boolean | null
+          components?: Json
+          id: number
+          is_default?: boolean | null
+          label?: string | null
+          manufacturing_routing_id?: number | null
+          run_id?: string | null
+          sku?: string | null
+          synced_at?: string
+          variant_id?: number | null
+          variant_label?: string | null
+        }
+        Update: {
+          active?: boolean | null
+          components?: Json
+          id?: number
+          is_default?: boolean | null
+          label?: string | null
+          manufacturing_routing_id?: number | null
+          run_id?: string | null
+          sku?: string | null
+          synced_at?: string
+          variant_id?: number | null
+          variant_label?: string | null
+        }
+        Relationships: []
+      }
+      erplain_manufacturing_orders: {
+        Row: {
+          actually_produced: number | null
+          bill_of_material_id: number | null
+          due_at: string | null
+          id: number
+          label: string | null
+          lines: Json
+          location_id: number | null
+          location_label: string | null
+          manufacturing_routing_id: number | null
+          operation_type: string | null
+          order_line_item_ids: number[]
+          quantity: number | null
+          remaining_to_produce: number | null
+          run_id: string | null
+          sku: string | null
+          status: string | null
+          synced_at: string
+          variant_id: number | null
+          variant_label: string | null
+        }
+        Insert: {
+          actually_produced?: number | null
+          bill_of_material_id?: number | null
+          due_at?: string | null
+          id: number
+          label?: string | null
+          lines?: Json
+          location_id?: number | null
+          location_label?: string | null
+          manufacturing_routing_id?: number | null
+          operation_type?: string | null
+          order_line_item_ids?: number[]
+          quantity?: number | null
+          remaining_to_produce?: number | null
+          run_id?: string | null
+          sku?: string | null
+          status?: string | null
+          synced_at?: string
+          variant_id?: number | null
+          variant_label?: string | null
+        }
+        Update: {
+          actually_produced?: number | null
+          bill_of_material_id?: number | null
+          due_at?: string | null
+          id?: number
+          label?: string | null
+          lines?: Json
+          location_id?: number | null
+          location_label?: string | null
+          manufacturing_routing_id?: number | null
+          operation_type?: string | null
+          order_line_item_ids?: number[]
+          quantity?: number | null
+          remaining_to_produce?: number | null
+          run_id?: string | null
+          sku?: string | null
+          status?: string | null
+          synced_at?: string
+          variant_id?: number | null
+          variant_label?: string | null
+        }
+        Relationships: []
+      }
+      erplain_mo_submissions: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          erplain_mo_id: number | null
+          error: string | null
+          id: string
+          idempotency_key: string
+          location_id: number | null
+          order_line_item_ids: number[]
+          payload: Json
+          quantity: number
+          status: string
+          steps: Json
+          updated_at: string
+          variant_id: number
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          erplain_mo_id?: number | null
+          error?: string | null
+          id?: string
+          idempotency_key: string
+          location_id?: number | null
+          order_line_item_ids?: number[]
+          payload: Json
+          quantity: number
+          status?: string
+          steps?: Json
+          updated_at?: string
+          variant_id: number
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          erplain_mo_id?: number | null
+          error?: string | null
+          id?: string
+          idempotency_key?: string
+          location_id?: number | null
+          order_line_item_ids?: number[]
+          payload?: Json
+          quantity?: number
+          status?: string
+          steps?: Json
+          updated_at?: string
+          variant_id?: number
+        }
+        Relationships: []
+      }
+      erplain_order_lines: {
+        Row: {
+          committed_quantity: number | null
+          delivered_quantity: number | null
+          delivery_status: string | null
+          line_id: number
+          line_shipping_at: string | null
+          location_id: number | null
+          location_label: string | null
+          order_id: number
+          order_label: string | null
+          order_shipping_at: string | null
+          order_status: string | null
+          quantity: number | null
+          reserved_quantity: number | null
+          run_id: string | null
+          shipped_quantity: number | null
+          shipping_status: string | null
+          sku: string | null
+          stock_allocation_status: string | null
+          synced_at: string
+          variant_id: number | null
+          variant_label: string | null
+        }
+        Insert: {
+          committed_quantity?: number | null
+          delivered_quantity?: number | null
+          delivery_status?: string | null
+          line_id: number
+          line_shipping_at?: string | null
+          location_id?: number | null
+          location_label?: string | null
+          order_id: number
+          order_label?: string | null
+          order_shipping_at?: string | null
+          order_status?: string | null
+          quantity?: number | null
+          reserved_quantity?: number | null
+          run_id?: string | null
+          shipped_quantity?: number | null
+          shipping_status?: string | null
+          sku?: string | null
+          stock_allocation_status?: string | null
+          synced_at?: string
+          variant_id?: number | null
+          variant_label?: string | null
+        }
+        Update: {
+          committed_quantity?: number | null
+          delivered_quantity?: number | null
+          delivery_status?: string | null
+          line_id?: number
+          line_shipping_at?: string | null
+          location_id?: number | null
+          location_label?: string | null
+          order_id?: number
+          order_label?: string | null
+          order_shipping_at?: string | null
+          order_status?: string | null
+          quantity?: number | null
+          reserved_quantity?: number | null
+          run_id?: string | null
+          shipped_quantity?: number | null
+          shipping_status?: string | null
+          sku?: string | null
+          stock_allocation_status?: string | null
+          synced_at?: string
+          variant_id?: number | null
+          variant_label?: string | null
+        }
+        Relationships: []
+      }
+      erplain_routings: {
+        Row: {
+          active: boolean | null
+          id: number
+          label: string | null
+          run_id: string | null
+          steps: Json
+          synced_at: string
+        }
+        Insert: {
+          active?: boolean | null
+          id: number
+          label?: string | null
+          run_id?: string | null
+          steps?: Json
+          synced_at?: string
+        }
+        Update: {
+          active?: boolean | null
+          id?: number
+          label?: string | null
+          run_id?: string | null
+          steps?: Json
+          synced_at?: string
+        }
+        Relationships: []
+      }
       erplain_schema_cache: {
         Row: {
           data: Json
@@ -1485,6 +1743,87 @@ export type Database = {
           data?: Json
           fetched_at?: string
           type_name?: string
+        }
+        Relationships: []
+      }
+      erplain_stock_levels: {
+        Row: {
+          available: number | null
+          id: number
+          incoming: number | null
+          location_id: number | null
+          location_label: string | null
+          on_hand: number | null
+          reserved: number | null
+          run_id: string | null
+          sku: string | null
+          synced_at: string
+          variant_id: number | null
+          variant_label: string | null
+        }
+        Insert: {
+          available?: number | null
+          id: number
+          incoming?: number | null
+          location_id?: number | null
+          location_label?: string | null
+          on_hand?: number | null
+          reserved?: number | null
+          run_id?: string | null
+          sku?: string | null
+          synced_at?: string
+          variant_id?: number | null
+          variant_label?: string | null
+        }
+        Update: {
+          available?: number | null
+          id?: number
+          incoming?: number | null
+          location_id?: number | null
+          location_label?: string | null
+          on_hand?: number | null
+          reserved?: number | null
+          run_id?: string | null
+          sku?: string | null
+          synced_at?: string
+          variant_id?: number | null
+          variant_label?: string | null
+        }
+        Relationships: []
+      }
+      erplain_sync_runs: {
+        Row: {
+          counts: Json
+          cursor: Json
+          error: string | null
+          finished_at: string | null
+          id: string
+          notes: Json
+          started_at: string
+          started_by: string | null
+          status: string
+        }
+        Insert: {
+          counts?: Json
+          cursor?: Json
+          error?: string | null
+          finished_at?: string | null
+          id?: string
+          notes?: Json
+          started_at?: string
+          started_by?: string | null
+          status?: string
+        }
+        Update: {
+          counts?: Json
+          cursor?: Json
+          error?: string | null
+          finished_at?: string | null
+          id?: string
+          notes?: Json
+          started_at?: string
+          started_by?: string | null
+          status?: string
         }
         Relationships: []
       }
