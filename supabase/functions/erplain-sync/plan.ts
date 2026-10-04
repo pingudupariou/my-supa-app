@@ -52,6 +52,9 @@ export function computePlan(data: { lines: any[]; stocks: any[]; mos: any[]; bom
     groups.get(k).all.push(row);
     openLines.push(row);
   }
+  const mapOpen = (l: any) => ({ line_id: l.line_id, order_id: l.order_id, customer_name: l.customer_name ?? null, variant_id: l.variant_id, location_id: l.location_id, order_label: l.order_label, order_status: l.order_status, shipping_status: l.shipping_status, shipping_at: l.line_shipping_at ?? l.order_shipping_at, order_created_at: l.order_created_at ?? null, order_dated_at: l.order_dated_at ?? null, sku: l.sku, variant_label: l.variant_label, location_label: l.location_label, quantity: l.quantity, shipped_quantity: l.shipped_quantity, remaining: l.remaining, reserved_quantity: l.reserved_quantity, linked_mo: l.linked_mo });
+  // openLinesOnly: return only the lines to ship (for the selection table) without computing MO proposals.
+  if (opts.openLinesOnly) return { proposals: [], warnings, excluded, statuses, openLines: openLines.map(mapOpen) };
 
   const proposals = [...groups.values()].map((g) => {
     const issues: string[] = [];
@@ -163,7 +166,7 @@ export function computePlan(data: { lines: any[]; stocks: any[]; mos: any[]; bom
     p.status = buildable >= p.to_build ? "ready" : "shortage";
   }
   openLines.sort((a, b) => dateOf(a).localeCompare(dateOf(b)));
-  return { proposals, warnings, excluded, statuses, openLines: openLines.map((l) => ({ line_id: l.line_id, order_id: l.order_id, customer_name: l.customer_name ?? null, variant_id: l.variant_id, location_id: l.location_id, order_label: l.order_label, order_status: l.order_status, shipping_status: l.shipping_status, shipping_at: l.line_shipping_at ?? l.order_shipping_at, order_created_at: l.order_created_at ?? null, order_dated_at: l.order_dated_at ?? null, sku: l.sku, variant_label: l.variant_label, location_label: l.location_label, quantity: l.quantity, shipped_quantity: l.shipped_quantity, remaining: l.remaining, reserved_quantity: l.reserved_quantity, linked_mo: l.linked_mo })) };
+  return { proposals, warnings, excluded, statuses, openLines: openLines.map(mapOpen) };
 }
 
 export function moPayload(p: any) {
