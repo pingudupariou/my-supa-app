@@ -192,6 +192,14 @@ export function PlanAtelierBoard({ isAdmin }: { isAdmin: boolean }) {
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
+          {(() => {
+            const vals = Object.values(mo) as any[];
+            if (!vals.length) return null;
+            const created = vals.filter((v: any) => v.status === 'created').length;
+            const blocked = vals.filter((v: any) => ['blocked', 'api_error'].includes(v.status)).length;
+            const sim = vals.length - created - blocked;
+            return <p className="text-xs text-muted-foreground">Dernier envoi : {created} OF créé(s){sim ? `, ${sim} en simulation` : ''}{blocked ? `, ${blocked} bloqué(s)` : ''} — détail dans chaque produit déplié et dans « OF envoyés à Erplain ».</p>;
+          })()}
           <details className="text-xs text-muted-foreground" data-readonly-allow="true">
             <summary className="cursor-pointer">Méthode de calcul</summary>
             <ul className="list-disc pl-5 mt-2 space-y-1">
