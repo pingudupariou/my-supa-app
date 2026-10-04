@@ -1655,6 +1655,8 @@ export type Database = {
           line_type: string | null
           location_id: number | null
           location_label: string | null
+          order_created_at: string | null
+          order_dated_at: string | null
           order_id: number
           order_label: string | null
           order_shipping_at: string | null
@@ -1682,6 +1684,8 @@ export type Database = {
           line_type?: string | null
           location_id?: number | null
           location_label?: string | null
+          order_created_at?: string | null
+          order_dated_at?: string | null
           order_id: number
           order_label?: string | null
           order_shipping_at?: string | null
@@ -1709,6 +1713,8 @@ export type Database = {
           line_type?: string | null
           location_id?: number | null
           location_label?: string | null
+          order_created_at?: string | null
+          order_dated_at?: string | null
           order_id?: number
           order_label?: string | null
           order_shipping_at?: string | null

@@ -63,11 +63,12 @@ export const DATASETS: Dataset[] = [
   {
     key: "orders", table: "erplain_order_lines", root: "Orders", size: 10, idCol: "line_id",
     args: (f) => (f ? `where: ${f}` : ""),
-    sel: `id label status shipping_status delivery_status stock_allocation_status shipping_at
+    sel: `id label status shipping_status delivery_status stock_allocation_status shipping_at created_at dated_at
       line_items { id type parent_id kit_line_item_id variant_type shipping_at quantity shipped_quantity delivered_quantity reserved_quantity committed_quantity ${V} ${L} }`,
     rows: (o, run) => (o.line_items ?? []).filter((li: any) => li?.id != null).map((li: any) => ({
       line_id: li.id, order_id: o.id, order_label: o.label, order_status: o.status, shipping_status: o.shipping_status,
       delivery_status: o.delivery_status, stock_allocation_status: o.stock_allocation_status, order_shipping_at: o.shipping_at,
+      order_created_at: o.created_at ?? null, order_dated_at: o.dated_at ?? null,
       line_shipping_at: li.shipping_at, line_type: li.type, parent_id: li.parent_id, kit_line_item_id: li.kit_line_item_id, variant_type: li.variant_type,
       variant_id: li.variant?.id ?? null, sku: li.variant?.sku ?? null, variant_label: li.variant?.label ?? null,
       location_id: li.location?.id ?? null, location_label: li.location?.label ?? null,

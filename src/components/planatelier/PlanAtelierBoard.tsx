@@ -31,6 +31,7 @@ export function PlanAtelierBoard({ isAdmin }: { isAdmin: boolean }) {
   const [applied, setApplied] = useState<number[] | null>(null);
   const [realMode, setRealMode] = useState(false);
   const [sortAsc, setSortAsc] = useState(true);
+  const [sortBy, setSortBy] = useState<'shipping' | 'created'>('shipping');
   const [openLines, setOpenLines] = useState<any[]>([]);
 
   const call = async (body: any) => {
@@ -81,9 +82,12 @@ export function PlanAtelierBoard({ isAdmin }: { isAdmin: boolean }) {
   const run = plan?.lastRun;
   const orders = useMemo(() => {
     const m = new Map<string, any>();
-    openLines.forEach((l) => { const k = String(l.order_id); if (!m.has(k)) m.set(k, { id: k, label: l.order_label, status: l.order_status, date: l.shipping_at, lines: [] }); m.get(k).lines.push(l); });
-    return [...m.values()].sort((a, b) => { const x = String(a.date ?? '9999'), y = String(b.date ?? '9999'); return sortAsc ? x.localeCompare(y) : y.localeCompare(x); });
-  }, [openLines, sortAsc]);
+    openLines.forEach((l) => { const k = String(l.order_id); if (!m.has(k)) m.set(k, { id: k, label: l.order_label, status: l.order_status, date: l.shipping_at, created: l.order_created_at, lines: [] }); m.get(k).lines.push(l); });
+    return [...m.values()].sort((a, b) => {
+      const x = String((sortBy === 'created' ? a.created : a.date) ?? '9999'), y = String((sortBy === 'created' ? b.created : b.date) ?? '9999');
+      return sortAsc ? x.localeCompare(y) : y.localeCompare(x);
+    });
+  }, [openLines, sortAsc, sortBy]);
   const toggle = (ids: number[], on: boolean) => setSelected((s) => { const n = new Set(s); ids.forEach((i) => (on ? n.add(i) : n.delete(i))); return n; });
   const allIds = openLines.map((l) => Number(l.line_id));
 
@@ -118,7 +122,8 @@ export function PlanAtelierBoard({ isAdmin }: { isAdmin: boolean }) {
             <label className="flex items-center gap-2 text-sm" data-readonly-allow="true">
               <Checkbox checked={allIds.length > 0 && selected.size === allIds.length} onCheckedChange={(v) => setSelected(v ? new Set(allIds) : new Set())} />Tout sélectionner
             </label>
-            <Button variant="outline" size="sm" onClick={() => setSortAsc((v) => !v)} data-readonly-allow="true">Date d'expédition {sortAsc ? '↑ croissante' : '↓ décroissante'}</Button>
+            <Button variant="outline" size="sm" onClick={() => setSortAsc((v) => !v)} data-readonly-allow="true">{sortBy === 'created' ? 'Date de création' : "Date d'expédition"} {sortAsc ? '↑ croissante' : '↓ décroissante'}</Button>
+            <Button variant="ghost" size="sm" onClick={() => { setSortBy((v) => (v === 'shipping' ? 'created' : 'shipping')); setSortAsc(true); }} data-readonly-allow="true">Trier par {sortBy === 'created' ? "date d'expédition" : 'date de création'}</Button>
             <span className="text-sm text-muted-foreground">{selected.size} ligne(s) sur {allIds.length} · {orders.length} commande(s) restant à expédier</span>
             <Button onClick={() => { setMo({}); setApplied([...selected]); }} disabled={!selected.size || loading} data-readonly-allow="true">Calculer les OF pour la sélection</Button>
             {applied && <Button variant="ghost" onClick={() => { setMo({}); setApplied(null); }} data-readonly-allow="true">Revenir à toutes les commandes</Button>}
@@ -135,7 +140,7 @@ export function PlanAtelierBoard({ isAdmin }: { isAdmin: boolean }) {
                     <Fragment key={o.id}>
                       <tr className="border-t bg-muted/30">
                         <td className="p-2" data-readonly-allow="true"><Checkbox checked={all} onCheckedChange={(v) => toggle(ids, !!v)} /></td>
-                        <td className="p-2 font-medium" colSpan={9}>{o.label ?? o.id} <span className="text-xs text-muted-foreground">({o.status}, {o.lines.length} ligne(s))</span></td>
+                        <td className="p-2 font-medium" colSpan={9}>{o.label ?? o.id} <span className="text-xs text-muted-foreground">({o.status}, {o.lines.length} ligne(s){o.created ? `, créée ${String(o.created).slice(0, 10)}` : ''})</span></td>
                       </tr>
                       {o.lines.map((l: any) => (
                         <tr key={l.line_id} className="border-t">
