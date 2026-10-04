@@ -328,7 +328,7 @@ export function PlanAtelierBoard({ isAdmin }: { isAdmin: boolean }) {
         </CardContent>
       </Card>
 
-      <SubmissionsPanel realMode={realMode} isAdmin={isAdmin} subs={plan?.submissions ?? []} writeEnabled={!!plan?.writeEnabled} call={call} onDone={loadPlan} />
+      <SubmissionsPanel realMode={realMode} isAdmin={isAdmin} prefix={plan?.referencePrefix ?? 'NOV-OF-'} subs={plan?.submissions ?? []} writeEnabled={!!plan?.writeEnabled} call={call} onDone={loadPlan} />
 
       <ControlViews isAdmin={isAdmin} reloadKey={run?.id + (run?.status ?? '')} />
     </div>
@@ -372,9 +372,15 @@ function ControlViews({ isAdmin, reloadKey }: { isAdmin: boolean; reloadKey: str
 
 const CHECK_LABELS: Record<string, string> = { bom: 'Nomenclature reprise', components: 'Composants repris', routing: 'Gamme reprise', quantity: 'Quantité', order_lines: 'Lignes de commande liées' };
 
-function SubmissionsPanel({ realMode, isAdmin, subs, writeEnabled, call, onDone }: { realMode: boolean; isAdmin: boolean; subs: any[]; writeEnabled: boolean; call: (b: any) => Promise<any>; onDone: () => void }) {
+const MO_STATUS: Record<string, string> = { draft: 'Brouillon', unpublished: 'Non publié', released: 'Publié', in_progress: 'En cours', completed: 'Terminé', cancelled: 'Annulé dans Erplain', absent: 'Supprimé dans Erplain' };
+
+function SubmissionsPanel({ realMode, isAdmin, prefix, subs, writeEnabled, call, onDone }: { realMode: boolean; isAdmin: boolean; prefix: string; subs: any[]; writeEnabled: boolean; call: (b: any) => Promise<any>; onDone: () => void }) {
   const [res, setRes] = useState<Record<string, any>>({});
   const [qty, setQty] = useState<Record<string, string>>({});
+  const [pref, setPref] = useState(prefix);
+  const [prefMsg, setPrefMsg] = useState('');
+  useEffect(() => setPref(prefix), [prefix]);
+  const savePrefix = async () => { const d = await call({ action: 'set_prefix', prefix: pref }); setPrefMsg(d.message ?? d.status); if (d.status === 'success') onDone(); };
   const list = subs.filter((s) => s.status !== 'prepared' || s.erplain_mo_id);
   const act = async (s: any, body: any) => {
     setRes((r) => ({ ...r, [s.id]: { loading: true } }));
@@ -386,6 +392,13 @@ function SubmissionsPanel({ realMode, isAdmin, subs, writeEnabled, call, onDone 
     <Card>
       <CardHeader><CardTitle className="text-base">OF envoyés à Erplain</CardTitle></CardHeader>
       <CardContent className="space-y-3 text-sm">
+        <div className="flex flex-wrap items-center gap-2 text-xs">
+          <span>Racine de la référence OF :</span>
+          <Input className="w-32 h-8" value={pref} onChange={(e) => setPref(e.target.value)} data-readonly-allow="true" />
+          <Button size="sm" variant="outline" disabled={!isAdmin || !pref || pref === prefix} onClick={savePrefix} data-readonly-allow="true">Enregistrer</Button>
+          <span className="text-muted-foreground">Prochain OF : {prefix}NNNNN — le compteur continue même si la racine change.</span>
+          {prefMsg && <span>{prefMsg}</span>}
+        </div>
         {!list.length && <p className="text-muted-foreground">Aucun OF créé pour l'instant (simulations seulement).</p>}
         {list.map((s) => {
           const r = res[s.id];
@@ -393,20 +406,19 @@ function SubmissionsPanel({ realMode, isAdmin, subs, writeEnabled, call, onDone 
           return (
             <div key={s.id} className="border rounded-md p-3 space-y-2">
               <div className="flex flex-wrap gap-2 items-center">
-                <span className="font-medium">OF {s.erplain_snapshot?.label ?? s.erplain_mo_id ?? '—'}</span>
-                <Badge variant="outline">{s.status}</Badge>
-                {s.erplain_status && <Badge>{s.erplain_status}</Badge>}
+                <span className="font-medium">N° Erplain : {s.erplain_snapshot?.label ?? '—'}</span>
+                <span className="text-xs">Libellé : {s.app_reference ?? s.payload?.label ?? '—'}</span>
+                <span className="text-xs text-muted-foreground">ID technique {s.erplain_mo_id ?? '—'}</span>
+                <Badge variant={['cancelled', 'absent'].includes(s.erplain_status) ? 'destructive' : 'default'}>{MO_STATUS[s.erplain_status] ?? s.erplain_status ?? s.status}</Badge>
                 <span className="text-xs text-muted-foreground">Qté {fmt(s.quantity)} · {s.order_line_item_ids?.length ?? 0} ligne(s) · relu {s.erplain_synced_at ? new Date(s.erplain_synced_at).toLocaleString('fr-FR') : 'jamais'}</span>
               </div>
               {s.checks && <div className="flex flex-wrap gap-2 text-xs">{Object.entries(CHECK_LABELS).map(([k, l]) => s.checks[k] == null ? null : <Badge key={k} variant={s.checks[k] ? 'secondary' : 'destructive'}>{l} : {s.checks[k] ? 'oui' : 'non'}</Badge>)}<span className="text-muted-foreground">{s.checks.components_detail} · {s.checks.steps_detail}</span></div>}
-              {s.erplain_mo_id && s.status !== 'deleted' && (
+              {s.erplain_mo_id && !['deleted', 'cancelled'].includes(s.status) && (
                 <div className="flex flex-wrap gap-2 items-center">
                   <Button size="sm" variant="outline" disabled={!isAdmin || r?.loading} onClick={() => act(s, { action: 'mo_refresh' })} data-readonly-allow="true">Relire depuis Erplain</Button>
                   {editable(s) && <>
                     <Input className="w-24 h-8" type="number" placeholder="Qté" value={qty[s.id] ?? ''} onChange={(e) => setQty((q) => ({ ...q, [s.id]: e.target.value }))} data-readonly-allow="true" />
                     <Button size="sm" variant="outline" disabled={!isAdmin || r?.loading || !qty[s.id]} onClick={() => confirm({ action: 'mo_update', quantity: Number(qty[s.id]) })} data-readonly-allow="true">Modifier la quantité</Button>
-                    <Button size="sm" variant="outline" disabled={!isAdmin || r?.loading} onClick={() => confirm({ action: 'mo_transition', target: 'released' })} data-readonly-allow="true">Publier</Button>
-                    <Button size="sm" variant="destructive" disabled={!isAdmin || r?.loading} onClick={() => confirm({ action: 'mo_delete' })} data-readonly-allow="true">Supprimer</Button>
                   </>}
                   {s.erplain_status === 'released' && <Button size="sm" variant="outline" disabled={!isAdmin || r?.loading} onClick={() => confirm({ action: 'mo_transition', target: 'in_progress' })} data-readonly-allow="true">Lancer</Button>}
                   {r?.loading && <Loader2 className="h-4 w-4 animate-spin" />}
