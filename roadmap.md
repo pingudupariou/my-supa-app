@@ -1,0 +1,3 @@
+- [ ] Afficher le client et la date de création dans la sélection des commandes.
+- [ ] Ajouter un choix visible des colonnes, mémorisé sur cet appareil.
+- [ ] Vérifier l'affichage et les cases de visibilité ; contrôle authentifié bloqué si session indisponible.
