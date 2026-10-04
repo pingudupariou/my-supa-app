@@ -46,7 +46,7 @@ export function PlanAtelierBoard({ isAdmin }: { isAdmin: boolean }) {
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [applied, setApplied] = useState<number[] | null>(null);
   const [realMode, setRealMode] = useState(false);
-  const [sortAsc, setSortAsc] = useState(true);
+  const [sortAsc, setSortAsc] = useState(false);
   const [sortBy, setSortBy] = useState<'shipping' | 'created'>('created');
   const [openLines, setOpenLines] = useState<any[]>([]);
   const [stockLevels, setStockLevels] = useState<any[]>([]);
