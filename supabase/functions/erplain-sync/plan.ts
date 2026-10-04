@@ -107,13 +107,13 @@ export function computePlan(data: { lines: any[]; stocks: any[]; mos: any[]; bom
     const firstDate = lines.map((l: any) => l.line_shipping_at ?? l.order_shipping_at).filter(Boolean).sort()[0] ?? null;
     const uncovered = lines.filter((l: any) => (l.to_cover ?? 0) > 0).sort((a: any, b: any) => Number(a.line_id) - Number(b.line_id));
     const freeLineIds = uncovered.map((l: any) => Number(l.line_id));
-    const coverage = lines.map((l: any) => ({ line_id: Number(l.line_id), order_label: l.order_label ?? l.order_id, remaining: l.remaining, reserved: l.own_reserved, mo_covered: l.mo_alloc, linked_mo: l.linked_mo, to_cover: l.to_cover }));
+    const coverage = lines.map((l: any) => ({ line_id: Number(l.line_id), order_label: l.order_label ?? l.order_id, remaining: l.remaining, reserved: l.own_reserved, mo_covered: l.mo_alloc, linked_mo: l.linked_mo, stock_covered: l.stock_alloc ?? 0, to_cover: l.to_cover }));
     return {
       key: g.key, variant_id: g.variant_id, sku: g.sku, variant_label: g.variant_label, location_id: g.location_id, location_label: g.location_label,
       first_shipping_at: firstDate, lines, other_open_lines: others,
       need, stock: st ? { on_hand: st.on_hand, available: st.available, reserved: st.reserved } : null, reserved_in_scope: reservedInScope, usable,
       mos: mos.map((m) => ({ id: m.id, label: m.label, status: m.status, quantity: m.quantity, remaining_to_produce: m.remaining_to_produce, linked: (m.order_line_item_ids ?? []).length > 0 })),
-      mo_linked: linkedMo, mo_free: freeMo, mo_remaining: moRemaining, to_build: allCovered ? 0 : toBuild, all_covered: allCovered, coverage,
+      mo_linked: linkedMo, mo_free: freeMo, reserved_used: reservedUsed, mo_remaining: moRemaining, to_build: allCovered ? 0 : toBuild, all_covered: allCovered, coverage,
       bom: bom ? { id: bom.id, label: bom.label } : null, routing: routing ? { id: routing.id, label: routing.label, steps: (routing.steps ?? []).length } : null,
       bom_components: bom?.components ?? [], free_line_ids: freeLineIds,
       components: [] as any[], buildable: null as number | null, status: "pending" as string, issues,
