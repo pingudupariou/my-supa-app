@@ -52,11 +52,12 @@ export function PlanAtelierBoard({ isAdmin }: { isAdmin: boolean }) {
 
   useEffect(() => { loadPlan(); }, [loadPlan]);
 
-  const sync = async (restart: boolean, reload = true, quick = false) => {
+  const [syncMode, setSyncMode] = useState<string>('all');
+  const sync = async (restart: boolean, reload = true, quick = false, mode: string = 'all') => {
     setSyncing(true); setError(null);
     try {
       for (let i = 0, first = true; i < 60; i++, first = false) {
-        const d = await call({ action: 'sync', restart: restart && first, quick });
+        const d = await call({ action: 'sync', restart: restart && first, quick, mode: mode === 'all' ? undefined : mode });
         if (d.status !== 'success') { setError(`Synchronisation interrompue : ${d.failure ?? d.message}`); break; }
         const c = d.counts ?? {};
         setSyncInfo(`${d.done ? 'Terminé' : `En cours : ${d.current} page ${d.page}`} — commandes ${c.orders ?? 0} (${c.order_lines ?? 0} lignes), stocks ${c.stocks ?? 0}, OF ${c.mos ?? 0}, nomenclatures ${c.boms ?? 0}, gammes ${c.routings ?? 0}`);
@@ -110,10 +111,18 @@ export function PlanAtelierBoard({ isAdmin }: { isAdmin: boolean }) {
         <CardHeader><CardTitle className="text-base">Données Erplain</CardTitle></CardHeader>
         <CardContent className="space-y-3">
           <div className="flex flex-wrap gap-2 items-center">
-            <Button onClick={() => sync(false)} disabled={syncing || !isAdmin} data-readonly-allow="true">
+            <select className="h-10 rounded-md border bg-background px-2 text-sm" value={syncMode} onChange={(e) => setSyncMode(e.target.value)} disabled={syncing} data-readonly-allow="true">
+              <option value="all">Tout (commandes, stocks, OF, nomenclatures, gammes)</option>
+              <option value="orders_mos">Commandes + OF liés</option>
+              <option value="quick">Commandes + stocks + OF</option>
+              <option value="mos">OF seulement</option>
+              <option value="stocks">Stocks seulement</option>
+              <option value="bom">Nomenclatures + gammes</option>
+            </select>
+            <Button onClick={() => sync(false, true, false, syncMode)} disabled={syncing || !isAdmin} data-readonly-allow="true">
               {syncing ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-2" />}Actualiser depuis Erplain
             </Button>
-            <Button variant="outline" onClick={() => sync(true)} disabled={syncing || !isAdmin} data-readonly-allow="true">Recommencer à zéro</Button>
+            <Button variant="outline" onClick={() => sync(true, true, false, syncMode)} disabled={syncing || !isAdmin} data-readonly-allow="true">Recommencer à zéro</Button>
           </div>
           {run && (
             <p className="text-sm text-muted-foreground">
