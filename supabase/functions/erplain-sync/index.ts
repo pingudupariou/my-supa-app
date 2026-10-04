@@ -219,6 +219,7 @@ async function reconcileSubmissions(admin: any, gql: any, runId: string): Promis
   const { data: rows } = await admin.from("erplain_manufacturing_orders").select("id,label,status,run_id").in("id", ids);
   const seen = new Map((rows ?? []).filter((r: any) => r.run_id === runId).map((r: any) => [Number(r.id), r]));
   const c = { open: 0, completed: 0, cancelled: 0, deleted: 0, unchecked: 0 };
+  const errs: string[] = [];
   for (const sub of subs) {
     const row = seen.get(Number(sub.erplain_mo_id));
     if (row) {
@@ -230,9 +231,9 @@ async function reconcileSubmissions(admin: any, gql: any, runId: string): Promis
     const res: any = await refreshMo(admin, gql, sub);
     if (res.erplain) { const st = String(res.erplain.status); if (st === "completed") c.completed++; else if (st === "cancelled") c.cancelled++; else c.open++; }
     else if (/introuvable/.test(res.refreshError ?? "")) c.deleted++;
-    else c.unchecked++;
+    else { c.unchecked++; errs.push(`${sub.erplain_mo_id} : ${res.refreshError}`); }
   }
-  return `OF de l'appli : ${c.open} en cours, ${c.completed} terminé(s), ${c.cancelled} annulé(s), ${c.deleted} supprimé(s) confirmé(s)` + (c.unchecked ? `, ${c.unchecked} non vérifié(s) (lecture en erreur, rien supprimé)` : "") + ".";
+  return `OF de l'appli : ${c.open} en cours, ${c.completed} terminé(s), ${c.cancelled} annulé(s), ${c.deleted} supprimé(s) confirmé(s)` + (c.unchecked ? `, ${c.unchecked} non vérifié(s) (lecture en erreur, rien supprimé : ${errs.join(" ; ")})` : "") + ".";
 }
 
 const MO_QUERY = `query MO($id: ID) { ManufacturingOrder(id: $id) { id label status quantity remaining_to_produce actually_produced due_at notes
@@ -246,7 +247,18 @@ async function refreshMo(admin: any, gql: any, sub: any) {
   const r = await gql(`Relecture OF ${sub.erplain_mo_id}`, MO_QUERY, { id: String(sub.erplain_mo_id) });
   // A direct read answered by Erplain with an explicit "not found" error is a confirmed absence.
   const notFound = r.httpStatus === 200 && !r.timeout && r.errors.length > 0 && r.errors.every((e: string) => /not found|no query results|introuvable|does not exist|n'existe pas/i.test(e));
-  if (!notFound && (r.errors.length || r.timeout)) return { refreshError: r.errors.join(" | ") || "délai dépassé" };
+  if (!notFound && (r.errors.length || r.timeout)) {
+    // Fallback: list read by ID only (no status filter) to at least get the current status.
+    const f = await gql(`Statut OF ${sub.erplain_mo_id}`, `{ ManufacturingOrders(first: 5, page: 1, where: { column: ID, operator: EQ, value: ${JSON.stringify(String(sub.erplain_mo_id))} }) { data { id label status quantity remaining_to_produce actually_produced } } }`);
+    const hit = (f.data?.ManufacturingOrders?.data ?? []).find((x: any) => Number(x.id) === Number(sub.erplain_mo_id));
+    if (hit) {
+      const cancelled = hit.status === "cancelled";
+      await admin.from("erplain_manufacturing_orders").update({ status: hit.status, label: hit.label, quantity: hit.quantity, remaining_to_produce: hit.remaining_to_produce, actually_produced: hit.actually_produced, synced_at: new Date().toISOString() }).eq("id", Number(hit.id));
+      await admin.from("erplain_mo_submissions").update({ ...(cancelled ? { status: "cancelled" } : {}), erplain_status: hit.status, erplain_snapshot: { ...(sub.erplain_snapshot ?? {}), ...hit }, erplain_synced_at: new Date().toISOString(), updated_at: new Date().toISOString() }).eq("id", sub.id);
+      return { erplain: hit };
+    }
+    return { refreshError: (r.errors.join(" | ") || "délai dépassé").slice(0, 200) };
+  }
   const m = notFound ? null : r.data?.ManufacturingOrder;
   if (!m) {
     if (r.httpStatus !== 200) return { refreshError: `Lecture incomplète (HTTP ${r.httpStatus ?? "n/a"}) : suppression non confirmée.` };
