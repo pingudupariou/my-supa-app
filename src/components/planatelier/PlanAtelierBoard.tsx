@@ -157,10 +157,16 @@ export function PlanAtelierBoard({ isAdmin }: { isAdmin: boolean }) {
             <Button onClick={() => { setMo({}); setApplied([...selected]); }} disabled={!selected.size || loading} data-readonly-allow="true">Calculer les OF pour la sélection</Button>
             {applied && <Button variant="ghost" onClick={() => { setMo({}); setApplied(null); }} data-readonly-allow="true">Revenir à toutes les commandes</Button>}
           </div>
+          <p className="text-xs text-muted-foreground">Le stock Erplain est un total par produit et emplacement, répété sur chaque ligne pour information : le calcul le répartit une seule fois entre les lignes sélectionnées (expédition la plus proche d'abord), jamais par commande.</p>
           {applied && <p className="text-xs text-muted-foreground">Calcul limité à {applied.length} ligne(s) sélectionnée(s). Les réservations et OF liés aux autres commandes leur restent affectés.</p>}
           <div className="overflow-auto max-h-[420px] border rounded-md">
             <table className="w-full text-sm">
-              <thead className="bg-muted text-left sticky top-0"><tr>{['', 'Commande', 'Expédition', 'Produit', 'Emplacement', 'Commandé', 'Expédié', 'Reste', 'Réservé', 'Stock réel', 'Stock réservé', 'OF lié'].map((h) => <th key={h} className="p-2 font-medium whitespace-nowrap">{h}</th>)}</tr></thead>
+              <thead className="bg-muted text-left sticky top-0">
+                <tr className="text-xs"><th colSpan={8} className="p-1 pl-2 font-normal text-muted-foreground">Commande</th><th colSpan={4} className="p-1 pl-2 font-semibold border-l-2 border-border">Données Erplain</th><th colSpan={3} className="p-1 pl-2 font-semibold border-l-2 border-primary bg-primary/10 text-primary">Calculé par l'appli (après « Calculer »)</th></tr>
+                <tr>{['', 'Commande', 'Expédition', 'Produit', 'Emplacement', 'Commandé', 'Expédié', 'Reste'].map((h) => <th key={h} className="p-2 font-medium whitespace-nowrap">{h}</th>)}
+                {['Réservé pour cette ligne', 'Stock réel Erplain — total emplacement', 'Réservé Erplain — toutes commandes', 'OF lié'].map((h, i) => <th key={h} className={`p-2 font-medium ${i === 0 ? 'border-l-2 border-border' : ''}`}>{h}</th>)}
+                {['Stock affecté à la sélection', 'Couvert par OF', 'À fabriquer'].map((h, i) => <th key={h} className={`p-2 font-medium bg-primary/10 ${i === 0 ? 'border-l-2 border-primary' : ''}`}>{h}</th>)}</tr>
+              </thead>
               <tbody>
                 {orders.map((o) => {
                   const ids = o.lines.map((l: any) => Number(l.line_id));
@@ -169,7 +175,7 @@ export function PlanAtelierBoard({ isAdmin }: { isAdmin: boolean }) {
                     <Fragment key={o.id}>
                       <tr className="border-t bg-muted/30">
                         <td className="p-2" data-readonly-allow="true"><Checkbox checked={all} onCheckedChange={(v) => toggle(ids, !!v)} /></td>
-                        <td className="p-2 font-medium" colSpan={11}>{o.label ?? o.id} <span className="text-xs text-muted-foreground">({o.status}, {o.lines.length} ligne(s){o.created ? `, créée ${String(o.created).slice(0, 10)}` : ''})</span></td>
+                        <td className="p-2 font-medium" colSpan={14}>{o.label ?? o.id} <span className="text-xs text-muted-foreground">({o.status}, {o.lines.length} ligne(s){o.created ? `, créée ${String(o.created).slice(0, 10)}` : ''})</span></td>
                       </tr>
                       {o.lines.map((l: any) => (
                         <tr key={l.line_id} className="border-t">
@@ -179,13 +185,14 @@ export function PlanAtelierBoard({ isAdmin }: { isAdmin: boolean }) {
                           <td className="p-2"><div>{l.sku}</div><div className="text-xs text-muted-foreground">{l.variant_label}</div></td>
                           <td className="p-2">{l.location_label ?? '—'}</td>
                           <td className="p-2">{fmt(l.quantity)}</td><td className="p-2">{fmt(l.shipped_quantity)}</td>
-                          <td className="p-2 font-semibold">{fmt(l.remaining)}</td><td className="p-2">{fmt(l.reserved_quantity)}</td>{(() => { const st = stockBy.get(`${l.variant_id}|${l.location_id ?? 'none'}`); return <><td className="p-2">{st ? fmt(st.on_hand) : '—'}</td><td className="p-2">{st ? fmt(st.reserved) : '—'}</td></>; })()}<td className="p-2">{l.linked_mo ?? '—'}</td>
+                          <td className="p-2 font-semibold">{fmt(l.remaining)}</td><td className="p-2 border-l-2 border-border">{fmt(l.reserved_quantity)}</td>{(() => { const st = stockBy.get(`${l.variant_id}|${l.location_id ?? 'none'}`); return <><td className="p-2 text-muted-foreground" title="Total de l'emplacement, réparti une seule fois entre les lignes dans le calcul">{st ? fmt(st.on_hand) : '—'}</td><td className="p-2 text-muted-foreground" title="Total Erplain, toutes commandes confondues">{st ? fmt(st.reserved) : '—'}</td></>; })()}<td className="p-2">{l.linked_mo ?? '—'}</td>
+                          {(() => { const c = coverageBy.get(Number(l.line_id)); return <><td className="p-2 bg-primary/5 border-l-2 border-primary">{c ? fmt(c.stock_covered) : '—'}</td><td className="p-2 bg-primary/5">{c ? fmt(c.mo_covered) : '—'}</td><td className="p-2 bg-primary/5 font-semibold">{c ? fmt(c.to_cover) : '—'}</td></>; })()}
                         </tr>
                       ))}
                     </Fragment>
                   );
                 })}
-                {!orders.length && <tr><td colSpan={12} className="p-4 text-center text-muted-foreground">Aucune commande active restant à expédier.</td></tr>}
+                {!orders.length && <tr><td colSpan={15} className="p-4 text-center text-muted-foreground">Aucune commande active restant à expédier.</td></tr>}
               </tbody>
             </table>
           </div>
@@ -287,8 +294,8 @@ export function PlanAtelierBoard({ isAdmin }: { isAdmin: boolean }) {
                             </div>
                             <div>
                               <p className="font-medium mb-1">Commandes concernées</p>
-                              <table className="w-full"><thead><tr className="text-left text-muted-foreground"><th>Commande</th><th>Statut</th><th>Expédition</th><th>Cmdé</th><th>Expédié</th><th>Livré</th><th>Réservé</th><th>Reste</th><th>OF lié</th></tr></thead>
-                                <tbody>{p.lines.map((l: any) => <tr key={l.line_id}><td>{l.order_label ?? l.order_id}</td><td>{l.order_status}/{l.shipping_status}</td><td>{l.line_shipping_at ?? l.order_shipping_at ?? '—'}</td><td>{fmt(l.quantity)}</td><td>{fmt(l.shipped_quantity)}</td><td>{fmt(l.delivered_quantity)}</td><td>{fmt(l.reserved_quantity)}</td><td>{fmt(l.remaining)}</td><td>{l.linked_mo ? `${l.linked_mo} (${fmt(l.mo_alloc)} couv.)` : '—'}{l.to_cover === 0 ? ' · Déjà couvert' : l.to_cover != null ? ` · à couvrir ${fmt(l.to_cover)}` : ''}</td></tr>)}</tbody></table>
+                              <table className="w-full"><thead><tr className="text-left text-muted-foreground"><th>Commande</th><th>Statut</th><th>Expédition</th><th>Cmdé</th><th>Expédié</th><th>Livré</th><th>Réservé pour cette ligne</th><th>Reste</th><th>OF lié</th><th>Stock affecté</th></tr></thead>
+                                <tbody>{p.lines.map((l: any) => <tr key={l.line_id}><td>{l.order_label ?? l.order_id}</td><td>{l.order_status}/{l.shipping_status}</td><td>{l.line_shipping_at ?? l.order_shipping_at ?? '—'}</td><td>{fmt(l.quantity)}</td><td>{fmt(l.shipped_quantity)}</td><td>{fmt(l.delivered_quantity)}</td><td>{fmt(l.reserved_quantity)}</td><td>{fmt(l.remaining)}</td><td>{l.linked_mo ? `${l.linked_mo} (${fmt(l.mo_alloc)} couv.)` : '—'}{l.to_cover === 0 ? ' · Déjà couvert' : l.to_cover != null ? ` · à couvrir ${fmt(l.to_cover)}` : ''}</td><td>{fmt(l.stock_alloc)}</td></tr>)}</tbody></table>
                             </div>
                           </div>
                           {p.components.length > 0 && (
