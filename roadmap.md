@@ -1,0 +1,4 @@
+- [x] Afficher le client et la date de création dans la sélection des commandes.
+- [x] Ajouter un choix visible des colonnes, mémorisé sur cet appareil.
+- [x] Vérifier les colonnes et leurs cases de visibilité (3 tests réussis).
+- [ ] Vérifier sur les commandes réelles : session administrateur externe indisponible ; les noms clients seront chargés à la prochaine synchronisation des commandes.

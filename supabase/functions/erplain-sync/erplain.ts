@@ -69,6 +69,7 @@ export const DATASETS: Dataset[] = [
       line_id: li.id, order_id: o.id, order_label: o.label, order_status: o.status, shipping_status: o.shipping_status,
       delivery_status: o.delivery_status, stock_allocation_status: o.stock_allocation_status, order_shipping_at: o.shipping_at,
       order_created_at: o.created_at ?? null, order_dated_at: o.dated_at ?? null,
+      customer_name: o.customer?.company_name || o.customer?.display_name || o.customer?.name || o.customer?.label || [o.customer?.first_name, o.customer?.last_name].filter(Boolean).join(' ') || null,
       line_shipping_at: li.shipping_at, line_type: li.type, parent_id: li.parent_id, kit_line_item_id: li.kit_line_item_id, variant_type: li.variant_type,
       variant_id: li.variant?.id ?? null, sku: li.variant?.sku ?? null, variant_label: li.variant?.label ?? null,
       location_id: li.location?.id ?? null, location_label: li.location?.label ?? null,
@@ -144,4 +145,20 @@ export const FILTER_TYPES: Record<string, { type: string; build: (cols: string[]
 export function pageQuery(ds: Dataset, filter: string | null, first: number, page: number) {
   const extra = ds.args(filter);
   return `{ ${ds.root}(first: ${first}, page: ${page}${extra ? ", " + extra : ""}) { ${PI} data { ${ds.sel} } } }`;
+}
+
+// Read only the missing customer definition, then select verified scalar name fields.
+export async function ordersWithCustomer(admin: any, gql: Gql, ds: Dataset): Promise<Dataset> {
+  const { data: cached } = await admin.from('erplain_schema_cache').select('data').eq('type_name', 'Customer').maybeSingle();
+  let type = cached?.data;
+  if (!type?.fields) {
+    const r = await gql('Définition du nom client', '{ __type(name: "Customer") { kind name fields { name type { kind name ofType { kind name } } } } }');
+    if (r.errors.length || !r.data?.__type?.fields) throw new Error('Lecture du nom client impossible : ' + (r.errors.join(' | ') || 'définition absente'));
+    type = r.data.__type;
+    const { error } = await admin.from('erplain_schema_cache').upsert({ type_name: 'Customer', data: type, fetched_at: new Date().toISOString() });
+    if (error) throw new Error(error.message);
+  }
+  const candidates = ['company_name', 'display_name', 'name', 'label', 'first_name', 'last_name'];
+  const fields = candidates.filter((name) => type.fields.some((f: any) => f.name === name && (f.type.kind === 'SCALAR' || f.type.ofType?.kind === 'SCALAR')));
+  return fields.length ? { ...ds, sel: `${ds.sel} customer { ${fields.join(' ')} }` } : ds;
 }

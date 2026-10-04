@@ -5,9 +5,10 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuCheckboxItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuItem } from '@/components/ui/dropdown-menu';
 import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Loader2, RefreshCw, ChevronDown, ChevronRight, Send } from 'lucide-react';
+import { Loader2, RefreshCw, ChevronDown, ChevronRight, Send, Columns3 } from 'lucide-react';
 
 const fmt = (v: any) => (v === null || v === undefined ? '—' : typeof v === 'number' ? (Number.isInteger(v) ? String(v) : v.toFixed(2)) : String(v));
 const STATUS: Record<string, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' }> = {
@@ -15,6 +16,21 @@ const STATUS: Record<string, { label: string; variant: 'default' | 'secondary' |
   shortage: { label: 'Pièces manquantes', variant: 'destructive' },
   covered: { label: 'Déjà couvert', variant: 'secondary' },
   incomplete: { label: 'Données incomplètes', variant: 'outline' },
+};
+
+const ORDER_COLUMNS = [
+  ['order', 'Commande', 'Commande'], ['client', 'Nom du client', 'Commande'], ['created', 'Date de création', 'Commande'],
+  ['product', 'Produit', 'Commande'], ['location', 'Emplacement', 'Commande'], ['quantity', 'Commandé', 'Commande'],
+  ['shipped', 'Expédié', 'Commande'], ['remaining', 'Reste', 'Commande'],
+  ['reserved', 'Réservé pour cette ligne', 'Données Erplain'], ['stock', 'Stock réel Erplain — total emplacement', 'Données Erplain'],
+  ['stockReserved', 'Réservé Erplain — toutes commandes', 'Données Erplain'], ['mo', 'OF lié', 'Données Erplain'],
+  ['allocated', 'Stock affecté à la sélection', "Calculé par l'appli"], ['covered', 'Couvert par OF', "Calculé par l'appli"], ['build', 'À fabriquer', "Calculé par l'appli"],
+].map(([key, label, group]) => ({ key, label, group }));
+const COLUMN_STORAGE = 'plan-atelier-order-columns-v1';
+const dateLabel = (value: string | null | undefined) => {
+  if (!value) return '—';
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? '—' : date.toLocaleDateString('fr-FR');
 };
 
 export function PlanAtelierBoard({ isAdmin }: { isAdmin: boolean }) {
@@ -31,9 +47,15 @@ export function PlanAtelierBoard({ isAdmin }: { isAdmin: boolean }) {
   const [applied, setApplied] = useState<number[] | null>(null);
   const [realMode, setRealMode] = useState(false);
   const [sortAsc, setSortAsc] = useState(true);
-  const [sortBy, setSortBy] = useState<'shipping' | 'created'>('shipping');
+  const [sortBy, setSortBy] = useState<'shipping' | 'created'>('created');
   const [openLines, setOpenLines] = useState<any[]>([]);
   const [stockLevels, setStockLevels] = useState<any[]>([]);
+  const [hiddenColumns, setHiddenColumns] = useState<string[]>(() => {
+    try { const saved = JSON.parse(localStorage.getItem(COLUMN_STORAGE) ?? '[]'); return Array.isArray(saved) ? saved.filter((key) => ORDER_COLUMNS.some((c) => c.key === key)) : []; } catch { return []; }
+  });
+  useEffect(() => { try { localStorage.setItem(COLUMN_STORAGE, JSON.stringify(hiddenColumns)); } catch { /* Storage unavailable */ } }, [hiddenColumns]);
+  const visibleColumns = ORDER_COLUMNS.filter((c) => !hiddenColumns.includes(c.key));
+
 
   const call = async (body: any) => {
     const { data, error } = await supabase.functions.invoke('erplain-sync', { body });
@@ -47,7 +69,7 @@ export function PlanAtelierBoard({ isAdmin }: { isAdmin: boolean }) {
   const loadPlan = useCallback(async () => {
     if (!isAdmin) return;
     setLoading(true); setError(null);
-    try { const d = await call({ action: 'plan', includePending, selectedLineIds: applied }); setPlan(d); if (d.stocks) setStockLevels(d.stocks); if (!applied) setOpenLines(d.openLines ?? []); } catch (e) { setError((e as Error).message); }
+    try { const d = await call({ action: 'plan', includePending, selectedLineIds: applied }); setPlan(d); if (d.stocks) setStockLevels(d.stocks); setOpenLines(d.openLines ?? []); } catch (e) { setError((e as Error).message); }
     setLoading(false);
   }, [isAdmin, includePending, applied]);
 
@@ -150,7 +172,20 @@ export function PlanAtelierBoard({ isAdmin }: { isAdmin: boolean }) {
       </Card>
 
       <Card>
-        <CardHeader><CardTitle className="text-base">Sélection des commandes à fabriquer</CardTitle></CardHeader>
+        <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-3 space-y-0">
+          <CardTitle className="text-base">Sélection des commandes à fabriquer</CardTitle>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild><Button variant="outline" size="sm" data-readonly-allow="true"><Columns3 className="h-4 w-4 mr-2" />Colonnes affichées ({visibleColumns.length}/{ORDER_COLUMNS.length})<ChevronDown className="h-4 w-4 ml-2" /></Button></DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-80 max-w-[calc(100vw-2rem)] max-h-[70vh] overflow-y-auto" data-readonly-allow="true">
+              {['Commande', 'Données Erplain', "Calculé par l'appli"].map((group) => <Fragment key={group}>
+                <DropdownMenuLabel>{group}</DropdownMenuLabel>
+                {ORDER_COLUMNS.filter((c) => c.group === group).map((c) => <DropdownMenuCheckboxItem key={c.key} checked={!hiddenColumns.includes(c.key)} onSelect={(e) => e.preventDefault()} onCheckedChange={(checked) => setHiddenColumns((prev) => checked ? prev.filter((key) => key !== c.key) : [...prev, c.key])}>{c.label}</DropdownMenuCheckboxItem>)}
+                <DropdownMenuSeparator />
+              </Fragment>)}
+              <DropdownMenuItem onSelect={() => setHiddenColumns([])}>Tout afficher</DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </CardHeader>
         <CardContent className="space-y-3">
           <div className="flex flex-wrap gap-3 items-center">
             <label className="flex items-center gap-2 text-sm" data-readonly-allow="true">
@@ -167,10 +202,14 @@ export function PlanAtelierBoard({ isAdmin }: { isAdmin: boolean }) {
           <div className="overflow-auto max-h-[420px] border rounded-md">
             <table className="w-full text-sm">
               <thead className="bg-muted text-left sticky top-0">
-                <tr className="text-xs"><th colSpan={8} className="p-1 pl-2 font-normal text-muted-foreground">Commande</th><th colSpan={4} className="p-1 pl-2 font-semibold border-l-2 border-border">Données Erplain</th><th colSpan={3} className="p-1 pl-2 font-semibold border-l-2 border-primary bg-primary/10 text-primary">Calculé par l'appli (après « Calculer »)</th></tr>
-                <tr>{['', 'Commande', 'Expédition', 'Produit', 'Emplacement', 'Commandé', 'Expédié', 'Reste'].map((h) => <th key={h} className="p-2 font-medium whitespace-nowrap">{h}</th>)}
-                {['Réservé pour cette ligne', 'Stock réel Erplain — total emplacement', 'Réservé Erplain — toutes commandes', 'OF lié'].map((h, i) => <th key={h} className={`p-2 font-medium ${i === 0 ? 'border-l-2 border-border' : ''}`}>{h}</th>)}
-                {['Stock affecté à la sélection', 'Couvert par OF', 'À fabriquer'].map((h, i) => <th key={h} className={`p-2 font-medium bg-primary/10 ${i === 0 ? 'border-l-2 border-primary' : ''}`}>{h}</th>)}</tr>
+                <tr className="text-xs">
+                  <th aria-label="Sélection" rowSpan={2} className="p-2" />
+                  {['Commande', 'Données Erplain', "Calculé par l'appli"].map((group) => {
+                    const count = visibleColumns.filter((c) => c.group === group).length;
+                    return count ? <th key={group} colSpan={count} className={`p-2 font-semibold ${group === "Calculé par l'appli" ? 'border-l-2 border-primary bg-primary/10 text-primary' : group === 'Données Erplain' ? 'border-l-2 border-border' : 'text-muted-foreground'}`}>{group}</th> : null;
+                  })}
+                </tr>
+                <tr>{visibleColumns.map((c, i) => <th key={c.key} className={`p-2 font-medium ${c.group === "Calculé par l'appli" ? 'bg-primary/10' : ''} ${i > 0 && visibleColumns[i - 1].group !== c.group ? 'border-l-2 border-border' : ''}`}>{c.label}</th>)}</tr>
               </thead>
               <tbody>
                 {orders.map((o) => {
@@ -180,24 +219,29 @@ export function PlanAtelierBoard({ isAdmin }: { isAdmin: boolean }) {
                     <Fragment key={o.id}>
                       <tr className="border-t bg-muted/30">
                         <td className="p-2" data-readonly-allow="true"><Checkbox checked={all} onCheckedChange={(v) => toggle(ids, !!v)} /></td>
-                        <td className="p-2 font-medium" colSpan={14}>{o.label ?? o.id} <span className="text-xs text-muted-foreground">({o.status}, {o.lines.length} ligne(s){o.created ? `, créée ${String(o.created).slice(0, 10)}` : ''})</span></td>
+                        {visibleColumns.length > 0 && <td className="p-2 font-medium" colSpan={visibleColumns.length}>{o.label ?? o.id} <span className="text-xs text-muted-foreground">({o.status}, {o.lines.length} ligne(s){o.created ? `, créée ${String(o.created).slice(0, 10)}` : ''})</span></td>}
                       </tr>
                       {o.lines.map((l: any) => (
                         <tr key={l.line_id} className="border-t">
                           <td className="p-2 pl-6" data-readonly-allow="true"><Checkbox checked={selected.has(Number(l.line_id))} onCheckedChange={(v) => toggle([Number(l.line_id)], !!v)} /></td>
-                          <td className="p-2 text-xs text-muted-foreground">{l.shipping_status ?? '—'}</td>
-                          <td className="p-2">{l.shipping_at ?? '—'}</td>
-                          <td className="p-2"><div>{l.sku}</div><div className="text-xs text-muted-foreground">{l.variant_label}</div></td>
-                          <td className="p-2">{l.location_label ?? '—'}</td>
-                          <td className="p-2">{fmt(l.quantity)}</td><td className="p-2">{fmt(l.shipped_quantity)}</td>
-                          <td className="p-2 font-semibold">{fmt(l.remaining)}</td><td className="p-2 border-l-2 border-border">{fmt(l.reserved_quantity)}</td>{(() => { const st = stockBy.get(`${l.variant_id}|${l.location_id ?? 'none'}`); return <><td className="p-2 text-muted-foreground" title="Total de l'emplacement, réparti une seule fois entre les lignes dans le calcul">{st ? fmt(st.on_hand) : '—'}</td><td className="p-2 text-muted-foreground" title="Total Erplain, toutes commandes confondues">{st ? fmt(st.reserved) : '—'}</td></>; })()}<td className="p-2">{l.linked_mo ?? '—'}</td>
-                          {(() => { const c = coverageBy.get(Number(l.line_id)); return <><td className="p-2 bg-primary/5 border-l-2 border-primary">{c ? fmt(c.stock_covered) : '—'}</td><td className="p-2 bg-primary/5">{c ? fmt(c.mo_covered) : '—'}</td><td className="p-2 bg-primary/5 font-semibold">{c ? fmt(c.to_cover) : '—'}</td></>; })()}
+                          {visibleColumns.map((column, i) => {
+                            const st = stockBy.get(`${l.variant_id}|${l.location_id ?? 'none'}`);
+                            const c = coverageBy.get(Number(l.line_id));
+                            const cells: Record<string, React.ReactNode> = {
+                              order: l.order_label ?? l.order_id, client: l.customer_name ?? '—', created: dateLabel(l.order_created_at),
+                              product: <><div>{l.sku}</div><div className="text-xs text-muted-foreground">{l.variant_label}</div></>,
+                              location: l.location_label ?? '—', quantity: fmt(l.quantity), shipped: fmt(l.shipped_quantity), remaining: fmt(l.remaining),
+                              reserved: fmt(l.reserved_quantity), stock: st ? fmt(st.on_hand) : '—', stockReserved: st ? fmt(st.reserved) : '—', mo: l.linked_mo ?? '—',
+                              allocated: c ? fmt(c.stock_covered) : '—', covered: c ? fmt(c.mo_covered) : '—', build: c ? fmt(c.to_cover) : '—',
+                            };
+                            return <td key={column.key} className={`p-2 ${column.group === "Calculé par l'appli" ? 'bg-primary/5' : ''} ${['remaining', 'build'].includes(column.key) ? 'font-semibold' : ''} ${i > 0 && visibleColumns[i - 1].group !== column.group ? 'border-l-2 border-border' : ''}`}>{cells[column.key]}</td>;
+                          })}
                         </tr>
                       ))}
                     </Fragment>
                   );
                 })}
-                {!orders.length && <tr><td colSpan={15} className="p-4 text-center text-muted-foreground">Aucune commande active restant à expédier.</td></tr>}
+                {!orders.length && <tr><td colSpan={visibleColumns.length + 1} className="p-4 text-center text-muted-foreground">Aucune commande active restant à expédier.</td></tr>}
               </tbody>
             </table>
           </div>
