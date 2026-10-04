@@ -1,0 +1,2 @@
+GRANT SELECT ON public.erplain_mo_settings TO authenticated;
+CREATE POLICY "Admins can read MO settings" ON public.erplain_mo_settings FOR SELECT TO authenticated USING (public.has_role(auth.uid(), 'admin'));
