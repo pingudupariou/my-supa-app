@@ -18,8 +18,9 @@ const key = (v: any, l: any) => `${v}|${l ?? "none"}`;
 const n = (x: any): number | null => (x === null || x === undefined ? null : Number(x));
 const sum = (a: (number | null)[]) => (a.some((x) => x === null) ? null : a.reduce((s: number, x) => s + (x as number), 0));
 
-export function computePlan(data: { lines: any[]; stocks: any[]; mos: any[]; boms: any[]; routings: any[] }, opts: { includePending?: boolean } = {}) {
+export function computePlan(data: { lines: any[]; stocks: any[]; mos: any[]; boms: any[]; routings: any[] }, opts: { includePending?: boolean; selectedLineIds?: number[] | null } = {}) {
   const statuses = opts.includePending ? [...OPEN_ORDER, "pending_validation"] : OPEN_ORDER;
+  const selection = opts.selectedLineIds ? new Set(opts.selectedLineIds.map(Number)) : null;
   const stockBy = new Map<string, any>();
   const warnings: string[] = [];
   for (const s of data.stocks) {
@@ -33,34 +34,56 @@ export function computePlan(data: { lines: any[]; stocks: any[]; mos: any[]; bom
   const routingById = new Map(data.routings.map((r) => [Number(r.id), r]));
   const bomsByVariant = new Map<number, any[]>();
   data.boms.filter((b) => b.active).forEach((b) => { const k = Number(b.variant_id); bomsByVariant.set(k, [...(bomsByVariant.get(k) ?? []), b]); });
+  const dateOf = (l: any) => String(l.line_shipping_at ?? l.order_shipping_at ?? "9999");
 
-  // Group open lines
+  // All open lines (to ship), grouped by variant + location. Partial shipments: only the remainder.
   const groups = new Map<string, any>();
+  const openLines: any[] = [];
   const excluded = { closedOrders: 0, fullyShipped: 0, noVariant: 0 };
   for (const li of data.lines) {
     if (!statuses.includes(li.order_status)) { excluded.closedOrders++; continue; }
     if (li.variant_id == null) { excluded.noVariant++; continue; }
+    if (li.shipping_status === "shipped") { excluded.fullyShipped++; continue; }
     const remaining = li.quantity == null || li.shipped_quantity == null ? null : Math.max(0, li.quantity - li.shipped_quantity);
     if (remaining === 0) { excluded.fullyShipped++; continue; }
     const k = key(li.variant_id, li.location_id);
-    if (!groups.has(k)) groups.set(k, { key: k, variant_id: li.variant_id, sku: li.sku, variant_label: li.variant_label, location_id: li.location_id, location_label: li.location_label, lines: [] });
-    groups.get(k).lines.push({ ...li, remaining, linked_mo: linkedLine.get(Number(li.line_id))?.label ?? null });
+    if (!groups.has(k)) groups.set(k, { key: k, variant_id: li.variant_id, sku: li.sku, variant_label: li.variant_label, location_id: li.location_id, location_label: li.location_label, all: [] });
+    const row = { ...li, remaining, linked_mo: linkedLine.get(Number(li.line_id))?.label ?? null, linked_mo_id: linkedLine.get(Number(li.line_id))?.id ?? null };
+    groups.get(k).all.push(row);
+    openLines.push(row);
   }
 
   const proposals = [...groups.values()].map((g) => {
     const issues: string[] = [];
-    const need = sum(g.lines.map((l: any) => l.remaining));
+    g.all.sort((a: any, b: any) => dateOf(a).localeCompare(dateOf(b)));
+    // Explicit allocations: own reservation, then MOs linked to specific lines (for every line, selected or not).
+    for (const l of g.all) { l.own_reserved = l.remaining == null || l.reserved_quantity == null ? null : Math.min(Number(l.reserved_quantity), l.remaining); l.mo_alloc = 0; }
+    const mos = openMos.filter((m) => key(m.variant_id, m.location_id) === g.key);
+    let freeMo: number | null = 0;
+    for (const m of mos) {
+      let left = n(m.remaining_to_produce);
+      if (left === null) { freeMo = null; continue; }
+      for (const l of g.all.filter((x: any) => Number(x.linked_mo_id) === Number(m.id))) {
+        const open = Math.max(0, (l.remaining ?? 0) - (l.own_reserved ?? 0));
+        const take = Math.min(open, left); l.mo_alloc += take; left -= take;
+      }
+      if (freeMo !== null) freeMo += left; // unlinked or leftover production = free
+    }
+    if (freeMo === null) issues.push("Reste à produire manquant sur un OF existant.");
+    const lines = g.all.filter((l: any) => !selection || selection.has(Number(l.line_id)));
+    const others = g.all.length - lines.length;
+    const need = sum(lines.map((l: any) => l.remaining));
     if (need === null) issues.push("Quantité commandée ou expédiée manquante sur une ligne.");
-    const reservedInScope = sum(g.lines.map((l: any) => n(l.reserved_quantity)));
+    const reservedInScope = sum(lines.map((l: any) => l.own_reserved));
     if (reservedInScope === null) issues.push("Quantité réservée manquante sur une ligne de commande.");
+    const linkedMo = lines.reduce((s: number, l: any) => s + l.mo_alloc, 0);
     const st = stockBy.get(g.key);
     if (!st) issues.push("Aucun niveau de stock Erplain pour cette variante à cet emplacement.");
     else if (st.available == null || st.on_hand == null) issues.push("Stock disponible ou réel non renseigné par Erplain.");
+    // Free stock = available (reservations of other orders are already excluded from available).
     let usable: number | null = null;
-    if (st && st.available != null && st.on_hand != null && reservedInScope !== null) usable = Math.max(0, Math.min(st.on_hand, st.available + reservedInScope));
-    const mos = openMos.filter((m) => key(m.variant_id, m.location_id) === g.key);
-    const moRemaining = sum(mos.map((m) => n(m.remaining_to_produce)));
-    if (moRemaining === null) issues.push("Reste à produire manquant sur un OF existant.");
+    if (st && st.available != null && st.on_hand != null && reservedInScope !== null) usable = Math.max(0, Math.min(st.on_hand, Math.max(0, st.available) + reservedInScope));
+    const moRemaining = freeMo === null ? null : linkedMo + freeMo;
     const toBuild = need !== null && usable !== null && moRemaining !== null ? Math.max(0, need - usable - moRemaining) : null;
 
     const cands = bomsByVariant.get(Number(g.variant_id)) ?? [];
@@ -71,20 +94,20 @@ export function computePlan(data: { lines: any[]; stocks: any[]; mos: any[]; bom
     const routing = routingId != null ? routingById.get(Number(routingId)) ?? null : null;
     if (routingId != null && !routing) issues.push("Gamme de la variante introuvable parmi les gammes actives.");
 
-    const firstDate = g.lines.map((l: any) => l.line_shipping_at ?? l.order_shipping_at).filter(Boolean).sort()[0] ?? null;
-    const freeLineIds = g.lines.filter((l: any) => !l.linked_mo && (l.remaining ?? 0) > 0).map((l: any) => Number(l.line_id)).sort((a: number, b: number) => a - b);
+    const firstDate = lines.map((l: any) => l.line_shipping_at ?? l.order_shipping_at).filter(Boolean).sort()[0] ?? null;
+    const freeLineIds = lines.filter((l: any) => !l.linked_mo && (l.remaining ?? 0) > 0).map((l: any) => Number(l.line_id)).sort((a: number, b: number) => a - b);
     return {
       key: g.key, variant_id: g.variant_id, sku: g.sku, variant_label: g.variant_label, location_id: g.location_id, location_label: g.location_label,
-      first_shipping_at: firstDate, lines: g.lines,
+      first_shipping_at: firstDate, lines, other_open_lines: others,
       need, stock: st ? { on_hand: st.on_hand, available: st.available, reserved: st.reserved } : null, reserved_in_scope: reservedInScope, usable,
-      mos: mos.map((m) => ({ id: m.id, label: m.label, status: m.status, quantity: m.quantity, remaining_to_produce: m.remaining_to_produce })),
-      mo_remaining: moRemaining, to_build: toBuild,
+      mos: mos.map((m) => ({ id: m.id, label: m.label, status: m.status, quantity: m.quantity, remaining_to_produce: m.remaining_to_produce, linked: (m.order_line_item_ids ?? []).length > 0 })),
+      mo_linked: linkedMo, mo_free: freeMo, mo_remaining: moRemaining, to_build: toBuild,
       bom: bom ? { id: bom.id, label: bom.label } : null, routing: routing ? { id: routing.id, label: routing.label, steps: (routing.steps ?? []).length } : null,
       bom_components: bom?.components ?? [], free_line_ids: freeLineIds,
       components: [] as any[], buildable: null as number | null, status: "pending" as string, issues,
       idempotency_key: `v${g.variant_id}|l${g.location_id ?? "none"}|${freeLineIds.join(",")}`,
     };
-  });
+  }).filter((p) => p.lines.length > 0);
 
   // Component pool per (component, location): available - unreserved needs of open MOs
   const pool = new Map<string, number | null>();
@@ -126,7 +149,8 @@ export function computePlan(data: { lines: any[]; stocks: any[]; mos: any[]; bom
     }
     p.status = buildable >= p.to_build ? "ready" : "shortage";
   }
-  return { proposals, warnings, excluded, statuses };
+  openLines.sort((a, b) => dateOf(a).localeCompare(dateOf(b)));
+  return { proposals, warnings, excluded, statuses, openLines: openLines.map((l) => ({ line_id: l.line_id, order_id: l.order_id, order_label: l.order_label, order_status: l.order_status, shipping_status: l.shipping_status, shipping_at: l.line_shipping_at ?? l.order_shipping_at, sku: l.sku, variant_label: l.variant_label, location_label: l.location_label, quantity: l.quantity, shipped_quantity: l.shipped_quantity, remaining: l.remaining, reserved_quantity: l.reserved_quantity, linked_mo: l.linked_mo })) };
 }
 
 export function moPayload(p: any) {

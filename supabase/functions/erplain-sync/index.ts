@@ -35,7 +35,7 @@ async function handleData(action: string, body: any, admin: any, token: string, 
     const data = await loadPlanData(admin);
     const { data: run } = await admin.from("erplain_sync_runs").select("*").order("started_at", { ascending: false }).limit(1).maybeSingle();
     const { data: subs } = await admin.from("erplain_mo_submissions").select("*").order("created_at", { ascending: false });
-    const plan = computePlan(data, { includePending: !!body.includePending });
+    const plan = computePlan(data, { includePending: !!body.includePending, selectedLineIds: Array.isArray(body.selectedLineIds) ? body.selectedLineIds : null });
     return json({ status: "success", lastRun: run, ...plan, submissions: subs ?? [],
       writeEnabled: Deno.env.get("ERPLAIN_ALLOW_WRITE") === "true",
       counts: { lines: data.lines.length, stocks: data.stocks.length, mos: data.mos.length, boms: data.boms.length, routings: data.routings.length } });
@@ -103,12 +103,14 @@ async function handleData(action: string, body: any, admin: any, token: string, 
       current: DATASETS[cursor.ds]?.root ?? null, page: cursor.page, steps: steps.slice(-30), durationMs: Date.now() - t0 });
   }
 
+  if (["mo_refresh", "mo_update", "mo_delete", "mo_transition"].includes(action)) return await handleMo(action, body, admin, gql, steps);
+
   // create_mo: re-check everything server-side, never trust the client figures.
   const wanted: string = String(body.key ?? "");
   const confirm = body.confirm === true;
   const { data: lastRun } = await admin.from("erplain_sync_runs").select("*").eq("status", "completed").order("finished_at", { ascending: false }).limit(1).maybeSingle();
-  if (!lastRun || Date.now() - new Date(lastRun.finished_at).getTime() > 30 * 60 * 1000)
-    return json({ status: "blocked", message: "Données Erplain trop anciennes (plus de 30 min) : actualisez depuis Erplain avant l'envoi." });
+  if (!lastRun || Date.now() - new Date(lastRun.finished_at).getTime() > 10 * 60 * 1000)
+    return json({ status: "blocked", message: "Données Erplain trop anciennes (plus de 10 min) : actualisez depuis Erplain avant l'envoi." });
 
   // Fresh read of open MOs (duplicate protection against MOs created meanwhile in Erplain).
   const mosDs = DATASETS.find((d) => d.key === "mos")!;
@@ -126,7 +128,7 @@ async function handleData(action: string, body: any, admin: any, token: string, 
   }
   const data = await loadPlanData(admin);
   data.mos = freshMos;
-  const plan = computePlan(data, { includePending: !!body.includePending });
+  const plan = computePlan(data, { includePending: !!body.includePending, selectedLineIds: Array.isArray(body.selectedLineIds) ? body.selectedLineIds : null });
   const p = plan.proposals.find((x: any) => x.idempotency_key === wanted || x.key === body.groupKey);
   if (!p) return json({ status: "blocked", message: "Proposition introuvable après relecture : le besoin a changé ou est couvert." });
   if (p.idempotency_key !== wanted) return json({ status: "blocked", message: "Les lignes de commande concernées ont changé depuis l'affichage. Rechargez le plan." });
@@ -158,12 +160,80 @@ async function handleData(action: string, body: any, admin: any, token: string, 
   if (mo?.id) {
     await admin.from("erplain_mo_submissions").update({ status: "created", erplain_mo_id: mo.id, updated_at: new Date().toISOString(),
       steps: [{ step: "envoi", at: new Date().toISOString() }, { step: "créé", id: mo.id, label: mo.label, status: mo.status }] }).eq("idempotency_key", p.idempotency_key);
-    return json({ status: "created", mo });
+    const { data: sub } = await admin.from("erplain_mo_submissions").select("*").eq("idempotency_key", p.idempotency_key).single();
+    const refreshed = await refreshMo(admin, gql, sub);
+    return json({ status: "created", mo, ...refreshed });
   }
   // Unknown outcome (timeout/network) must not be retried blindly.
   const st = r.errors.length && r.httpStatus && r.httpStatus < 500 ? "failed" : "unknown";
   await admin.from("erplain_mo_submissions").update({ status: st, error: r.errors.join(" | ") || "Réponse vide", updated_at: new Date().toISOString() }).eq("idempotency_key", p.idempotency_key);
   return json({ status: "api_error", message: `Création refusée ou incertaine (HTTP ${r.httpStatus ?? "n/a"}) : ${r.errors.join(" | ")}` });
+}
+
+const MO_QUERY = `query MO($id: ID) { ManufacturingOrder(id: $id) { id label status quantity remaining_to_produce actually_produced due_at notes
+  variant { id sku } location { id } bill_of_material { id } manufacturing_routing { id } order_line_items { id }
+  lines { id variant_id planned_quantity remaining_to_produce reserved } steps { id status manufacturing_routing_step_id } } }`;
+const EDITABLE = ["unpublished", "draft"];
+const TRANSITIONS: Record<string, string[]> = { released: ["unpublished", "draft"], in_progress: ["released"] };
+
+// Re-read one MO from Erplain, store its content/status and verify components + routing were carried over.
+async function refreshMo(admin: any, gql: any, sub: any) {
+  const r = await gql(`Relecture OF ${sub.erplain_mo_id}`, MO_QUERY, { id: String(sub.erplain_mo_id) });
+  if (r.errors.length || r.timeout) return { refreshError: r.errors.join(" | ") || "délai dépassé" };
+  const m = r.data?.ManufacturingOrder;
+  if (!m) {
+    await admin.from("erplain_mo_submissions").update({ erplain_status: "absent", deleted_at: new Date().toISOString(), erplain_synced_at: new Date().toISOString() }).eq("id", sub.id);
+    return { refreshError: "OF introuvable dans Erplain (supprimé ?)." };
+  }
+  const { data: bom } = await admin.from("erplain_boms").select("components").eq("id", sub.payload?.bill_of_material?.id).maybeSingle();
+  const { data: rt } = sub.payload?.manufacturing_routing ? await admin.from("erplain_routings").select("steps").eq("id", sub.payload.manufacturing_routing.id).maybeSingle() : { data: null };
+  const expectedComp = (bom?.components ?? []).map((c: any) => Number(c.component_id)).sort();
+  const gotComp = (m.lines ?? []).map((l: any) => Number(l.variant_id)).sort();
+  const checks = {
+    bom: String(m.bill_of_material?.id ?? "") === String(sub.payload?.bill_of_material?.id ?? ""),
+    components: expectedComp.length > 0 && expectedComp.every((c: number) => gotComp.includes(c)),
+    components_detail: `${gotComp.length} ligne(s) composant reprises / ${expectedComp.length} attendue(s)`,
+    routing: sub.payload?.manufacturing_routing ? String(m.manufacturing_routing?.id ?? "") === String(sub.payload.manufacturing_routing.id) : null,
+    steps_detail: sub.payload?.manufacturing_routing ? `${(m.steps ?? []).length} étape(s) / ${(rt?.steps ?? []).length} dans la gamme` : "pas de gamme",
+    quantity: Number(m.quantity) === Number(sub.quantity),
+    order_lines: (sub.order_line_item_ids ?? []).every((id: number) => (m.order_line_items ?? []).some((x: any) => Number(x.id) === Number(id))),
+  };
+  await admin.from("erplain_mo_submissions").update({ erplain_status: m.status, erplain_snapshot: m, checks, erplain_synced_at: new Date().toISOString(), updated_at: new Date().toISOString() }).eq("id", sub.id);
+  return { erplain: m, checks };
+}
+
+async function handleMo(action: string, body: any, admin: any, gql: any, steps: any[]) {
+  const { data: sub } = await admin.from("erplain_mo_submissions").select("*").eq("id", String(body.submissionId ?? "")).maybeSingle();
+  if (!sub?.erplain_mo_id) return json({ status: "blocked", message: "OF Erplain inconnu pour cet envoi." });
+  const fresh = await refreshMo(admin, gql, sub);
+  if (action === "mo_refresh" || (fresh as any).refreshError) return json({ status: (fresh as any).refreshError ? "api_error" : "success", message: (fresh as any).refreshError, ...fresh });
+  const cur = (fresh as any).erplain.status;
+  const writeEnabled = Deno.env.get("ERPLAIN_ALLOW_WRITE") === "true";
+  let mutation = "", variables: any = {}, allowed = false, why = "";
+  if (action === "mo_delete") {
+    allowed = EDITABLE.includes(cur); why = `Suppression possible seulement aux statuts ${EDITABLE.join("/")} (actuel : ${cur}).`;
+    mutation = `mutation Del($id: ID!) { DeleteManufacturingOrder(id: $id) }`; variables = { id: String(sub.erplain_mo_id) };
+  } else if (action === "mo_update") {
+    allowed = EDITABLE.includes(cur); why = `Modification possible seulement aux statuts ${EDITABLE.join("/")} (actuel : ${cur}).`;
+    const input: any = {};
+    if (body.quantity != null) { const q = Number(body.quantity); if (!(q > 0)) return json({ status: "blocked", message: "Quantité invalide." }); input.quantity = q; }
+    if (typeof body.notes === "string") input.notes = body.notes.slice(0, 2000);
+    if (typeof body.due_at === "string" && body.due_at) input.due_at = body.due_at;
+    if (!Object.keys(input).length) return json({ status: "blocked", message: "Rien à modifier." });
+    mutation = `mutation Upd($id: ID!, $input: ManufacturingOrderInput!) { UpdateManufacturingOrder(id: $id, input: $input) { id status quantity } }`; variables = { id: String(sub.erplain_mo_id), input };
+  } else {
+    const target = String(body.target ?? "");
+    allowed = (TRANSITIONS[target] ?? []).includes(cur); why = `Passage à « ${target} » impossible depuis « ${cur} ».`;
+    mutation = `mutation Upd($id: ID!, $input: ManufacturingOrderInput!) { UpdateManufacturingOrder(id: $id, input: $input) { id status } }`; variables = { id: String(sub.erplain_mo_id), input: { status: target } };
+  }
+  if (!allowed) return json({ status: "blocked", message: why, ...fresh });
+  if (!writeEnabled || body.confirm !== true) return json({ status: "dry_run", writeEnabled, message: writeEnabled ? "Simulation : confirmez pour envoyer." : "Simulation uniquement : l'envoi réel est désactivé sur le serveur.", mutation, variables, ...fresh });
+  const r = await gql(action, mutation, variables);
+  if (r.errors.length || r.timeout) return json({ status: "api_error", message: `Refusé par Erplain (HTTP ${r.httpStatus ?? "n/a"}) : ${r.errors.join(" | ") || "délai dépassé"}`, steps });
+  const { data: sub2 } = await admin.from("erplain_mo_submissions").select("*").eq("id", sub.id).single();
+  const after = await refreshMo(admin, gql, sub2);
+  if (action === "mo_delete") await admin.from("erplain_mo_submissions").update({ status: "deleted", deleted_at: new Date().toISOString() }).eq("id", sub.id);
+  return json({ status: "success", message: "Fait dans Erplain.", ...after });
 }
 
 const corsHeaders = {
@@ -214,7 +284,7 @@ Deno.serve(async (req) => {
     let body: any = {};
     try { body = (await req.json()) ?? {}; action = body.action ?? "test"; } catch { /* no body */ }
 
-    if (action === "sync" || action === "plan" || action === "create_mo") {
+    if (["sync", "plan", "create_mo", "mo_refresh", "mo_update", "mo_delete", "mo_transition"].includes(action)) {
       return await handleData(action, body, admin, token, claims.claims.sub as string);
     }
 

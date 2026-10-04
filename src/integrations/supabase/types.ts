@@ -1580,9 +1580,14 @@ export type Database = {
       }
       erplain_mo_submissions: {
         Row: {
+          checks: Json | null
           created_at: string
           created_by: string | null
+          deleted_at: string | null
           erplain_mo_id: number | null
+          erplain_snapshot: Json | null
+          erplain_status: string | null
+          erplain_synced_at: string | null
           error: string | null
           id: string
           idempotency_key: string
@@ -1596,9 +1601,14 @@ export type Database = {
           variant_id: number
         }
         Insert: {
+          checks?: Json | null
           created_at?: string
           created_by?: string | null
+          deleted_at?: string | null
           erplain_mo_id?: number | null
+          erplain_snapshot?: Json | null
+          erplain_status?: string | null
+          erplain_synced_at?: string | null
           error?: string | null
           id?: string
           idempotency_key: string
@@ -1612,9 +1622,14 @@ export type Database = {
           variant_id: number
         }
         Update: {
+          checks?: Json | null
           created_at?: string
           created_by?: string | null
+          deleted_at?: string | null
           erplain_mo_id?: number | null
+          erplain_snapshot?: Json | null
+          erplain_status?: string | null
+          erplain_synced_at?: string | null
           error?: string | null
           id?: string
           idempotency_key?: string
