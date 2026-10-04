@@ -105,6 +105,12 @@ export function PlanAtelierBoard({ isAdmin }: { isAdmin: boolean }) {
   }, [openLines, sortAsc, sortBy]);
   const toggle = (ids: number[], on: boolean) => setSelected((s) => { const n = new Set(s); ids.forEach((i) => (on ? n.add(i) : n.delete(i))); return n; });
   const allIds = openLines.map((l) => Number(l.line_id));
+  const stockBy = useMemo(() => {
+    const m = new Map<string, any>();
+    stockLevels.forEach((s) => m.set(`${s.variant_id}|${s.location_id ?? 'none'}`, s));
+    return m;
+  }, [stockLevels]);
+  const stockUpdatedAt = useMemo(() => stockLevels.map((s) => s.synced_at).filter(Boolean).sort().pop() ?? null, [stockLevels]);
 
   return (
     <div className="space-y-6">
