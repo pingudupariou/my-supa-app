@@ -387,7 +387,9 @@ function ControlViews({ isAdmin, reloadKey }: { isAdmin: boolean; reloadKey: str
     (async () => {
       const t = (n: string, order: string) => (supabase.from(n as any) as any).select('*').order(order).limit(1000);
       const [l, s, m] = await Promise.all([t('erplain_order_lines', 'order_id'), t('erplain_stock_levels', 'sku'), t('erplain_manufacturing_orders', 'id')]);
-      setRows({ lines: l.data ?? [], stocks: s.data ?? [], mos: m.data ?? [] });
+      const lines = (l.data ?? []).slice().sort((a, b) => String(b.order_created_at ?? '').localeCompare(String(a.order_created_at ?? '')));
+      const mos = (m.data ?? []).slice().sort((a, b) => Number(b.id) - Number(a.id));
+      setRows({ lines, stocks: s.data ?? [], mos });
     })();
   }, [isAdmin, reloadKey]);
   const f = (list: any[] = []) => list.filter((r) => !q || JSON.stringify(r).toLowerCase().includes(q.toLowerCase())).slice(0, 300);
