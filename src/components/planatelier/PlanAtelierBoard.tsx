@@ -45,6 +45,7 @@ export function PlanAtelierBoard({ isAdmin }: { isAdmin: boolean }) {
   const [mo, setMo] = useState<Record<string, any>>({});
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [applied, setApplied] = useState<number[] | null>(null);
+  const [computed, setComputed] = useState(false);
   const [realMode, setRealMode] = useState(false);
   const [sortAsc, setSortAsc] = useState(false);
   const [sortBy, setSortBy] = useState<'shipping' | 'created'>('created');
@@ -69,9 +70,10 @@ export function PlanAtelierBoard({ isAdmin }: { isAdmin: boolean }) {
   const loadPlan = useCallback(async () => {
     if (!isAdmin) return;
     setLoading(true); setError(null);
-    try { const d = await call({ action: 'plan', includePending, selectedLineIds: applied }); setPlan(d); if (d.stocks) setStockLevels(d.stocks); setOpenLines(d.openLines ?? []); } catch (e) { setError((e as Error).message); }
+    // compute=false : la grille des besoins reste vide tant que l'utilisateur n'a pas cliqué sur « Calculer les OF pour la sélection ».
+    try { const d = await call({ action: 'plan', includePending, selectedLineIds: applied, compute: computed }); setPlan(d); if (d.stocks) setStockLevels(d.stocks); setOpenLines(d.openLines ?? []); } catch (e) { setError((e as Error).message); }
     setLoading(false);
-  }, [isAdmin, includePending, applied]);
+  }, [isAdmin, includePending, applied, computed]);
 
   useEffect(() => { loadPlan(); }, [loadPlan]);
 
@@ -194,8 +196,8 @@ export function PlanAtelierBoard({ isAdmin }: { isAdmin: boolean }) {
             <Button variant="outline" size="sm" onClick={() => setSortAsc((v) => !v)} data-readonly-allow="true">{sortBy === 'created' ? 'Date de création' : "Date d'expédition"} {sortAsc ? '↑ croissante' : '↓ décroissante'}</Button>
             <Button variant="ghost" size="sm" onClick={() => { setSortBy((v) => (v === 'shipping' ? 'created' : 'shipping')); setSortAsc(true); }} data-readonly-allow="true">Trier par {sortBy === 'created' ? "date d'expédition" : 'date de création'}</Button>
             <span className="text-sm text-muted-foreground">{selected.size} ligne(s) sur {allIds.length} · {orders.length} commande(s) restant à expédier{stockUpdatedAt ? ` · stocks Erplain mis à jour le ${new Date(stockUpdatedAt).toLocaleString('fr-FR')}` : ''}</span>
-            <Button onClick={() => { setMo({}); setApplied([...selected]); }} disabled={!selected.size || loading} data-readonly-allow="true">Calculer les OF pour la sélection</Button>
-            {applied && <Button variant="ghost" onClick={() => { setMo({}); setApplied(null); }} data-readonly-allow="true">Revenir à toutes les commandes</Button>}
+            <Button onClick={() => { setMo({}); setApplied([...selected]); setComputed(true); }} disabled={!selected.size || loading} data-readonly-allow="true">Calculer les OF pour la sélection</Button>
+            {applied && <Button variant="ghost" onClick={() => { setMo({}); setApplied(null); setComputed(false); }} data-readonly-allow="true">Revenir à toutes les commandes</Button>}
           </div>
           <p className="text-xs text-muted-foreground">Le stock Erplain est un total par produit et emplacement, répété sur chaque ligne pour information : le calcul le répartit une seule fois entre les lignes sélectionnées (expédition la plus proche d'abord), jamais par commande.</p>
           {applied && <p className="text-xs text-muted-foreground">Calcul limité à {applied.length} ligne(s) sélectionnée(s). Les réservations et OF liés aux autres commandes leur restent affectés.</p>}
@@ -365,7 +367,7 @@ export function PlanAtelierBoard({ isAdmin }: { isAdmin: boolean }) {
                     </Fragment>
                   );
                 })}
-                {!proposals.length && <tr><td colSpan={10} className="p-4 text-center text-muted-foreground">{plan ? 'Aucun besoin. Actualisez depuis Erplain si les données sont vides.' : 'Chargement…'}</td></tr>}
+                {!proposals.length && <tr><td colSpan={10} className="p-4 text-center text-muted-foreground">{!plan ? 'Chargement…' : !computed ? 'Tableau vide : sélectionnez des commandes puis cliquez sur « Calculer les OF pour la sélection ».' : 'Aucun besoin. Actualisez depuis Erplain si les données sont vides.'}</td></tr>}
               </tbody>
             </table>
           </div>
