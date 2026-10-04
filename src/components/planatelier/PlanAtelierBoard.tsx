@@ -278,10 +278,10 @@ export function PlanAtelierBoard({ isAdmin }: { isAdmin: boolean }) {
                               <p className="font-medium mb-1">Détail du calcul</p>
                               <p>Besoin restant à expédier : {fmt(p.need)}</p>
                               <p>Stock Erplain : réel {fmt(p.stock?.on_hand)}, disponible {fmt(p.stock?.available)}, réservé {fmt(p.stock?.reserved)}</p>
-                              <p>Réservé pour ces lignes : {fmt(p.reserved_in_scope)} → stock utilisable = min(réel, disponible + réservé lignes) = {fmt(p.usable)}</p>
-                              <p>OF affectés aux lignes sélectionnées : {fmt(p.mo_linked)} · OF libres : {fmt(p.mo_free)}{p.other_open_lines ? ` · ${p.other_open_lines} autre(s) ligne(s) ouverte(s) non sélectionnée(s) gardent leurs affectations` : ''}</p>
-                              <p>OF en cours : {p.mos.length ? p.mos.map((m: any) => `${m.label ?? m.id} [${m.status}] reste ${fmt(m.remaining_to_produce)}`).join(' ; ') : 'aucun'} → {fmt(p.mo_remaining)}</p>
-                              <p className="font-medium">À fabriquer = {fmt(p.need)} − {fmt(p.usable)} − {fmt(p.mo_remaining)} = {fmt(p.to_build)}{p.buildable != null && p.buildable < (p.to_build ?? 0) ? ` (réalisable avec les pièces : ${p.buildable})` : ''}</p>
+                              <p>Stock monté utilisable = min(réel {fmt(p.stock?.on_hand)}, disponible {fmt(p.stock?.available)} + réservé pour ces lignes {fmt(p.reserved_used)}) = {fmt(p.usable)} — la réservation fait déjà partie du stock réel, elle n'est pas ajoutée en plus.</p>
+                              <p>OF affectés aux lignes sélectionnées (reste à produire) : {fmt(p.mo_linked)} · non déduits : OF libres {fmt(p.mo_free)}{p.other_open_lines ? ` · ${p.other_open_lines} autre(s) ligne(s) non sélectionnée(s) gardent leurs affectations` : ''}</p>
+                              <p>OF en cours : {p.mos.length ? p.mos.map((m: any) => `${m.label ?? m.id} [${m.status}] reste ${fmt(m.remaining_to_produce)}`).join(' ; ') : 'aucun'}</p>
+                              <p className="font-medium">À fabriquer = max(0, {fmt(p.need)} à expédier − {fmt(p.usable)} montés − {fmt(p.mo_linked)} en OF) = {fmt(p.to_build)}{p.buildable != null && p.buildable < (p.to_build ?? 0) ? ` (réalisable avec les pièces : ${p.buildable})` : ''}</p>
                               <p>Nomenclature : {p.bom?.label ?? '—'} · Gamme : {p.routing ? `${p.routing.label} (${p.routing.steps} étapes)` : '—'}</p>
                               {p.issues.length ? <ul className="list-disc pl-4 text-destructive">{p.issues.map((x: string, i: number) => <li key={i}>{x}</li>)}</ul> : null}
                             </div>
