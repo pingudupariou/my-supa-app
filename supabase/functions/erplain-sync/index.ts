@@ -21,6 +21,15 @@ async function loadAll(admin: any, table: string) {
 async function loadPlanData(admin: any) {
   const [lines, stocks, mos, boms, routings] = await Promise.all(
     ["erplain_order_lines", "erplain_stock_levels", "erplain_manufacturing_orders", "erplain_boms", "erplain_routings"].map((t) => loadAll(admin, t)));
+  // Attach app-side line links to app-created MOs (sent without native order link).
+  const { data: subs } = await admin.from("erplain_mo_submissions").select("erplain_mo_id,order_line_item_ids,payload").eq("status", "created").not("erplain_mo_id", "is", null);
+  const byId = new Map((subs ?? []).map((s: any) => [Number(s.erplain_mo_id), s]));
+  for (const m of mos) {
+    const s: any = byId.get(Number(m.id));
+    if (!s || (m.order_line_item_ids ?? []).length) continue;
+    m.order_line_item_ids = s.order_line_item_ids ?? [];
+    m.line_alloc = Object.fromEntries((s.payload?._coverage ?? []).map((c: any) => [Number(c.line_id), Number(c.to_cover ?? 0)]));
+  }
   return { lines, stocks, mos, boms, routings };
 }
 
@@ -147,7 +156,8 @@ async function handleData(action: string, body: any, admin: any, token: string, 
     page++;
   }
   const data = await loadPlanData(admin);
-  data.mos = freshMos;
+  const appLinks = new Map(data.mos.filter((m: any) => m.line_alloc).map((m: any) => [Number(m.id), m]));
+  data.mos = freshMos.map((m: any) => { const a: any = appLinks.get(Number(m.id)); return a && !(m.order_line_item_ids ?? []).length ? { ...m, order_line_item_ids: a.order_line_item_ids, line_alloc: a.line_alloc } : m; });
   const plan = computePlan(data, { includePending: !!body.includePending, selectedLineIds: Array.isArray(body.selectedLineIds) ? body.selectedLineIds : null });
   const p = plan.proposals.find((x: any) => x.idempotency_key === wanted || x.key === body.groupKey);
   if (!p) return json({ status: "blocked", message: "Proposition introuvable après relecture : le besoin a changé ou est couvert." });
@@ -277,7 +287,8 @@ async function refreshMo(admin: any, gql: any, sub: any) {
     routing: sub.payload?.manufacturing_routing ? String(m.manufacturing_routing?.id ?? "") === String(sub.payload.manufacturing_routing.id) : null,
     steps_detail: sub.payload?.manufacturing_routing ? `${(m.steps ?? []).length} étape(s) / ${(rt?.steps ?? []).length} dans la gamme` : "pas de gamme",
     quantity: Number(m.quantity) === Number(sub.quantity),
-    order_lines: (sub.order_line_item_ids ?? []).every((id: number) => (m.order_line_items ?? []).some((x: any) => Number(x.id) === Number(id))),
+    // Lines are linked in the app only (no native link sent).
+    order_lines: sub.payload?.order_line_item_ids ? (sub.order_line_item_ids ?? []).every((id: number) => (m.order_line_items ?? []).some((x: any) => Number(x.id) === Number(id))) : null,
   };
   // Keep the synced MO table in step (completed/cancelled MOs are filtered out of the list read).
   await admin.from("erplain_manufacturing_orders").update({ status: m.status, label: m.label, quantity: m.quantity, remaining_to_produce: m.remaining_to_produce, actually_produced: m.actually_produced, synced_at: new Date().toISOString() }).eq("id", Number(m.id));
