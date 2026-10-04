@@ -157,9 +157,15 @@ async function handleData(action: string, body: any, admin: any, token: string, 
   // Lines already covered by open MOs are excluded by computePlan; only the uncovered complement is sent.
   if (!p.free_line_ids.length) return json({ status: "blocked", message: "Déjà couvert : toutes les lignes sont couvertes par les réservations ou les OF existants." });
 
-  const { data: prev } = await admin.from("erplain_mo_submissions").select("*").eq("idempotency_key", p.idempotency_key).maybeSingle();
+  let { data: prev } = await admin.from("erplain_mo_submissions").select("*").eq("idempotency_key", p.idempotency_key).maybeSingle();
+  // A previous "created" MO no longer in the fresh open list: re-read it directly before blocking.
+  if (prev?.status === "created" && prev.erplain_mo_id && !freshMos.some((m: any) => Number(m.id) === Number(prev.erplain_mo_id))) {
+    const res: any = await refreshMo(admin, gql, prev);
+    steps.push({ step: `Contrôle OF ${prev.erplain_mo_id}`, result: res.erplain?.status ?? res.refreshError });
+    ({ data: prev } = await admin.from("erplain_mo_submissions").select("*").eq("id", prev.id).maybeSingle());
+  }
   if (prev && ["sending", "created", "unknown"].includes(prev.status))
-    return json({ status: "blocked", message: `Déjà envoyé (statut ${prev.status}${prev.erplain_mo_id ? `, OF Erplain ${prev.erplain_mo_id}` : ""}).`, submission: prev });
+    return json({ status: "blocked", message: `Déjà envoyé (statut ${prev.status}${prev.erplain_status ? ` / ${prev.erplain_status}` : ""}${prev.erplain_mo_id ? `, OF Erplain ${prev.erplain_mo_id}` : ""}). Si cet OF n'existe plus dans Erplain, la relecture n'a pas pu le confirmer : ${prev.erplain_synced_at ? "dernière lecture " + prev.erplain_synced_at : "jamais relu"}.`, submission: prev });
   // Keep history of cancelled/deleted MOs: move them off the idempotency key before reusing it.
   if (prev && ["cancelled", "deleted"].includes(prev.status))
     await admin.from("erplain_mo_submissions").update({ idempotency_key: `${prev.idempotency_key}#${prev.id}` }).eq("id", prev.id);
@@ -238,8 +244,10 @@ const TRANSITIONS: Record<string, string[]> = { released: ["unpublished", "draft
 // Re-read one MO from Erplain, store its content/status and verify components + routing were carried over.
 async function refreshMo(admin: any, gql: any, sub: any) {
   const r = await gql(`Relecture OF ${sub.erplain_mo_id}`, MO_QUERY, { id: String(sub.erplain_mo_id) });
-  if (r.errors.length || r.timeout) return { refreshError: r.errors.join(" | ") || "délai dépassé" };
-  const m = r.data?.ManufacturingOrder;
+  // A direct read answered by Erplain with an explicit "not found" error is a confirmed absence.
+  const notFound = r.httpStatus === 200 && !r.timeout && r.errors.length > 0 && r.errors.every((e: string) => /not found|no query results|introuvable|does not exist|n'existe pas/i.test(e));
+  if (!notFound && (r.errors.length || r.timeout)) return { refreshError: r.errors.join(" | ") || "délai dépassé" };
+  const m = notFound ? null : r.data?.ManufacturingOrder;
   if (!m) {
     if (r.httpStatus !== 200) return { refreshError: `Lecture incomplète (HTTP ${r.httpStatus ?? "n/a"}) : suppression non confirmée.` };
     // Confirmed absent by a direct, error-free read: release its line allocations.
