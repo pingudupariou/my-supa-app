@@ -31,6 +31,7 @@ export function PlanAtelierBoard({ isAdmin }: { isAdmin: boolean }) {
   const [applied, setApplied] = useState<number[] | null>(null);
   const [realMode, setRealMode] = useState(false);
   const [sortAsc, setSortAsc] = useState(true);
+  const [sortBy, setSortBy] = useState<'shipping' | 'created'>('shipping');
   const [openLines, setOpenLines] = useState<any[]>([]);
 
   const call = async (body: any) => {
