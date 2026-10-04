@@ -1470,6 +1470,24 @@ export type Database = {
         }
         Relationships: []
       }
+      erplain_schema_cache: {
+        Row: {
+          data: Json
+          fetched_at: string
+          type_name: string
+        }
+        Insert: {
+          data: Json
+          fetched_at?: string
+          type_name: string
+        }
+        Update: {
+          data?: Json
+          fetched_at?: string
+          type_name?: string
+        }
+        Relationships: []
+      }
       financial_scenarios: {
         Row: {
           created_at: string
