@@ -99,6 +99,8 @@ async function handleData(action: string, body: any, admin: any, token: string, 
       else {
         // Dataset complete: remove rows no longer returned by Erplain.
         await admin.from(ds.table).delete().or(`run_id.is.null,run_id.neq.${run.id}`);
+        // Complete MO read: update the status of every MO sent by the app (deletion confirmed only by a direct read).
+        if (ds.key === "mos") { const rec = await reconcileSubmissions(admin, gql, run.id); notes.push(rec); }
         cursor.ds++; cursor.page = 1; cursor.size = undefined; cursor.filter = undefined; cursor.filterFailed = undefined;
       }
       await admin.from("erplain_sync_runs").update({ cursor, counts, notes }).eq("id", run.id);
@@ -116,9 +118,11 @@ async function handleData(action: string, body: any, admin: any, token: string, 
   // create_mo: re-check everything server-side, never trust the client figures.
   const wanted: string = String(body.key ?? "");
   const confirm = body.confirm === true;
-  const { data: lastRun } = await admin.from("erplain_sync_runs").select("*").eq("status", "completed").order("finished_at", { ascending: false }).limit(1).maybeSingle();
+  // Orders, stocks and MOs must all come from one complete run (quick or full) less than 10 min old.
+  const { data: lastRun } = await admin.from("erplain_sync_runs").select("*").eq("status", "completed")
+    .or("cursor->>mode.is.null,cursor->>mode.eq.quick").is("cursor->>quick", null).order("finished_at", { ascending: false }).limit(1).maybeSingle();
   if (!lastRun || Date.now() - new Date(lastRun.finished_at).getTime() > 10 * 60 * 1000)
-    return json({ status: "blocked", message: "Données Erplain trop anciennes (plus de 10 min) : actualisez depuis Erplain avant l'envoi." });
+    return json({ status: "blocked", message: "Commandes, stocks et OF pas synchronisés ensemble depuis moins de 10 min : lancez « Commandes + stocks + OF » avant l'envoi." });
 
   // Fresh read of open MOs (duplicate protection against MOs created meanwhile in Erplain).
   const mosDs = DATASETS.find((d) => d.key === "mos")!;
@@ -183,6 +187,30 @@ async function handleData(action: string, body: any, admin: any, token: string, 
   return json({ status: "api_error", message: `Création refusée ou incertaine (HTTP ${r.httpStatus ?? "n/a"}) : ${r.errors.join(" | ")}` });
 }
 
+// After a complete MO read: refresh every MO created by the app. Open MOs come from the synced table;
+// MOs missing there (filtered out when completed/cancelled, or deleted) are re-read one by one, unfiltered.
+async function reconcileSubmissions(admin: any, gql: any, runId: string): Promise<string> {
+  const { data: subs } = await admin.from("erplain_mo_submissions").select("*").eq("status", "created").not("erplain_mo_id", "is", null);
+  if (!subs?.length) return "OF de l'appli : aucun à contrôler.";
+  const ids = subs.map((s: any) => Number(s.erplain_mo_id));
+  const { data: rows } = await admin.from("erplain_manufacturing_orders").select("id,status,run_id").in("id", ids);
+  const seen = new Map((rows ?? []).filter((r: any) => r.run_id === runId).map((r: any) => [Number(r.id), r]));
+  const c = { open: 0, completed: 0, cancelled: 0, deleted: 0, unchecked: 0 };
+  for (const sub of subs) {
+    const row = seen.get(Number(sub.erplain_mo_id));
+    if (row) {
+      c.open++;
+      await admin.from("erplain_mo_submissions").update({ erplain_status: row.status, erplain_synced_at: new Date().toISOString() }).eq("id", sub.id);
+      continue;
+    }
+    const res: any = await refreshMo(admin, gql, sub);
+    if (res.erplain) { const st = String(res.erplain.status); if (st === "completed") c.completed++; else if (st === "cancelled") c.cancelled++; else c.open++; }
+    else if (/introuvable/.test(res.refreshError ?? "")) c.deleted++;
+    else c.unchecked++;
+  }
+  return `OF de l'appli : ${c.open} en cours, ${c.completed} terminé(s), ${c.cancelled} annulé(s), ${c.deleted} supprimé(s) confirmé(s)` + (c.unchecked ? `, ${c.unchecked} non vérifié(s) (lecture en erreur, rien supprimé)` : "") + ".";
+}
+
 const MO_QUERY = `query MO($id: ID) { ManufacturingOrder(id: $id) { id label status quantity remaining_to_produce actually_produced due_at notes
   variant { id sku } location { id } bill_of_material { id } manufacturing_routing { id } order_line_items { id }
   lines { id variant_id planned_quantity remaining_to_produce reserved } steps { id status manufacturing_routing_step_id } } }`;
@@ -195,7 +223,9 @@ async function refreshMo(admin: any, gql: any, sub: any) {
   if (r.errors.length || r.timeout) return { refreshError: r.errors.join(" | ") || "délai dépassé" };
   const m = r.data?.ManufacturingOrder;
   if (!m) {
-    await admin.from("erplain_mo_submissions").update({ erplain_status: "absent", deleted_at: new Date().toISOString(), erplain_synced_at: new Date().toISOString() }).eq("id", sub.id);
+    if (r.httpStatus !== 200) return { refreshError: `Lecture incomplète (HTTP ${r.httpStatus ?? "n/a"}) : suppression non confirmée.` };
+    // Confirmed absent by a direct, error-free read: release its line allocations.
+    await admin.from("erplain_mo_submissions").update({ status: "deleted", erplain_status: "absent", deleted_at: new Date().toISOString(), erplain_synced_at: new Date().toISOString() }).eq("id", sub.id);
     return { refreshError: "OF introuvable dans Erplain (supprimé ?)." };
   }
   const { data: bom } = await admin.from("erplain_boms").select("components").eq("id", sub.payload?.bill_of_material?.id).maybeSingle();
