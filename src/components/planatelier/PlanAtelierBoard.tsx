@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Loader2, RefreshCw, ChevronDown, ChevronRight, Send } from 'lucide-react';
 
@@ -28,6 +29,8 @@ export function PlanAtelierBoard({ isAdmin }: { isAdmin: boolean }) {
   const [mo, setMo] = useState<Record<string, any>>({});
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [applied, setApplied] = useState<number[] | null>(null);
+  const [realMode, setRealMode] = useState(false);
+  const [sortAsc, setSortAsc] = useState(true);
   const [openLines, setOpenLines] = useState<any[]>([]);
 
   const call = async (body: any) => {
@@ -64,6 +67,7 @@ export function PlanAtelierBoard({ isAdmin }: { isAdmin: boolean }) {
   };
 
   const sendMo = async (p: any, confirm: boolean) => {
+    if (confirm && !window.confirm(`Créer réellement l'OF de ${p.to_build} × ${p.sku ?? p.variant_id} dans Erplain ?`)) return;
     setMo((m) => ({ ...m, [p.key]: { loading: true } }));
     try {
       if (confirm) await sync(false, false); // fresh data before any real send
@@ -78,8 +82,8 @@ export function PlanAtelierBoard({ isAdmin }: { isAdmin: boolean }) {
   const orders = useMemo(() => {
     const m = new Map<string, any>();
     openLines.forEach((l) => { const k = String(l.order_id); if (!m.has(k)) m.set(k, { id: k, label: l.order_label, status: l.order_status, date: l.shipping_at, lines: [] }); m.get(k).lines.push(l); });
-    return [...m.values()];
-  }, [openLines]);
+    return [...m.values()].sort((a, b) => { const x = String(a.date ?? '9999'), y = String(b.date ?? '9999'); return sortAsc ? x.localeCompare(y) : y.localeCompare(x); });
+  }, [openLines, sortAsc]);
   const toggle = (ids: number[], on: boolean) => setSelected((s) => { const n = new Set(s); ids.forEach((i) => (on ? n.add(i) : n.delete(i))); return n; });
   const allIds = openLines.map((l) => Number(l.line_id));
 
@@ -114,6 +118,7 @@ export function PlanAtelierBoard({ isAdmin }: { isAdmin: boolean }) {
             <label className="flex items-center gap-2 text-sm" data-readonly-allow="true">
               <Checkbox checked={allIds.length > 0 && selected.size === allIds.length} onCheckedChange={(v) => setSelected(v ? new Set(allIds) : new Set())} />Tout sélectionner
             </label>
+            <Button variant="outline" size="sm" onClick={() => setSortAsc((v) => !v)} data-readonly-allow="true">Date d'expédition {sortAsc ? '↑ croissante' : '↓ décroissante'}</Button>
             <span className="text-sm text-muted-foreground">{selected.size} ligne(s) sur {allIds.length} · {orders.length} commande(s) restant à expédier</span>
             <Button onClick={() => { setMo({}); setApplied([...selected]); }} disabled={!selected.size || loading} data-readonly-allow="true">Calculer les OF pour la sélection</Button>
             {applied && <Button variant="ghost" onClick={() => { setMo({}); setApplied(null); }} data-readonly-allow="true">Revenir à toutes les commandes</Button>}
@@ -172,7 +177,13 @@ export function PlanAtelierBoard({ isAdmin }: { isAdmin: boolean }) {
               <Checkbox checked={includePending} onCheckedChange={(v) => setIncludePending(!!v)} />Inclure les commandes en attente de validation
             </label>
             {loading && <Loader2 className="h-4 w-4 animate-spin" />}
-            {plan && !plan.writeEnabled && <Badge variant="outline">Envoi réel désactivé (simulation)</Badge>}
+            <label className="flex items-center gap-2 text-sm font-medium" data-readonly-allow="true">
+              <span className={realMode ? 'text-muted-foreground' : ''}>Simulation</span>
+              <Switch checked={realMode} disabled={!plan?.writeEnabled} onCheckedChange={setRealMode} />
+              <span className={realMode ? 'text-destructive' : 'text-muted-foreground'}>Envoi réel</span>
+            </label>
+            {realMode && <Badge variant="destructive">Les OF seront créés dans Erplain</Badge>}
+            {plan && !plan.writeEnabled && <Badge variant="outline">Envoi réel désactivé sur le serveur</Badge>}
           </div>
           {plan?.excluded && <p className="text-xs text-muted-foreground">Lignes exclues : {plan.excluded.closedOrders} commandes non ouvertes, {plan.excluded.fullyShipped} déjà expédiées, {plan.excluded.noVariant} sans variante.</p>}
           {plan?.warnings?.length ? (
@@ -234,12 +245,9 @@ export function PlanAtelierBoard({ isAdmin }: { isAdmin: boolean }) {
                           {p.status === 'ready' && (
                             <div className="space-y-2">
                               <div className="flex gap-2">
-                                <Button size="sm" variant="outline" onClick={() => sendMo(p, false)} disabled={!isAdmin || res?.loading} data-readonly-allow="true">
-                                  {res?.loading ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : null}Préparer l'OF groupé (simulation)
+                                <Button size="sm" variant={realMode ? 'default' : 'outline'} onClick={() => sendMo(p, realMode && !!plan?.writeEnabled)} disabled={!isAdmin || res?.loading} data-readonly-allow="true">
+                                  {res?.loading ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : realMode ? <Send className="h-3 w-3 mr-1" /> : null}{realMode ? "Actualiser puis créer l'OF dans Erplain" : "Préparer l'OF groupé (simulation)"}
                                 </Button>
-                                {plan?.writeEnabled && res?.status === 'dry_run' && (
-                                  <Button size="sm" onClick={() => sendMo(p, true)} disabled={!isAdmin || res?.loading} data-readonly-allow="true"><Send className="h-3 w-3 mr-1" />Actualiser puis créer dans Erplain</Button>
-                                )}
                               </div>
                               {res && !res.loading && (
                                 <div className={res.status === 'blocked' || res.status === 'api_error' ? 'text-destructive' : ''}>
@@ -261,7 +269,7 @@ export function PlanAtelierBoard({ isAdmin }: { isAdmin: boolean }) {
         </CardContent>
       </Card>
 
-      <SubmissionsPanel isAdmin={isAdmin} subs={plan?.submissions ?? []} writeEnabled={!!plan?.writeEnabled} call={call} onDone={loadPlan} />
+      <SubmissionsPanel realMode={realMode} isAdmin={isAdmin} subs={plan?.submissions ?? []} writeEnabled={!!plan?.writeEnabled} call={call} onDone={loadPlan} />
 
       <ControlViews isAdmin={isAdmin} reloadKey={run?.id + (run?.status ?? '')} />
     </div>
@@ -305,7 +313,7 @@ function ControlViews({ isAdmin, reloadKey }: { isAdmin: boolean; reloadKey: str
 
 const CHECK_LABELS: Record<string, string> = { bom: 'Nomenclature reprise', components: 'Composants repris', routing: 'Gamme reprise', quantity: 'Quantité', order_lines: 'Lignes de commande liées' };
 
-function SubmissionsPanel({ isAdmin, subs, writeEnabled, call, onDone }: { isAdmin: boolean; subs: any[]; writeEnabled: boolean; call: (b: any) => Promise<any>; onDone: () => void }) {
+function SubmissionsPanel({ realMode, isAdmin, subs, writeEnabled, call, onDone }: { realMode: boolean; isAdmin: boolean; subs: any[]; writeEnabled: boolean; call: (b: any) => Promise<any>; onDone: () => void }) {
   const [res, setRes] = useState<Record<string, any>>({});
   const [qty, setQty] = useState<Record<string, string>>({});
   const list = subs.filter((s) => s.status !== 'prepared' || s.erplain_mo_id);
@@ -322,7 +330,7 @@ function SubmissionsPanel({ isAdmin, subs, writeEnabled, call, onDone }: { isAdm
         {!list.length && <p className="text-muted-foreground">Aucun OF créé pour l'instant (simulations seulement).</p>}
         {list.map((s) => {
           const r = res[s.id];
-          const confirm = (body: any) => act(s, { ...body, confirm: r?.status === 'dry_run' && writeEnabled });
+          const confirm = (body: any) => { const real = realMode && writeEnabled; if (real && !window.confirm('Envoyer réellement cette action à Erplain ?')) return; act(s, { ...body, confirm: real }); };
           return (
             <div key={s.id} className="border rounded-md p-3 space-y-2">
               <div className="flex flex-wrap gap-2 items-center">
@@ -347,7 +355,7 @@ function SubmissionsPanel({ isAdmin, subs, writeEnabled, call, onDone }: { isAdm
               )}
               {r && !r.loading && (
                 <div className={['blocked', 'api_error'].includes(r.status) ? 'text-destructive text-xs' : 'text-xs'}>
-                  <p>{r.message ?? r.status}{r.status === 'dry_run' && writeEnabled ? ' — cliquez à nouveau sur le même bouton pour envoyer réellement.' : ''}</p>
+                  <p>{r.message ?? r.status}{r.status === 'dry_run' ? ' — passez en « Envoi réel » pour envoyer.' : ''}</p>
                   {r.variables && <pre className="mt-1 p-2 bg-muted rounded overflow-auto">{r.mutation}{'\n'}{JSON.stringify(r.variables, null, 2)}</pre>}
                 </div>
               )}
