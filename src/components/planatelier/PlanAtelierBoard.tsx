@@ -13,7 +13,7 @@ const fmt = (v: any) => (v === null || v === undefined ? '—' : typeof v === 'n
 const STATUS: Record<string, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' }> = {
   ready: { label: 'À fabriquer', variant: 'default' },
   shortage: { label: 'Pièces manquantes', variant: 'destructive' },
-  covered: { label: 'Couvert', variant: 'secondary' },
+  covered: { label: 'Déjà couvert', variant: 'secondary' },
   incomplete: { label: 'Données incomplètes', variant: 'outline' },
 };
 
@@ -52,7 +52,7 @@ export function PlanAtelierBoard({ isAdmin }: { isAdmin: boolean }) {
 
   useEffect(() => { loadPlan(); }, [loadPlan]);
 
-  const [syncMode, setSyncMode] = useState<string>('all');
+  const [syncMode, setSyncMode] = useState<string>('quick');
   const sync = async (restart: boolean, reload = true, quick = false, mode: string = 'all') => {
     setSyncing(true); setError(null);
     try {
@@ -281,7 +281,7 @@ export function PlanAtelierBoard({ isAdmin }: { isAdmin: boolean }) {
                             <div>
                               <p className="font-medium mb-1">Commandes concernées</p>
                               <table className="w-full"><thead><tr className="text-left text-muted-foreground"><th>Commande</th><th>Statut</th><th>Expédition</th><th>Cmdé</th><th>Expédié</th><th>Livré</th><th>Réservé</th><th>Reste</th><th>OF lié</th></tr></thead>
-                                <tbody>{p.lines.map((l: any) => <tr key={l.line_id}><td>{l.order_label ?? l.order_id}</td><td>{l.order_status}/{l.shipping_status}</td><td>{l.line_shipping_at ?? l.order_shipping_at ?? '—'}</td><td>{fmt(l.quantity)}</td><td>{fmt(l.shipped_quantity)}</td><td>{fmt(l.delivered_quantity)}</td><td>{fmt(l.reserved_quantity)}</td><td>{fmt(l.remaining)}</td><td>{l.linked_mo ?? '—'}</td></tr>)}</tbody></table>
+                                <tbody>{p.lines.map((l: any) => <tr key={l.line_id}><td>{l.order_label ?? l.order_id}</td><td>{l.order_status}/{l.shipping_status}</td><td>{l.line_shipping_at ?? l.order_shipping_at ?? '—'}</td><td>{fmt(l.quantity)}</td><td>{fmt(l.shipped_quantity)}</td><td>{fmt(l.delivered_quantity)}</td><td>{fmt(l.reserved_quantity)}</td><td>{fmt(l.remaining)}</td><td>{l.linked_mo ? `${l.linked_mo} (${fmt(l.mo_alloc)} couv.)` : '—'}{l.to_cover === 0 ? ' · Déjà couvert' : l.to_cover != null ? ` · à couvrir ${fmt(l.to_cover)}` : ''}</td></tr>)}</tbody></table>
                             </div>
                           </div>
                           {p.components.length > 0 && (

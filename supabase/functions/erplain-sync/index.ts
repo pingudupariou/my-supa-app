@@ -141,18 +141,23 @@ async function handleData(action: string, body: any, admin: any, token: string, 
   if (p.idempotency_key !== wanted) return json({ status: "blocked", message: "Les lignes de commande concernées ont changé depuis l'affichage. Rechargez le plan." });
   if (p.status !== "ready") return json({ status: "blocked", message: p.status === "shortage" ? "Composants insuffisants : OF bloqué." : p.status === "covered" ? "Besoin déjà couvert par le stock ou les OF existants." : `Données incomplètes : ${p.issues.join(" ")}` });
   if (Number(body.quantity) !== p.to_build) return json({ status: "blocked", message: `La quantité à fabriquer a changé (${p.to_build}). Rechargez le plan.` });
-  const linked = freshMos.filter((m) => !["completed", "cancelled"].includes(m.status) && m.order_line_item_ids.some((id: number) => p.free_line_ids.includes(id)));
-  if (linked.length) return json({ status: "blocked", message: `Lignes déjà liées à l'OF ${linked.map((m) => m.label ?? m.id).join(", ")}.` });
+  // Lines already covered by open MOs are excluded by computePlan; only the uncovered complement is sent.
+  if (!p.free_line_ids.length) return json({ status: "blocked", message: "Déjà couvert : toutes les lignes sont couvertes par les réservations ou les OF existants." });
 
   const { data: prev } = await admin.from("erplain_mo_submissions").select("*").eq("idempotency_key", p.idempotency_key).maybeSingle();
   if (prev && ["sending", "created", "unknown"].includes(prev.status))
     return json({ status: "blocked", message: `Déjà envoyé (statut ${prev.status}${prev.erplain_mo_id ? `, OF Erplain ${prev.erplain_mo_id}` : ""}).`, submission: prev });
+  // Any in-flight/created submission on the same lines not yet visible in Erplain blocks a duplicate.
+  const { data: pending } = await admin.from("erplain_mo_submissions").select("id,status,erplain_mo_id,order_line_item_ids").in("status", ["sending", "unknown"]).is("deleted_at", null);
+  const clash = (pending ?? []).filter((s: any) => (s.order_line_item_ids ?? []).some((id: any) => p.free_line_ids.includes(Number(id))));
+  if (clash.length) return json({ status: "blocked", message: "Un envoi est déjà en cours ou incertain sur ces lignes. Relisez l'OF avant de recommencer." });
 
   const input = moPayload(p);
   const writeEnabled = Deno.env.get("ERPLAIN_ALLOW_WRITE") === "true";
   const mutation = `mutation CreateMO($input: ManufacturingOrderInput!) { CreateManufacturingOrder(input: $input) { id label status } }`;
+  const coverage = p.coverage.filter((c: any) => p.free_line_ids.includes(c.line_id));
   const row = { idempotency_key: p.idempotency_key, variant_id: p.variant_id, location_id: p.location_id, quantity: p.to_build,
-    order_line_item_ids: p.free_line_ids, payload: input, created_by: userId, updated_at: new Date().toISOString() };
+    order_line_item_ids: p.free_line_ids, payload: { ...input, _coverage: coverage }, created_by: userId, updated_at: new Date().toISOString() };
 
   if (!writeEnabled || !confirm) {
     await admin.from("erplain_mo_submissions").upsert({ ...row, status: "prepared", steps: [{ step: "simulation", at: new Date().toISOString() }] }, { onConflict: "idempotency_key" });
