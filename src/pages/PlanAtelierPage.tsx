@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Loader2, PlugZap, CheckCircle2, ShieldAlert, AlertTriangle } from 'lucide-react';
+import { PlanAtelierBoard } from '@/components/planatelier/PlanAtelierBoard';
 
 type Result = {
   status: 'success' | 'auth_error' | 'api_error' | 'introspection_unavailable' | 'config_error';
@@ -60,6 +61,7 @@ export function PlanAtelierPage() {
         <h1 className="page-title">Plan atelier</h1>
         <p className="text-sm text-muted-foreground">Connexion à Erplain (lecture seule — aucun ordre de fabrication n'est créé)</p>
       </div>
+      <PlanAtelierBoard isAdmin={isAdmin} />
       <Card>
         <CardHeader><CardTitle className="text-base">Connexion Erplain</CardTitle></CardHeader>
         <CardContent className="space-y-4">
