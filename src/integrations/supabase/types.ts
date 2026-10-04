@@ -1578,8 +1578,30 @@ export type Database = {
         }
         Relationships: []
       }
+      erplain_mo_settings: {
+        Row: {
+          id: number
+          reference_prefix: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          id?: number
+          reference_prefix?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          id?: number
+          reference_prefix?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
       erplain_mo_submissions: {
         Row: {
+          app_reference: string | null
           checks: Json | null
           created_at: string
           created_by: string | null
@@ -1595,12 +1617,14 @@ export type Database = {
           order_line_item_ids: number[]
           payload: Json
           quantity: number
+          reference_number: number | null
           status: string
           steps: Json
           updated_at: string
           variant_id: number
         }
         Insert: {
+          app_reference?: string | null
           checks?: Json | null
           created_at?: string
           created_by?: string | null
@@ -1616,12 +1640,14 @@ export type Database = {
           order_line_item_ids?: number[]
           payload: Json
           quantity: number
+          reference_number?: number | null
           status?: string
           steps?: Json
           updated_at?: string
           variant_id: number
         }
         Update: {
+          app_reference?: string | null
           checks?: Json | null
           created_at?: string
           created_by?: string | null
@@ -1637,6 +1663,7 @@ export type Database = {
           order_line_item_ids?: number[]
           payload?: Json
           quantity?: number
+          reference_number?: number | null
           status?: string
           steps?: Json
           updated_at?: string
@@ -2335,6 +2362,13 @@ export type Database = {
         Returns: boolean
       }
       is_user_approved: { Args: { _user_id: string }; Returns: boolean }
+      next_erplain_mo_reference: {
+        Args: never
+        Returns: {
+          num: number
+          reference: string
+        }[]
+      }
     }
     Enums: {
       app_role:
