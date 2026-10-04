@@ -21,6 +21,18 @@ export function PlanAtelierPage() {
   const { isAdmin } = useAuth();
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<Result | null>(null);
+  const [sdl, setSdl] = useState<string | null>(null);
+  const [schemaLoading, setSchemaLoading] = useState(false);
+  const [schemaError, setSchemaError] = useState<string | null>(null);
+
+  const loadSchema = async () => {
+    setSchemaLoading(true); setSchemaError(null);
+    const { data, error } = await supabase.functions.invoke('erplain-sync', { body: { action: 'schema_detail' } });
+    if (error) setSchemaError('Appel impossible : ' + error.message);
+    else if ((data as any)?.status !== 'success') setSchemaError((data as any)?.message ?? 'Erreur inconnue');
+    else setSdl((data as any).sdl);
+    setSchemaLoading(false);
+  };
 
   const test = async () => {
     setLoading(true); setResult(null);
@@ -105,7 +117,5 @@ export function PlanAtelierPage() {
         </CardContent>
       </Card>
     </div>
-  );
-}
   );
 }
