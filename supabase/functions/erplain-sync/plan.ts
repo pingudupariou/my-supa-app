@@ -64,30 +64,37 @@ export function computePlan(data: { lines: any[]; stocks: any[]; mos: any[]; bom
       let left = n(m.remaining_to_produce);
       if (left === null) { freeMo = null; continue; }
       for (const l of g.all.filter((x: any) => Number(x.linked_mo_id) === Number(m.id))) {
-        const open = Math.max(0, (l.remaining ?? 0) - (l.own_reserved ?? 0));
-        const take = Math.min(open, left); l.mo_alloc += take; left -= take;
+        const take = Math.min(Math.max(0, l.remaining ?? 0), left); l.mo_alloc += take; left -= take;
       }
-      if (freeMo !== null) freeMo += left; // unlinked or leftover production = free
+      if (freeMo !== null) freeMo += left; // unlinked MO output: informative, not deducted
     }
-    if (freeMo === null) issues.push("Reste à produire manquant sur un OF existant.");
     const lines = g.all.filter((l: any) => !selection || selection.has(Number(l.line_id)));
     const others = g.all.length - lines.length;
     const need = sum(lines.map((l: any) => l.remaining));
     if (need === null) issues.push("Quantité commandée ou expédiée manquante sur une ligne.");
-    const reservedInScope = sum(lines.map((l: any) => l.own_reserved));
-    if (reservedInScope === null) issues.push("Quantité réservée manquante sur une ligne de commande.");
-    // Per line: what is still uncovered after own reservation and linked MOs (only the complement may be produced).
-    for (const l of lines) l.to_cover = l.remaining == null ? null : Math.max(0, l.remaining - (l.own_reserved ?? 0) - l.mo_alloc);
-    const linkedMo = lines.reduce((s: number, l: any) => s + l.mo_alloc, 0);
-    const allCovered = lines.length > 0 && lines.every((l: any) => l.to_cover === 0 && l.own_reserved !== null);
+    const reservedInScope = sum(lines.map((l: any) => l.own_reserved ?? 0));
     const st = stockBy.get(g.key);
     if (!st) issues.push("Aucun niveau de stock Erplain pour cette variante à cet emplacement.");
     else if (st.available == null || st.on_hand == null) issues.push("Stock disponible ou réel non renseigné par Erplain.");
-    // Free stock = available (reservations of other orders are already excluded from available).
+    // Usable assembled stock = free stock + reservations held by selected lines (part of on_hand, not extra), capped by physical stock.
     let usable: number | null = null;
-    if (st && st.available != null && st.on_hand != null && reservedInScope !== null) usable = Math.max(0, Math.min(st.on_hand, Math.max(0, st.available) + reservedInScope));
-    const moRemaining = freeMo === null ? null : linkedMo + freeMo;
-    const toBuild = need !== null && usable !== null && moRemaining !== null ? Math.max(0, need - usable - moRemaining) : null;
+    let reservedUsed = 0;
+    if (st && st.available != null && st.on_hand != null) {
+      reservedUsed = Math.min(reservedInScope ?? 0, Math.max(0, Number(st.reserved ?? reservedInScope ?? 0)));
+      usable = Math.max(0, Math.min(Number(st.on_hand), Math.max(0, Number(st.available)) + reservedUsed));
+    }
+    const linkedMo = lines.reduce((s: number, l: any) => s + l.mo_alloc, 0);
+    const moRemaining = linkedMo;
+    // Per line (earliest date first): open after linked MO, then usable stock; the rest is to build.
+    let stockLeft = usable ?? 0;
+    for (const l of lines) {
+      if (l.remaining == null) { l.to_cover = null; continue; }
+      const open = Math.max(0, l.remaining - l.mo_alloc);
+      const fromStock = Math.min(open, stockLeft); stockLeft -= fromStock;
+      l.stock_alloc = fromStock; l.to_cover = open - fromStock;
+    }
+    const toBuild = need !== null && usable !== null ? Math.max(0, need - usable - linkedMo) : null;
+    const allCovered = lines.length > 0 && toBuild === 0;
 
     const cands = bomsByVariant.get(Number(g.variant_id)) ?? [];
     const bom = cands.find((b) => b.is_default) ?? cands[0] ?? null;
