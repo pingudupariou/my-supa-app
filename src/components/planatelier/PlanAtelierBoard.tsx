@@ -140,7 +140,7 @@ export function PlanAtelierBoard({ isAdmin }: { isAdmin: boolean }) {
                     <Fragment key={o.id}>
                       <tr className="border-t bg-muted/30">
                         <td className="p-2" data-readonly-allow="true"><Checkbox checked={all} onCheckedChange={(v) => toggle(ids, !!v)} /></td>
-                        <td className="p-2 font-medium" colSpan={9}>{o.label ?? o.id} <span className="text-xs text-muted-foreground">({o.status}, {o.lines.length} ligne(s))</span></td>
+                        <td className="p-2 font-medium" colSpan={9}>{o.label ?? o.id} <span className="text-xs text-muted-foreground">({o.status}, {o.lines.length} ligne(s){o.created ? `, créée ${String(o.created).slice(0, 10)}` : ''})</span></td>
                       </tr>
                       {o.lines.map((l: any) => (
                         <tr key={l.line_id} className="border-t">
