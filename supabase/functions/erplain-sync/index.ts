@@ -159,6 +159,9 @@ async function handleData(action: string, body: any, admin: any, token: string, 
   const { data: prev } = await admin.from("erplain_mo_submissions").select("*").eq("idempotency_key", p.idempotency_key).maybeSingle();
   if (prev && ["sending", "created", "unknown"].includes(prev.status))
     return json({ status: "blocked", message: `Déjà envoyé (statut ${prev.status}${prev.erplain_mo_id ? `, OF Erplain ${prev.erplain_mo_id}` : ""}).`, submission: prev });
+  // Keep history of cancelled/deleted MOs: move them off the idempotency key before reusing it.
+  if (prev && ["cancelled", "deleted"].includes(prev.status))
+    await admin.from("erplain_mo_submissions").update({ idempotency_key: `${prev.idempotency_key}#${prev.id}` }).eq("id", prev.id);
   // Any in-flight/created submission on the same lines not yet visible in Erplain blocks a duplicate.
   const { data: pending } = await admin.from("erplain_mo_submissions").select("id,status,erplain_mo_id,order_line_item_ids").in("status", ["sending", "unknown"]).is("deleted_at", null);
   const clash = (pending ?? []).filter((s: any) => (s.order_line_item_ids ?? []).some((id: any) => p.free_line_ids.includes(Number(id))));
