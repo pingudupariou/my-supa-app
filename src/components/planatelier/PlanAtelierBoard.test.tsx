@@ -29,7 +29,7 @@ describe('Workshop order columns', () => {
   it('hides and shows columns using the visible checkbox menu', async () => {
     render(<PlanAtelierBoard isAdmin />);
     await screen.findByText('Client test');
-    fireEvent.pointerDown(screen.getByRole('button', { name: 'Colonnes affichées (15/15)' }), { button: 0, ctrlKey: false, pointerType: 'mouse' });
+    fireEvent.keyDown(screen.getByRole('button', { name: 'Colonnes affichées (15/15)' }), { key: 'Enter' });
     const item = await screen.findByRole('menuitemcheckbox', { name: 'Nom du client' });
     fireEvent.click(item);
     await waitFor(() => expect(screen.queryByRole('columnheader', { name: 'Nom du client' })).not.toBeInTheDocument());
