@@ -67,7 +67,9 @@ export function computePlan(data: { lines: any[]; stocks: any[]; mos: any[]; bom
       let left = n(m.remaining_to_produce);
       if (left === null) { freeMo = null; continue; }
       for (const l of g.all.filter((x: any) => Number(x.linked_mo_id) === Number(m.id))) {
-        const take = Math.min(Math.max(0, l.remaining ?? 0), left); l.mo_alloc += take; left -= take;
+        // App-created MOs (no native link in Erplain): cap by the quantity the app recorded for this line.
+        const cap = m.line_alloc ? Number(m.line_alloc[Number(l.line_id)] ?? 0) : Infinity;
+        const take = Math.min(Math.max(0, l.remaining ?? 0), left, cap); l.mo_alloc += take; left -= take;
       }
       if (freeMo !== null) freeMo += left; // unlinked MO output: informative, not deducted
     }
@@ -169,13 +171,14 @@ export function computePlan(data: { lines: any[]; stocks: any[]; mos: any[]; bom
   return { proposals, warnings, excluded, statuses, openLines: openLines.map(mapOpen) };
 }
 
+// No native order link: Erplain refuses MOs grouping lines of several sales orders.
+// Line links and covered quantities are kept by the app (erplain_mo_submissions).
 export function moPayload(p: any) {
   const input: Record<string, unknown> = {
     operation_type: "build",
     quantity: p.to_build,
     variant: { id: String(p.variant_id) },
     bill_of_material: { id: String(p.bom.id) },
-    order_line_item_ids: p.free_line_ids.map(String),
   };
   if (p.location_id != null) input.location = { id: String(p.location_id) };
   if (p.routing) input.manufacturing_routing = { id: String(p.routing.id) };
