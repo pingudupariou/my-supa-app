@@ -176,14 +176,20 @@ async function handleData(action: string, body: any, admin: any, token: string, 
     return json({ status: "dry_run", writeEnabled, message: writeEnabled ? "Simulation : confirmez pour envoyer." : "Simulation uniquement : l'envoi réel est désactivé sur le serveur.", mutation, variables: { input } });
   }
 
+  // App reference: sequence never reused (even if the prefix changes), sent as label.
+  const { data: refRows, error: refErr } = await admin.rpc("next_erplain_mo_reference");
+  const ref = Array.isArray(refRows) ? refRows[0] : refRows;
+  if (refErr || !ref?.reference) return json({ status: "blocked", message: `Référence OF indisponible : ${refErr?.message ?? "vide"}` });
+  input.label = ref.reference;
   // Lock (unique key) before sending.
-  const { error: lockErr } = await admin.from("erplain_mo_submissions").upsert({ ...row, status: "sending", steps: [{ step: "envoi", at: new Date().toISOString() }] }, { onConflict: "idempotency_key" });
+  const { error: lockErr } = await admin.from("erplain_mo_submissions").upsert({ ...row, payload: { ...row.payload, label: ref.reference }, app_reference: ref.reference, reference_number: ref.num, status: "sending", steps: [{ step: "envoi", reference: ref.reference, at: new Date().toISOString() }] }, { onConflict: "idempotency_key" });
   if (lockErr) return json({ status: "blocked", message: lockErr.message });
   const r = await gql("CreateManufacturingOrder", mutation, { input });
   const mo = r.data?.CreateManufacturingOrder;
   if (mo?.id) {
-    await admin.from("erplain_mo_submissions").update({ status: "created", erplain_mo_id: mo.id, updated_at: new Date().toISOString(),
-      steps: [{ step: "envoi", at: new Date().toISOString() }, { step: "créé", id: mo.id, label: mo.label, status: mo.status }] }).eq("idempotency_key", p.idempotency_key);
+    // Erplain technical id = tracking key.
+    await admin.from("erplain_mo_submissions").update({ status: "created", erplain_mo_id: mo.id, erplain_status: mo.status, updated_at: new Date().toISOString(),
+      steps: [{ step: "envoi", reference: ref.reference, at: new Date().toISOString() }, { step: "créé", id: mo.id, label: mo.label, status: mo.status }] }).eq("idempotency_key", p.idempotency_key);
     const { data: sub } = await admin.from("erplain_mo_submissions").select("*").eq("idempotency_key", p.idempotency_key).single();
     const refreshed = await refreshMo(admin, gql, sub);
     return json({ status: "created", mo, ...refreshed });
@@ -207,9 +213,10 @@ async function reconcileSubmissions(admin: any, gql: any, runId: string): Promis
     const row = seen.get(Number(sub.erplain_mo_id));
     if (row) {
       c.open++;
-      await admin.from("erplain_mo_submissions").update({ erplain_status: row.status, erplain_synced_at: new Date().toISOString() }).eq("id", sub.id);
+      await admin.from("erplain_mo_submissions").update({ erplain_status: row.status, erplain_snapshot: { ...(sub.erplain_snapshot ?? {}), label: row.label, status: row.status }, erplain_synced_at: new Date().toISOString() }).eq("id", sub.id);
       continue;
     }
+    // Absent from a filtered list: proves nothing, re-read directly.
     const res: any = await refreshMo(admin, gql, sub);
     if (res.erplain) { const st = String(res.erplain.status); if (st === "completed") c.completed++; else if (st === "cancelled") c.cancelled++; else c.open++; }
     else if (/introuvable/.test(res.refreshError ?? "")) c.deleted++;
