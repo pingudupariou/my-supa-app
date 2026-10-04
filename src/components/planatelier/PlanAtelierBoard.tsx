@@ -153,14 +153,14 @@ export function PlanAtelierBoard({ isAdmin }: { isAdmin: boolean }) {
             </label>
             <Button variant="outline" size="sm" onClick={() => setSortAsc((v) => !v)} data-readonly-allow="true">{sortBy === 'created' ? 'Date de création' : "Date d'expédition"} {sortAsc ? '↑ croissante' : '↓ décroissante'}</Button>
             <Button variant="ghost" size="sm" onClick={() => { setSortBy((v) => (v === 'shipping' ? 'created' : 'shipping')); setSortAsc(true); }} data-readonly-allow="true">Trier par {sortBy === 'created' ? "date d'expédition" : 'date de création'}</Button>
-            <span className="text-sm text-muted-foreground">{selected.size} ligne(s) sur {allIds.length} · {orders.length} commande(s) restant à expédier</span>
+            <span className="text-sm text-muted-foreground">{selected.size} ligne(s) sur {allIds.length} · {orders.length} commande(s) restant à expédier{stockUpdatedAt ? ` · stocks Erplain mis à jour le ${new Date(stockUpdatedAt).toLocaleString('fr-FR')}` : ''}</span>
             <Button onClick={() => { setMo({}); setApplied([...selected]); }} disabled={!selected.size || loading} data-readonly-allow="true">Calculer les OF pour la sélection</Button>
             {applied && <Button variant="ghost" onClick={() => { setMo({}); setApplied(null); }} data-readonly-allow="true">Revenir à toutes les commandes</Button>}
           </div>
           {applied && <p className="text-xs text-muted-foreground">Calcul limité à {applied.length} ligne(s) sélectionnée(s). Les réservations et OF liés aux autres commandes leur restent affectés.</p>}
           <div className="overflow-auto max-h-[420px] border rounded-md">
             <table className="w-full text-sm">
-              <thead className="bg-muted text-left sticky top-0"><tr>{['', 'Commande', 'Expédition', 'Produit', 'Emplacement', 'Commandé', 'Expédié', 'Reste', 'Réservé', 'OF lié'].map((h) => <th key={h} className="p-2 font-medium whitespace-nowrap">{h}</th>)}</tr></thead>
+              <thead className="bg-muted text-left sticky top-0"><tr>{['', 'Commande', 'Expédition', 'Produit', 'Emplacement', 'Commandé', 'Expédié', 'Reste', 'Réservé', 'Stock réel', 'Stock réservé', 'OF lié'].map((h) => <th key={h} className="p-2 font-medium whitespace-nowrap">{h}</th>)}</tr></thead>
               <tbody>
                 {orders.map((o) => {
                   const ids = o.lines.map((l: any) => Number(l.line_id));
