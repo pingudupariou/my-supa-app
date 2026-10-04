@@ -46,7 +46,7 @@ export function PlanAtelierBoard({ isAdmin }: { isAdmin: boolean }) {
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [applied, setApplied] = useState<number[] | null>(null);
   const [realMode, setRealMode] = useState(false);
-  const [sortAsc, setSortAsc] = useState(true);
+  const [sortAsc, setSortAsc] = useState(false);
   const [sortBy, setSortBy] = useState<'shipping' | 'created'>('created');
   const [openLines, setOpenLines] = useState<any[]>([]);
   const [stockLevels, setStockLevels] = useState<any[]>([]);
@@ -387,7 +387,9 @@ function ControlViews({ isAdmin, reloadKey }: { isAdmin: boolean; reloadKey: str
     (async () => {
       const t = (n: string, order: string) => (supabase.from(n as any) as any).select('*').order(order).limit(1000);
       const [l, s, m] = await Promise.all([t('erplain_order_lines', 'order_id'), t('erplain_stock_levels', 'sku'), t('erplain_manufacturing_orders', 'id')]);
-      setRows({ lines: l.data ?? [], stocks: s.data ?? [], mos: m.data ?? [] });
+      const lines = (l.data ?? []).slice().sort((a, b) => String(b.order_created_at ?? '').localeCompare(String(a.order_created_at ?? '')));
+      const mos = (m.data ?? []).slice().sort((a, b) => Number(b.id) - Number(a.id));
+      setRows({ lines, stocks: s.data ?? [], mos });
     })();
   }, [isAdmin, reloadKey]);
   const f = (list: any[] = []) => list.filter((r) => !q || JSON.stringify(r).toLowerCase().includes(q.toLowerCase())).slice(0, 300);
@@ -404,7 +406,7 @@ function ControlViews({ isAdmin, reloadKey }: { isAdmin: boolean; reloadKey: str
         <Input placeholder="Rechercher" value={q} onChange={(e) => setQ(e.target.value)} className="max-w-xs" data-readonly-allow="true" />
         <Tabs defaultValue="lines">
           <TabsList><TabsTrigger value="lines">Lignes de commande ({rows.lines?.length ?? 0})</TabsTrigger><TabsTrigger value="stocks">Stocks ({rows.stocks?.length ?? 0})</TabsTrigger><TabsTrigger value="mos">OF ({rows.mos?.length ?? 0})</TabsTrigger></TabsList>
-          <TabsContent value="lines"><T data={f(rows.lines)} cols={[['order_label', 'Commande'], ['order_status', 'Statut'], ['shipping_status', 'Expédition'], ['sku', 'SKU'], ['variant_label', 'Variante'], ['location_label', 'Emplacement'], ['quantity', 'Commandé'], ['shipped_quantity', 'Expédié'], ['delivered_quantity', 'Livré'], ['reserved_quantity', 'Réservé'], ['line_shipping_at', 'Date exp.'], ['line_id', 'ID ligne']]} /></TabsContent>
+          <TabsContent value="lines"><T data={f(rows.lines)} cols={[['order_label', 'Commande'], ['order_created_at', 'Créée le'], ['order_status', 'Statut'], ['shipping_status', 'Expédition'], ['sku', 'SKU'], ['variant_label', 'Variante'], ['location_label', 'Emplacement'], ['quantity', 'Commandé'], ['shipped_quantity', 'Expédié'], ['delivered_quantity', 'Livré'], ['reserved_quantity', 'Réservé'], ['line_shipping_at', 'Date exp.'], ['line_id', 'ID ligne']]} /></TabsContent>
           <TabsContent value="stocks"><T data={f(rows.stocks)} cols={[['sku', 'SKU'], ['variant_label', 'Variante'], ['location_label', 'Emplacement'], ['on_hand', 'Réel'], ['available', 'Disponible'], ['reserved', 'Réservé'], ['incoming', 'À venir'], ['id', 'ID']]} /></TabsContent>
           <TabsContent value="mos"><T data={f(rows.mos)} cols={[['label', 'OF'], ['status', 'Statut'], ['sku', 'SKU'], ['location_label', 'Emplacement'], ['quantity', 'Prévu'], ['actually_produced', 'Produit'], ['remaining_to_produce', 'Reste'], ['order_line_item_ids', 'Lignes cmd'], ['id', 'ID']]} /></TabsContent>
         </Tabs>
