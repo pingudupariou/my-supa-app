@@ -273,20 +273,11 @@ export function PlanAtelierBoard({ isAdmin }: { isAdmin: boolean }) {
                                 <tbody>{p.components.map((c: any) => <tr key={c.component_id} className={c.missing > 0 ? 'text-destructive' : ''}><td>{c.sku ?? c.component_id} {c.label}</td><td>{fmt(c.per_unit)}</td><td>{fmt(c.required)}</td><td>{fmt(c.pool_before)}</td><td>{fmt(c.allocated)}</td><td>{fmt(c.missing)}</td></tr>)}</tbody></table>
                             </div>
                           )}
-                          {p.status === 'ready' && (
-                            <div className="space-y-2">
-                              <div className="flex gap-2">
-                                <Button size="sm" variant={realMode ? 'default' : 'outline'} onClick={() => sendMo(p, realMode && !!plan?.writeEnabled)} disabled={!isAdmin || res?.loading} data-readonly-allow="true">
-                                  {res?.loading ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : realMode ? <Send className="h-3 w-3 mr-1" /> : null}{realMode ? "Actualiser puis créer l'OF dans Erplain" : "Préparer l'OF groupé (simulation)"}
-                                </Button>
-                              </div>
-                              {res && !res.loading && (
+                          {res && !res.loading && (
                                 <div className={res.status === 'blocked' || res.status === 'api_error' ? 'text-destructive' : ''}>
                                   <p>{res.message ?? (res.status === 'created' ? `OF créé : ${res.mo?.label ?? res.mo?.id}` : res.status)}</p>
                                   {res.variables && <pre className="mt-1 p-2 bg-muted rounded overflow-auto">{res.mutation}{'\n'}{JSON.stringify(res.variables, null, 2)}</pre>}
                                 </div>
-                              )}
-                            </div>
                           )}
                         </td></tr>
                       )}
