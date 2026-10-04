@@ -206,7 +206,7 @@ async function reconcileSubmissions(admin: any, gql: any, runId: string): Promis
   const { data: subs } = await admin.from("erplain_mo_submissions").select("*").eq("status", "created").not("erplain_mo_id", "is", null);
   if (!subs?.length) return "OF de l'appli : aucun à contrôler.";
   const ids = subs.map((s: any) => Number(s.erplain_mo_id));
-  const { data: rows } = await admin.from("erplain_manufacturing_orders").select("id,status,run_id").in("id", ids);
+  const { data: rows } = await admin.from("erplain_manufacturing_orders").select("id,label,status,run_id").in("id", ids);
   const seen = new Map((rows ?? []).filter((r: any) => r.run_id === runId).map((r: any) => [Number(r.id), r]));
   const c = { open: 0, completed: 0, cancelled: 0, deleted: 0, unchecked: 0 };
   for (const sub of subs) {
@@ -255,7 +255,10 @@ async function refreshMo(admin: any, gql: any, sub: any) {
     quantity: Number(m.quantity) === Number(sub.quantity),
     order_lines: (sub.order_line_item_ids ?? []).every((id: number) => (m.order_line_items ?? []).some((x: any) => Number(x.id) === Number(id))),
   };
-  await admin.from("erplain_mo_submissions").update({ erplain_status: m.status, erplain_snapshot: m, checks, erplain_synced_at: new Date().toISOString(), updated_at: new Date().toISOString() }).eq("id", sub.id);
+  // Keep the synced MO table in step (completed/cancelled MOs are filtered out of the list read).
+  await admin.from("erplain_manufacturing_orders").update({ status: m.status, label: m.label, quantity: m.quantity, remaining_to_produce: m.remaining_to_produce, actually_produced: m.actually_produced, synced_at: new Date().toISOString() }).eq("id", Number(m.id));
+  const cancelled = m.status === "cancelled";
+  await admin.from("erplain_mo_submissions").update({ ...(cancelled ? { status: "cancelled" } : {}), erplain_status: m.status, erplain_snapshot: m, checks, erplain_synced_at: new Date().toISOString(), updated_at: new Date().toISOString() }).eq("id", sub.id);
   return { erplain: m, checks };
 }
 
