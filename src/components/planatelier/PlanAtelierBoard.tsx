@@ -67,14 +67,27 @@ export function PlanAtelierBoard({ isAdmin }: { isAdmin: boolean }) {
     if (reload) loadPlan();
   };
 
-  const sendMo = async (p: any, confirm: boolean) => {
-    if (confirm && !window.confirm(`Créer réellement l'OF de ${p.to_build} × ${p.sku ?? p.variant_id} dans Erplain ?`)) return;
+  const createFor = async (p: any, confirm: boolean) => {
     setMo((m) => ({ ...m, [p.key]: { loading: true } }));
     try {
-      if (confirm) await sync(false, false); // fresh data before any real send
       const d = await call({ action: 'create_mo', selectedLineIds: applied, key: p.idempotency_key, groupKey: p.key, quantity: p.to_build, includePending, confirm });
       setMo((m) => ({ ...m, [p.key]: d }));
     } catch (e) { setMo((m) => ({ ...m, [p.key]: { status: 'api_error', message: (e as Error).message } })); }
+  };
+
+  const [sending, setSending] = useState(false);
+  const sendAll = async () => {
+    const ready = proposals.filter((p: any) => p.status === 'ready');
+    if (!ready.length || sending) return;
+    const real = realMode && !!plan?.writeEnabled;
+    if (real && !window.confirm(`Actualiser puis créer réellement ${ready.length} OF dans Erplain ?`)) return;
+    setSending(true);
+    if (real) {
+      try { await sync(false, false); } catch (e) { setError((e as Error).message); setSending(false); return; }
+    }
+    for (const p of ready) await createFor(p, real);
+    setSending(false);
+    loadPlan();
   };
 
   const proposals = useMemo(() => (plan?.proposals ?? []).filter((p: any) =>
