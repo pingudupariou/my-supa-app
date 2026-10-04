@@ -32,9 +32,9 @@ describe('Workshop order columns', () => {
     fireEvent.keyDown(screen.getByRole('button', { name: 'Colonnes affichées (15/15)' }), { key: 'Enter' });
     const item = await screen.findByRole('menuitemcheckbox', { name: 'Nom du client' });
     fireEvent.click(item);
-    await waitFor(() => expect(screen.queryByRole('columnheader', { name: 'Nom du client' })).not.toBeInTheDocument());
+    await waitFor(() => expect(screen.queryByRole('columnheader', { name: 'Nom du client', hidden: true })).not.toBeInTheDocument());
     expect(JSON.parse(localStorage.getItem('plan-atelier-order-columns-v1') ?? '[]')).toContain('client');
     fireEvent.click(screen.getByRole('menuitemcheckbox', { name: 'Nom du client' }));
-    await waitFor(() => expect(screen.getByRole('columnheader', { name: 'Nom du client' })).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole('columnheader', { name: 'Nom du client', hidden: true })).toBeInTheDocument());
   });
 });
