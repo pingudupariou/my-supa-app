@@ -34,7 +34,7 @@ describe('Workshop order columns', () => {
     fireEvent.click(item);
     await waitFor(() => expect(screen.queryByRole('columnheader', { name: 'Nom du client' })).not.toBeInTheDocument());
     expect(JSON.parse(localStorage.getItem('plan-atelier-order-columns-v1') ?? '[]')).toContain('client');
-    fireEvent.click(item);
+    fireEvent.click(screen.getByRole('menuitemcheckbox', { name: 'Nom du client' }));
     await waitFor(() => expect(screen.getByRole('columnheader', { name: 'Nom du client' })).toBeInTheDocument());
   });
 });
