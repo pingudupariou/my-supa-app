@@ -180,6 +180,7 @@ export function PlanAtelierBoard({ isAdmin }: { isAdmin: boolean }) {
         <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-3 space-y-0">
           <CardTitle className="text-base">Plan atelier — besoins par variante et emplacement</CardTitle>
           <div className="flex items-center gap-2">
+            {sending && <span className="text-xs text-muted-foreground max-w-md truncate">{syncing ? `Actualisation : ${syncInfo ?? 'démarrage…'}` : 'Envoi des OF…'}</span>}
             <Button
               onClick={sendAll}
               disabled={!isAdmin || loading || syncing || sending || !proposals.some((p: any) => p.status === 'ready')}
