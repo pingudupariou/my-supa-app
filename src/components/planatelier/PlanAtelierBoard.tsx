@@ -26,6 +26,9 @@ export function PlanAtelierBoard({ isAdmin }: { isAdmin: boolean }) {
   const [open, setOpen] = useState<string | null>(null);
   const [filter, setFilter] = useState('');
   const [mo, setMo] = useState<Record<string, any>>({});
+  const [selected, setSelected] = useState<Set<number>>(new Set());
+  const [applied, setApplied] = useState<number[] | null>(null);
+  const [openLines, setOpenLines] = useState<any[]>([]);
 
   const call = async (body: any) => {
     const { data, error } = await supabase.functions.invoke('erplain-sync', { body });
@@ -39,13 +42,13 @@ export function PlanAtelierBoard({ isAdmin }: { isAdmin: boolean }) {
   const loadPlan = useCallback(async () => {
     if (!isAdmin) return;
     setLoading(true); setError(null);
-    try { setPlan(await call({ action: 'plan', includePending })); } catch (e) { setError((e as Error).message); }
+    try { const d = await call({ action: 'plan', includePending, selectedLineIds: applied }); setPlan(d); if (!applied) setOpenLines(d.openLines ?? []); } catch (e) { setError((e as Error).message); }
     setLoading(false);
-  }, [isAdmin, includePending]);
+  }, [isAdmin, includePending, applied]);
 
   useEffect(() => { loadPlan(); }, [loadPlan]);
 
-  const sync = async (restart: boolean) => {
+  const sync = async (restart: boolean, reload = true) => {
     setSyncing(true); setError(null);
     try {
       for (let i = 0, first = true; i < 60; i++, first = false) {
@@ -57,13 +60,14 @@ export function PlanAtelierBoard({ isAdmin }: { isAdmin: boolean }) {
       }
     } catch (e) { setError((e as Error).message); }
     setSyncing(false);
-    loadPlan();
+    if (reload) loadPlan();
   };
 
   const sendMo = async (p: any, confirm: boolean) => {
     setMo((m) => ({ ...m, [p.key]: { loading: true } }));
     try {
-      const d = await call({ action: 'create_mo', key: p.idempotency_key, groupKey: p.key, quantity: p.to_build, includePending, confirm });
+      if (confirm) await sync(false, false); // fresh data before any real send
+      const d = await call({ action: 'create_mo', selectedLineIds: applied, key: p.idempotency_key, groupKey: p.key, quantity: p.to_build, includePending, confirm });
       setMo((m) => ({ ...m, [p.key]: d }));
     } catch (e) { setMo((m) => ({ ...m, [p.key]: { status: 'api_error', message: (e as Error).message } })); }
   };
@@ -71,6 +75,13 @@ export function PlanAtelierBoard({ isAdmin }: { isAdmin: boolean }) {
   const proposals = useMemo(() => (plan?.proposals ?? []).filter((p: any) =>
     !filter || `${p.sku} ${p.variant_label} ${p.location_label}`.toLowerCase().includes(filter.toLowerCase())), [plan, filter]);
   const run = plan?.lastRun;
+  const orders = useMemo(() => {
+    const m = new Map<string, any>();
+    openLines.forEach((l) => { const k = String(l.order_id); if (!m.has(k)) m.set(k, { id: k, label: l.order_label, status: l.order_status, date: l.shipping_at, lines: [] }); m.get(k).lines.push(l); });
+    return [...m.values()];
+  }, [openLines]);
+  const toggle = (ids: number[], on: boolean) => setSelected((s) => { const n = new Set(s); ids.forEach((i) => (on ? n.add(i) : n.delete(i))); return n; });
+  const allIds = openLines.map((l) => Number(l.line_id));
 
   return (
     <div className="space-y-6">
@@ -97,6 +108,52 @@ export function PlanAtelierBoard({ isAdmin }: { isAdmin: boolean }) {
       </Card>
 
       <Card>
+        <CardHeader><CardTitle className="text-base">Sélection des commandes à fabriquer</CardTitle></CardHeader>
+        <CardContent className="space-y-3">
+          <div className="flex flex-wrap gap-3 items-center">
+            <label className="flex items-center gap-2 text-sm" data-readonly-allow="true">
+              <Checkbox checked={allIds.length > 0 && selected.size === allIds.length} onCheckedChange={(v) => setSelected(v ? new Set(allIds) : new Set())} />Tout sélectionner
+            </label>
+            <span className="text-sm text-muted-foreground">{selected.size} ligne(s) sur {allIds.length} · {orders.length} commande(s) restant à expédier</span>
+            <Button onClick={() => { setMo({}); setApplied([...selected]); }} disabled={!selected.size || loading} data-readonly-allow="true">Calculer les OF pour la sélection</Button>
+            {applied && <Button variant="ghost" onClick={() => { setMo({}); setApplied(null); }} data-readonly-allow="true">Revenir à toutes les commandes</Button>}
+          </div>
+          {applied && <p className="text-xs text-muted-foreground">Calcul limité à {applied.length} ligne(s) sélectionnée(s). Les réservations et OF liés aux autres commandes leur restent affectés.</p>}
+          <div className="overflow-auto max-h-[420px] border rounded-md">
+            <table className="w-full text-sm">
+              <thead className="bg-muted text-left sticky top-0"><tr>{['', 'Commande', 'Expédition', 'Produit', 'Emplacement', 'Commandé', 'Expédié', 'Reste', 'Réservé', 'OF lié'].map((h) => <th key={h} className="p-2 font-medium whitespace-nowrap">{h}</th>)}</tr></thead>
+              <tbody>
+                {orders.map((o) => {
+                  const ids = o.lines.map((l: any) => Number(l.line_id));
+                  const all = ids.every((i: number) => selected.has(i));
+                  return (
+                    <Fragment key={o.id}>
+                      <tr className="border-t bg-muted/30">
+                        <td className="p-2" data-readonly-allow="true"><Checkbox checked={all} onCheckedChange={(v) => toggle(ids, !!v)} /></td>
+                        <td className="p-2 font-medium" colSpan={9}>{o.label ?? o.id} <span className="text-xs text-muted-foreground">({o.status}, {o.lines.length} ligne(s))</span></td>
+                      </tr>
+                      {o.lines.map((l: any) => (
+                        <tr key={l.line_id} className="border-t">
+                          <td className="p-2 pl-6" data-readonly-allow="true"><Checkbox checked={selected.has(Number(l.line_id))} onCheckedChange={(v) => toggle([Number(l.line_id)], !!v)} /></td>
+                          <td className="p-2 text-xs text-muted-foreground">{l.shipping_status ?? '—'}</td>
+                          <td className="p-2">{l.shipping_at ?? '—'}</td>
+                          <td className="p-2"><div>{l.sku}</div><div className="text-xs text-muted-foreground">{l.variant_label}</div></td>
+                          <td className="p-2">{l.location_label ?? '—'}</td>
+                          <td className="p-2">{fmt(l.quantity)}</td><td className="p-2">{fmt(l.shipped_quantity)}</td>
+                          <td className="p-2 font-semibold">{fmt(l.remaining)}</td><td className="p-2">{fmt(l.reserved_quantity)}</td><td className="p-2">{l.linked_mo ?? '—'}</td>
+                        </tr>
+                      ))}
+                    </Fragment>
+                  );
+                })}
+                {!orders.length && <tr><td colSpan={10} className="p-4 text-center text-muted-foreground">Aucune commande active restant à expédier.</td></tr>}
+              </tbody>
+            </table>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
         <CardHeader><CardTitle className="text-base">Plan atelier — besoins par variante et emplacement</CardTitle></CardHeader>
         <CardContent className="space-y-4">
           <details className="text-xs text-muted-foreground" data-readonly-allow="true">
@@ -104,7 +161,7 @@ export function PlanAtelierBoard({ isAdmin }: { isAdmin: boolean }) {
             <ul className="list-disc pl-5 mt-2 space-y-1">
               <li>Commandes comptées : statut « active »{includePending ? ' et « pending_validation »' : ''}. Reste à expédier = commandé − expédié (le livré n'est pas re-déduit).</li>
               <li>Stock monté utilisable = disponible + réservé pour les lignes comptées (plafonné au réel). La réservation n'est ainsi comptée qu'une fois.</li>
-              <li>OF en cours = reste à produire des OF non terminés et non annulés (tous statuts, y compris brouillons).</li>
+              <li>OF en cours = reste à produire des OF non terminés et non annulés. Un OF lié à des lignes est d'abord affecté à ces lignes ; seul l'excédent ou un OF non lié est libre pour la sélection.</li><li>Lignes « shipped » exclues ; expéditions partielles : seul le reste est compté. Un OF proposé par variante et emplacement.</li>
               <li>À fabriquer = besoin − stock utilisable − OF en cours (jamais négatif).</li>
               <li>Composants : disponible − besoins non réservés des OF existants ; répartis par date d'expédition la plus proche, sans réutiliser les mêmes pièces.</li>
             </ul>
@@ -155,6 +212,7 @@ export function PlanAtelierBoard({ isAdmin }: { isAdmin: boolean }) {
                               <p>Besoin restant à expédier : {fmt(p.need)}</p>
                               <p>Stock Erplain : réel {fmt(p.stock?.on_hand)}, disponible {fmt(p.stock?.available)}, réservé {fmt(p.stock?.reserved)}</p>
                               <p>Réservé pour ces lignes : {fmt(p.reserved_in_scope)} → stock utilisable = min(réel, disponible + réservé lignes) = {fmt(p.usable)}</p>
+                              <p>OF affectés aux lignes sélectionnées : {fmt(p.mo_linked)} · OF libres : {fmt(p.mo_free)}{p.other_open_lines ? ` · ${p.other_open_lines} autre(s) ligne(s) ouverte(s) non sélectionnée(s) gardent leurs affectations` : ''}</p>
                               <p>OF en cours : {p.mos.length ? p.mos.map((m: any) => `${m.label ?? m.id} [${m.status}] reste ${fmt(m.remaining_to_produce)}`).join(' ; ') : 'aucun'} → {fmt(p.mo_remaining)}</p>
                               <p className="font-medium">À fabriquer = {fmt(p.need)} − {fmt(p.usable)} − {fmt(p.mo_remaining)} = {fmt(p.to_build)}{p.buildable != null && p.buildable < (p.to_build ?? 0) ? ` (réalisable avec les pièces : ${p.buildable})` : ''}</p>
                               <p>Nomenclature : {p.bom?.label ?? '—'} · Gamme : {p.routing ? `${p.routing.label} (${p.routing.steps} étapes)` : '—'}</p>
@@ -180,7 +238,7 @@ export function PlanAtelierBoard({ isAdmin }: { isAdmin: boolean }) {
                                   {res?.loading ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : null}Préparer l'OF groupé (simulation)
                                 </Button>
                                 {plan?.writeEnabled && res?.status === 'dry_run' && (
-                                  <Button size="sm" onClick={() => sendMo(p, true)} disabled={!isAdmin || res?.loading} data-readonly-allow="true"><Send className="h-3 w-3 mr-1" />Confirmer la création dans Erplain</Button>
+                                  <Button size="sm" onClick={() => sendMo(p, true)} disabled={!isAdmin || res?.loading} data-readonly-allow="true"><Send className="h-3 w-3 mr-1" />Actualiser puis créer dans Erplain</Button>
                                 )}
                               </div>
                               {res && !res.loading && (
@@ -202,6 +260,8 @@ export function PlanAtelierBoard({ isAdmin }: { isAdmin: boolean }) {
           </div>
         </CardContent>
       </Card>
+
+      <SubmissionsPanel isAdmin={isAdmin} subs={plan?.submissions ?? []} writeEnabled={!!plan?.writeEnabled} call={call} onDone={loadPlan} />
 
       <ControlViews isAdmin={isAdmin} reloadKey={run?.id + (run?.status ?? '')} />
     </div>
@@ -238,6 +298,62 @@ function ControlViews({ isAdmin, reloadKey }: { isAdmin: boolean; reloadKey: str
           <TabsContent value="mos"><T data={f(rows.mos)} cols={[['label', 'OF'], ['status', 'Statut'], ['sku', 'SKU'], ['location_label', 'Emplacement'], ['quantity', 'Prévu'], ['actually_produced', 'Produit'], ['remaining_to_produce', 'Reste'], ['order_line_item_ids', 'Lignes cmd'], ['id', 'ID']]} /></TabsContent>
         </Tabs>
         <p className="text-xs text-muted-foreground">Affichage limité à 300 lignes filtrées. Les valeurs « — » sont absentes dans Erplain, jamais remplacées par zéro.</p>
+      </CardContent>
+    </Card>
+  );
+}
+
+const CHECK_LABELS: Record<string, string> = { bom: 'Nomenclature reprise', components: 'Composants repris', routing: 'Gamme reprise', quantity: 'Quantité', order_lines: 'Lignes de commande liées' };
+
+function SubmissionsPanel({ isAdmin, subs, writeEnabled, call, onDone }: { isAdmin: boolean; subs: any[]; writeEnabled: boolean; call: (b: any) => Promise<any>; onDone: () => void }) {
+  const [res, setRes] = useState<Record<string, any>>({});
+  const [qty, setQty] = useState<Record<string, string>>({});
+  const list = subs.filter((s) => s.status !== 'prepared' || s.erplain_mo_id);
+  const act = async (s: any, body: any) => {
+    setRes((r) => ({ ...r, [s.id]: { loading: true } }));
+    try { const d = await call({ ...body, submissionId: s.id }); setRes((r) => ({ ...r, [s.id]: d })); if (d.status === 'success') onDone(); }
+    catch (e) { setRes((r) => ({ ...r, [s.id]: { status: 'api_error', message: (e as Error).message } })); }
+  };
+  const editable = (s: any) => ['unpublished', 'draft'].includes(s.erplain_status);
+  return (
+    <Card>
+      <CardHeader><CardTitle className="text-base">OF envoyés à Erplain</CardTitle></CardHeader>
+      <CardContent className="space-y-3 text-sm">
+        {!list.length && <p className="text-muted-foreground">Aucun OF créé pour l'instant (simulations seulement).</p>}
+        {list.map((s) => {
+          const r = res[s.id];
+          const confirm = (body: any) => act(s, { ...body, confirm: r?.status === 'dry_run' && writeEnabled });
+          return (
+            <div key={s.id} className="border rounded-md p-3 space-y-2">
+              <div className="flex flex-wrap gap-2 items-center">
+                <span className="font-medium">OF {s.erplain_snapshot?.label ?? s.erplain_mo_id ?? '—'}</span>
+                <Badge variant="outline">{s.status}</Badge>
+                {s.erplain_status && <Badge>{s.erplain_status}</Badge>}
+                <span className="text-xs text-muted-foreground">Qté {fmt(s.quantity)} · {s.order_line_item_ids?.length ?? 0} ligne(s) · relu {s.erplain_synced_at ? new Date(s.erplain_synced_at).toLocaleString('fr-FR') : 'jamais'}</span>
+              </div>
+              {s.checks && <div className="flex flex-wrap gap-2 text-xs">{Object.entries(CHECK_LABELS).map(([k, l]) => s.checks[k] == null ? null : <Badge key={k} variant={s.checks[k] ? 'secondary' : 'destructive'}>{l} : {s.checks[k] ? 'oui' : 'non'}</Badge>)}<span className="text-muted-foreground">{s.checks.components_detail} · {s.checks.steps_detail}</span></div>}
+              {s.erplain_mo_id && s.status !== 'deleted' && (
+                <div className="flex flex-wrap gap-2 items-center">
+                  <Button size="sm" variant="outline" disabled={!isAdmin || r?.loading} onClick={() => act(s, { action: 'mo_refresh' })} data-readonly-allow="true">Relire depuis Erplain</Button>
+                  {editable(s) && <>
+                    <Input className="w-24 h-8" type="number" placeholder="Qté" value={qty[s.id] ?? ''} onChange={(e) => setQty((q) => ({ ...q, [s.id]: e.target.value }))} data-readonly-allow="true" />
+                    <Button size="sm" variant="outline" disabled={!isAdmin || r?.loading || !qty[s.id]} onClick={() => confirm({ action: 'mo_update', quantity: Number(qty[s.id]) })} data-readonly-allow="true">Modifier la quantité</Button>
+                    <Button size="sm" variant="outline" disabled={!isAdmin || r?.loading} onClick={() => confirm({ action: 'mo_transition', target: 'released' })} data-readonly-allow="true">Publier</Button>
+                    <Button size="sm" variant="destructive" disabled={!isAdmin || r?.loading} onClick={() => confirm({ action: 'mo_delete' })} data-readonly-allow="true">Supprimer</Button>
+                  </>}
+                  {s.erplain_status === 'released' && <Button size="sm" variant="outline" disabled={!isAdmin || r?.loading} onClick={() => confirm({ action: 'mo_transition', target: 'in_progress' })} data-readonly-allow="true">Lancer</Button>}
+                  {r?.loading && <Loader2 className="h-4 w-4 animate-spin" />}
+                </div>
+              )}
+              {r && !r.loading && (
+                <div className={['blocked', 'api_error'].includes(r.status) ? 'text-destructive text-xs' : 'text-xs'}>
+                  <p>{r.message ?? r.status}{r.status === 'dry_run' && writeEnabled ? ' — cliquez à nouveau sur le même bouton pour envoyer réellement.' : ''}</p>
+                  {r.variables && <pre className="mt-1 p-2 bg-muted rounded overflow-auto">{r.mutation}{'\n'}{JSON.stringify(r.variables, null, 2)}</pre>}
+                </div>
+              )}
+            </div>
+          );
+        })}
       </CardContent>
     </Card>
   );
