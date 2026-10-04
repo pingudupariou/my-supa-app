@@ -1674,6 +1674,7 @@ export type Database = {
       erplain_order_lines: {
         Row: {
           committed_quantity: number | null
+          customer_name: string | null
           delivered_quantity: number | null
           delivery_status: string | null
           kit_line_item_id: string | null
@@ -1703,6 +1704,7 @@ export type Database = {
         }
         Insert: {
           committed_quantity?: number | null
+          customer_name?: string | null
           delivered_quantity?: number | null
           delivery_status?: string | null
           kit_line_item_id?: string | null
@@ -1732,6 +1734,7 @@ export type Database = {
         }
         Update: {
           committed_quantity?: number | null
+          customer_name?: string | null
           delivered_quantity?: number | null
           delivery_status?: string | null
           kit_line_item_id?: string | null

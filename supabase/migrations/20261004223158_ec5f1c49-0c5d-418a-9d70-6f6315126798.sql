@@ -1,0 +1,1 @@
+ALTER TABLE public.erplain_order_lines ADD COLUMN IF NOT EXISTS customer_name text;
