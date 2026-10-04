@@ -33,6 +33,7 @@ export function PlanAtelierBoard({ isAdmin }: { isAdmin: boolean }) {
   const [sortAsc, setSortAsc] = useState(true);
   const [sortBy, setSortBy] = useState<'shipping' | 'created'>('shipping');
   const [openLines, setOpenLines] = useState<any[]>([]);
+  const [stockLevels, setStockLevels] = useState<any[]>([]);
 
   const call = async (body: any) => {
     const { data, error } = await supabase.functions.invoke('erplain-sync', { body });
@@ -46,7 +47,7 @@ export function PlanAtelierBoard({ isAdmin }: { isAdmin: boolean }) {
   const loadPlan = useCallback(async () => {
     if (!isAdmin) return;
     setLoading(true); setError(null);
-    try { const d = await call({ action: 'plan', includePending, selectedLineIds: applied }); setPlan(d); if (!applied) setOpenLines(d.openLines ?? []); } catch (e) { setError((e as Error).message); }
+    try { const d = await call({ action: 'plan', includePending, selectedLineIds: applied }); setPlan(d); if (d.stocks) setStockLevels(d.stocks); if (!applied) setOpenLines(d.openLines ?? []); } catch (e) { setError((e as Error).message); }
     setLoading(false);
   }, [isAdmin, includePending, applied]);
 
