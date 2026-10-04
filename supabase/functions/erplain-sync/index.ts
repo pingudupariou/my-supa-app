@@ -2,7 +2,7 @@
 // The only mutation ever sent is CreateManufacturingOrder, and only when the server secret
 // ERPLAIN_ALLOW_WRITE is "true" and the admin explicitly confirms. Otherwise it is a dry run.
 import { createClient } from "npm:@supabase/supabase-js@2";
-import { DATASETS, FILTER_TYPES, makeGql, pageQuery, whereColumns } from "./erplain.ts";
+import { DATASETS, FILTER_TYPES, makeGql, pageQuery, whereColumns, ordersWithCustomer } from "./erplain.ts";
 import { computePlan, moPayload } from "./plan.ts";
 
 const DEFAULT_ENDPOINT = "https://api.erplain.app/graphql";
@@ -66,7 +66,8 @@ async function handleData(action: string, body: any, admin: any, token: string, 
 
     const limit = list.length;
     while (cursor.ds < limit) {
-      const ds = DATASETS[list[cursor.ds]];
+      const baseDs = DATASETS[list[cursor.ds]];
+      const ds = baseDs.key === 'orders' ? await ordersWithCustomer(admin, gql, baseDs) : baseDs;
       if (cursor.filter === undefined) {
         const ft = FILTER_TYPES[ds.key];
         if (ft) {
