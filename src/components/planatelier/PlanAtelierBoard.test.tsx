@@ -26,4 +26,15 @@ describe('Workshop order columns', () => {
     fireEvent.click(screen.getByText('Tout sélectionner'));
     await waitFor(() => expect(screen.getByRole('button', { name: 'Calculer les OF pour la sélection' })).toBeEnabled());
   });
+  it('hides and shows columns using the visible checkbox menu', async () => {
+    render(<PlanAtelierBoard isAdmin />);
+    await screen.findByText('Client test');
+    fireEvent.pointerDown(screen.getByRole('button', { name: 'Colonnes affichées (15/15)' }), { button: 0, ctrlKey: false, pointerType: 'mouse' });
+    const item = await screen.findByRole('menuitemcheckbox', { name: 'Nom du client' });
+    fireEvent.click(item);
+    await waitFor(() => expect(screen.queryByRole('columnheader', { name: 'Nom du client' })).not.toBeInTheDocument());
+    expect(JSON.parse(localStorage.getItem('plan-atelier-order-columns-v1') ?? '[]')).toContain('client');
+    fireEvent.click(item);
+    await waitFor(() => expect(screen.getByRole('columnheader', { name: 'Nom du client' })).toBeInTheDocument());
+  });
 });
