@@ -33,6 +33,7 @@ export function PlanAtelierBoard({ isAdmin }: { isAdmin: boolean }) {
   const [sortAsc, setSortAsc] = useState(true);
   const [sortBy, setSortBy] = useState<'shipping' | 'created'>('shipping');
   const [openLines, setOpenLines] = useState<any[]>([]);
+  const [stockLevels, setStockLevels] = useState<any[]>([]);
 
   const call = async (body: any) => {
     const { data, error } = await supabase.functions.invoke('erplain-sync', { body });
@@ -46,7 +47,7 @@ export function PlanAtelierBoard({ isAdmin }: { isAdmin: boolean }) {
   const loadPlan = useCallback(async () => {
     if (!isAdmin) return;
     setLoading(true); setError(null);
-    try { const d = await call({ action: 'plan', includePending, selectedLineIds: applied }); setPlan(d); if (!applied) setOpenLines(d.openLines ?? []); } catch (e) { setError((e as Error).message); }
+    try { const d = await call({ action: 'plan', includePending, selectedLineIds: applied }); setPlan(d); if (d.stocks) setStockLevels(d.stocks); if (!applied) setOpenLines(d.openLines ?? []); } catch (e) { setError((e as Error).message); }
     setLoading(false);
   }, [isAdmin, includePending, applied]);
 
@@ -104,6 +105,12 @@ export function PlanAtelierBoard({ isAdmin }: { isAdmin: boolean }) {
   }, [openLines, sortAsc, sortBy]);
   const toggle = (ids: number[], on: boolean) => setSelected((s) => { const n = new Set(s); ids.forEach((i) => (on ? n.add(i) : n.delete(i))); return n; });
   const allIds = openLines.map((l) => Number(l.line_id));
+  const stockBy = useMemo(() => {
+    const m = new Map<string, any>();
+    stockLevels.forEach((s) => m.set(`${s.variant_id}|${s.location_id ?? 'none'}`, s));
+    return m;
+  }, [stockLevels]);
+  const stockUpdatedAt = useMemo(() => stockLevels.map((s) => s.synced_at).filter(Boolean).sort().pop() ?? null, [stockLevels]);
 
   return (
     <div className="space-y-6">
@@ -146,14 +153,14 @@ export function PlanAtelierBoard({ isAdmin }: { isAdmin: boolean }) {
             </label>
             <Button variant="outline" size="sm" onClick={() => setSortAsc((v) => !v)} data-readonly-allow="true">{sortBy === 'created' ? 'Date de création' : "Date d'expédition"} {sortAsc ? '↑ croissante' : '↓ décroissante'}</Button>
             <Button variant="ghost" size="sm" onClick={() => { setSortBy((v) => (v === 'shipping' ? 'created' : 'shipping')); setSortAsc(true); }} data-readonly-allow="true">Trier par {sortBy === 'created' ? "date d'expédition" : 'date de création'}</Button>
-            <span className="text-sm text-muted-foreground">{selected.size} ligne(s) sur {allIds.length} · {orders.length} commande(s) restant à expédier</span>
+            <span className="text-sm text-muted-foreground">{selected.size} ligne(s) sur {allIds.length} · {orders.length} commande(s) restant à expédier{stockUpdatedAt ? ` · stocks Erplain mis à jour le ${new Date(stockUpdatedAt).toLocaleString('fr-FR')}` : ''}</span>
             <Button onClick={() => { setMo({}); setApplied([...selected]); }} disabled={!selected.size || loading} data-readonly-allow="true">Calculer les OF pour la sélection</Button>
             {applied && <Button variant="ghost" onClick={() => { setMo({}); setApplied(null); }} data-readonly-allow="true">Revenir à toutes les commandes</Button>}
           </div>
           {applied && <p className="text-xs text-muted-foreground">Calcul limité à {applied.length} ligne(s) sélectionnée(s). Les réservations et OF liés aux autres commandes leur restent affectés.</p>}
           <div className="overflow-auto max-h-[420px] border rounded-md">
             <table className="w-full text-sm">
-              <thead className="bg-muted text-left sticky top-0"><tr>{['', 'Commande', 'Expédition', 'Produit', 'Emplacement', 'Commandé', 'Expédié', 'Reste', 'Réservé', 'OF lié'].map((h) => <th key={h} className="p-2 font-medium whitespace-nowrap">{h}</th>)}</tr></thead>
+              <thead className="bg-muted text-left sticky top-0"><tr>{['', 'Commande', 'Expédition', 'Produit', 'Emplacement', 'Commandé', 'Expédié', 'Reste', 'Réservé', 'Stock réel', 'Stock réservé', 'OF lié'].map((h) => <th key={h} className="p-2 font-medium whitespace-nowrap">{h}</th>)}</tr></thead>
               <tbody>
                 {orders.map((o) => {
                   const ids = o.lines.map((l: any) => Number(l.line_id));
@@ -162,7 +169,7 @@ export function PlanAtelierBoard({ isAdmin }: { isAdmin: boolean }) {
                     <Fragment key={o.id}>
                       <tr className="border-t bg-muted/30">
                         <td className="p-2" data-readonly-allow="true"><Checkbox checked={all} onCheckedChange={(v) => toggle(ids, !!v)} /></td>
-                        <td className="p-2 font-medium" colSpan={9}>{o.label ?? o.id} <span className="text-xs text-muted-foreground">({o.status}, {o.lines.length} ligne(s){o.created ? `, créée ${String(o.created).slice(0, 10)}` : ''})</span></td>
+                        <td className="p-2 font-medium" colSpan={11}>{o.label ?? o.id} <span className="text-xs text-muted-foreground">({o.status}, {o.lines.length} ligne(s){o.created ? `, créée ${String(o.created).slice(0, 10)}` : ''})</span></td>
                       </tr>
                       {o.lines.map((l: any) => (
                         <tr key={l.line_id} className="border-t">
@@ -172,13 +179,13 @@ export function PlanAtelierBoard({ isAdmin }: { isAdmin: boolean }) {
                           <td className="p-2"><div>{l.sku}</div><div className="text-xs text-muted-foreground">{l.variant_label}</div></td>
                           <td className="p-2">{l.location_label ?? '—'}</td>
                           <td className="p-2">{fmt(l.quantity)}</td><td className="p-2">{fmt(l.shipped_quantity)}</td>
-                          <td className="p-2 font-semibold">{fmt(l.remaining)}</td><td className="p-2">{fmt(l.reserved_quantity)}</td><td className="p-2">{l.linked_mo ?? '—'}</td>
+                          <td className="p-2 font-semibold">{fmt(l.remaining)}</td><td className="p-2">{fmt(l.reserved_quantity)}</td>{(() => { const st = stockBy.get(`${l.variant_id}|${l.location_id ?? 'none'}`); return <><td className="p-2">{st ? fmt(st.on_hand) : '—'}</td><td className="p-2">{st ? fmt(st.reserved) : '—'}</td></>; })()}<td className="p-2">{l.linked_mo ?? '—'}</td>
                         </tr>
                       ))}
                     </Fragment>
                   );
                 })}
-                {!orders.length && <tr><td colSpan={10} className="p-4 text-center text-muted-foreground">Aucune commande active restant à expédier.</td></tr>}
+                {!orders.length && <tr><td colSpan={12} className="p-4 text-center text-muted-foreground">Aucune commande active restant à expédier.</td></tr>}
               </tbody>
             </table>
           </div>
