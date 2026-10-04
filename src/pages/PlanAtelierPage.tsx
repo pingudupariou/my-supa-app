@@ -21,6 +21,18 @@ export function PlanAtelierPage() {
   const { isAdmin } = useAuth();
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<Result | null>(null);
+  const [sdl, setSdl] = useState<string | null>(null);
+  const [schemaLoading, setSchemaLoading] = useState(false);
+  const [schemaError, setSchemaError] = useState<string | null>(null);
+
+  const loadSchema = async () => {
+    setSchemaLoading(true); setSchemaError(null);
+    const { data, error } = await supabase.functions.invoke('erplain-sync', { body: { action: 'schema_detail' } });
+    if (error) setSchemaError('Appel impossible : ' + error.message);
+    else if ((data as any)?.status !== 'success') setSchemaError((data as any)?.message ?? 'Erreur inconnue');
+    else setSdl((data as any).sdl);
+    setSchemaLoading(false);
+  };
 
   const test = async () => {
     setLoading(true); setResult(null);
@@ -85,6 +97,23 @@ export function PlanAtelierPage() {
               ) : null}
             </div>
           )}
+        </CardContent>
+      </Card>
+      <Card>
+        <CardHeader><CardTitle className="text-base">Schéma détaillé Erplain</CardTitle></CardHeader>
+        <CardContent className="space-y-3">
+          <p className="text-sm text-muted-foreground">Lit tous les champs, arguments et statuts disponibles, pour construire la synchronisation sans inventer de nom.</p>
+          <div className="flex gap-2">
+            <Button onClick={loadSchema} disabled={schemaLoading || !isAdmin} data-readonly-allow="true">
+              {schemaLoading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}Lire le schéma détaillé
+            </Button>
+            {sdl && <Button variant="outline" data-readonly-allow="true" onClick={() => { navigator.clipboard.writeText(sdl); }}>Copier</Button>}
+            {sdl && <Button variant="outline" data-readonly-allow="true" onClick={() => {
+              const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([sdl], { type: 'text/plain' })); a.download = 'erplain-schema.graphql'; a.click();
+            }}>Télécharger</Button>}
+          </div>
+          {schemaError && <p className="text-sm text-destructive">{schemaError}</p>}
+          {sdl && <pre className="text-xs max-h-[500px] overflow-auto rounded-md border bg-muted p-3 whitespace-pre">{sdl}</pre>}
         </CardContent>
       </Card>
     </div>

@@ -46,6 +46,46 @@ Deno.serve(async (req) => {
     const token = Deno.env.get("ERPLAIN_API_TOKEN");
     if (!token) return json({ status: "config_error", message: "Secret ERPLAIN_API_TOKEN absent côté serveur." });
 
+    let action = "test";
+    try { action = (await req.json())?.action ?? "test"; } catch { /* no body */ }
+
+    if (action === "schema_detail") {
+      const TYPE_REF = `kind name ofType { kind name ofType { kind name ofType { kind name ofType { kind name } } } }`;
+      const Q = `query FullSchema { __schema {
+        queryType { name } mutationType { name }
+        types { kind name description
+          fields(includeDeprecated: true) { name description args { name type { ${TYPE_REF} } } type { ${TYPE_REF} } }
+          inputFields { name type { ${TYPE_REF} } }
+          enumValues(includeDeprecated: true) { name description }
+        } } }`;
+      for (const endpoint of ENDPOINTS) {
+        try {
+          const r = await fetch(endpoint, { method: "POST",
+            headers: { "Content-Type": "application/json", Accept: "application/json", Authorization: `Bearer ${token}` },
+            body: JSON.stringify({ query: Q }) });
+          const b = await r.json().catch(() => null);
+          if (!b?.data?.__schema) continue;
+          const sch = b.data.__schema;
+          const fmt = (t: any): string => !t ? "?" : t.kind === "NON_NULL" ? fmt(t.ofType) + "!" : t.kind === "LIST" ? `[${fmt(t.ofType)}]` : t.name;
+          const lines: string[] = [];
+          for (const t of sch.types.filter((t: any) => !t.name.startsWith("__")).sort((a: any, b: any) => a.name.localeCompare(b.name))) {
+            if (t.kind === "SCALAR") { lines.push(`scalar ${t.name}`); continue; }
+            if (t.kind === "ENUM") { lines.push(`enum ${t.name} { ${t.enumValues.map((v: any) => v.name + (v.description ? ` # ${v.description}` : "")).join(" | ")} }`); continue; }
+            const fields = t.fields ?? t.inputFields ?? [];
+            lines.push(`${t.kind === "INPUT_OBJECT" ? "input" : "type"} ${t.name} {${t.description ? " # " + t.description : ""}`);
+            for (const f of fields) {
+              const args = f.args?.length ? `(${f.args.map((a: any) => `${a.name}: ${fmt(a.type)}`).join(", ")})` : "";
+              lines.push(`  ${f.name}${args}: ${fmt(f.type)}${f.description ? "  # " + f.description : ""}`);
+            }
+            lines.push("}");
+          }
+          return json({ status: "success", endpoint, queryType: sch.queryType?.name, mutationType: sch.mutationType?.name, sdl: lines.join("\n") });
+        } catch { /* try next */ }
+      }
+      return json({ status: "api_error", message: "Impossible de lire le schéma détaillé." });
+    }
+
+
     const attempts: { endpoint: string; httpStatus: number | null; note: string }[] = [];
     for (const endpoint of ENDPOINTS) {
       let res: Response;
