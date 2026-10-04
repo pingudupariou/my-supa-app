@@ -67,14 +67,27 @@ export function PlanAtelierBoard({ isAdmin }: { isAdmin: boolean }) {
     if (reload) loadPlan();
   };
 
-  const sendMo = async (p: any, confirm: boolean) => {
-    if (confirm && !window.confirm(`Créer réellement l'OF de ${p.to_build} × ${p.sku ?? p.variant_id} dans Erplain ?`)) return;
+  const createFor = async (p: any, confirm: boolean) => {
     setMo((m) => ({ ...m, [p.key]: { loading: true } }));
     try {
-      if (confirm) await sync(false, false); // fresh data before any real send
       const d = await call({ action: 'create_mo', selectedLineIds: applied, key: p.idempotency_key, groupKey: p.key, quantity: p.to_build, includePending, confirm });
       setMo((m) => ({ ...m, [p.key]: d }));
     } catch (e) { setMo((m) => ({ ...m, [p.key]: { status: 'api_error', message: (e as Error).message } })); }
+  };
+
+  const [sending, setSending] = useState(false);
+  const sendAll = async () => {
+    const ready = proposals.filter((p: any) => p.status === 'ready');
+    if (!ready.length || sending) return;
+    const real = realMode && !!plan?.writeEnabled;
+    if (real && !window.confirm(`Actualiser puis créer réellement ${ready.length} OF dans Erplain ?`)) return;
+    setSending(true);
+    if (real) {
+      try { await sync(false, false); } catch (e) { setError((e as Error).message); setSending(false); return; }
+    }
+    for (const p of ready) await createFor(p, real);
+    setSending(false);
+    loadPlan();
   };
 
   const proposals = useMemo(() => (plan?.proposals ?? []).filter((p: any) =>
@@ -164,8 +177,29 @@ export function PlanAtelierBoard({ isAdmin }: { isAdmin: boolean }) {
       </Card>
 
       <Card>
-        <CardHeader><CardTitle className="text-base">Plan atelier — besoins par variante et emplacement</CardTitle></CardHeader>
+        <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-3 space-y-0">
+          <CardTitle className="text-base">Plan atelier — besoins par variante et emplacement</CardTitle>
+          <div className="flex items-center gap-2">
+            <Button
+              onClick={sendAll}
+              disabled={!isAdmin || loading || syncing || sending || !proposals.some((p: any) => p.status === 'ready')}
+              variant={realMode ? 'default' : 'outline'}
+              data-readonly-allow="true"
+            >
+              {sending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : realMode ? <Send className="h-4 w-4 mr-2" /> : null}
+              {realMode ? 'Actualiser puis créer les OF dans Erplain' : 'Préparer tous les OF groupés (simulation)'}
+            </Button>
+          </div>
+        </CardHeader>
         <CardContent className="space-y-4">
+          {(() => {
+            const vals = Object.values(mo) as any[];
+            if (!vals.length) return null;
+            const created = vals.filter((v: any) => v.status === 'created').length;
+            const blocked = vals.filter((v: any) => ['blocked', 'api_error'].includes(v.status)).length;
+            const sim = vals.length - created - blocked;
+            return <p className="text-xs text-muted-foreground">Dernier envoi : {created} OF créé(s){sim ? `, ${sim} en simulation` : ''}{blocked ? `, ${blocked} bloqué(s)` : ''} — détail dans chaque produit déplié et dans « OF envoyés à Erplain ».</p>;
+          })()}
           <details className="text-xs text-muted-foreground" data-readonly-allow="true">
             <summary className="cursor-pointer">Méthode de calcul</summary>
             <ul className="list-disc pl-5 mt-2 space-y-1">
@@ -247,20 +281,11 @@ export function PlanAtelierBoard({ isAdmin }: { isAdmin: boolean }) {
                                 <tbody>{p.components.map((c: any) => <tr key={c.component_id} className={c.missing > 0 ? 'text-destructive' : ''}><td>{c.sku ?? c.component_id} {c.label}</td><td>{fmt(c.per_unit)}</td><td>{fmt(c.required)}</td><td>{fmt(c.pool_before)}</td><td>{fmt(c.allocated)}</td><td>{fmt(c.missing)}</td></tr>)}</tbody></table>
                             </div>
                           )}
-                          {p.status === 'ready' && (
-                            <div className="space-y-2">
-                              <div className="flex gap-2">
-                                <Button size="sm" variant={realMode ? 'default' : 'outline'} onClick={() => sendMo(p, realMode && !!plan?.writeEnabled)} disabled={!isAdmin || res?.loading} data-readonly-allow="true">
-                                  {res?.loading ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : realMode ? <Send className="h-3 w-3 mr-1" /> : null}{realMode ? "Actualiser puis créer l'OF dans Erplain" : "Préparer l'OF groupé (simulation)"}
-                                </Button>
-                              </div>
-                              {res && !res.loading && (
+                          {res && !res.loading && (
                                 <div className={res.status === 'blocked' || res.status === 'api_error' ? 'text-destructive' : ''}>
                                   <p>{res.message ?? (res.status === 'created' ? `OF créé : ${res.mo?.label ?? res.mo?.id}` : res.status)}</p>
                                   {res.variables && <pre className="mt-1 p-2 bg-muted rounded overflow-auto">{res.mutation}{'\n'}{JSON.stringify(res.variables, null, 2)}</pre>}
                                 </div>
-                              )}
-                            </div>
                           )}
                         </td></tr>
                       )}
