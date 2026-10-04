@@ -174,9 +174,37 @@ Deno.serve(async (req) => {
         if (!cache.has(rn)) { const r = await readType(rn); if (r === "timeout") { stopped = true; break; } }
       }
 
-      // BFS from relevant Query fields only
+      // Targeted missing definitions needed for the OF planning (read first, with their direct deps)
       const failed = new Set<string>();
       const relevant: string[] = [];
+      const SEEDS = ["PaginatorInfo", "LineItemOrder", "LineItem", "OrderStatus", "ShippingStatus", "DeliveryStatus",
+        "StockAllocationStatus", "BillOfMaterial", "BillOfMaterialPaginator", "QueryBillOfMaterialsWhereWhereConditions",
+        "ManufacturingOrderStatus", "ManufacturingOrderOperationType", "ManufacturingOrderLine", "ManufacturingOrderStep",
+        "ManufacturingRoutingStep", "ManufacturingOrderInput", "TransitionManufacturingOrderStepInput"];
+      if (!stopped) {
+        let frontier = [...SEEDS];
+        const seenSeed = new Set<string>();
+        for (let depth = 0; depth < 3 && frontier.length && !stopped; depth++) {
+          const next: string[] = [];
+          for (const n of frontier) {
+            if (seenSeed.has(n) || BUILTIN.has(n) || n.startsWith("__")) continue;
+            seenSeed.add(n);
+            if (!cache.has(n)) {
+              const r = await readType(n);
+              if (r === "timeout") { stopped = true; break; }
+              if (r === "fail") { failed.add(n); continue; }
+            }
+            const t = cache.get(n);
+            for (const f of [...(t.fields ?? []), ...(t.inputFields ?? [])]) {
+              const r = named(f.type);
+              // follow input objects / enums always, objects only for BOM/OF/line structures
+              if (r && (t.kind === "INPUT_OBJECT" || /Status|Type$|Input$|BillOfMaterial|ManufacturingOrder|Routing|Component/i.test(r))) next.push(r);
+            }
+          }
+          frontier = next;
+        }
+      }
+
       if (!stopped && cache.has(root.query)) {
         const q = cache.get(root.query);
         const roots = (q.fields ?? []).filter((f: any) => KW.test(f.name));
