@@ -87,6 +87,25 @@ export function PlanAtelierPage() {
           )}
         </CardContent>
       </Card>
+      <Card>
+        <CardHeader><CardTitle className="text-base">Schéma détaillé Erplain</CardTitle></CardHeader>
+        <CardContent className="space-y-3">
+          <p className="text-sm text-muted-foreground">Lit tous les champs, arguments et statuts disponibles, pour construire la synchronisation sans inventer de nom.</p>
+          <div className="flex gap-2">
+            <Button onClick={loadSchema} disabled={schemaLoading || !isAdmin} data-readonly-allow="true">
+              {schemaLoading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}Lire le schéma détaillé
+            </Button>
+            {sdl && <Button variant="outline" data-readonly-allow="true" onClick={() => { navigator.clipboard.writeText(sdl); }}>Copier</Button>}
+            {sdl && <Button variant="outline" data-readonly-allow="true" onClick={() => {
+              const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([sdl], { type: 'text/plain' })); a.download = 'erplain-schema.graphql'; a.click();
+            }}>Télécharger</Button>}
+          </div>
+          {schemaError && <p className="text-sm text-destructive">{schemaError}</p>}
+          {sdl && <pre className="text-xs max-h-[500px] overflow-auto rounded-md border bg-muted p-3 whitespace-pre">{sdl}</pre>}
+        </CardContent>
+      </Card>
     </div>
+  );
+}
   );
 }
