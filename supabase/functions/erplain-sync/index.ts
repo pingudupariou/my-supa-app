@@ -37,6 +37,7 @@ async function handleData(action: string, body: any, admin: any, token: string, 
     const { data: subs } = await admin.from("erplain_mo_submissions").select("*").order("created_at", { ascending: false });
     const plan = computePlan(data, { includePending: !!body.includePending, selectedLineIds: Array.isArray(body.selectedLineIds) ? body.selectedLineIds : null });
     return json({ status: "success", lastRun: run, ...plan, submissions: subs ?? [],
+      stocks: data.stocks.map((s: any) => ({ variant_id: s.variant_id, location_id: s.location_id, on_hand: s.on_hand, available: s.available, reserved: s.reserved, incoming: s.incoming, synced_at: s.synced_at })),
       writeEnabled: Deno.env.get("ERPLAIN_ALLOW_WRITE") === "true",
       counts: { lines: data.lines.length, stocks: data.stocks.length, mos: data.mos.length, boms: data.boms.length, routings: data.routings.length } });
   }
