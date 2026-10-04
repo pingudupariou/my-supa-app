@@ -43,13 +43,16 @@ async function handleData(action: string, body: any, admin: any, token: string, 
 
   if (action === "sync") {
     // Resume the last unfinished run, or start a new one.
-    const quick = body.quick === true; // quick = orders, stocks, MOs only (before sending OFs)
+    // mode: which datasets to read (saves time). quick = orders, stocks, MOs (before sending OFs).
+    const MODES: Record<string, string[]> = { quick: ["orders", "stocks", "mos"], orders_mos: ["orders", "mos"], mos: ["mos"], stocks: ["stocks"], bom: ["boms", "routings"] };
+    const mode: string | null = body.quick === true ? "quick" : MODES[body.mode] ? body.mode : null;
+    const list = mode ? DATASETS.map((d, i) => (MODES[mode].includes(d.key) ? i : -1)).filter((i) => i >= 0) : DATASETS.map((_, i) => i);
     let q = admin.from("erplain_sync_runs").select("*").eq("status", "running");
-    q = quick ? q.eq("cursor->>quick", "true") : q.is("cursor->>quick", null);
+    q = mode ? q.eq("cursor->>mode", mode) : q.is("cursor->>mode", null).is("cursor->>quick", null);
     let { data: run } = await q.order("started_at", { ascending: false }).limit(1).maybeSingle();
     if (body.restart && run) { await admin.from("erplain_sync_runs").update({ status: "abandoned", finished_at: new Date().toISOString() }).eq("id", run.id); run = null; }
     if (!run) {
-      const { data: created, error } = await admin.from("erplain_sync_runs").insert({ cursor: quick ? { ds: 0, page: 1, quick: true } : { ds: 0, page: 1 }, started_by: userId }).select().single();
+      const { data: created, error } = await admin.from("erplain_sync_runs").insert({ cursor: mode ? { ds: 0, page: 1, mode } : { ds: 0, page: 1 }, started_by: userId }).select().single();
       if (error) return json({ status: "api_error", message: error.message });
       run = created;
     }
@@ -59,9 +62,9 @@ async function handleData(action: string, body: any, admin: any, token: string, 
     let failure: string | null = null;
     let timedOut = false;
 
-    const limit = cursor.quick ? 3 : DATASETS.length;
+    const limit = list.length;
     while (cursor.ds < limit) {
-      const ds = DATASETS[cursor.ds];
+      const ds = DATASETS[list[cursor.ds]];
       if (cursor.filter === undefined) {
         const ft = FILTER_TYPES[ds.key];
         if (ft) {
@@ -104,7 +107,7 @@ async function handleData(action: string, body: any, admin: any, token: string, 
     await admin.from("erplain_sync_runs").update({ cursor, counts, notes, status, error: failure,
       finished_at: done || failure ? new Date().toISOString() : null }).eq("id", run.id);
     return json({ status: failure ? "api_error" : "success", done, timedOut, failure, runId: run.id, counts, notes,
-      current: DATASETS[cursor.ds]?.root ?? null, page: cursor.page, steps: steps.slice(-30), durationMs: Date.now() - t0 });
+      current: DATASETS[list[cursor.ds]]?.root ?? null, page: cursor.page, steps: steps.slice(-30), durationMs: Date.now() - t0 });
   }
 
   if (["mo_refresh", "mo_update", "mo_delete", "mo_transition"].includes(action)) return await handleMo(action, body, admin, gql, steps);

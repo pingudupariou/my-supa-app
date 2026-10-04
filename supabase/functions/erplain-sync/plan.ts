@@ -76,6 +76,8 @@ export function computePlan(data: { lines: any[]; stocks: any[]; mos: any[]; bom
     if (need === null) issues.push("Quantité commandée ou expédiée manquante sur une ligne.");
     const reservedInScope = sum(lines.map((l: any) => l.own_reserved));
     if (reservedInScope === null) issues.push("Quantité réservée manquante sur une ligne de commande.");
+    const alreadyLinked = lines.filter((l: any) => l.linked_mo);
+    if (alreadyLinked.length) issues.push(`Commande déjà associée à un OF : ${[...new Set(alreadyLinked.map((l: any) => `${l.order_label ?? l.order_id} → ${l.linked_mo}`))].join(", ")}. Désélectionnez-la pour créer un OF.`);
     const linkedMo = lines.reduce((s: number, l: any) => s + l.mo_alloc, 0);
     const st = stockBy.get(g.key);
     if (!st) issues.push("Aucun niveau de stock Erplain pour cette variante à cet emplacement.");
