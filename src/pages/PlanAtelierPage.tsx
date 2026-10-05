@@ -20,7 +20,10 @@ type Result = {
 
 export function PlanAtelierPage() {
   const { isAdmin: isAdminRole, getTabPermission } = useAuth();
-  const isAdmin = isAdminRole || getTabPermission('plan-atelier') === 'write';
+  const { userRole } = useAuth();
+  const perm = getTabPermission('plan-atelier');
+  const isAdmin = isAdminRole || perm === 'write';
+  const canRead = isAdmin || perm === 'read';
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<Result | null>(null);
   const [sdl, setSdl] = useState<string | null>(null);
@@ -62,7 +65,8 @@ export function PlanAtelierPage() {
         <h1 className="page-title">Plan atelier</h1>
         <p className="text-sm text-muted-foreground">Connexion à Erplain (lecture seule — aucun ordre de fabrication n'est créé)</p>
       </div>
-      <PlanAtelierBoard isAdmin={isAdmin} />
+      <p className="text-xs text-muted-foreground">Votre rôle : <strong>{userRole}</strong> — droit sur Plan atelier : <strong>{isAdminRole ? 'admin' : perm === 'write' ? 'écriture' : perm === 'read' ? 'lecture (consultation seule, boutons désactivés)' : 'masqué'}</strong></p>
+      <PlanAtelierBoard isAdmin={isAdmin} canRead={canRead} />
       <Card>
         <CardHeader><CardTitle className="text-base">Connexion Erplain</CardTitle></CardHeader>
         <CardContent className="space-y-4">

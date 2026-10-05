@@ -33,7 +33,7 @@ const dateLabel = (value: string | null | undefined) => {
   return Number.isNaN(date.getTime()) ? '—' : date.toLocaleDateString('fr-FR');
 };
 
-export function PlanAtelierBoard({ isAdmin }: { isAdmin: boolean }) {
+export function PlanAtelierBoard({ isAdmin, canRead = isAdmin }: { isAdmin: boolean; canRead?: boolean }) {
   const [plan, setPlan] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [syncing, setSyncing] = useState(false);
@@ -68,12 +68,12 @@ export function PlanAtelierBoard({ isAdmin }: { isAdmin: boolean }) {
   };
 
   const loadPlan = useCallback(async () => {
-    if (!isAdmin) return;
+    if (!canRead) return;
     setLoading(true); setError(null);
     // compute=false : la grille des besoins reste vide tant que l'utilisateur n'a pas cliqué sur « Calculer les OF pour la sélection ».
     try { const d = await call({ action: 'plan', includePending, selectedLineIds: applied, compute: computed }); setPlan(d); if (d.stocks) setStockLevels(d.stocks); setOpenLines(d.openLines ?? []); } catch (e) { setError((e as Error).message); }
     setLoading(false);
-  }, [isAdmin, includePending, applied, computed]);
+  }, [canRead, includePending, applied, computed]);
 
   useEffect(() => { loadPlan(); }, [loadPlan]);
 
@@ -196,7 +196,7 @@ export function PlanAtelierBoard({ isAdmin }: { isAdmin: boolean }) {
             <Button variant="outline" size="sm" onClick={() => setSortAsc((v) => !v)} data-readonly-allow="true">{sortBy === 'created' ? 'Date de création' : "Date d'expédition"} {sortAsc ? '↑ croissante' : '↓ décroissante'}</Button>
             <Button variant="ghost" size="sm" onClick={() => { setSortBy((v) => (v === 'shipping' ? 'created' : 'shipping')); setSortAsc(true); }} data-readonly-allow="true">Trier par {sortBy === 'created' ? "date d'expédition" : 'date de création'}</Button>
             <span className="text-sm text-muted-foreground">{selected.size} ligne(s) sur {allIds.length} · {orders.length} commande(s) restant à expédier{stockUpdatedAt ? ` · stocks Erplain mis à jour le ${new Date(stockUpdatedAt).toLocaleString('fr-FR')}` : ''}</span>
-            <Button onClick={() => { setMo({}); setApplied([...selected]); setComputed(true); }} disabled={!selected.size || loading} data-readonly-allow="true">Calculer les OF pour la sélection</Button>
+            <Button onClick={() => { setMo({}); setApplied([...selected]); setComputed(true); }} disabled={!isAdmin || !selected.size || loading} data-readonly-allow="true">Calculer les OF pour la sélection</Button>
             {applied && <Button variant="ghost" onClick={() => { setMo({}); setApplied(null); setComputed(false); }} data-readonly-allow="true">Revenir à toutes les commandes</Button>}
           </div>
           <p className="text-xs text-muted-foreground">Le stock Erplain est un total par produit et emplacement, répété sur chaque ligne pour information : le calcul le répartit une seule fois entre les lignes sélectionnées (expédition la plus proche d'abord), jamais par commande.</p>
@@ -376,7 +376,7 @@ export function PlanAtelierBoard({ isAdmin }: { isAdmin: boolean }) {
 
       <SubmissionsPanel realMode={realMode} isAdmin={isAdmin} prefix={plan?.referencePrefix ?? 'NOV-OF-'} subs={plan?.submissions ?? []} writeEnabled={!!plan?.writeEnabled} call={call} onDone={loadPlan} />
 
-      <ControlViews isAdmin={isAdmin} reloadKey={run?.id + (run?.status ?? '')} />
+      <ControlViews isAdmin={canRead} reloadKey={run?.id + (run?.status ?? '')} />
     </div>
   );
 }
