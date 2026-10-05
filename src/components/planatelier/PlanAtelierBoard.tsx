@@ -62,7 +62,7 @@ export function PlanAtelierBoard({ isAdmin }: { isAdmin: boolean }) {
     const { data, error } = await supabase.functions.invoke('erplain-sync', { body });
     if (error) {
       const status = (error as any)?.context?.status;
-      throw new Error(status === 403 ? 'Accès réservé aux administrateurs.' : `Appel serveur impossible${status ? ` (HTTP ${status})` : ''} : ${error.message}`);
+      throw new Error(status === 403 ? 'Accès refusé : droit d’écriture sur Plan atelier requis (recharge la page si l’administrateur vient de le donner).' : `Appel serveur impossible${status ? ` (HTTP ${status})` : ''} : ${error.message}`);
     }
     return data as any;
   };

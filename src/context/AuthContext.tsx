@@ -46,7 +46,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (session?.user) { fetchUserRoleAndApproval(session.user.id); fetchPermissions(); }
       else { setApprovalLoading(false); }
     });
-    return () => subscription.unsubscribe();
+    // Pick up permission changes made by an admin without requiring a new login.
+    const refresh = () => { if (document.visibilityState === 'visible') fetchPermissions(); };
+    window.addEventListener('focus', refresh);
+    document.addEventListener('visibilitychange', refresh);
+    const interval = setInterval(refresh, 30000);
+    return () => {
+      subscription.unsubscribe();
+      window.removeEventListener('focus', refresh);
+      document.removeEventListener('visibilitychange', refresh);
+      clearInterval(interval);
+    };
   }, []);
 
   const fetchUserRoleAndApproval = async (userId: string) => {
@@ -89,8 +99,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const rolePerms = permissions[userRole];
     const explicit = rolePerms?.[tabKey];
     if (explicit) return explicit;
-    // Chat must be explicitly granted (read or write); hidden otherwise
-    if (tabKey === 'chat') return 'hidden';
+    // Chat and Plan atelier must be explicitly granted (read or write); hidden otherwise,
+    // matching what the Administration page shows for a missing permission.
+    if (tabKey === 'chat' || tabKey === 'plan-atelier') return 'hidden';
     return 'write';
   };
 
