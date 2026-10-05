@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/context/AuthContext';
 import { Button } from '@/components/ui/button';
@@ -20,8 +20,26 @@ type Result = {
 
 export function PlanAtelierPage() {
   const { isAdmin: isAdminRole, getTabPermission } = useAuth();
-  const { userRole } = useAuth();
-  const perm = getTabPermission('plan-atelier');
+  const { userRole, user } = useAuth();
+  const localPerm = getTabPermission('plan-atelier');
+  // The server answer is the source of truth; fall back to the local permission while it loads.
+  const [server, setServer] = useState<{ role: string | null; permission: string; error?: string } | null>(null);
+  useEffect(() => {
+    if (!user) return;
+    let alive = true;
+    const check = async () => {
+      const { data, error } = await supabase.functions.invoke('erplain-sync', { body: { action: 'access' } });
+      if (!alive) return;
+      if (error) setServer((s) => ({ role: s?.role ?? null, permission: s?.permission ?? localPerm, error: error.message }));
+      else setServer({ role: (data as any)?.role ?? null, permission: (data as any)?.permission ?? 'hidden' });
+    };
+    check();
+    const t = setInterval(check, 15000);
+    const onFocus = () => check();
+    window.addEventListener('focus', onFocus);
+    return () => { alive = false; clearInterval(t); window.removeEventListener('focus', onFocus); };
+  }, [user?.id]);
+  const perm = server && !server.error ? server.permission : localPerm;
   const isAdmin = isAdminRole || perm === 'write';
   const canRead = isAdmin || perm === 'read';
   const [loading, setLoading] = useState(false);
@@ -65,7 +83,7 @@ export function PlanAtelierPage() {
         <h1 className="page-title">Plan atelier</h1>
         <p className="text-sm text-muted-foreground">Connexion à Erplain (lecture seule — aucun ordre de fabrication n'est créé)</p>
       </div>
-      <p className="text-xs text-muted-foreground">Votre rôle : <strong>{userRole}</strong> — droit sur Plan atelier : <strong>{isAdminRole ? 'admin' : perm === 'write' ? 'écriture' : perm === 'read' ? 'lecture (consultation seule, boutons désactivés)' : 'masqué'}</strong></p>
+      <p className="text-xs text-muted-foreground">Votre rôle : <strong>{server?.role ?? userRole}</strong> — droit sur Plan atelier : <strong>{isAdminRole ? 'admin' : perm === 'write' ? 'écriture' : perm === 'read' ? 'lecture (consultation seule, boutons désactivés)' : 'masqué'}</strong>{server?.error ? ` — vérification serveur impossible : ${server.error}` : ''}</p>
       <PlanAtelierBoard isAdmin={isAdmin} canRead={canRead} />
       <Card>
         <CardHeader><CardTitle className="text-base">Connexion Erplain</CardTitle></CardHeader>
