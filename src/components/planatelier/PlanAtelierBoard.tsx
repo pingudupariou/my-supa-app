@@ -345,7 +345,7 @@ export function PlanAtelierBoard({ isAdmin, canRead = isAdmin }: { isAdmin: bool
                               <p className="font-medium mb-1">Détail du calcul</p>
                               <p>Besoin restant à expédier : {fmt(p.need)}</p>
                               <p>Stock Erplain : réel {fmt(p.stock?.on_hand)}, disponible {fmt(p.stock?.available)}, réservé {fmt(p.stock?.reserved)}</p>
-                              <p>Stock monté utilisable = min(réel {fmt(p.stock?.on_hand)}, disponible {fmt(p.stock?.available)} + réservé pour ces lignes {fmt(p.reserved_used)}) = {fmt(p.usable)} — la réservation fait déjà partie du stock réel, elle n'est pas ajoutée en plus.</p>
+                              <p>Stock monté utilisable = réel {fmt(p.stock?.on_hand)} − réservé pour les autres commandes {fmt(p.reserved_others)} = {fmt(p.usable)} (réservé total Erplain {fmt(p.stock?.reserved)}, dont {fmt(p.reserved_used)} pour les lignes cochées). Le stock réservé aux autres commandes leur reste affecté.</p>
                               <p>OF affectés aux lignes sélectionnées (reste à produire) : {fmt(p.mo_linked)} · non déduits : OF libres {fmt(p.mo_free)}{p.other_open_lines ? ` · ${p.other_open_lines} autre(s) ligne(s) non sélectionnée(s) gardent leurs affectations` : ''}</p>
                               <p>OF en cours : {p.mos.length ? p.mos.map((m: any) => `${m.label ?? m.id} [${m.status}] reste ${fmt(m.remaining_to_produce)}`).join(' ; ') : 'aucun'}</p>
                               <p className="font-medium">À fabriquer = max(0, {fmt(p.need)} à expédier − {fmt(p.usable)} montés − {fmt(p.mo_linked)} en OF) = {fmt(p.to_build)}{p.buildable != null && p.buildable < (p.to_build ?? 0) ? ` (réalisable avec les pièces : ${p.buildable})` : ''}</p>

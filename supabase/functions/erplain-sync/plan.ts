@@ -84,9 +84,14 @@ export function computePlan(data: { lines: any[]; stocks: any[]; mos: any[]; bom
     // Usable assembled stock = free stock + reservations held by selected lines (part of on_hand, not extra), capped by physical stock.
     let usable: number | null = null;
     let reservedUsed = 0;
+    let reservedOthers: number | null = null;
     if (st && st.available != null && st.on_hand != null) {
       reservedUsed = Math.min(reservedInScope ?? 0, Math.max(0, Number(st.reserved ?? reservedInScope ?? 0)));
-      usable = Math.max(0, Math.min(Number(st.on_hand), Math.max(0, Number(st.available)) + reservedUsed));
+      // Reservations held by other documents stay with them. Available may be negative (overbooked):
+      // it must NOT be clamped to 0 before adding the selection's reservations, otherwise stock
+      // reserved for other orders is handed to the selection.
+      reservedOthers = Math.max(0, Number(st.reserved ?? reservedUsed) - reservedUsed);
+      usable = Math.max(0, Math.min(Number(st.on_hand) - reservedOthers, Number(st.available) + reservedUsed));
     }
     const linkedMo = lines.reduce((s: number, l: any) => s + l.mo_alloc, 0);
     const moRemaining = linkedMo;
