@@ -379,7 +379,10 @@ Deno.serve(async (req) => {
       // Non-admins need an approved account and explicit write permission on the plan-atelier tab.
       if (!role?.approved) return json({ error: "Forbidden" }, 403);
       const { data: perm } = await admin.from("tab_permissions").select("permission").eq("role", role.role).eq("tab_key", "plan-atelier").maybeSingle();
-      if (perm?.permission !== "write") return json({ error: "Forbidden" }, 403);
+      let peekAction = "test";
+      try { peekAction = (await req.clone().json())?.action ?? "test"; } catch { /* no body */ }
+      const readOk = perm?.permission === "read" && peekAction === "plan";
+      if (perm?.permission !== "write" && !readOk) return json({ error: "Forbidden", permission: perm?.permission ?? "hidden" }, 403);
     }
 
     const token = Deno.env.get("ERPLAIN_API_TOKEN");
