@@ -266,7 +266,7 @@ export function PlanAtelierBoard({ isAdmin, canRead = isAdmin }: { isAdmin: bool
             {sending && <span className="text-xs text-muted-foreground max-w-md truncate">{syncing ? `Actualisation : ${syncInfo ?? 'démarrage…'}` : 'Envoi des OF…'}</span>}
             <Button
               onClick={sendAll}
-              disabled={!isAdmin || loading || syncing || sending || !proposals.some((p: any) => p.status === 'ready')}
+              disabled={!isAdmin || loading || syncing || sending || !proposals.some((p: any) => ['ready','shortage'].includes(p.status))}
               variant={realMode ? 'default' : 'outline'}
               data-readonly-allow="true"
             >
