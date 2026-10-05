@@ -93,10 +93,10 @@ export function PlanAtelierBoard({ isAdmin, canRead = isAdmin }: { isAdmin: bool
     if (reload) loadPlan();
   };
 
-  const createFor = async (p: any, confirm: boolean) => {
+  const createFor = async (p: any, confirm: boolean, allowShortage = false) => {
     setMo((m) => ({ ...m, [p.key]: { loading: true } }));
     try {
-      const d = await call({ action: 'create_mo', selectedLineIds: applied, key: p.idempotency_key, groupKey: p.key, quantity: p.to_build, includePending, confirm });
+      const d = await call({ action: 'create_mo', selectedLineIds: applied, key: p.idempotency_key, groupKey: p.key, quantity: p.to_build, includePending, confirm, allowShortage });
       setMo((m) => ({ ...m, [p.key]: d }));
     } catch (e) { setMo((m) => ({ ...m, [p.key]: { status: 'api_error', message: (e as Error).message } })); }
   };
@@ -104,14 +104,23 @@ export function PlanAtelierBoard({ isAdmin, canRead = isAdmin }: { isAdmin: bool
   const [sending, setSending] = useState(false);
   const sendAll = async () => {
     const ready = proposals.filter((p: any) => p.status === 'ready');
-    if (!ready.length || sending) return;
+    const short = proposals.filter((p: any) => p.status === 'shortage');
+    if ((!ready.length && !short.length) || sending) return;
+    // Ask, product by product, whether to create the MO despite missing components.
+    const approved = short.filter((p: any) => {
+      const miss = (p.components ?? []).filter((c: any) => c.missing > 0).map((c: any) => `- ${c.sku ?? c.component_id} : manque ${c.missing}`).join('\n');
+      return window.confirm(`Composants manquants pour ${p.sku ?? p.variant_label} (qté ${p.to_build}) :\n${miss}\n\nCréer l'OF quand même ? (les composants pourront passer en négatif dans Erplain)`);
+    });
+    const list = [...ready, ...approved];
+    if (!list.length) return;
     const real = realMode && !!plan?.writeEnabled;
-    if (real && !window.confirm(`Actualiser puis créer réellement ${ready.length} OF dans Erplain ?`)) return;
+    if (real && !window.confirm(`Actualiser puis créer réellement ${list.length} OF dans Erplain${approved.length ? ` (dont ${approved.length} avec composants manquants)` : ''} ?`)) return;
     setSending(true);
     if (real) {
       try { await sync(false, false, true); } catch (e) { setError((e as Error).message); setSending(false); return; }
     }
     for (const p of ready) await createFor(p, real);
+    for (const p of approved) await createFor(p, real, true);
     setSending(false);
     loadPlan();
   };
@@ -257,7 +266,7 @@ export function PlanAtelierBoard({ isAdmin, canRead = isAdmin }: { isAdmin: bool
             {sending && <span className="text-xs text-muted-foreground max-w-md truncate">{syncing ? `Actualisation : ${syncInfo ?? 'démarrage…'}` : 'Envoi des OF…'}</span>}
             <Button
               onClick={sendAll}
-              disabled={!isAdmin || loading || syncing || sending || !proposals.some((p: any) => p.status === 'ready')}
+              disabled={!isAdmin || loading || syncing || sending || !proposals.some((p: any) => ['ready','shortage'].includes(p.status))}
               variant={realMode ? 'default' : 'outline'}
               data-readonly-allow="true"
             >

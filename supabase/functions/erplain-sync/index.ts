@@ -162,7 +162,7 @@ async function handleData(action: string, body: any, admin: any, token: string, 
   const p = plan.proposals.find((x: any) => x.idempotency_key === wanted || x.key === body.groupKey);
   if (!p) return json({ status: "blocked", message: "Proposition introuvable après relecture : le besoin a changé ou est couvert." });
   if (p.idempotency_key !== wanted) return json({ status: "blocked", message: "Les lignes de commande concernées ont changé depuis l'affichage. Rechargez le plan." });
-  if (p.status !== "ready") return json({ status: "blocked", message: p.status === "shortage" ? "Composants insuffisants : OF bloqué." : p.status === "covered" ? "Besoin déjà couvert par le stock ou les OF existants." : `Données incomplètes : ${p.issues.join(" ")}` });
+  if (!(p.status === "ready" || (p.status === "shortage" && body.allowShortage === true))) return json({ status: "blocked", message: p.status === "shortage" ? "Composants insuffisants : OF bloqué." : p.status === "covered" ? "Besoin déjà couvert par le stock ou les OF existants." : `Données incomplètes : ${p.issues.join(" ")}` });
   if (Number(body.quantity) !== p.to_build) return json({ status: "blocked", message: `La quantité à fabriquer a changé (${p.to_build}). Rechargez le plan.` });
   // Lines already covered by open MOs are excluded by computePlan; only the uncovered complement is sent.
   if (!p.free_line_ids.length) return json({ status: "blocked", message: "Déjà couvert : toutes les lignes sont couvertes par les réservations ou les OF existants." });
