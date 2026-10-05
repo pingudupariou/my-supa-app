@@ -33,7 +33,8 @@ export function ProtectedRoute({ children, tabKey }: ProtectedRouteProps) {
     if (permission === 'hidden') {
       return <Navigate to="/accueil" replace />;
     }
-    if (permission === 'read') {
+    // Plan atelier manages read/write itself from the server answer (buttons are disabled in read mode).
+    if (permission === 'read' && tabKey !== 'plan-atelier') {
       return <ReadOnlyWrapper tabKey={tabKey}>{children}</ReadOnlyWrapper>;
     }
   }
