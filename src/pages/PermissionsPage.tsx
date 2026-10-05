@@ -113,7 +113,8 @@ export function PermissionsPage() {
   const updatePermission = async (role: AppRole, tabKey: string, permission: TabPermission) => {
     setSaving(`${role}:${tabKey}`);
     try {
-      await supabase.from('tab_permissions' as any).upsert({ role, tab_key: tabKey, permission } as any, { onConflict: 'role,tab_key' });
+      const { error } = await supabase.from('tab_permissions' as any).upsert({ role, tab_key: tabKey, permission } as any, { onConflict: 'role,tab_key' });
+      if (error) throw error;
       setMatrix(prev => ({ ...prev, [role]: { ...prev[role], [tabKey]: permission } }));
       toast({ title: 'Permission mise à jour' });
     } catch { toast({ title: 'Erreur', variant: 'destructive' }); }
