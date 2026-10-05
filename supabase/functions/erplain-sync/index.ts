@@ -375,14 +375,22 @@ Deno.serve(async (req) => {
     if (cErr || !claims?.claims) return json({ error: "Unauthorized" }, 401);
     const admin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
     const { data: role } = await admin.from("user_roles").select("role,approved").eq("user_id", claims.claims.sub).maybeSingle();
-    if (role?.role !== "admin") {
-      // Non-admins need an approved account and explicit write permission on the plan-atelier tab.
-      if (!role?.approved) return json({ error: "Forbidden" }, 403);
+    let peekAction = "test";
+    try { peekAction = (await req.clone().json())?.action ?? "test"; } catch { /* no body */ }
+    let permission: string = role?.role === "admin" ? "write" : "hidden";
+    if (role?.role !== "admin" && role?.role) {
       const { data: perm } = await admin.from("tab_permissions").select("permission").eq("role", role.role).eq("tab_key", "plan-atelier").maybeSingle();
-      let peekAction = "test";
-      try { peekAction = (await req.clone().json())?.action ?? "test"; } catch { /* no body */ }
-      const readOk = perm?.permission === "read" && peekAction === "plan";
-      if (perm?.permission !== "write" && !readOk) return json({ error: "Forbidden", permission: perm?.permission ?? "hidden" }, 403);
+      permission = perm?.permission ?? "hidden";
+    }
+    // Server-side source of truth for the page: which role and permission the caller actually has.
+    if (peekAction === "access") {
+      return json({ role: role?.role ?? null, approved: !!role?.approved, permission: role?.approved || role?.role === "admin" ? permission : "hidden" });
+    }
+    if (role?.role !== "admin") {
+      // Non-admins need an approved account and explicit write permission on the plan-atelier tab (read allows only viewing the plan).
+      if (!role?.approved) return json({ error: "Forbidden" }, 403);
+      const readOk = permission === "read" && peekAction === "plan";
+      if (permission !== "write" && !readOk) return json({ error: "Forbidden", permission }, 403);
     }
 
     const token = Deno.env.get("ERPLAIN_API_TOKEN");
