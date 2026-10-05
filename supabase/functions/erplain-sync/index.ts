@@ -374,8 +374,13 @@ Deno.serve(async (req) => {
     const { data: claims, error: cErr } = await anon.auth.getClaims(authHeader.replace("Bearer ", ""));
     if (cErr || !claims?.claims) return json({ error: "Unauthorized" }, 401);
     const admin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
-    const { data: role } = await admin.from("user_roles").select("role").eq("user_id", claims.claims.sub).maybeSingle();
-    if (role?.role !== "admin") return json({ error: "Forbidden" }, 403);
+    const { data: role } = await admin.from("user_roles").select("role,approved").eq("user_id", claims.claims.sub).maybeSingle();
+    if (role?.role !== "admin") {
+      // Non-admins need an approved account and explicit write permission on the plan-atelier tab.
+      if (!role?.approved) return json({ error: "Forbidden" }, 403);
+      const { data: perm } = await admin.from("tab_permissions").select("permission").eq("role", role.role).eq("tab_key", "plan-atelier").maybeSingle();
+      if (perm?.permission !== "write") return json({ error: "Forbidden" }, 403);
+    }
 
     const token = Deno.env.get("ERPLAIN_API_TOKEN");
     if (!token) return json({ status: "config_error", message: "Secret ERPLAIN_API_TOKEN absent côté serveur." });
