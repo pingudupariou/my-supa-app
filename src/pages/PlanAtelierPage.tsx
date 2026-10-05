@@ -19,7 +19,8 @@ type Result = {
 };
 
 export function PlanAtelierPage() {
-  const { isAdmin } = useAuth();
+  const { isAdmin: isAdminRole, getTabPermission } = useAuth();
+  const isAdmin = isAdminRole || getTabPermission('plan-atelier') === 'write';
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<Result | null>(null);
   const [sdl, setSdl] = useState<string | null>(null);
@@ -47,7 +48,7 @@ export function PlanAtelierPage() {
     const { data, error } = await supabase.functions.invoke('erplain-sync', { body: { action: 'test' } });
     if (error) {
       const status = (error as any)?.context?.status;
-      setResult({ status: 'api_error', message: status === 403 ? 'Accès réservé aux administrateurs.' : 'Appel de la fonction impossible : ' + error.message });
+      setResult({ status: 'api_error', message: status === 403 ? 'Accès refusé : droit d’écriture sur Plan atelier requis.' : 'Appel de la fonction impossible : ' + error.message });
     } else setResult(data as Result);
     setLoading(false);
   };
@@ -69,7 +70,7 @@ export function PlanAtelierPage() {
             {loading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <PlugZap className="h-4 w-4 mr-2" />}
             Tester la connexion Erplain
           </Button>
-          {!isAdmin && <p className="text-sm text-muted-foreground">Réservé aux administrateurs.</p>}
+          {!isAdmin && <p className="text-sm text-muted-foreground">Réservé aux utilisateurs avec droit d'écriture sur Plan atelier.</p>}
 
           {result && (
             <div className={`rounded-md border p-4 space-y-3 ${ok ? 'border-primary/40 bg-primary/5' : 'border-destructive/40 bg-destructive/5'}`}>
