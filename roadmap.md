@@ -2,5 +2,6 @@
 - [x] Ajouter un choix visible des colonnes, mémorisé sur cet appareil.
 - [x] Vérifier les colonnes et leurs cases de visibilité (3 tests réussis).
 - [ ] Vérifier sur les commandes réelles : session administrateur externe indisponible ; les noms clients seront chargés à la prochaine synchronisation des commandes.
-- [ ] Corriger le rafraîchissement du rôle et des permissions pour activer les boutons du Plan atelier en écriture.
-- [ ] Tester les actions du Plan atelier avec un rôle non administrateur autorisé.
+- [x] Corriger le rafraîchissement du rôle et des permissions pour activer les boutons du Plan atelier en écriture.
+- [x] Tester les actions du Plan atelier avec un rôle non administrateur autorisé (tests automatisés).
+- [ ] Vérifier Actualiser et Calculer avec un vrai compte Bureau d'étude : session externe non disponible pour les vérifications connectées.

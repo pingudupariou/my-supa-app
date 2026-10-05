@@ -55,6 +55,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUserRole(role?.role ?? 'lecteur');
       setIsApproved(!!role?.approved);
       setPermissions(matrix);
+    } catch {
+      if (activeUserId.current === userId && accessVersion.current === version) {
+        setUserRole('lecteur'); setIsApproved(false); setPermissions({});
+      }
     } finally {
       if (activeUserId.current === userId && accessVersion.current === version) setApprovalLoading(false);
     }
