@@ -48,7 +48,7 @@ export function PlanAtelierPage() {
     const { data, error } = await supabase.functions.invoke('erplain-sync', { body: { action: 'test' } });
     if (error) {
       const status = (error as any)?.context?.status;
-      setResult({ status: 'api_error', message: status === 403 ? 'Accès refusé : droit d'écriture sur Plan atelier requis.' : 'Appel de la fonction impossible : ' + error.message });
+      setResult({ status: 'api_error', message: status === 403 ? 'Accès refusé : droit d’écriture sur Plan atelier requis.' : 'Appel de la fonction impossible : ' + error.message });
     } else setResult(data as Result);
     setLoading(false);
   };
