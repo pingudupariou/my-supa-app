@@ -48,7 +48,7 @@ const permissionLabels: Record<TabPermission, { label: string; icon: typeof Eye;
 interface PermissionMatrix { [role: string]: { [tabKey: string]: TabPermission } }
 
 export function PermissionsPage() {
-  const { isAdmin, loading: authLoading } = useAuth();
+  const { isAdmin, loading: authLoading, refreshAccess } = useAuth();
   const navigate = useNavigate();
   const [matrix, setMatrix] = useState<PermissionMatrix>({});
   const [loading, setLoading] = useState(true);
@@ -116,6 +116,7 @@ export function PermissionsPage() {
       const { error } = await supabase.from('tab_permissions' as any).upsert({ role, tab_key: tabKey, permission } as any, { onConflict: 'role,tab_key' });
       if (error) throw error;
       setMatrix(prev => ({ ...prev, [role]: { ...prev[role], [tabKey]: permission } }));
+      await refreshAccess();
       toast({ title: 'Permission mise à jour' });
     } catch { toast({ title: 'Erreur', variant: 'destructive' }); }
     finally { setSaving(null); }

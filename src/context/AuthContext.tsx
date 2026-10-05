@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, useRef, ReactNode } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { User, AuthError } from '@supabase/supabase-js';
 
@@ -16,6 +16,7 @@ interface AuthContextType {
   signUp: (email: string, password: string, displayName: string) => Promise<{ error: AuthError | null }>;
   signOut: () => Promise<void>;
   getTabPermission: (tabKey: string) => TabPermission;
+  refreshAccess: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -27,15 +28,54 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isApproved, setIsApproved] = useState(false);
   const [approvalLoading, setApprovalLoading] = useState(true);
   const [permissions, setPermissions] = useState<Record<string, Record<string, TabPermission>>>({});
+  const activeUserId = useRef<string | null>(null);
+  const accessVersion = useRef(0);
+
+  const refreshAccess = async (initial = false) => {
+    const userId = activeUserId.current;
+    if (!userId) return;
+    const version = ++accessVersion.current;
+    if (initial) setApprovalLoading(true);
+    try {
+      const [roleResult, permissionResult] = await Promise.all([
+        supabase.from('user_roles' as any).select('role, approved').eq('user_id', userId).single(),
+        supabase.from('tab_permissions' as any).select('*'),
+      ]);
+      if (activeUserId.current !== userId || accessVersion.current !== version) return;
+      if (roleResult.error || permissionResult.error) {
+        setUserRole('lecteur'); setIsApproved(false); setPermissions({});
+        return;
+      }
+      const role = roleResult.data as unknown as { role: AppRole; approved: boolean } | null;
+      const matrix: Record<string, Record<string, TabPermission>> = {};
+      for (const p of (permissionResult.data ?? []) as unknown as { role: string; tab_key: string; permission: TabPermission }[]) {
+        matrix[p.role] ??= {};
+        matrix[p.role][p.tab_key] = p.permission;
+      }
+      setUserRole(role?.role ?? 'lecteur');
+      setIsApproved(!!role?.approved);
+      setPermissions(matrix);
+    } catch {
+      if (activeUserId.current === userId && accessVersion.current === version) {
+        setUserRole('lecteur'); setIsApproved(false); setPermissions({});
+      }
+    } finally {
+      if (activeUserId.current === userId && accessVersion.current === version) setApprovalLoading(false);
+    }
+  };
 
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setUser(session?.user ?? null);
       setLoading(false);
+      const changed = activeUserId.current !== (session?.user.id ?? null);
+      activeUserId.current = session?.user.id ?? null;
       if (session?.user) {
-        setTimeout(() => fetchUserRoleAndApproval(session.user.id), 0);
-        setTimeout(() => fetchPermissions(), 0);
+        if (changed) { setUserRole('lecteur'); setPermissions({}); setIsApproved(false); setApprovalLoading(true); }
+        setTimeout(() => { void refreshAccess(changed); }, 0);
       } else {
+        accessVersion.current++;
+        setUserRole('lecteur'); setPermissions({});
         setIsApproved(false);
         setApprovalLoading(false);
       }
@@ -43,14 +83,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setUser(session?.user ?? null);
       setLoading(false);
-      if (session?.user) { fetchUserRoleAndApproval(session.user.id); fetchPermissions(); }
+      activeUserId.current = session?.user.id ?? null;
+      if (session?.user) { void refreshAccess(true); }
       else { setApprovalLoading(false); }
     });
-    // Pick up permission changes made by an admin without requiring a new login.
-    const refresh = () => { if (document.visibilityState === 'visible') fetchPermissions(); };
+    // Refresh role, approval and permissions together, including after an admin changes a role.
+    const refresh = () => { if (document.visibilityState === 'visible') void refreshAccess(); };
     window.addEventListener('focus', refresh);
     document.addEventListener('visibilitychange', refresh);
-    const interval = setInterval(refresh, 30000);
+    const interval = setInterval(refresh, 10000);
     return () => {
       subscription.unsubscribe();
       window.removeEventListener('focus', refresh);
@@ -58,31 +99,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       clearInterval(interval);
     };
   }, []);
-
-  const fetchUserRoleAndApproval = async (userId: string) => {
-    setApprovalLoading(true);
-    try {
-      const { data } = await supabase.from('user_roles' as any).select('role, approved').eq('user_id', userId).single();
-      if (data) {
-        setUserRole((data as any).role as AppRole);
-        setIsApproved(!!(data as any).approved);
-      } else {
-        setIsApproved(false);
-      }
-    } catch { setUserRole('lecteur'); setIsApproved(false); }
-    finally { setApprovalLoading(false); }
-  };
-
-  const fetchPermissions = async () => {
-    try {
-      const { data } = await supabase.from('tab_permissions' as any).select('*');
-      if (data) {
-        const matrix: Record<string, Record<string, TabPermission>> = {};
-        (data as any[]).forEach((p: any) => { if (!matrix[p.role]) matrix[p.role] = {}; matrix[p.role][p.tab_key] = p.permission; });
-        setPermissions(matrix);
-      }
-    } catch {}
-  };
 
   const signIn = async (email: string, password: string) => {
     const { error } = await supabase.auth.signInWithPassword({ email, password });
@@ -106,7 +122,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, isAdmin, isApproved, approvalLoading, userRole, signIn, signUp, signOut, getTabPermission }}>
+    <AuthContext.Provider value={{ user, loading, isAdmin, isApproved, approvalLoading, userRole, signIn, signUp, signOut, getTabPermission, refreshAccess }}>
       {children}
     </AuthContext.Provider>
   );
