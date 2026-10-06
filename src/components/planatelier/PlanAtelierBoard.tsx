@@ -14,6 +14,7 @@ const fmt = (v: any) => (v === null || v === undefined ? '—' : typeof v === 'n
 const STATUS: Record<string, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' }> = {
   ready: { label: 'À fabriquer', variant: 'default' },
   shortage: { label: 'Pièces manquantes', variant: 'destructive' },
+  covered_shortage: { label: 'Pièces manquantes — OF créé', variant: 'outline' },
   covered: { label: 'Déjà couvert', variant: 'secondary' },
   incomplete: { label: 'Données incomplètes', variant: 'outline' },
 };
@@ -336,7 +337,8 @@ export function PlanAtelierBoard({ isAdmin, canRead = isAdmin }: { isAdmin: bool
                         <td className="p-2">{fmt(p.mo_remaining)}</td>
                         <td className="p-2 font-semibold">{fmt(p.to_build)}</td>
                         <td className="p-2">{missing.length ? missing.map((c: any) => `${c.sku ?? c.component_id} (−${fmt(c.missing)})`).join(', ') : '—'}</td>
-                        <td className="p-2"><Badge variant={st.variant}>{st.label}</Badge></td>
+                        <td className="p-2"><Badge variant={st.variant} className={p.status === 'covered_shortage' ? 'border-destructive text-destructive' : undefined}>{st.label}</Badge>
+                          {p.shortage_mos?.length ? <div className="text-xs text-muted-foreground mt-1">{p.shortage_mos.map((m: any) => `${m.label ?? m.id} : envoyé malgré ${(m.missing ?? []).map((c: any) => `${c.sku} (−${fmt(c.missing)})`).join(', ') || 'pièces manquantes'}`).join(' · ')}</div> : null}</td>
                       </tr>
                       {isOpen && (
                         <tr className="bg-muted/30"><td colSpan={10} className="p-3 space-y-3 text-xs">
@@ -467,6 +469,7 @@ function SubmissionsPanel({ realMode, isAdmin, prefix, subs, writeEnabled, call,
                 <span className="text-xs">Libellé : {s.app_reference ?? s.payload?.label ?? '—'}</span>
                 <span className="text-xs text-muted-foreground">ID technique {s.erplain_mo_id ?? '—'}</span>
                 <Badge variant={['cancelled', 'absent'].includes(s.erplain_status) ? 'destructive' : 'default'}>{MO_STATUS[s.erplain_status] ?? s.erplain_status ?? s.status}</Badge>
+                {s.payload?._shortage && <Badge variant="outline" className="border-destructive text-destructive" title={(s.payload._shortage.missing ?? []).map((c: any) => `${c.sku} −${c.missing}`).join(', ')}>Créé avec pièces manquantes{s.payload._shortage.missing?.length ? ` : ${s.payload._shortage.missing.map((c: any) => `${c.sku} (−${fmt(c.missing)})`).join(', ')}` : ''}</Badge>}
                 <span className="text-xs text-muted-foreground">Qté {fmt(s.quantity)} · {s.order_line_item_ids?.length ?? 0} ligne(s) · relu {s.erplain_synced_at ? new Date(s.erplain_synced_at).toLocaleString('fr-FR') : 'jamais'}</span>
               </div>
               {s.checks && <div className="flex flex-wrap gap-2 text-xs">{Object.entries(CHECK_LABELS).map(([k, l]) => s.checks[k] == null ? null : <Badge key={k} variant={s.checks[k] ? 'secondary' : 'destructive'}>{l} : {s.checks[k] ? 'oui' : 'non'}</Badge>)}<span className="text-muted-foreground">{s.checks.components_detail} · {s.checks.steps_detail}</span></div>}
