@@ -113,6 +113,7 @@ async function handleData(action: string, body: any, admin: any, token: string, 
         await admin.from(ds.table).delete().or(`run_id.is.null,run_id.neq.${run.id}`);
         // Complete MO read: update the status of every MO sent by the app (deletion confirmed only by a direct read).
         if (ds.key === "mos") { const rec = await reconcileSubmissions(admin, gql, run.id); notes.push(rec); }
+        if (ds.key === "stocks") { try { const n = await checkMissingComponentStock(admin, gql); if (n) notes.push(n); } catch (_) { /* informative only */ } }
         cursor.ds++; cursor.page = 1; cursor.size = undefined; cursor.filter = undefined; cursor.filterFailed = undefined;
       }
       await admin.from("erplain_sync_runs").update({ cursor, counts, notes }).eq("id", run.id);
@@ -701,3 +702,22 @@ Deno.serve(async (req) => {
     return json({ status: "api_error", message: "Erreur interne de la fonction." }, 500);
   }
 });
+
+// BOM components without any Erplain stock line: read each variant (verified fields only) to explain why.
+async function checkMissingComponentStock(admin: any, gql: any): Promise<string | null> {
+  const { data: boms } = await admin.from("erplain_boms").select("components").eq("active", true).limit(5000);
+  const ids = new Set<number>();
+  for (const b of boms ?? []) for (const c of b.components ?? []) if (c?.component_id != null) ids.add(Number(c.component_id));
+  if (!ids.size) return null;
+  const { data: st } = await admin.from("erplain_stock_levels").select("variant_id").in("variant_id", [...ids]);
+  const have = new Set((st ?? []).map((s: any) => Number(s.variant_id)));
+  const missing = [...ids].filter((i) => !have.has(i));
+  if (!missing.length) return null;
+  const details: string[] = [];
+  for (const id of missing.slice(0, 15)) {
+    const r = await gql(`Variant ${id}`, `{ Variant(id: ${id}) { id sku label type active track_inventory } }`);
+    const v = r.data?.Variant;
+    details.push(v ? `${id} « ${v.label ?? "?"} » (SKU ${v.sku ?? "aucun"}, type ${v.type ?? "?"}, suivi de stock ${v.track_inventory === false ? "désactivé" : v.track_inventory ? "activé" : "?"}${v.active === false ? ", inactif" : ""})` : `${id} (lecture impossible${r.errors?.length ? " : " + r.errors[0] : ""})`);
+  }
+  return `Composants sans aucune ligne de stock dans Erplain (${missing.length}) : ${details.join(" ; ")}${missing.length > 15 ? " ; …" : ""}. Leur stock n'est pas compté comme 0 : les OF qui les utilisent restent « incomplets ».`;
+}
