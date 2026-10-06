@@ -197,15 +197,27 @@ async function handleData(action: string, body: any, admin: any, token: string, 
   }
 
   // App reference: sequence never reused (even if the prefix changes), sent as label.
-  const { data: refRows, error: refErr } = await admin.rpc("next_erplain_mo_reference");
-  const ref = Array.isArray(refRows) ? refRows[0] : refRows;
-  if (refErr || !ref?.reference) return json({ status: "blocked", message: `Référence OF indisponible : ${refErr?.message ?? "vide"}` });
-  input.label = ref.reference;
-  // Lock (unique key) before sending.
-  const { error: lockErr } = await admin.from("erplain_mo_submissions").upsert({ ...row, payload: { ...row.payload, label: ref.reference }, app_reference: ref.reference, reference_number: ref.num, status: "sending", steps: [{ step: "envoi", reference: ref.reference, at: new Date().toISOString() }] }, { onConflict: "idempotency_key" });
-  if (lockErr) return json({ status: "blocked", message: lockErr.message });
-  const r = await gql("CreateManufacturingOrder", mutation, { input });
-  const mo = r.data?.CreateManufacturingOrder;
+  // If Erplain says the label is already in use (clear refusal, nothing created), jump the
+  // counter past the taken number (using Erplain's suggestion when same prefix) and retry.
+  let ref: any = null; let r: any = null; let mo: any = null;
+  for (let attempt = 0; attempt < 6; attempt++) {
+    const { data: refRows, error: refErr } = await admin.rpc("next_erplain_mo_reference");
+    ref = Array.isArray(refRows) ? refRows[0] : refRows;
+    if (refErr || !ref?.reference) return json({ status: "blocked", message: `Référence OF indisponible : ${refErr?.message ?? "vide"}` });
+    input.label = ref.reference;
+    const { error: lockErr } = await admin.from("erplain_mo_submissions").upsert({ ...row, payload: { ...row.payload, label: ref.reference }, app_reference: ref.reference, reference_number: ref.num, status: "sending", steps: [{ step: "envoi", reference: ref.reference, at: new Date().toISOString() }] }, { onConflict: "idempotency_key" });
+    if (lockErr) return json({ status: "blocked", message: lockErr.message });
+    r = await gql("CreateManufacturingOrder", mutation, { input });
+    mo = r.data?.CreateManufacturingOrder;
+    if (mo?.id) break;
+    const txt = (r.errors ?? []).join(" | ");
+    if (!(r.httpStatus && r.httpStatus < 500 && /already in use/i.test(txt))) break;
+    const prefix = String(ref.reference).slice(0, String(ref.reference).length - String(ref.num).padStart(5, "0").length);
+    const sugg = txt.match(/Suggested alternative:\s*([A-Za-z0-9_\-]+)/i)?.[1];
+    let min = Number(ref.num) + 1;
+    if (sugg && sugg.startsWith(prefix)) { const sn = Number(sugg.slice(prefix.length)); if (Number.isFinite(sn) && sn > 0) min = sn - 1; }
+    await admin.rpc("bump_erplain_mo_reference", { _min: min });
+  }
   if (mo?.id) {
     // Erplain technical id = tracking key.
     await admin.from("erplain_mo_submissions").update({ status: "created", erplain_mo_id: mo.id, erplain_status: mo.status, updated_at: new Date().toISOString(),
