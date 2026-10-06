@@ -113,7 +113,7 @@ async function handleData(action: string, body: any, admin: any, token: string, 
         await admin.from(ds.table).delete().or(`run_id.is.null,run_id.neq.${run.id}`);
         // Complete MO read: update the status of every MO sent by the app (deletion confirmed only by a direct read).
         if (ds.key === "mos") { const rec = await reconcileSubmissions(admin, gql, run.id); notes.push(rec); }
-        if (ds.key === "stocks") { try { const n = await checkMissingComponentStock(admin, gql); if (n) notes.push(n); } catch (_) { /* informative only */ } }
+        if (ds.key === "stocks") { try { const n = await checkMissingComponentStock(admin, gql, run.id); if (n) notes.push(n); } catch (e) { notes.push(`Relecture du stock des composants impossible : ${(e as Error).message}`); } }
         cursor.ds++; cursor.page = 1; cursor.size = undefined; cursor.filter = undefined; cursor.filterFailed = undefined;
       }
       await admin.from("erplain_sync_runs").update({ cursor, counts, notes }).eq("id", run.id);
@@ -703,8 +703,12 @@ Deno.serve(async (req) => {
   }
 });
 
-// BOM components without any Erplain stock line: read each variant (verified fields only) to explain why.
-async function checkMissingComponentStock(admin: any, gql: any): Promise<string | null> {
+// BOM components without any row in the StockLevels list: re-read each one BY VARIANT ID and location (no SKU).
+// 1) Variant.stock_levels → real rows (explicit values, even 0) are stored.
+// 2) No row: Variant.on_hand/available/reserved(location_ids:[loc]) → explicit numbers returned by Erplain
+//    for that location are stored as a confirmed level (0 = confirmed zero → shortage, not "unknown").
+// 3) Null / error / stock not tracked → stays unknown, with the exact reason.
+async function checkMissingComponentStock(admin: any, gql: any, runId: string): Promise<string | null> {
   const { data: boms } = await admin.from("erplain_boms").select("components").eq("active", true).limit(5000);
   const ids = new Set<number>();
   for (const b of boms ?? []) for (const c of b.components ?? []) if (c?.component_id != null) ids.add(Number(c.component_id));
@@ -713,11 +717,43 @@ async function checkMissingComponentStock(admin: any, gql: any): Promise<string 
   const have = new Set((st ?? []).map((s: any) => Number(s.variant_id)));
   const missing = [...ids].filter((i) => !have.has(i));
   if (!missing.length) return null;
-  const details: string[] = [];
-  for (const id of missing.slice(0, 15)) {
-    const r = await gql(`Variant ${id}`, `{ Variant(id: ${id}) { id sku label type active track_inventory } }`);
+  const { data: ol } = await admin.from("erplain_order_lines").select("location_id,location_label").not("location_id", "is", null).limit(5000);
+  const locs = new Map<number, string | null>();
+  (ol ?? []).forEach((r: any) => locs.set(Number(r.location_id), r.location_label ?? null));
+  const locIds = [...locs.keys()].sort((a, b) => a - b);
+  const now = new Date().toISOString();
+  const confirmed: string[] = [], unknown: string[] = [];
+  const LIMIT = 40;
+  for (const id of missing.slice(0, LIMIT)) {
+    const perLoc = locIds.map((l, i) => `l${i}_on: on_hand(location_ids: [${l}]) l${i}_av: available(location_ids: [${l}]) l${i}_re: reserved(location_ids: [${l}]) l${i}_in: incoming(location_ids: [${l}])`).join(" ");
+    const r = await gql(`Stock variante ${id}`, `{ Variant(id: ${id}) { id sku label type active track_inventory stock_levels(first: 50) { data { id on_hand available reserved incoming location { id label } } } ${perLoc} } }`);
     const v = r.data?.Variant;
-    details.push(v ? `${id} « ${v.label ?? "?"} » (SKU ${v.sku ?? "aucun"}, type ${v.type ?? "?"}, suivi de stock ${v.track_inventory === false ? "désactivé" : v.track_inventory ? "activé" : "?"}${v.active === false ? ", inactif" : ""})` : `${id} (lecture impossible${r.errors?.length ? " : " + r.errors[0] : ""})`);
+    if (!v) { unknown.push(`${id} (lecture impossible${r.errors?.length ? " : " + r.errors[0] : " : variante absente de la réponse"})`); continue; }
+    const name = `${id} « ${v.label ?? "?"} »`;
+    const rows: any[] = [];
+    for (const s of v.stock_levels?.data ?? []) rows.push({ id: Number(s.id), variant_id: id, sku: v.sku ?? null, variant_label: v.label ?? null, location_id: s.location?.id ?? null, location_label: s.location?.label ?? null, on_hand: s.on_hand == null ? null : Number(s.on_hand), available: s.available == null ? null : Number(s.available), reserved: s.reserved == null ? null : Number(s.reserved), incoming: s.incoming == null ? null : Number(s.incoming), run_id: runId, synced_at: now });
+    let source = "ligne de stock Erplain";
+    if (!rows.length && v.track_inventory !== false) {
+      locIds.forEach((l, i) => {
+        const on = v[`l${i}_on`], av = v[`l${i}_av`];
+        if (on == null || av == null) return; // not explicitly returned: no conclusion
+        // Synthetic negative id: never collides with Erplain StockLevel ids.
+        rows.push({ id: -(id * 1000 + i + 1), variant_id: id, sku: v.sku ?? null, variant_label: v.label ?? null, location_id: l, location_label: locs.get(l) ?? null, on_hand: Number(on), available: Number(av), reserved: v[`l${i}_re`] == null ? null : Number(v[`l${i}_re`]), incoming: v[`l${i}_in`] == null ? null : Number(v[`l${i}_in`]), run_id: runId, synced_at: now });
+      });
+      source = "stock de la variante par emplacement";
+    }
+    if (rows.length) {
+      const { error } = await admin.from("erplain_stock_levels").upsert(rows, { onConflict: "id" });
+      if (error) { unknown.push(`${name} (enregistrement impossible : ${error.message})`); continue; }
+      confirmed.push(`${name} : ${rows.map((x) => `${x.location_label ?? x.location_id} réel ${x.on_hand} / dispo ${x.available}`).join(", ")} (${source})`);
+    } else {
+      const why = v.track_inventory === false ? "suivi de stock désactivé dans Erplain" : r.errors?.length ? `Erplain : ${r.errors[0]}` : "aucune ligne et aucune valeur par emplacement renvoyée";
+      unknown.push(`${name} (SKU ${v.sku ?? "aucun"}, type ${v.type ?? "?"} : ${why})`);
+    }
   }
-  return `Composants sans aucune ligne de stock dans Erplain (${missing.length}) : ${details.join(" ; ")}${missing.length > 15 ? " ; …" : ""}. Leur stock n'est pas compté comme 0 : les OF qui les utilisent restent « incomplets ».`;
+  const parts: string[] = [];
+  if (confirmed.length) parts.push(`Stock composants relu par identifiant de variante (${confirmed.length}) : ${confirmed.join(" ; ")}. Un 0 renvoyé par Erplain est un stock confirmé à zéro → pénurie.`);
+  if (unknown.length) parts.push(`Stock composants toujours inconnu (${unknown.length}) : ${unknown.join(" ; ")}. Sans valeur explicite d'Erplain, rien n'est supposé à 0.`);
+  if (missing.length > LIMIT) parts.push(`${missing.length - LIMIT} autre(s) composant(s) sans ligne non relus (limite ${LIMIT} par synchro).`);
+  return parts.join(" ") || null;
 }
