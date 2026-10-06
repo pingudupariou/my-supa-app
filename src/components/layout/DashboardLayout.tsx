@@ -105,7 +105,7 @@ export function DashboardLayout({
 
   return <div className="flex min-h-screen">
       {/* Mobile toggle */}
-      <button className="fixed top-4 left-4 z-50 lg:hidden p-2 bg-sidebar text-white rounded" onClick={() => setSidebarOpen(!sidebarOpen)}>
+      <button data-readonly-allow="true" className="fixed top-4 left-4 z-50 lg:hidden p-2 bg-sidebar text-white rounded" onClick={() => setSidebarOpen(!sidebarOpen)}>
         {sidebarOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
       </button>
 
