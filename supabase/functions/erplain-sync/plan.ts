@@ -160,7 +160,19 @@ export function computePlan(data: { lines: any[]; stocks: any[]; mos: any[]; bom
     for (const c of p.bom_components) {
       poolInit(c.component_id, p.location_id);
       const avail = pool.get(key(c.component_id, p.location_id));
-      if (avail == null || c.quantity == null || c.quantity <= 0) { buildable = -1; p.issues.push(`Stock ou quantité inconnus pour le composant ${c.sku ?? c.component_id}.`); continue; }
+      if (avail == null || c.quantity == null || c.quantity <= 0) {
+        buildable = -1;
+        const name = `${c.component_id}${c.sku ? ` (${c.sku})` : ""}${c.label ? ` « ${c.label} »` : ""}`;
+        const s = stockBy.get(key(c.component_id, p.location_id));
+        const qtyOk = c.quantity != null && c.quantity > 0;
+        const why = [
+          `référence ${c.sku ? "OK" : "sans SKU dans Erplain"}`,
+          `quantité nomenclature ${qtyOk ? `${c.quantity} OK` : "absente ou nulle"}`,
+          !s ? `stock : aucune ligne Erplain pour cet emplacement (${p.location_label ?? p.location_id})` : s.available == null ? "stock : disponible inconnu" : avail == null ? "stock : OF en cours sans reste à produire lisible" : "stock OK",
+        ];
+        p.issues.push(`Composant ${name} : ${why.join(" ; ")}.`);
+        continue;
+      }
       buildable = Math.min(buildable, Math.floor(Math.max(0, avail) / c.quantity));
     }
     if (buildable < 0) { p.status = "incomplete"; continue; }
