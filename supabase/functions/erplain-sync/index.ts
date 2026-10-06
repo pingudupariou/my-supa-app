@@ -113,6 +113,7 @@ async function handleData(action: string, body: any, admin: any, token: string, 
         await admin.from(ds.table).delete().or(`run_id.is.null,run_id.neq.${run.id}`);
         // Complete MO read: update the status of every MO sent by the app (deletion confirmed only by a direct read).
         if (ds.key === "mos") { const rec = await reconcileSubmissions(admin, gql, run.id); notes.push(rec); }
+        if (ds.key === "stocks") { try { const n = await checkMissingComponentStock(admin, gql); if (n) notes.push(n); } catch (_) { /* informative only */ } }
         cursor.ds++; cursor.page = 1; cursor.size = undefined; cursor.filter = undefined; cursor.filterFailed = undefined;
       }
       await admin.from("erplain_sync_runs").update({ cursor, counts, notes }).eq("id", run.id);
