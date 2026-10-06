@@ -29,6 +29,7 @@ async function loadPlanData(admin: any) {
     if (!s || (m.order_line_item_ids ?? []).length) continue;
     m.order_line_item_ids = s.order_line_item_ids ?? [];
     m.line_alloc = Object.fromEntries((s.payload?._coverage ?? []).map((c: any) => [Number(c.line_id), Number(c.to_cover ?? 0)]));
+    if (s.payload?._shortage) m.shortage_forced = s.payload._shortage;
   }
   return { lines, stocks, mos, boms, routings };
 }
@@ -189,7 +190,7 @@ async function handleData(action: string, body: any, admin: any, token: string, 
   const mutation = `mutation CreateMO($input: ManufacturingOrderInput!) { CreateManufacturingOrder(input: $input) { id label status } }`;
   const coverage = p.coverage.filter((c: any) => p.free_line_ids.includes(c.line_id));
   const row = { idempotency_key: p.idempotency_key, variant_id: p.variant_id, location_id: p.location_id, quantity: p.to_build,
-    order_line_item_ids: p.free_line_ids, payload: { ...input, _coverage: coverage }, created_by: userId, updated_at: new Date().toISOString() };
+    order_line_item_ids: p.free_line_ids, payload: { ...input, _coverage: coverage, ...(p.status === "shortage" ? { _shortage: { approved_by: userId, at: new Date().toISOString(), missing: p.components.filter((c: any) => c.missing > 0).map((c: any) => ({ sku: c.sku, label: c.label, missing: c.missing })) } } : {}) }, created_by: userId, updated_at: new Date().toISOString() };
 
   if (!writeEnabled || !confirm) {
     await admin.from("erplain_mo_submissions").upsert({ ...row, status: "prepared", steps: [{ step: "simulation", at: new Date().toISOString() }] }, { onConflict: "idempotency_key" });
