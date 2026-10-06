@@ -105,12 +105,12 @@ export function DashboardLayout({
 
   return <div className="flex min-h-screen">
       {/* Mobile toggle */}
-      <button className="fixed top-4 left-4 z-50 lg:hidden p-2 bg-sidebar text-white rounded" onClick={() => setSidebarOpen(!sidebarOpen)}>
+      <button data-readonly-allow="true" className="fixed top-4 left-4 z-50 lg:hidden p-2 bg-sidebar text-white rounded" onClick={() => setSidebarOpen(!sidebarOpen)}>
         {sidebarOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
       </button>
 
       {/* Sidebar */}
-      <aside className={cn('fixed inset-y-0 left-0 z-40 w-56 bg-sidebar text-sidebar-foreground flex flex-col transition-transform lg:translate-x-0', sidebarOpen ? 'translate-x-0' : '-translate-x-full')}>
+      <aside data-readonly-allow="true" className={cn('fixed inset-y-0 left-0 z-40 w-56 bg-sidebar text-sidebar-foreground flex flex-col transition-transform lg:translate-x-0', sidebarOpen ? 'translate-x-0' : '-translate-x-full')}>
         <div className="p-4 border-b border-sidebar-border">
           <div className="flex items-center justify-between">
             <NovarideLogo variant="compact" color="light" canEdit={isAdmin} />
