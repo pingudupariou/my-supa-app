@@ -2353,6 +2353,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      bump_erplain_mo_reference: { Args: { _min: number }; Returns: undefined }
       current_user_can_write_plan_atelier: { Args: never; Returns: boolean }
       get_user_role: {
         Args: { _user_id: string }
