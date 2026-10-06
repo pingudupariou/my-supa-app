@@ -199,6 +199,21 @@ async function handleData(action: string, body: any, admin: any, token: string, 
   // App reference: sequence never reused (even if the prefix changes), sent as label.
   // If Erplain says the label is already in use (clear refusal, nothing created), jump the
   // counter past the taken number (using Erplain's suggestion when same prefix) and retry.
+  // Before numbering: read every Erplain MO whose label starts with the current prefix (any status)
+  // and move the counter above the highest number found.
+  {
+    const { data: st } = await admin.from("erplain_mo_settings").select("reference_prefix").eq("id", 1).maybeSingle();
+    const prefix = String(st?.reference_prefix ?? "NOV-OF-");
+    let max = 0;
+    for (let page = 1; page <= 20; page++) {
+      const q = await gql(`OF existants ${prefix}`, `{ ManufacturingOrders(first: 100, page: ${page}, where: { column: LABEL, operator: LIKE, value: ${JSON.stringify(prefix + "%")} }) { data { label } paginatorInfo { hasMorePages } } }`);
+      const pg = q.data?.ManufacturingOrders;
+      if (!pg) break;
+      for (const m of pg.data ?? []) { const s = String(m.label ?? ""); if (s.startsWith(prefix)) { const k = Number(s.slice(prefix.length)); if (Number.isFinite(k) && k > max) max = k; } }
+      if (!pg.paginatorInfo?.hasMorePages) break;
+    }
+    if (max > 0) await admin.rpc("bump_erplain_mo_reference", { _min: max });
+  }
   let ref: any = null; let r: any = null; let mo: any = null;
   for (let attempt = 0; attempt < 6; attempt++) {
     const { data: refRows, error: refErr } = await admin.rpc("next_erplain_mo_reference");
