@@ -94,6 +94,9 @@ export function computePlan(data: { lines: any[]; stocks: any[]; mos: any[]; bom
       usable = Math.max(0, Math.min(Number(st.on_hand) - reservedOthers, Number(st.available) + reservedUsed));
     }
     const linkedMo = lines.reduce((s: number, l: any) => s + l.mo_alloc, 0);
+    // MOs sent despite missing components (approved): keep tracking them on the covered lines.
+    const shortageMos = mos.filter((m) => m.shortage_forced && lines.some((l: any) => Number(l.linked_mo_id) === Number(m.id) && l.mo_alloc > 0))
+      .map((m) => ({ id: m.id, label: m.label, ...m.shortage_forced }));
     const moRemaining = linkedMo;
     // Per line (earliest date first): open after linked MO, then usable stock; the rest is to build.
     let stockLeft = usable ?? 0;
@@ -122,10 +125,10 @@ export function computePlan(data: { lines: any[]; stocks: any[]; mos: any[]; bom
       key: g.key, variant_id: g.variant_id, sku: g.sku, variant_label: g.variant_label, location_id: g.location_id, location_label: g.location_label,
       first_shipping_at: firstDate, lines, other_open_lines: others,
       need, stock: st ? { on_hand: st.on_hand, available: st.available, reserved: st.reserved } : null, reserved_in_scope: reservedInScope, usable,
-      mos: mos.map((m) => ({ id: m.id, label: m.label, status: m.status, quantity: m.quantity, remaining_to_produce: m.remaining_to_produce, linked: (m.order_line_item_ids ?? []).length > 0 })),
+      mos: mos.map((m) => ({ id: m.id, label: m.label, status: m.status, quantity: m.quantity, remaining_to_produce: m.remaining_to_produce, linked: (m.order_line_item_ids ?? []).length > 0, shortage_forced: m.shortage_forced ?? null })),
       mo_linked: linkedMo, mo_free: freeMo, reserved_used: reservedUsed, mo_remaining: moRemaining, to_build: allCovered ? 0 : toBuild, all_covered: allCovered, coverage,
       bom: bom ? { id: bom.id, label: bom.label } : null, routing: routing ? { id: routing.id, label: routing.label, steps: (routing.steps ?? []).length } : null,
-      bom_components: bom?.components ?? [], free_line_ids: freeLineIds,
+      bom_components: bom?.components ?? [], free_line_ids: freeLineIds, shortage_mos: shortageMos,
       components: [] as any[], buildable: null as number | null, status: "pending" as string, issues,
       idempotency_key: `v${g.variant_id}|l${g.location_id ?? "none"}|${uncovered.map((l: any) => `${l.line_id}:${l.to_cover}`).join(",")}`,
     };
@@ -149,7 +152,7 @@ export function computePlan(data: { lines: any[]; stocks: any[]; mos: any[]; bom
 
   proposals.sort((a, b) => String(a.first_shipping_at ?? "9999").localeCompare(String(b.first_shipping_at ?? "9999")));
   for (const p of proposals) {
-    if (p.all_covered) { p.status = "covered"; continue; }
+    if (p.all_covered) { p.status = p.shortage_mos.length ? "covered_shortage" : "covered"; continue; }
     if (p.to_build === null || p.issues.some((i) => !i.startsWith("Plusieurs"))) { p.status = "incomplete"; continue; }
     if (p.to_build === 0) { p.status = "covered"; continue; }
     if (!p.bom_components.length) { p.status = "incomplete"; p.issues.push("Nomenclature sans composant."); continue; }
