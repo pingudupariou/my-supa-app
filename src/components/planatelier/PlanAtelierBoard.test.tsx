@@ -7,7 +7,7 @@ import { supabase } from '@/integrations/supabase/client';
 vi.mock('@/context/AuthContext', () => ({ useAuth: () => ({ isAdmin: false, userRole: 'bureau_etude', getTabPermission: () => 'write' }) }));
 
 vi.mock('@/integrations/supabase/client', () => ({ supabase: {
-  functions: { invoke: vi.fn(async () => ({ data: { proposals: [], openLines: [{ line_id: 1, order_id: 10, order_label: 'SO10', customer_name: 'Client test', order_status: 'active', order_created_at: '2026-10-01', shipping_at: '2026-11-10', sku: 'SKU1', quantity: 12, shipped_quantity: 0, remaining: 12 }], stocks: [] }, error: null })) },
+  functions: { invoke: vi.fn(async () => ({ data: { proposals: [], openLines: [{ line_id: 1, order_id: 10, order_label: 'SO10', customer_name: 'Client test', order_status: 'active', order_created_at: '2026-10-01', shipping_at: '2026-11-10', sku: 'SKU1', quantity: 12, shipped_quantity: 0, remaining: 12 }], stocks: [], submissions: [{ id: 1, status: 'created', erplain_mo_id: 123, erplain_status: 'released', app_reference: 'NOV-OF-00001', erplain_snapshot: { label: 'OF123' }, quantity: 12, order_line_item_ids: [1], erplain_synced_at: '2026-10-08T10:00:00Z', payload: {} }] }, error: null })) },
   from: () => ({ select: () => ({ order: () => ({ limit: async () => ({ data: [] }) }) }) }),
 } }));
 
