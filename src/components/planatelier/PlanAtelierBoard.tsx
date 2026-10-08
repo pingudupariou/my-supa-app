@@ -479,14 +479,28 @@ const CHECK_LABELS: Record<string, string> = { bom: 'Nomenclature reprise', comp
 
 const MO_STATUS: Record<string, string> = { draft: 'Brouillon', unpublished: 'Non publié', released: 'Publié', in_progress: 'En cours', completed: 'Terminé', cancelled: 'Annulé dans Erplain', absent: 'Supprimé dans Erplain' };
 
+const SUBS_COLLAPSED_STORAGE = 'plan-atelier-subs-collapsed-v1';
+const SUBS_PAGE_SIZE = 5;
+
 function SubmissionsPanel({ realMode, isAdmin, prefix, subs, writeEnabled, call, onDone }: { realMode: boolean; isAdmin: boolean; prefix: string; subs: any[]; writeEnabled: boolean; call: (b: any) => Promise<any>; onDone: () => void }) {
   const [res, setRes] = useState<Record<string, any>>({});
   const [qty, setQty] = useState<Record<string, string>>({});
   const [pref, setPref] = useState(prefix);
   const [prefMsg, setPrefMsg] = useState('');
+  // La liste se replie sur elle-même (choix mémorisé sur cet appareil) et ne montre que 5 OF à la fois.
+  const [collapsed, setCollapsed] = useState(() => { try { return localStorage.getItem(SUBS_COLLAPSED_STORAGE) !== '0'; } catch { return true; } });
+  const [showAll, setShowAll] = useState(false);
+  const [openId, setOpenId] = useState<string | number | null>(null);
   useEffect(() => setPref(prefix), [prefix]);
+  useEffect(() => { try { localStorage.setItem(SUBS_COLLAPSED_STORAGE, collapsed ? '1' : '0'); } catch { /* Storage unavailable */ } }, [collapsed]);
   const savePrefix = async () => { const d = await call({ action: 'set_prefix', prefix: pref }); setPrefMsg(d.message ?? d.status); if (d.status === 'success') onDone(); };
   const list = subs.filter((s) => s.status !== 'prepared' || s.erplain_mo_id);
+  const shown = showAll ? list : list.slice(0, SUBS_PAGE_SIZE);
+  const summary = useMemo(() => ({
+    running: list.filter((s) => ['draft', 'unpublished', 'released', 'in_progress'].includes(s.erplain_status)).length,
+    done: list.filter((s) => s.erplain_status === 'completed').length,
+    voided: list.filter((s) => ['cancelled', 'deleted', 'absent'].includes(s.erplain_status) || ['cancelled', 'deleted'].includes(s.status)).length,
+  }), [list]);
   const act = async (s: any, body: any) => {
     setRes((r) => ({ ...r, [s.id]: { loading: true } }));
     try { const d = await call({ ...body, submissionId: s.id }); setRes((r) => ({ ...r, [s.id]: d })); if (d.status === 'success') onDone(); }
@@ -495,8 +509,21 @@ function SubmissionsPanel({ realMode, isAdmin, prefix, subs, writeEnabled, call,
   const editable = (s: any) => ['unpublished', 'draft'].includes(s.erplain_status);
   return (
     <Card>
-      <CardHeader><CardTitle className="text-base">OF envoyés à Erplain</CardTitle></CardHeader>
-      <CardContent className="space-y-3 text-sm">
+      <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-3 space-y-0">
+        <CardTitle className="text-base flex flex-wrap items-center gap-2">OF envoyés à Erplain
+          <Badge variant="secondary">{list.length}</Badge>
+          {collapsed && list.length > 0 && <span className="text-xs font-normal text-muted-foreground">{summary.running} en cours · {summary.done} terminé(s){summary.voided ? ` · ${summary.voided} annulé(s) ou supprimé(s)` : ''}</span>}
+        </CardTitle>
+        <Button variant="ghost" size="sm" aria-expanded={!collapsed} onClick={() => setCollapsed((v) => !v)} data-readonly-allow="true">
+          {collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}{collapsed ? 'Afficher la liste' : 'Réduire la liste'}
+        </Button>
+      </CardHeader>
+      {collapsed ? (
+        <CardContent className="pt-0 text-xs text-muted-foreground">
+          {list.length ? `${list.length} OF envoyé(s) à Erplain — ${summary.running} en cours, ${summary.done} terminé(s), ${summary.voided} annulé(s) ou supprimé(s). Cliquez sur « Afficher la liste » pour les consulter, les relire et les modifier.` : 'Aucun OF créé pour l\'instant (simulations seulement).'}
+        </CardContent>
+      ) : (
+      <CardContent className="space-y-2 text-sm">
         <WorkshopDisclosure title="Réglage des références OF"><div className="flex flex-wrap items-center gap-2 text-xs">
           <span>Racine de la référence OF :</span>
           <Input className="w-32 h-8" value={pref} onChange={(e) => setPref(e.target.value)} data-readonly-allow="true" />
@@ -506,44 +533,47 @@ function SubmissionsPanel({ realMode, isAdmin, prefix, subs, writeEnabled, call,
         </div>
         </WorkshopDisclosure>
         {!list.length && <p className="text-muted-foreground">Aucun OF créé pour l'instant (simulations seulement).</p>}
-        {list.map((s) => {
+        {shown.map((s) => {
           const r = res[s.id];
+          const isOpen = openId === s.id;
           const confirm = (body: any) => { const real = realMode && writeEnabled; if (real && !window.confirm('Envoyer réellement cette action à Erplain ?')) return; act(s, { ...body, confirm: real }); };
           return (
-            <div key={s.id} className="border rounded-md p-3 space-y-2">
-              <div className="flex flex-wrap gap-2 items-center">
+            <div key={s.id} className="border rounded-md">
+              <button type="button" aria-expanded={isOpen} onClick={() => setOpenId(isOpen ? null : s.id)} className="w-full flex flex-wrap items-center gap-2 p-2 text-left hover:bg-muted/50" data-readonly-allow="true">
+                {isOpen ? <ChevronDown className="h-4 w-4 shrink-0" /> : <ChevronRight className="h-4 w-4 shrink-0" />}
                 <span className="font-medium">N° Erplain : {s.erplain_snapshot?.label ?? '—'}</span>
                 <span className="text-xs">Libellé : {s.app_reference ?? s.payload?.label ?? '—'}</span>
-
                 <Badge className={`workshop-status workshop-status-${s.erplain_status ?? s.status}`} variant={['cancelled', 'absent'].includes(s.erplain_status) ? 'destructive' : 'default'}>{MO_STATUS[s.erplain_status] ?? s.erplain_status ?? s.status}</Badge>
                 {s.payload?._shortage && <Badge variant="outline" className="border-destructive text-destructive" title={(s.payload._shortage.missing ?? []).map((c: any) => `${c.sku} −${c.missing}`).join(', ')}>Créé avec pièces manquantes{s.payload._shortage.missing?.length ? ` : ${s.payload._shortage.missing.map((c: any) => `${c.sku} (−${fmt(c.missing)})`).join(', ')}` : ''}</Badge>}
-                <span className="text-xs text-muted-foreground">Qté {fmt(s.quantity)} · {s.order_line_item_ids?.length ?? 0} ligne(s) · relu {s.erplain_synced_at ? new Date(s.erplain_synced_at).toLocaleString('fr-FR') : 'jamais'}</span>
-              </div>
-              <WorkshopDisclosure title="Détails et actions de cet OF">
-              <p className="text-xs text-muted-foreground">ID Erplain : {s.erplain_mo_id ?? '—'}</p>
-              {s.checks && <div className="flex flex-wrap gap-2 text-xs">{Object.entries(CHECK_LABELS).map(([k, l]) => s.checks[k] == null ? null : <Badge key={k} variant={s.checks[k] ? 'secondary' : 'destructive'}>{l} : {s.checks[k] ? 'oui' : 'non'}</Badge>)}<span className="text-muted-foreground">{s.checks.components_detail} · {s.checks.steps_detail}</span></div>}
-              {s.erplain_mo_id && !['deleted', 'cancelled'].includes(s.status) && (
-                <div className="flex flex-wrap gap-2 items-center">
-                  <Button size="sm" variant="outline" disabled={!isAdmin || r?.loading} onClick={() => act(s, { action: 'mo_refresh' })} data-readonly-allow="true">Relire depuis Erplain</Button>
-                  {editable(s) && <>
-                    <Input className="w-24 h-8" type="number" placeholder="Qté" value={qty[s.id] ?? ''} onChange={(e) => setQty((q) => ({ ...q, [s.id]: e.target.value }))} data-readonly-allow="true" />
-                    <Button size="sm" variant="outline" disabled={!isAdmin || r?.loading || !qty[s.id]} onClick={() => confirm({ action: 'mo_update', quantity: Number(qty[s.id]) })} data-readonly-allow="true">Modifier la quantité</Button>
-                  </>}
-                  {s.erplain_status === 'released' && <Button size="sm" variant="outline" disabled={!isAdmin || r?.loading} onClick={() => confirm({ action: 'mo_transition', target: 'in_progress' })} data-readonly-allow="true">Lancer</Button>}
-                  {r?.loading && <Loader2 className="h-4 w-4 animate-spin" />}
-                </div>
-              )}
-              {r && !r.loading && (
-                <div className={['blocked', 'api_error'].includes(r.status) ? 'text-destructive text-xs' : 'text-xs'}>
-                  <p>{r.message ?? r.status}{r.status === 'dry_run' ? ' — passez en « Envoi réel » pour envoyer.' : ''}</p>
-                  {r.variables && <pre className="mt-1 p-2 bg-muted rounded overflow-auto">{r.mutation}{'\n'}{JSON.stringify(r.variables, null, 2)}</pre>}
-                </div>
-              )}
-              </WorkshopDisclosure>
+                <span className="text-xs text-muted-foreground ml-auto whitespace-nowrap">Qté {fmt(s.quantity)} · {s.order_line_item_ids?.length ?? 0} ligne(s) · relu {s.erplain_synced_at ? new Date(s.erplain_synced_at).toLocaleString('fr-FR') : 'jamais'}</span>
+              </button>
+              {isOpen && <div className="border-t p-3 space-y-2 text-xs">
+                <p className="text-muted-foreground">ID Erplain : {s.erplain_mo_id ?? '—'}</p>
+                {s.checks && <div className="flex flex-wrap gap-2 text-xs">{Object.entries(CHECK_LABELS).map(([k, l]) => s.checks[k] == null ? null : <Badge key={k} variant={s.checks[k] ? 'secondary' : 'destructive'}>{l} : {s.checks[k] ? 'oui' : 'non'}</Badge>)}<span className="text-muted-foreground">{s.checks.components_detail} · {s.checks.steps_detail}</span></div>}
+                {s.erplain_mo_id && !['deleted', 'cancelled'].includes(s.status) && (
+                  <div className="flex flex-wrap gap-2 items-center">
+                    <Button size="sm" variant="outline" disabled={!isAdmin || r?.loading} onClick={() => act(s, { action: 'mo_refresh' })} data-readonly-allow="true">Relire depuis Erplain</Button>
+                    {editable(s) && <>
+                      <Input className="w-24 h-8" type="number" placeholder="Qté" value={qty[s.id] ?? ''} onChange={(e) => setQty((q) => ({ ...q, [s.id]: e.target.value }))} data-readonly-allow="true" />
+                      <Button size="sm" variant="outline" disabled={!isAdmin || r?.loading || !qty[s.id]} onClick={() => confirm({ action: 'mo_update', quantity: Number(qty[s.id]) })} data-readonly-allow="true">Modifier la quantité</Button>
+                    </>}
+                    {s.erplain_status === 'released' && <Button size="sm" variant="outline" disabled={!isAdmin || r?.loading} onClick={() => confirm({ action: 'mo_transition', target: 'in_progress' })} data-readonly-allow="true">Lancer</Button>}
+                    {r?.loading && <Loader2 className="h-4 w-4 animate-spin" />}
+                  </div>
+                )}
+                {r && !r.loading && (
+                  <div className={['blocked', 'api_error'].includes(r.status) ? 'text-destructive text-xs' : 'text-xs'}>
+                    <p>{r.message ?? r.status}{r.status === 'dry_run' ? ' — passez en « Envoi réel » pour envoyer.' : ''}</p>
+                    {r.variables && <pre className="mt-1 p-2 bg-muted rounded overflow-auto">{r.mutation}{'\n'}{JSON.stringify(r.variables, null, 2)}</pre>}
+                  </div>
+                )}
+              </div>}
             </div>
           );
         })}
+        {list.length > SUBS_PAGE_SIZE && <Button variant="outline" size="sm" onClick={() => setShowAll((v) => !v)} data-readonly-allow="true">{showAll ? `Réduire à ${SUBS_PAGE_SIZE} OF` : `Afficher les ${list.length - SUBS_PAGE_SIZE} OF suivants`}</Button>}
       </CardContent>
+      )}
     </Card>
   );
 }
