@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Loader2, PlugZap, CheckCircle2, ShieldAlert, AlertTriangle } from 'lucide-react';
+import { WorkshopDisclosure } from '@/components/planatelier/WorkshopDisclosure';
 import { PlanAtelierBoard } from '@/components/planatelier/PlanAtelierBoard';
 
 type Result = {
@@ -78,13 +79,14 @@ export function PlanAtelierPage() {
   const auth = result?.status === 'auth_error';
 
   return (
-    <div className="space-y-6">
+    <div className="workshop-theme space-y-5">
       <div>
         <h1 className="page-title">Plan atelier</h1>
-        <p className="text-sm text-muted-foreground">Connexion à Erplain (lecture seule — aucun ordre de fabrication n'est créé)</p>
+        <p className="text-sm text-muted-foreground">Production · Commandes et ordres de fabrication</p>
       </div>
-      <p className="text-xs text-muted-foreground">Votre rôle : <strong>{server?.role ?? userRole}</strong> — droit sur Plan atelier : <strong>{isAdminRole ? 'admin' : perm === 'write' ? 'écriture' : perm === 'read' ? 'lecture (consultation seule, boutons désactivés)' : 'masqué'}</strong>{server?.error ? ` — vérification serveur impossible : ${server.error}` : ''}</p>
       <PlanAtelierBoard isAdmin={isAdmin} canRead={canRead} />
+      <WorkshopDisclosure title="Connexion Erplain et diagnostic">
+      <p className="text-xs text-muted-foreground">Votre rôle : <strong>{server?.role ?? userRole}</strong> — droit sur Plan atelier : <strong>{isAdminRole ? 'admin' : perm === 'write' ? 'écriture' : perm === 'read' ? 'lecture (consultation seule, boutons désactivés)' : 'masqué'}</strong>{server?.error ? ` — vérification serveur impossible : ${server.error}` : ''}</p>
       <Card>
         <CardHeader><CardTitle className="text-base">Connexion Erplain</CardTitle></CardHeader>
         <CardContent className="space-y-4">
@@ -161,6 +163,7 @@ export function PlanAtelierPage() {
           {sdl && <pre className="text-xs max-h-[500px] overflow-auto rounded-md border bg-muted p-3 whitespace-pre">{sdl}</pre>}
         </CardContent>
       </Card>
+      </WorkshopDisclosure>
     </div>
   );
 }

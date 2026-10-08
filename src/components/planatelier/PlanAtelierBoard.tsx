@@ -8,7 +8,8 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuCheckboxItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuItem } from '@/components/ui/dropdown-menu';
 import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Loader2, RefreshCw, ChevronDown, ChevronRight, Send, Columns3 } from 'lucide-react';
+import { WorkshopDisclosure } from './WorkshopDisclosure';
+import { Loader2, RefreshCw, ChevronDown, ChevronRight, Send, Columns3, Calculator, SlidersHorizontal } from 'lucide-react';
 
 const fmt = (v: any) => (v === null || v === undefined ? '—' : typeof v === 'number' ? (Number.isInteger(v) ? String(v) : v.toFixed(2)) : String(v));
 const STATUS: Record<string, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' }> = {
@@ -35,6 +36,9 @@ const dateLabel = (value: string | null | undefined) => {
 };
 
 export function PlanAtelierBoard({ isAdmin, canRead = isAdmin }: { isAdmin: boolean; canRead?: boolean }) {
+  const [selectionOpen, setSelectionOpen] = useState(false);
+  const [selectionCustomized, setSelectionCustomized] = useState(false);
+  const [detailedPlan, setDetailedPlan] = useState(false);
   const [plan, setPlan] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [syncing, setSyncing] = useState(false);
@@ -137,7 +141,7 @@ export function PlanAtelierBoard({ isAdmin, canRead = isAdmin }: { isAdmin: bool
       return sortAsc ? x.localeCompare(y) : y.localeCompare(x);
     });
   }, [openLines, sortAsc, sortBy]);
-  const toggle = (ids: number[], on: boolean) => setSelected((s) => { const n = new Set(s); ids.forEach((i) => (on ? n.add(i) : n.delete(i))); return n; });
+  const toggle = (ids: number[], on: boolean) => { setSelectionCustomized(true); setSelected((s) => { const n = new Set(s); ids.forEach((i) => (on ? n.add(i) : n.delete(i))); return n; }); };
   const allIds = openLines.map((l) => Number(l.line_id));
   const coverageBy = useMemo(() => {
     const m = new Map<number, any>();
@@ -151,8 +155,25 @@ export function PlanAtelierBoard({ isAdmin, canRead = isAdmin }: { isAdmin: bool
   }, [stockLevels]);
   const stockUpdatedAt = useMemo(() => stockLevels.map((s) => s.synced_at).filter(Boolean).sort().pop() ?? null, [stockLevels]);
 
+  const calculate = () => {
+    const ids = selectionCustomized ? [...selected] : allIds;
+    setSelected(new Set(ids)); setMo({}); setApplied(ids); setComputed(true);
+  };
+  const effectiveSelected = selectionCustomized ? selected : new Set(allIds);
+  const canCalculate = isAdmin && !loading && !syncing && !sending && effectiveSelected.size > 0;
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
+      <section className="flex flex-wrap items-center justify-between gap-3 border-b pb-4">
+        <div><h2 className="text-lg font-semibold">Commandes à fabriquer</h2><p className="text-sm text-muted-foreground">{orders.length} commandes · {effectiveSelected.size} lignes retenues{run ? ` · Mis à jour le ${dateLabel(run.finished_at ?? run.started_at)}` : ''}</p></div>
+        <div className="flex flex-wrap gap-2">
+          <Button variant="outline" onClick={() => sync(false, true, false, syncMode)} disabled={syncing || sending || !isAdmin} data-readonly-allow="true">{syncing ? <Loader2 className="animate-spin" /> : <RefreshCw />}Actualiser depuis Erplain</Button>
+          <Button onClick={calculate} disabled={!canCalculate} data-readonly-allow="true">{loading ? <Loader2 className="animate-spin" /> : <Calculator />}Calculer les OF</Button>
+        </div>
+      </section>
+      {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
+      {syncInfo && <p role="status" className="text-sm text-muted-foreground">{syncInfo}</p>}
+      <WorkshopDisclosure title="Options d’actualisation">
       <Card>
         <CardHeader><CardTitle className="text-base">Données Erplain</CardTitle></CardHeader>
         <CardContent className="space-y-3">
@@ -182,8 +203,27 @@ export function PlanAtelierBoard({ isAdmin, canRead = isAdmin }: { isAdmin: bool
           {error && <p className="text-sm text-destructive">{error}</p>}
         </CardContent>
       </Card>
-
-      <Card>
+      </WorkshopDisclosure>
+      <section>
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
+          <h3 className="font-semibold">Commandes restant à expédier</h3>
+          <Button variant="outline" size="sm" aria-expanded={selectionOpen} onClick={() => { if (!selectionCustomized) setSelected(new Set(allIds)); setSelectionOpen(!selectionOpen); }} data-readonly-allow="true"><SlidersHorizontal />{selectionOpen ? 'Réduire la sélection' : 'Sélection précise'}</Button>
+        </div>
+        {!selectionOpen && <div className="overflow-auto max-h-[340px]">
+          <table className="w-full text-sm workshop-table">
+            <thead><tr>{['', 'Commande', 'Client', 'Créée le', 'Reste à expédier', 'Statut'].map((h, i) => <th key={i} className="p-3 text-left whitespace-nowrap">{h}</th>)}</tr></thead>
+            <tbody>{orders.map((o) => {
+              const ids = o.lines.map((l: any) => Number(l.line_id));
+              const count = ids.filter((id: number) => effectiveSelected.has(id)).length;
+              return <tr key={o.id} className="border-b">
+                <td className="p-3" data-readonly-allow="true"><Checkbox aria-label={`Sélectionner ${o.label ?? o.id}`} checked={count === ids.length ? true : count ? 'indeterminate' : false} onCheckedChange={(v) => { if (!selectionCustomized) setSelected(new Set(allIds)); toggle(ids, !!v); }} /></td>
+                <td className="p-3 font-semibold text-primary">{o.label ?? o.id}</td><td className="p-3">{o.lines[0]?.customer_name ?? '—'}</td><td className="p-3 whitespace-nowrap">{dateLabel(o.created)}</td><td className="p-3 font-mono-numbers">{fmt(o.lines.reduce((n: number, l: any) => n + Number(l.remaining ?? 0), 0))}</td><td className="p-3"><Badge className="workshop-status workshop-status-active">À traiter</Badge></td>
+              </tr>;
+            })}{!orders.length && <tr><td colSpan={6} className="p-6 text-center text-muted-foreground">{loading ? 'Chargement des commandes…' : 'Aucune commande restant à expédier.'}</td></tr>}</tbody>
+          </table>
+        </div>}
+      </section>
+      {selectionOpen && <Card>
         <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-3 space-y-0">
           <CardTitle className="text-base">Sélection des commandes à fabriquer</CardTitle>
           <DropdownMenu>
@@ -201,13 +241,13 @@ export function PlanAtelierBoard({ isAdmin, canRead = isAdmin }: { isAdmin: bool
         <CardContent className="space-y-3">
           <div className="flex flex-wrap gap-3 items-center">
             <label className="flex items-center gap-2 text-sm" data-readonly-allow="true">
-              <Checkbox checked={allIds.length > 0 && selected.size === allIds.length} onCheckedChange={(v) => setSelected(v ? new Set(allIds) : new Set())} />Tout sélectionner
+              <Checkbox checked={allIds.length > 0 && selected.size === allIds.length} onCheckedChange={(v) => { setSelectionCustomized(true); setSelected(v ? new Set(allIds) : new Set()); }} />Tout sélectionner
             </label>
             <Button variant="outline" size="sm" onClick={() => setSortAsc((v) => !v)} data-readonly-allow="true">{sortBy === 'created' ? 'Date de création' : "Date d'expédition"} {sortAsc ? '↑ croissante' : '↓ décroissante'}</Button>
             <Button variant="ghost" size="sm" onClick={() => { setSortBy((v) => (v === 'shipping' ? 'created' : 'shipping')); setSortAsc(true); }} data-readonly-allow="true">Trier par {sortBy === 'created' ? "date d'expédition" : 'date de création'}</Button>
             <span className="text-sm text-muted-foreground">{selected.size} ligne(s) sur {allIds.length} · {orders.length} commande(s) restant à expédier{stockUpdatedAt ? ` · stocks Erplain mis à jour le ${new Date(stockUpdatedAt).toLocaleString('fr-FR')}` : ''}</span>
-            <Button onClick={() => { setMo({}); setApplied([...selected]); setComputed(true); }} disabled={!isAdmin || !selected.size || loading} data-readonly-allow="true">Calculer les OF pour la sélection</Button>
-            {applied && <Button variant="ghost" onClick={() => { setMo({}); setApplied(null); setComputed(false); }} data-readonly-allow="true">Revenir à toutes les commandes</Button>}
+            <Button onClick={calculate} disabled={!canCalculate} data-readonly-allow="true">Calculer les OF pour la sélection</Button>
+            {applied && <Button variant="ghost" onClick={() => { setMo({}); setApplied(null); setComputed(false); setSelectionCustomized(false); }} data-readonly-allow="true">Revenir à toutes les commandes</Button>}
           </div>
           <p className="text-xs text-muted-foreground">Le stock Erplain est un total par produit et emplacement, répété sur chaque ligne pour information : le calcul le répartit une seule fois entre les lignes sélectionnées (expédition la plus proche d'abord), jamais par commande.</p>
           {applied && <p className="text-xs text-muted-foreground">Calcul limité à {applied.length} ligne(s) sélectionnée(s). Les réservations et OF liés aux autres commandes leur restent affectés.</p>}
@@ -230,12 +270,12 @@ export function PlanAtelierBoard({ isAdmin, canRead = isAdmin }: { isAdmin: bool
                   return (
                     <Fragment key={o.id}>
                       <tr className="border-t bg-muted/30">
-                        <td className="p-2" data-readonly-allow="true"><Checkbox checked={all} onCheckedChange={(v) => toggle(ids, !!v)} /></td>
+                        <td className="p-2" data-readonly-allow="true"><Checkbox checked={ids.every((id: number) => effectiveSelected.has(id))} onCheckedChange={(v) => toggle(ids, !!v)} /></td>
                         {visibleColumns.length > 0 && <td className="p-2 font-medium" colSpan={visibleColumns.length}>{o.label ?? o.id} <span className="text-xs text-muted-foreground">({o.status}, {o.lines.length} ligne(s){o.created ? `, créée ${String(o.created).slice(0, 10)}` : ''})</span></td>}
                       </tr>
                       {o.lines.map((l: any) => (
                         <tr key={l.line_id} className="border-t">
-                          <td className="p-2 pl-6" data-readonly-allow="true"><Checkbox checked={selected.has(Number(l.line_id))} onCheckedChange={(v) => toggle([Number(l.line_id)], !!v)} /></td>
+                          <td className="p-2 pl-6" data-readonly-allow="true"><Checkbox checked={effectiveSelected.has(Number(l.line_id))} onCheckedChange={(v) => toggle([Number(l.line_id)], !!v)} /></td>
                           {visibleColumns.map((column, i) => {
                             const st = stockBy.get(`${l.variant_id}|${l.location_id ?? 'none'}`);
                             const c = coverageBy.get(Number(l.line_id));
@@ -258,11 +298,11 @@ export function PlanAtelierBoard({ isAdmin, canRead = isAdmin }: { isAdmin: bool
             </table>
           </div>
         </CardContent>
-      </Card>
+      </Card>}
 
       <Card>
         <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-3 space-y-0">
-          <CardTitle className="text-base">Plan atelier — besoins par variante et emplacement</CardTitle>
+          <CardTitle className="text-base">Ordres de fabrication</CardTitle>
           <div className="flex items-center gap-2">
             {sending && <span className="text-xs text-muted-foreground max-w-md truncate">{syncing ? `Actualisation : ${syncInfo ?? 'démarrage…'}` : 'Envoi des OF…'}</span>}
             <Button
@@ -285,6 +325,7 @@ export function PlanAtelierBoard({ isAdmin, canRead = isAdmin }: { isAdmin: bool
             const sim = vals.length - created - blocked;
             return <p className="text-xs text-muted-foreground">Dernier envoi : {created} OF créé(s){sim ? `, ${sim} en simulation` : ''}{blocked ? `, ${blocked} bloqué(s)` : ''} — détail dans chaque produit déplié et dans « OF envoyés à Erplain ».</p>;
           })()}
+          <WorkshopDisclosure title="Options et méthode de calcul">
           <details className="text-xs text-muted-foreground" data-readonly-allow="true">
             <summary className="cursor-pointer">Méthode de calcul</summary>
             <ul className="list-disc pl-5 mt-2 space-y-1">
@@ -301,23 +342,28 @@ export function PlanAtelierBoard({ isAdmin, canRead = isAdmin }: { isAdmin: bool
               <Checkbox checked={includePending} onCheckedChange={(v) => setIncludePending(!!v)} />Inclure les commandes en attente de validation
             </label>
             {loading && <Loader2 className="h-4 w-4 animate-spin" />}
-            <label className="flex items-center gap-2 text-sm font-medium" data-readonly-allow="true">
-              <span className={realMode ? 'text-muted-foreground' : ''}>Simulation</span>
-              <Switch checked={realMode} disabled={!plan?.writeEnabled} onCheckedChange={setRealMode} />
-              <span className={realMode ? 'text-destructive' : 'text-muted-foreground'}>Envoi réel</span>
-            </label>
-            {realMode && <Badge variant="destructive">Les OF seront créés dans Erplain</Badge>}
-            {plan && !plan.writeEnabled && <Badge variant="outline">Envoi réel désactivé sur le serveur</Badge>}
+
           </div>
           {plan?.excluded && <p className="text-xs text-muted-foreground">Lignes exclues : {plan.excluded.closedOrders} commandes non ouvertes, {plan.excluded.fullyShipped} déjà expédiées, {plan.excluded.noVariant} sans variante.</p>}
           {plan?.warnings?.length ? (
             <details className="text-xs text-destructive"><summary className="cursor-pointer" data-readonly-allow="true">{plan.warnings.length} incohérence(s) de stock à vérifier</summary>
               <ul className="list-disc pl-5">{plan.warnings.slice(0, 50).map((w: string, i: number) => <li key={i}>{w}</li>)}</ul></details>
           ) : null}
+          </WorkshopDisclosure>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex flex-wrap items-center gap-3">            <label className="flex items-center gap-2 text-sm font-medium" data-readonly-allow="true">
+              <span className={realMode ? 'text-muted-foreground' : ''}>Simulation</span>
+              <Switch checked={realMode} disabled={!plan?.writeEnabled} onCheckedChange={setRealMode} />
+              <span className={realMode ? 'text-destructive' : 'text-muted-foreground'}>Envoi réel</span>
+            </label>
+            {realMode && <Badge variant="destructive">Les OF seront créés dans Erplain</Badge>}
+            {plan && !plan.writeEnabled && <Badge variant="outline">Envoi réel désactivé sur le serveur</Badge>}</div>
+            <Button variant="ghost" size="sm" aria-pressed={detailedPlan} onClick={() => setDetailedPlan(!detailedPlan)} data-readonly-allow="true"><Columns3 />{detailedPlan ? 'Vue simple' : 'Détail des quantités'}</Button>
+          </div>
           <div className="overflow-auto border rounded-md">
             <table className="w-full text-sm">
               <thead className="bg-muted text-left">
-                <tr>{['', 'Produit', 'Emplacement', 'Commandes', 'Besoin', 'Stock monté', 'OF en cours', 'À fabriquer', 'Pièces manquantes', 'Statut'].map((h) => <th key={h} className="p-2 font-medium whitespace-nowrap">{h}</th>)}</tr>
+                <tr>{(detailedPlan ? ['', 'Produit', 'Emplacement', 'Commandes', 'Besoin', 'Stock monté', 'OF en cours', 'À fabriquer', 'Pièces manquantes', 'Statut'] : ['', 'Produit', 'Emplacement', 'Commandes', 'À fabriquer', 'Statut']).map((h) => <th key={h} className="p-2 font-medium whitespace-nowrap">{h}</th>)}</tr>
               </thead>
               <tbody>
                 {proposals.map((p: any) => {
@@ -332,16 +378,16 @@ export function PlanAtelierBoard({ isAdmin, canRead = isAdmin }: { isAdmin: bool
                         <td className="p-2"><div className="font-medium">{p.sku ?? p.variant_id}</div><div className="text-xs text-muted-foreground">{p.variant_label}</div></td>
                         <td className="p-2">{p.location_label ?? '—'}</td>
                         <td className="p-2">{new Set(p.lines.map((l: any) => l.order_id)).size}</td>
-                        <td className="p-2">{fmt(p.need)}</td>
+                        {detailedPlan && <><td className="p-2">{fmt(p.need)}</td>
                         <td className="p-2">{fmt(p.usable)}</td>
-                        <td className="p-2">{fmt(p.mo_remaining)}</td>
+                        <td className="p-2">{fmt(p.mo_remaining)}</td></>}
                         <td className="p-2 font-semibold">{fmt(p.to_build)}</td>
-                        <td className="p-2">{missing.length ? missing.map((c: any) => `${c.sku ?? c.component_id} (−${fmt(c.missing)})`).join(', ') : '—'}</td>
-                        <td className="p-2"><Badge variant={st.variant} className={p.status === 'covered_shortage' ? 'border-destructive text-destructive' : undefined}>{st.label}</Badge>
-                          {p.shortage_mos?.length ? <div className="text-xs text-muted-foreground mt-1">{p.shortage_mos.map((m: any) => `${m.label ?? m.id} : envoyé malgré ${(m.missing ?? []).map((c: any) => `${c.sku} (−${fmt(c.missing)})`).join(', ') || 'pièces manquantes'}`).join(' · ')}</div> : null}</td>
+                        {detailedPlan && <td className="p-2">{missing.length ? missing.map((c: any) => `${c.sku ?? c.component_id} (−${fmt(c.missing)})`).join(', ') : '—'}</td>}
+                        <td className="p-2"><Badge variant={st.variant} className={`workshop-status workshop-status-${p.status}`}>{st.label}</Badge>
+                          {isOpen && p.shortage_mos?.length ? <div className="text-xs text-muted-foreground mt-1">{p.shortage_mos.map((m: any) => `${m.label ?? m.id} : envoyé malgré ${(m.missing ?? []).map((c: any) => `${c.sku} (−${fmt(c.missing)})`).join(', ') || 'pièces manquantes'}`).join(' · ')}</div> : null}</td>
                       </tr>
                       {isOpen && (
-                        <tr className="bg-muted/30"><td colSpan={10} className="p-3 space-y-3 text-xs">
+                        <tr className="bg-muted/30"><td colSpan={detailedPlan ? 10 : 6} className="p-3 space-y-3 text-xs">
                           <div className="grid md:grid-cols-2 gap-3">
                             <div>
                               <p className="font-medium mb-1">Détail du calcul</p>
@@ -378,7 +424,7 @@ export function PlanAtelierBoard({ isAdmin, canRead = isAdmin }: { isAdmin: bool
                     </Fragment>
                   );
                 })}
-                {!proposals.length && <tr><td colSpan={10} className="p-4 text-center text-muted-foreground">{!plan ? 'Chargement…' : !computed ? 'Tableau vide : sélectionnez des commandes puis cliquez sur « Calculer les OF pour la sélection ».' : 'Aucun besoin. Actualisez depuis Erplain si les données sont vides.'}</td></tr>}
+                {!proposals.length && <tr><td colSpan={detailedPlan ? 10 : 6} className="p-4 text-center text-muted-foreground">{!plan ? 'Chargement…' : !computed ? 'Aucun calcul effectué.' : 'Aucun besoin. Actualisez depuis Erplain si les données sont vides.'}</td></tr>}
               </tbody>
             </table>
           </div>
@@ -387,7 +433,7 @@ export function PlanAtelierBoard({ isAdmin, canRead = isAdmin }: { isAdmin: bool
 
       <SubmissionsPanel realMode={realMode} isAdmin={isAdmin} prefix={plan?.referencePrefix ?? 'NOV-OF-'} subs={plan?.submissions ?? []} writeEnabled={!!plan?.writeEnabled} call={call} onDone={loadPlan} />
 
-      <ControlViews isAdmin={canRead} reloadKey={run?.id + (run?.status ?? '')} />
+      <WorkshopDisclosure title="Vérifier les données Erplain"><ControlViews isAdmin={canRead} reloadKey={run?.id + (run?.status ?? '')} /></WorkshopDisclosure>
     </div>
   );
 }
@@ -451,13 +497,14 @@ function SubmissionsPanel({ realMode, isAdmin, prefix, subs, writeEnabled, call,
     <Card>
       <CardHeader><CardTitle className="text-base">OF envoyés à Erplain</CardTitle></CardHeader>
       <CardContent className="space-y-3 text-sm">
-        <div className="flex flex-wrap items-center gap-2 text-xs">
+        <WorkshopDisclosure title="Réglage des références OF"><div className="flex flex-wrap items-center gap-2 text-xs">
           <span>Racine de la référence OF :</span>
           <Input className="w-32 h-8" value={pref} onChange={(e) => setPref(e.target.value)} data-readonly-allow="true" />
           <Button size="sm" variant="outline" disabled={!isAdmin || !pref || pref === prefix} onClick={savePrefix} data-readonly-allow="true">Enregistrer</Button>
           <span className="text-muted-foreground">Prochain OF : {prefix}NNNNN — le compteur continue même si la racine change.</span>
           {prefMsg && <span>{prefMsg}</span>}
         </div>
+        </WorkshopDisclosure>
         {!list.length && <p className="text-muted-foreground">Aucun OF créé pour l'instant (simulations seulement).</p>}
         {list.map((s) => {
           const r = res[s.id];
@@ -467,11 +514,13 @@ function SubmissionsPanel({ realMode, isAdmin, prefix, subs, writeEnabled, call,
               <div className="flex flex-wrap gap-2 items-center">
                 <span className="font-medium">N° Erplain : {s.erplain_snapshot?.label ?? '—'}</span>
                 <span className="text-xs">Libellé : {s.app_reference ?? s.payload?.label ?? '—'}</span>
-                <span className="text-xs text-muted-foreground">ID technique {s.erplain_mo_id ?? '—'}</span>
-                <Badge variant={['cancelled', 'absent'].includes(s.erplain_status) ? 'destructive' : 'default'}>{MO_STATUS[s.erplain_status] ?? s.erplain_status ?? s.status}</Badge>
+
+                <Badge className={`workshop-status workshop-status-${s.erplain_status ?? s.status}`} variant={['cancelled', 'absent'].includes(s.erplain_status) ? 'destructive' : 'default'}>{MO_STATUS[s.erplain_status] ?? s.erplain_status ?? s.status}</Badge>
                 {s.payload?._shortage && <Badge variant="outline" className="border-destructive text-destructive" title={(s.payload._shortage.missing ?? []).map((c: any) => `${c.sku} −${c.missing}`).join(', ')}>Créé avec pièces manquantes{s.payload._shortage.missing?.length ? ` : ${s.payload._shortage.missing.map((c: any) => `${c.sku} (−${fmt(c.missing)})`).join(', ')}` : ''}</Badge>}
                 <span className="text-xs text-muted-foreground">Qté {fmt(s.quantity)} · {s.order_line_item_ids?.length ?? 0} ligne(s) · relu {s.erplain_synced_at ? new Date(s.erplain_synced_at).toLocaleString('fr-FR') : 'jamais'}</span>
               </div>
+              <WorkshopDisclosure title="Détails et actions de cet OF">
+              <p className="text-xs text-muted-foreground">ID Erplain : {s.erplain_mo_id ?? '—'}</p>
               {s.checks && <div className="flex flex-wrap gap-2 text-xs">{Object.entries(CHECK_LABELS).map(([k, l]) => s.checks[k] == null ? null : <Badge key={k} variant={s.checks[k] ? 'secondary' : 'destructive'}>{l} : {s.checks[k] ? 'oui' : 'non'}</Badge>)}<span className="text-muted-foreground">{s.checks.components_detail} · {s.checks.steps_detail}</span></div>}
               {s.erplain_mo_id && !['deleted', 'cancelled'].includes(s.status) && (
                 <div className="flex flex-wrap gap-2 items-center">
@@ -490,6 +539,7 @@ function SubmissionsPanel({ realMode, isAdmin, prefix, subs, writeEnabled, call,
                   {r.variables && <pre className="mt-1 p-2 bg-muted rounded overflow-auto">{r.mutation}{'\n'}{JSON.stringify(r.variables, null, 2)}</pre>}
                 </div>
               )}
+              </WorkshopDisclosure>
             </div>
           );
         })}

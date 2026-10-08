@@ -23,15 +23,40 @@ describe('Workshop order columns', () => {
     fireEvent.click(refresh);
     await waitFor(() => expect(supabase.functions.invoke).toHaveBeenCalledWith('erplain-sync', { body: { action: 'sync', restart: false, quick: false, mode: 'quick' } }));
     await waitFor(() => expect(refresh).toBeEnabled());
-    fireEvent.click(screen.getByText('Tout sélectionner'));
+    fireEvent.click(screen.getByRole('button', { name: 'Sélection précise' }));
     const calculate = screen.getByRole('button', { name: 'Calculer les OF pour la sélection' });
     expect(calculate).toBeEnabled();
     fireEvent.click(calculate);
     await waitFor(() => expect(supabase.functions.invoke).toHaveBeenCalledWith('erplain-sync', { body: { action: 'plan', includePending: false, selectedLineIds: [1], compute: true } }));
   });
+  it('starts simple and calculates all remaining lines without opening details', async () => {
+    render(<PlanAtelierBoard isAdmin />);
+    await screen.findByText('Client test');
+    expect(screen.queryByRole('button', { name: /Colonnes affichées/ })).not.toBeInTheDocument();
+    expect(screen.queryByText('Vues de contrôle (données Erplain brutes)')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Calculer les OF' }));
+    await waitFor(() => expect(supabase.functions.invoke).toHaveBeenCalledWith('erplain-sync', { body: { action: 'plan', includePending: false, selectedLineIds: [1], compute: true } }));
+  });
+  it('preserves an explicit empty selection and does not fall back to all orders', async () => {
+    render(<PlanAtelierBoard isAdmin />);
+    await screen.findByText('Client test');
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Sélectionner SO10' }));
+    expect(screen.getByRole('button', { name: 'Calculer les OF' })).toBeDisabled();
+    fireEvent.click(screen.getByRole('button', { name: 'Sélection précise' }));
+    expect(screen.getByRole('button', { name: 'Calculer les OF pour la sélection' })).toBeDisabled();
+  });
+  it('keeps read-only actions disabled but allows opening details', async () => {
+    render(<PlanAtelierBoard isAdmin={false} canRead />);
+    await screen.findByText('Client test');
+    expect(screen.getByRole('button', { name: 'Calculer les OF' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Actualiser depuis Erplain' })).toBeDisabled();
+    fireEvent.click(screen.getByRole('button', { name: 'Sélection précise' }));
+    expect(screen.getByRole('button', { name: /Colonnes affichées/ })).toBeInTheDocument();
+  });
   it('shows client and creation date rather than shipping date', async () => {
     render(<PlanAtelierBoard isAdmin />);
     expect(await screen.findByText('Client test')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Sélection précise' }));
     expect(screen.getByRole('columnheader', { name: 'Date de création' })).toBeInTheDocument();
     expect(screen.getByText('01/10/2026')).toBeInTheDocument();
     expect(screen.queryByText('2026-11-10')).not.toBeInTheDocument();
@@ -40,14 +65,15 @@ describe('Workshop order columns', () => {
     localStorage.setItem('plan-atelier-order-columns-v1', JSON.stringify(['client', 'stock']));
     render(<PlanAtelierBoard isAdmin />);
     await screen.findByText('01/10/2026');
+    fireEvent.click(screen.getByRole('button', { name: 'Sélection précise' }));
     expect(screen.queryByRole('columnheader', { name: 'Nom du client' })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Colonnes affichées (13/15)' })).toBeInTheDocument();
-    fireEvent.click(screen.getByText('Tout sélectionner'));
     await waitFor(() => expect(screen.getByRole('button', { name: 'Calculer les OF pour la sélection' })).toBeEnabled());
   });
   it('hides and shows columns using the visible checkbox menu', async () => {
     render(<PlanAtelierBoard isAdmin />);
     await screen.findByText('Client test');
+    fireEvent.click(screen.getByRole('button', { name: 'Sélection précise' }));
     fireEvent.keyDown(screen.getByRole('button', { name: 'Colonnes affichées (15/15)' }), { key: 'Enter' });
     const item = await screen.findByRole('menuitemcheckbox', { name: 'Nom du client' });
     fireEvent.click(item);
