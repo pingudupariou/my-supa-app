@@ -91,4 +91,14 @@ describe('Workshop order columns', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Réduire la liste' }));
     expect(screen.queryByText('Libellé : NOV-OF-00001')).not.toBeInTheDocument();
   });
+  it('selects or clears every order from the compact view', async () => {
+    render(<PlanAtelierBoard isAdmin />);
+    await screen.findByText('Client test');
+    const all = screen.getByRole('checkbox', { name: 'Tout cocher' });
+    expect(all).toHaveAttribute('data-state', 'checked');
+    fireEvent.click(all);
+    expect(screen.getByRole('button', { name: 'Calculer les OF' })).toBeDisabled();
+    fireEvent.click(all);
+    expect(screen.getByRole('button', { name: 'Calculer les OF' })).toBeEnabled();
+  });
 });
