@@ -1,5 +1,5 @@
-- [ ] Simplifier le Plan atelier avec couleurs Erplain et détails dépliables, sans changer les calculs ou les protections d’envoi.
-- [ ] Vérifier le parcours opérateur simplifié et la sélection précise.
+- [x] Simplifier le Plan atelier avec couleurs Erplain et détails dépliables, sans changer les calculs ou les protections d’envoi.
+- [x] Vérifier le parcours opérateur simplifié et la sélection précise : 7 tests réussis et contrôle visuel sur données de test, sans envoi réel.
 - [x] Afficher le client et la date de création dans la sélection des commandes.
 - [x] Ajouter un choix visible des colonnes, mémorisé sur cet appareil.
 - [x] Vérifier les colonnes et leurs cases de visibilité (3 tests réussis).
