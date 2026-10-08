@@ -7,3 +7,4 @@
 - [x] Corriger le rafraîchissement du rôle et des permissions pour activer les boutons du Plan atelier en écriture.
 - [x] Tester les actions du Plan atelier avec un rôle non administrateur autorisé (tests automatisés).
 - [ ] Vérifier Actualiser et Calculer avec un vrai compte Bureau d'étude : session externe non disponible pour les vérifications connectées.
+- [x] Replier la liste « OF envoyés à Erplain » (choix mémorisé sur l'appareil) et limiter à 5 OF affichés avec bouton pour les suivants.
