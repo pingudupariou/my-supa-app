@@ -82,4 +82,13 @@ describe('Workshop order columns', () => {
     fireEvent.click(screen.getByRole('menuitemcheckbox', { name: 'Nom du client' }));
     await waitFor(() => expect(screen.getByRole('columnheader', { name: 'Nom du client', hidden: true })).toBeInTheDocument());
   });
+  it('keeps the sent MO list folded and opens it on demand', async () => {
+    render(<PlanAtelierBoard isAdmin />);
+    await screen.findByText('Client test');
+    expect(screen.queryByText('Libellé : NOV-OF-00001')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Afficher la liste' }));
+    expect(await screen.findByText('Libellé : NOV-OF-00001')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Réduire la liste' }));
+    expect(screen.queryByText('Libellé : NOV-OF-00001')).not.toBeInTheDocument();
+  });
 });
