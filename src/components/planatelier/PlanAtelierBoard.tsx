@@ -142,6 +142,7 @@ export function PlanAtelierBoard({ isAdmin, canRead = isAdmin }: { isAdmin: bool
     });
   }, [openLines, sortAsc, sortBy]);
   const toggle = (ids: number[], on: boolean) => { setSelectionCustomized(true); setSelected((s) => { const n = new Set(s); ids.forEach((i) => (on ? n.add(i) : n.delete(i))); return n; }); };
+  const setAll = (on: boolean) => { setSelectionCustomized(true); setSelected(on ? new Set(allIds) : new Set()); };
   const allIds = openLines.map((l) => Number(l.line_id));
   const coverageBy = useMemo(() => {
     const m = new Map<number, any>();
@@ -207,7 +208,15 @@ export function PlanAtelierBoard({ isAdmin, canRead = isAdmin }: { isAdmin: bool
       <section>
         <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
           <h3 className="font-semibold">Commandes restant à expédier</h3>
-          <Button variant="outline" size="sm" aria-expanded={selectionOpen} onClick={() => { if (!selectionCustomized) setSelected(new Set(allIds)); setSelectionOpen(!selectionOpen); }} data-readonly-allow="true"><SlidersHorizontal />{selectionOpen ? 'Réduire la sélection' : 'Sélection précise'}</Button>
+          <div className="flex flex-wrap items-center gap-3">
+            {!selectionOpen && (allIds.length > 0 ? (
+              <label className="flex items-center gap-2 text-sm" data-readonly-allow="true">
+                <Checkbox checked={effectiveSelected.size === allIds.length ? true : effectiveSelected.size > 0 ? 'indeterminate' : false} onCheckedChange={(v) => setAll(!!v)} />
+                Tout cocher
+              </label>
+            ) : null)}
+            <Button variant="outline" size="sm" aria-expanded={selectionOpen} onClick={() => { if (!selectionCustomized) setSelected(new Set(allIds)); setSelectionOpen(!selectionOpen); }} data-readonly-allow="true"><SlidersHorizontal />{selectionOpen ? 'Réduire la sélection' : 'Sélection précise'}</Button>
+          </div>
         </div>
         {!selectionOpen && <div className="overflow-auto max-h-[340px]">
           <table className="w-full text-sm workshop-table">
