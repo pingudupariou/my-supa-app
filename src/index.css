@@ -4,6 +4,75 @@
 @tailwind components;
 @tailwind utilities;
 
+.workshop-theme {
+  --primary: 184 76% 32%;
+  --primary-foreground: 0 0% 100%;
+  --accent: 184 44% 94%;
+  --accent-foreground: 184 76% 25%;
+  --ring: 184 76% 32%;
+  --workshop-active: 32 92% 39%;
+  --workshop-active-bg: 36 100% 94%;
+  --workshop-done: 148 57% 29%;
+  --workshop-done-bg: 148 48% 94%;
+}
+.dark .workshop-theme {
+  --primary: 184 61% 49%;
+  --primary-foreground: 0 0% 5%;
+  --accent: 184 30% 15%;
+  --accent-foreground: 184 61% 75%;
+  --workshop-active: 36 90% 68%;
+  --workshop-active-bg: 32 38% 15%;
+  --workshop-done: 148 57% 66%;
+  --workshop-done-bg: 148 30% 14%;
+}
+.workshop-theme .workshop-table thead {
+  background: hsl(var(--muted));
+  color: hsl(var(--muted-foreground));
+}
+.workshop-theme table tbody tr:nth-child(even) {
+  background: hsl(var(--muted) / .35);
+}
+.workshop-theme .workshop-status {
+  border-radius: 3px;
+  text-transform: uppercase;
+  font-size: 10px;
+  white-space: normal;
+  max-width: 220px;
+}
+.workshop-theme .workshop-status-active,
+.workshop-theme .workshop-status-shortage,
+.workshop-theme .workshop-status-covered_shortage,
+.workshop-theme .workshop-status-draft,
+.workshop-theme .workshop-status-unpublished,
+.workshop-theme .workshop-status-in_progress {
+  color: hsl(var(--workshop-active));
+  background: hsl(var(--workshop-active-bg));
+  border-color: hsl(var(--workshop-active) / .25);
+}
+.workshop-theme .workshop-status-covered,
+.workshop-theme .workshop-status-completed {
+  color: hsl(var(--workshop-done));
+  background: hsl(var(--workshop-done-bg));
+  border-color: hsl(var(--workshop-done) / .25);
+}
+.workshop-theme .workshop-status-ready,
+.workshop-theme .workshop-status-released {
+  color: hsl(var(--primary));
+  background: hsl(var(--accent));
+  border-color: hsl(var(--primary) / .25);
+}
+.workshop-theme .workshop-status-failed,
+.workshop-theme .workshop-status-cancelled,
+.workshop-theme .workshop-status-absent {
+  color: hsl(var(--destructive));
+  background: hsl(var(--destructive) / .08);
+  border-color: hsl(var(--destructive) / .25);
+}
+.workshop-theme .financial-card,
+.workshop-theme > div > .rounded-lg {
+  box-shadow: none;
+}
+
 /* Novatoride Financial Dashboard - Industrial Premium Design System */
 /* Inspired by novatoride.com - Black, White, Racing Red */
 
