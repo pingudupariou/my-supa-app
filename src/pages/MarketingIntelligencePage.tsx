@@ -98,6 +98,8 @@ function ShopifySection({ canWrite }: { canWrite: boolean }) {
   const [dash, setDash] = useState<any>(null);
   const [dFrom, setDFrom] = useState(day(ago(30)));
   const [dTo, setDTo] = useState(day(new Date()));
+  const [revType, setRevType] = useState<RevType>('net_ht_ship');
+  const [revOrders, setRevOrders] = useState<any[]>([]);
 
   const loadHistory = useCallback(async () => {
     const { data } = await sb.from('shopify_sync_runs').select('*').order('id', { ascending: false }).limit(10);
@@ -107,6 +109,8 @@ function ShopifySection({ canWrite }: { canWrite: boolean }) {
     const end = new Date(dTo); end.setDate(end.getDate() + 1);
     const { data, error } = await sb.rpc('shopify_dashboard', { _from: new Date(dFrom).toISOString(), _to: end.toISOString() });
     setDash(error ? { error: error.message } : data);
+    try { setRevOrders(await fetchOrdersForRevenue(new Date(dFrom).toISOString(), end.toISOString())); }
+    catch { setRevOrders([]); }
   }, [dFrom, dTo]);
   useEffect(() => { loadHistory(); }, [loadHistory]);
   useEffect(() => { loadDash(); }, [loadDash]);
