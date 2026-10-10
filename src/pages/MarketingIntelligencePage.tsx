@@ -24,19 +24,32 @@ async function readFnError(error: any) {
 function ShopifyTest() {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<any>(null);
-  const test = async () => {
+  const test = async (mode?: string) => {
     setLoading(true); setResult(null);
-    const { data, error } = await supabase.functions.invoke('shopify-test', { method: 'POST', body: {} });
+    const { data, error } = await supabase.functions.invoke('shopify-test', { method: 'POST', body: mode ? { mode } : {} });
     setResult(error ? await readFnError(error) : data);
     setLoading(false);
   };
   return (
     <div className="space-y-2 text-sm">
-      <Button variant="outline" size="sm" onClick={test} disabled={loading}>
-        {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Tester la connexion
-      </Button>
+      <div className="flex gap-2">
+        <Button variant="outline" size="sm" onClick={() => test()} disabled={loading}>
+          {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Tester la connexion
+        </Button>
+        <Button variant="outline" size="sm" onClick={() => test('diag')} disabled={loading}>Diagnostic droits</Button>
+      </div>
       {result?.status === 'error' && <p className="text-destructive">Échec{result.step ? ` (${result.step})` : ''}{result.http ? ` — HTTP ${result.http}` : ''} : {result.message}</p>}
       {result?.status === 'success' && <p>Connecté à <b>{result.shop?.name}</b> — droits : {result.scopes}</p>}
+      {result?.status === 'diag' && (
+        <div className="rounded border p-3 space-y-1">
+          <p><b>Droits accordés :</b> {result.granted_scopes?.join(', ') || '—'} {result.scopes_error && <span className="text-destructive">({result.scopes_error})</span>}</p>
+          <p><b>read_all_orders :</b> {result.has_read_all_orders ? 'accordé' : 'non accordé'}</p>
+          <p><b>Commande de plus de 60 jours (avant {result.cutoff?.slice(0, 10)}) :</b>{' '}
+            {result.old_order ? `lue — ${result.old_order.name} du ${result.old_order.createdAt?.slice(0, 10)}` : result.old_error ? 'refusée' : 'aucune renvoyée'}</p>
+          {result.old_error && <p className="text-destructive"><b>Message Shopify (HTTP {result.old_http}) :</b> {result.old_error}</p>}
+          <p><b>Action :</b> {result.action}</p>
+        </div>
+      )}
     </div>
   );
 }
