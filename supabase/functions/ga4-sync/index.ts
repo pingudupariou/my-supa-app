@@ -129,7 +129,7 @@ Deno.serve(async (req) => {
         report(token, prop, cursor, end, ["date"], ["totalUsers", "newUsers", "sessions"]),
       ]);
       const map = new Map<string, any>();
-      const key = (r: any) => `${r.date}|${r.sessionDefaultChannelGroup}|${r.countryId || "ZZ"}|${r.deviceCategory}`;
+      const key = (r: any) => `${r.date}|${r.sessionDefaultChannelGroup || "(not set)"}|${r.countryId || "ZZ"}|${r.deviceCategory || "(not set)"}`;
       const get = (r: any) => {
         const k = key(r);
         let x = map.get(k);
@@ -143,7 +143,7 @@ Deno.serve(async (req) => {
       await replace(db, "ga4_daily_cube", cursor, end, [...map.values()]);
       const sm = new Map<string, any>();
       for (const r of srcRows) {
-        const k = `${r.date}|${r.sessionSource}|${r.sessionMedium}`;
+        const k = `${r.date}|${r.sessionSource || "(not set)"}|${r.sessionMedium || "(not set)"}`;
         const x = sm.get(k) ?? { day: gaDay(r.date), source: r.sessionSource || "(not set)", medium: r.sessionMedium || "(not set)", sessions: 0, purchases: 0, purchase_revenue: 0, synced_at: now };
         x.sessions += r.sessions; x.purchases += r.ecommercePurchases; x.purchase_revenue += r.purchaseRevenue; sm.set(k, x);
       }
