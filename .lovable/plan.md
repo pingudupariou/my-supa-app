@@ -1,53 +1,42 @@
-## Objectif
+# Marketing Intelligence — suite (Shopify sync, connexions, dashboard)
 
-Permettre, depuis les **Paramètres** du tableau *Données clients* (CRM), de créer des colonnes personnalisées dont l'utilisateur définit le type :
+Ton message s'arrête à « 4. Assistant marketing IA — Prévoir ». Cette partie sera détaillée quand tu l'auras complétée. Le reste est prévu ci-dessous. Erplain, la connexion Shopify existante et les secrets ne sont pas modifiés.
 
-- **Texte libre** (saisie courte)
-- **Menu déroulant** (avec options définies + possibilité de saisir une nouvelle valeur)
-- **Case à cocher** (avec libellé personnalisé)
+## 1. Shopify — synchronisation et tableau de bord
 
-Ces colonnes apparaissent ensuite dans le tableau et sont éditables ligne par ligne comme les colonnes natives.
+**Nouvelles tables (migration soumise à ta validation) :**
+- commandes Shopify (id, numéro, dates de création/mise à jour, pays, devise, totaux bruts, remises, taxes, livraison, remboursé, CA net, statut financier/expédition, annulée)
+- lignes de commande (produit, variante, SKU, quantité, prix, remise)
+- produits et variantes (titre, SKU, prix, coût unitaire si disponible)
+- remboursements (montant, date, lignes concernées)
+- historique des synchronisations (période, début/fin, statut, pages lues, commandes importées/mises à jour, erreurs)
+- Accès : administrateur et rôles ayant le droit sur « Marketing Intelligence » ; écriture uniquement par le serveur.
 
-## Base de données (2 nouvelles tables)
+**Synchronisation :**
+- Choix de période : 30 jours, 90 jours, 12 mois, tout l'historique, dates personnalisées.
+- Bouton « Synchroniser » : progression (pages, commandes), erreurs, nombre importé / mis à jour.
+- Pagination Shopify complète, reprise par lots si la synchro est longue.
+- Doublons évités : chaque commande est enregistrée par son identifiant Shopify et remplacée si elle a changé (date de mise à jour).
+- Au-delà de 60 jours, Shopify demande le droit « lecture de toutes les commandes » : l'appli détecte s'il manque et l'indique clairement.
+- Synchro quotidienne automatique des commandes modifiées depuis la veille.
 
-**`b2b_custom_columns`** — définition des colonnes
-- `name` (libellé affiché en en-tête)
-- `column_type` ('text' | 'select' | 'checkbox')
-- `options` (jsonb — array d'options pour 'select')
-- `sort_order` (entier, position dans le tableau)
+**Tableau de bord Shopify :** filtres de dates ; CA net, nombre de commandes, panier moyen ; ventes par pays et par produit.
 
-**`b2b_client_custom_values`** — valeurs par client
-- `client_id` (fk b2b_clients)
-- `column_id` (fk b2b_custom_columns)
-- `value` (text — stocke la valeur, 'true'/'false' pour checkbox)
-- contrainte unique (client_id, column_id)
+## 2. Section « Connexions »
 
-RLS : lecture/écriture par tout utilisateur authentifié (cohérent avec le modèle collaboratif CRM actuel).
+Cartes Google Ads, GA4, Meta Ads (Crush AI) : état « Non connecté », données prévues, ce qu'il faudra fournir. Rien n'est activé ni appelé tant que tu n'as pas donné les autorisations.
 
-## Interface utilisateur
+## 3. Dashboard marketing global (préparé)
 
-### Panneau Paramètres (`B2BSettingsPanel`)
-Ajout d'une 4ᵉ carte **« Colonnes personnalisées »** :
-- Liste des colonnes existantes (libellé + type + bouton supprimer)
-- Formulaire d'ajout : `nom`, `type` (text / select / checkbox)
-- Si type = `select` : sous-formulaire pour ajouter/supprimer les options
-- Si type = `checkbox` : le libellé saisi sert d'étiquette à cocher
+Comparaison par période, canal, pays, produit : CA Shopify, dépenses Ads, ROAS, MER (CA Shopify ÷ dépenses totales), CPA, conversion, marge quand les coûts existeront. Shopify reste la référence des ventes ; les conversions Meta/Google sont affichées à part, jamais additionnées comme des ventes. Les indicateurs Ads affichent « en attente de connexion » d'ici là.
 
-### Tableau (`B2BClientTable`)
-- Les colonnes custom sont ajoutées à la fin de `ALL_COLUMNS` dynamiquement
-- Intégrées au système existant (réordonnement drag-and-drop, masquage, persistance localStorage)
-- Cellules éditables selon le type :
-  - **text** → `EditableCell` existant
-  - **select** → `EditableSelectCell` avec les options + valeur libre via input
-  - **checkbox** → composant `Checkbox` shadcn avec libellé
+## 4. Assistant marketing IA
 
-## Fichiers modifiés
+À préciser (message coupé).
 
-```text
-supabase/migrations/<timestamp>_b2b_custom_columns.sql   (nouveau)
-src/hooks/useB2BClientsData.ts                           (charge custom_columns + values, CRUD)
-src/components/b2b/B2BSettingsPanel.tsx                  (4ᵉ carte de gestion)
-src/components/b2b/B2BClientTable.tsx                    (rendu dynamique des colonnes custom)
-```
+## Détails techniques
 
-Aucun changement aux colonnes natives existantes — purement additif.
+- Nouvelle fonction serveur `shopify-sync` (réutilise les secrets et l'obtention du token de `shopify-test`), API GraphQL Admin, pagination par curseur, upsert sur l'id Shopify, filtre `updated_at` pour l'incrémental, lots avec reprise.
+- Tâche planifiée quotidienne (pg_cron) appelant `shopify-sync` en mode incrémental.
+- Nouvel onglet de permission `marketing-intelligence` intégré au système de droits existant.
+- Agrégats du tableau de bord calculés côté base (vue/fonction) pour rester rapides.
