@@ -54,6 +54,31 @@ Deno.serve(async (req) => {
     return json({ status: "error", step: "token", shop_domain: shop, http: tokRes.status, message: raw + hint });
   }
 
+  // Temporary read-only diagnostic: granted scopes + one order older than 60 days.
+  const reqBody = await req.json().catch(() => ({}));
+  if (reqBody?.mode === "diag") {
+    const cutoff = new Date(Date.now() - 61 * 86400e3).toISOString();
+    const gq = async (query: string) => {
+      const r = await fetch(`https://${shop}/admin/api/${API_VERSION}/graphql.json`, {
+        method: "POST", headers: { "Content-Type": "application/json", "X-Shopify-Access-Token": tok.access_token },
+        body: JSON.stringify({ query }),
+      });
+      return { http: r.status, body: await r.json().catch(() => ({})) };
+    };
+    const inst = await gq(`{ currentAppInstallation { accessScopes { handle } } }`);
+    const granted: string[] = inst.body?.data?.currentAppInstallation?.accessScopes?.map((s: any) => s.handle) ?? [];
+    const old = await gq(`{ orders(first: 1, sortKey: CREATED_AT, reverse: true, query: "created_at:<'${cutoff}'") { nodes { id name createdAt } } }`);
+    const oldOrder = old.body?.data?.orders?.nodes?.[0] ?? null;
+    const oldError = old.body?.errors ? JSON.stringify(old.body.errors).slice(0, 500) : null;
+    const hasAll = granted.includes("read_all_orders");
+    const action = hasAll
+      ? (oldOrder ? "Aucune action : l'historique complet est accessible." : "Droit accordé, mais aucune commande de plus de 60 jours trouvée.")
+      : "Shopify n'a pas accordé read_all_orders à cette installation. 1) Dans le Dev Dashboard Shopify, demander l'accès protégé « Read all orders » (API access requests) et attendre l'approbation. 2) Puis, dans l'admin de la boutique, accepter la mise à jour des autorisations de Novaride Intelligence (ou réinstaller via le lien de la v3).";
+    return json({ status: "diag", token_scope: tok.scope, granted_scopes: granted, scopes_http: inst.http,
+      scopes_error: inst.body?.errors ? JSON.stringify(inst.body.errors).slice(0, 300) : null,
+      cutoff, old_order: oldOrder, old_http: old.http, old_error: oldError, has_read_all_orders: hasAll, action });
+  }
+
   // 2. Read 5 products and 5 orders.
   const query = `{
     shop { name myshopifyDomain currencyCode }
