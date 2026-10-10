@@ -9,6 +9,7 @@ import { Progress } from '@/components/ui/progress';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Loader2, RefreshCw } from 'lucide-react';
+import { ShopifyReconciliation } from '@/components/marketing/ShopifyReconciliation';
 
 const sb = supabase as any;
 type Period = '30' | '90' | '365' | 'all' | 'custom';
@@ -271,7 +272,7 @@ export function MarketingIntelligencePage() {
           <TabsTrigger value="global" data-readonly-allow>Dashboard global</TabsTrigger>
           <TabsTrigger value="ai" data-readonly-allow>Assistant IA</TabsTrigger>
         </TabsList>
-        <TabsContent value="shopify"><ShopifySection canWrite={access === 'write'} /></TabsContent>
+        <TabsContent value="shopify" className="space-y-6"><ShopifySection canWrite={access === 'write'} /><ShopifyReconciliation /></TabsContent>
         <TabsContent value="connections"><ConnectionsSection /></TabsContent>
         <TabsContent value="global"><GlobalSection /></TabsContent>
         <TabsContent value="ai">
