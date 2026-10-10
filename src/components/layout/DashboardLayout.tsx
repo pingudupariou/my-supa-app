@@ -8,7 +8,7 @@ import { FloatingChat } from '@/components/chat/FloatingChat';
 import { NotificationBell } from '@/components/tasks/NotificationBell';
 import { useTasksData } from '@/hooks/useTasksData';
 import { useTeamMembers } from '@/hooks/useTeamMembers';
-import { Home, Package, Users, Receipt, LineChart, Banknote, BarChart3, TrendingUp, FileText, Shield, LogOut, Menu, X, MessageSquare, Cog, Clock, Database, Tag, CalendarRange, LayoutDashboard, MessagesSquare, ClipboardList, Wrench, Factory } from 'lucide-react';
+import { Home, Package, Users, Receipt, LineChart, Banknote, BarChart3, TrendingUp, FileText, Shield, LogOut, Menu, X, MessageSquare, Cog, Clock, Database, Tag, CalendarRange, LayoutDashboard, MessagesSquare, ClipboardList, Wrench, Factory, Megaphone } from 'lucide-react';
 
 interface NavItem {
   to: string;
@@ -53,6 +53,7 @@ const navGroups: NavGroup[] = [
       { to: '/pricing', label: 'Pricing', icon: Tag, tabKey: 'pricing' },
       { to: '/costflow', label: 'Production et BE', icon: Cog, tabKey: 'costflow' },
       { to: '/plan-atelier', label: 'Plan atelier', icon: Factory, tabKey: 'plan-atelier' },
+      { to: '/marketing-intelligence', label: 'Marketing Intelligence', icon: Megaphone, tabKey: 'marketing-intelligence' },
       { to: '/planning-dev', label: 'Planning Dev', icon: CalendarRange, tabKey: 'planning-dev' },
       { to: '/timetracking', label: "Suivi d'activité", icon: Clock, tabKey: 'timetracking' },
       { to: '/tasks', label: 'Tâches', icon: ClipboardList, tabKey: 'tasks' },

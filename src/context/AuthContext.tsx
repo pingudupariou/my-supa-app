@@ -117,7 +117,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (explicit) return explicit;
     // Chat and Plan atelier must be explicitly granted (read or write); hidden otherwise,
     // matching what the Administration page shows for a missing permission.
-    if (tabKey === 'chat' || tabKey === 'plan-atelier') return 'hidden';
+    if (tabKey === 'chat' || tabKey === 'plan-atelier' || tabKey === 'marketing-intelligence') return 'hidden';
     return 'write';
   };
 

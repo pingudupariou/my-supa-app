@@ -5,3 +5,6 @@ verify_jwt = false
 
 [functions.erplain-sync]
 verify_jwt = false
+
+[functions.shopify-test]
+verify_jwt = false
