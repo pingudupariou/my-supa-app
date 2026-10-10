@@ -1914,6 +1914,156 @@ export type Database = {
         }
         Relationships: []
       }
+      google_ads_campaign_daily: {
+        Row: {
+          campaign_id: number
+          clicks: number
+          conversions: number
+          conversions_value: number
+          cost: number
+          customer_id: number
+          day: string
+          impressions: number
+          synced_at: string
+        }
+        Insert: {
+          campaign_id: number
+          clicks?: number
+          conversions?: number
+          conversions_value?: number
+          cost?: number
+          customer_id: number
+          day: string
+          impressions?: number
+          synced_at?: string
+        }
+        Update: {
+          campaign_id?: number
+          clicks?: number
+          conversions?: number
+          conversions_value?: number
+          cost?: number
+          customer_id?: number
+          day?: string
+          impressions?: number
+          synced_at?: string
+        }
+        Relationships: []
+      }
+      google_ads_campaigns: {
+        Row: {
+          channel_type: string | null
+          customer_id: number
+          id: number
+          name: string | null
+          status: string | null
+          synced_at: string
+        }
+        Insert: {
+          channel_type?: string | null
+          customer_id: number
+          id: number
+          name?: string | null
+          status?: string | null
+          synced_at?: string
+        }
+        Update: {
+          channel_type?: string | null
+          customer_id?: number
+          id?: number
+          name?: string | null
+          status?: string | null
+          synced_at?: string
+        }
+        Relationships: []
+      }
+      google_ads_country_daily: {
+        Row: {
+          campaign_id: number
+          clicks: number
+          conversions: number
+          conversions_value: number
+          cost: number
+          country_code: string | null
+          country_id: number
+          customer_id: number
+          day: string
+          impressions: number
+          synced_at: string
+        }
+        Insert: {
+          campaign_id: number
+          clicks?: number
+          conversions?: number
+          conversions_value?: number
+          cost?: number
+          country_code?: string | null
+          country_id: number
+          customer_id: number
+          day: string
+          impressions?: number
+          synced_at?: string
+        }
+        Update: {
+          campaign_id?: number
+          clicks?: number
+          conversions?: number
+          conversions_value?: number
+          cost?: number
+          country_code?: string | null
+          country_id?: number
+          customer_id?: number
+          day?: string
+          impressions?: number
+          synced_at?: string
+        }
+        Relationships: []
+      }
+      google_ads_sync_runs: {
+        Row: {
+          campaign_rows: number
+          campaigns: number
+          country_rows: number
+          finished_at: string | null
+          id: number
+          message: string | null
+          mode: string
+          period_from: string | null
+          period_to: string | null
+          started_at: string
+          status: string
+          triggered_by: string | null
+        }
+        Insert: {
+          campaign_rows?: number
+          campaigns?: number
+          country_rows?: number
+          finished_at?: string | null
+          id?: number
+          message?: string | null
+          mode: string
+          period_from?: string | null
+          period_to?: string | null
+          started_at?: string
+          status?: string
+          triggered_by?: string | null
+        }
+        Update: {
+          campaign_rows?: number
+          campaigns?: number
+          country_rows?: number
+          finished_at?: string | null
+          id?: number
+          message?: string | null
+          mode?: string
+          period_from?: string | null
+          period_to?: string | null
+          started_at?: string
+          status?: string
+          triggered_by?: string | null
+        }
+        Relationships: []
+      }
       page_images: {
         Row: {
           id: string
@@ -2630,6 +2780,10 @@ export type Database = {
       get_user_role: {
         Args: { _user_id: string }
         Returns: Database["public"]["Enums"]["app_role"]
+      }
+      google_ads_dashboard: {
+        Args: { _from: string; _to: string }
+        Returns: Json
       }
       has_role: {
         Args: {
