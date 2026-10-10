@@ -11,6 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Loader2, RefreshCw } from 'lucide-react';
 import { ShopifyReconciliation } from '@/components/marketing/ShopifyReconciliation';
 import { GoogleAdsSyncCard, GoogleAdsDashboard } from '@/components/marketing/GoogleAdsSection';
+import { GA4SyncCard, GA4Dashboard } from '@/components/marketing/GA4Section';
 
 const sb = supabase as any;
 type Period = '30' | '90' | '365' | 'all' | 'custom';
@@ -310,7 +311,7 @@ function GA4Test() {
 
 function ConnectionsSection({ canWrite }: { canWrite: boolean }) {
   return (
-    <div className="space-y-4"><GoogleAdsSyncCard canWrite={canWrite} />
+    <div className="space-y-4"><GoogleAdsSyncCard canWrite={canWrite} /><GA4SyncCard canWrite={canWrite} />
     <div className="grid gap-4 md:grid-cols-3">
       <Card>
         <CardHeader className="flex flex-row items-center justify-between"><CardTitle className="text-base">Shopify</CardTitle><Badge>Connecté</Badge></CardHeader>
@@ -348,7 +349,7 @@ function GlobalSection() {
     ['Marge', 'En attente des coûts', 'CA net − coût produits − dépenses Ads'],
   ], []);
   return (
-    <div className="space-y-6"><GoogleAdsDashboard />
+    <div className="space-y-6"><GoogleAdsDashboard /><GA4Dashboard />
     <Card>
       <CardHeader><CardTitle>Dashboard marketing global</CardTitle></CardHeader>
       <CardContent className="space-y-4 text-sm">
