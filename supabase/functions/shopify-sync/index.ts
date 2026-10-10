@@ -20,7 +20,6 @@ const ORDERS_Q = `query($after: String, $q: String) { orders(first: 25, after: $
   pageInfo { hasNextPage endCursor }
   nodes { id name createdAt updatedAt processedAt cancelledAt test sourceName
     displayFinancialStatus displayFulfillmentStatus
-    customer { id }
     shippingAddress { countryCodeV2 } billingAddress { countryCodeV2 }
     currentSubtotalPriceSet { shopMoney { amount currencyCode } }
     currentTotalDiscountsSet { shopMoney { amount } }
@@ -174,7 +173,7 @@ Deno.serve(async (req) => {
               // Shopify "current" totals already reflect edits and refunds: net = TTC actuel − taxes.
               net_revenue: Math.round((total - tax) * 100) / 100,
               financial_status: o.displayFinancialStatus, fulfillment_status: o.displayFulfillmentStatus,
-              customer_id: gid(o.customer?.id), synced_at: new Date().toISOString() };
+              synced_at: new Date().toISOString() };
           });
           const up = await db.from("shopify_orders").upsert(rows);
           if (up.error) throw new Error(`Enregistrement commandes : ${up.error.message}`);
