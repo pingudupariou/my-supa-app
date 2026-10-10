@@ -2045,6 +2045,277 @@ export type Database = {
           },
         ]
       }
+      shopify_order_lines: {
+        Row: {
+          current_quantity: number
+          id: number
+          net_amount: number
+          order_id: number
+          product_id: number | null
+          quantity: number
+          sku: string | null
+          title: string | null
+          variant_id: number | null
+          variant_title: string | null
+        }
+        Insert: {
+          current_quantity?: number
+          id: number
+          net_amount?: number
+          order_id: number
+          product_id?: number | null
+          quantity?: number
+          sku?: string | null
+          title?: string | null
+          variant_id?: number | null
+          variant_title?: string | null
+        }
+        Update: {
+          current_quantity?: number
+          id?: number
+          net_amount?: number
+          order_id?: number
+          product_id?: number | null
+          quantity?: number
+          sku?: string | null
+          title?: string | null
+          variant_id?: number | null
+          variant_title?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "shopify_order_lines_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "shopify_orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      shopify_orders: {
+        Row: {
+          cancelled_at: string | null
+          country_code: string | null
+          created_at_shop: string
+          currency: string | null
+          customer_id: number | null
+          financial_status: string | null
+          fulfillment_status: string | null
+          id: number
+          name: string | null
+          net_revenue: number
+          processed_at: string | null
+          source_name: string | null
+          subtotal: number
+          synced_at: string
+          test: boolean
+          total_discounts: number
+          total_price: number
+          total_refunded: number
+          total_shipping: number
+          total_tax: number
+          updated_at_shop: string | null
+        }
+        Insert: {
+          cancelled_at?: string | null
+          country_code?: string | null
+          created_at_shop: string
+          currency?: string | null
+          customer_id?: number | null
+          financial_status?: string | null
+          fulfillment_status?: string | null
+          id: number
+          name?: string | null
+          net_revenue?: number
+          processed_at?: string | null
+          source_name?: string | null
+          subtotal?: number
+          synced_at?: string
+          test?: boolean
+          total_discounts?: number
+          total_price?: number
+          total_refunded?: number
+          total_shipping?: number
+          total_tax?: number
+          updated_at_shop?: string | null
+        }
+        Update: {
+          cancelled_at?: string | null
+          country_code?: string | null
+          created_at_shop?: string
+          currency?: string | null
+          customer_id?: number | null
+          financial_status?: string | null
+          fulfillment_status?: string | null
+          id?: number
+          name?: string | null
+          net_revenue?: number
+          processed_at?: string | null
+          source_name?: string | null
+          subtotal?: number
+          synced_at?: string
+          test?: boolean
+          total_discounts?: number
+          total_price?: number
+          total_refunded?: number
+          total_shipping?: number
+          total_tax?: number
+          updated_at_shop?: string | null
+        }
+        Relationships: []
+      }
+      shopify_products: {
+        Row: {
+          id: number
+          product_type: string | null
+          status: string | null
+          synced_at: string
+          title: string | null
+          updated_at_shop: string | null
+          vendor: string | null
+        }
+        Insert: {
+          id: number
+          product_type?: string | null
+          status?: string | null
+          synced_at?: string
+          title?: string | null
+          updated_at_shop?: string | null
+          vendor?: string | null
+        }
+        Update: {
+          id?: number
+          product_type?: string | null
+          status?: string | null
+          synced_at?: string
+          title?: string | null
+          updated_at_shop?: string | null
+          vendor?: string | null
+        }
+        Relationships: []
+      }
+      shopify_refunds: {
+        Row: {
+          amount: number
+          created_at_shop: string | null
+          id: number
+          order_id: number
+        }
+        Insert: {
+          amount?: number
+          created_at_shop?: string | null
+          id: number
+          order_id: number
+        }
+        Update: {
+          amount?: number
+          created_at_shop?: string | null
+          id?: number
+          order_id?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "shopify_refunds_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "shopify_orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      shopify_sync_runs: {
+        Row: {
+          cursor: string | null
+          errors: Json
+          finished_at: string | null
+          id: number
+          message: string | null
+          mode: string
+          orders_imported: number
+          orders_updated: number
+          pages: number
+          period_from: string | null
+          period_label: string | null
+          period_to: string | null
+          phase: string
+          products_synced: number
+          started_at: string
+          status: string
+          triggered_by: string | null
+          updated_at: string
+        }
+        Insert: {
+          cursor?: string | null
+          errors?: Json
+          finished_at?: string | null
+          id?: number
+          message?: string | null
+          mode?: string
+          orders_imported?: number
+          orders_updated?: number
+          pages?: number
+          period_from?: string | null
+          period_label?: string | null
+          period_to?: string | null
+          phase?: string
+          products_synced?: number
+          started_at?: string
+          status?: string
+          triggered_by?: string | null
+          updated_at?: string
+        }
+        Update: {
+          cursor?: string | null
+          errors?: Json
+          finished_at?: string | null
+          id?: number
+          message?: string | null
+          mode?: string
+          orders_imported?: number
+          orders_updated?: number
+          pages?: number
+          period_from?: string | null
+          period_label?: string | null
+          period_to?: string | null
+          phase?: string
+          products_synced?: number
+          started_at?: string
+          status?: string
+          triggered_by?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      shopify_variants: {
+        Row: {
+          id: number
+          price: number | null
+          product_id: number | null
+          sku: string | null
+          synced_at: string
+          title: string | null
+          unit_cost: number | null
+        }
+        Insert: {
+          id: number
+          price?: number | null
+          product_id?: number | null
+          sku?: string | null
+          synced_at?: string
+          title?: string | null
+          unit_cost?: number | null
+        }
+        Update: {
+          id?: number
+          price?: number | null
+          product_id?: number | null
+          sku?: string | null
+          synced_at?: string
+          title?: string | null
+          unit_cost?: number | null
+        }
+        Relationships: []
+      }
       snapshots: {
         Row: {
           comment: string | null
@@ -2355,6 +2626,7 @@ export type Database = {
     Functions: {
       bump_erplain_mo_reference: { Args: { _min: number }; Returns: undefined }
       current_user_can_write_plan_atelier: { Args: never; Returns: boolean }
+      current_user_marketing_access: { Args: never; Returns: string }
       get_user_role: {
         Args: { _user_id: string }
         Returns: Database["public"]["Enums"]["app_role"]
@@ -2374,6 +2646,7 @@ export type Database = {
           reference: string
         }[]
       }
+      shopify_dashboard: { Args: { _from: string; _to: string }; Returns: Json }
     }
     Enums: {
       app_role:
