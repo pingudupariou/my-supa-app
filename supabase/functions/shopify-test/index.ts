@@ -49,7 +49,8 @@ Deno.serve(async (req) => {
     const hint = tokRes.status === 405 ? " — méthode refusée par Shopify : vérifier le domaine .myshopify.com"
       : tokRes.status === 400 || tokRes.status === 401 ? " — vérifier l'ID client / secret client et que l'application est installée sur cette boutique"
       : tokRes.status === 404 ? " — boutique introuvable à ce domaine" : "";
-    const raw = String(tok.error_description ?? tok.error ?? tokText.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim().slice(0, 300) || tokRes.statusText);
+    const body = tokText.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim().slice(0, 300);
+    const raw = String(tok.error_description ?? tok.error ?? (body || tokRes.statusText));
     return json({ status: "error", step: "token", shop_domain: shop, http: tokRes.status, message: raw + hint });
   }
 
