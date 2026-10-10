@@ -1914,6 +1914,156 @@ export type Database = {
         }
         Relationships: []
       }
+      ga4_daily_cube: {
+        Row: {
+          add_to_cart: number
+          begin_checkout: number
+          channel: string
+          country: string | null
+          country_code: string
+          day: string
+          device: string
+          engaged_sessions: number
+          new_users: number
+          purchase_revenue: number
+          purchases: number
+          sessions: number
+          synced_at: string
+          view_item: number
+        }
+        Insert: {
+          add_to_cart?: number
+          begin_checkout?: number
+          channel: string
+          country?: string | null
+          country_code: string
+          day: string
+          device: string
+          engaged_sessions?: number
+          new_users?: number
+          purchase_revenue?: number
+          purchases?: number
+          sessions?: number
+          synced_at?: string
+          view_item?: number
+        }
+        Update: {
+          add_to_cart?: number
+          begin_checkout?: number
+          channel?: string
+          country?: string | null
+          country_code?: string
+          day?: string
+          device?: string
+          engaged_sessions?: number
+          new_users?: number
+          purchase_revenue?: number
+          purchases?: number
+          sessions?: number
+          synced_at?: string
+          view_item?: number
+        }
+        Relationships: []
+      }
+      ga4_daily_source: {
+        Row: {
+          day: string
+          medium: string
+          purchase_revenue: number
+          purchases: number
+          sessions: number
+          source: string
+          synced_at: string
+        }
+        Insert: {
+          day: string
+          medium: string
+          purchase_revenue?: number
+          purchases?: number
+          sessions?: number
+          source: string
+          synced_at?: string
+        }
+        Update: {
+          day?: string
+          medium?: string
+          purchase_revenue?: number
+          purchases?: number
+          sessions?: number
+          source?: string
+          synced_at?: string
+        }
+        Relationships: []
+      }
+      ga4_daily_users: {
+        Row: {
+          day: string
+          new_users: number
+          sessions: number
+          synced_at: string
+          total_users: number
+        }
+        Insert: {
+          day: string
+          new_users?: number
+          sessions?: number
+          synced_at?: string
+          total_users?: number
+        }
+        Update: {
+          day?: string
+          new_users?: number
+          sessions?: number
+          synced_at?: string
+          total_users?: number
+        }
+        Relationships: []
+      }
+      ga4_sync_runs: {
+        Row: {
+          cube_rows: number
+          day_rows: number
+          finished_at: string | null
+          id: number
+          message: string | null
+          mode: string
+          period_from: string | null
+          period_to: string | null
+          source_rows: number
+          started_at: string
+          status: string
+          triggered_by: string | null
+        }
+        Insert: {
+          cube_rows?: number
+          day_rows?: number
+          finished_at?: string | null
+          id?: number
+          message?: string | null
+          mode: string
+          period_from?: string | null
+          period_to?: string | null
+          source_rows?: number
+          started_at?: string
+          status?: string
+          triggered_by?: string | null
+        }
+        Update: {
+          cube_rows?: number
+          day_rows?: number
+          finished_at?: string | null
+          id?: number
+          message?: string | null
+          mode?: string
+          period_from?: string | null
+          period_to?: string | null
+          source_rows?: number
+          started_at?: string
+          status?: string
+          triggered_by?: string | null
+        }
+        Relationships: []
+      }
       google_ads_campaign_daily: {
         Row: {
           campaign_id: number
@@ -2777,6 +2927,16 @@ export type Database = {
       bump_erplain_mo_reference: { Args: { _min: number }; Returns: undefined }
       current_user_can_write_plan_atelier: { Args: never; Returns: boolean }
       current_user_marketing_access: { Args: never; Returns: string }
+      ga4_dashboard: {
+        Args: {
+          _channel?: string
+          _country?: string
+          _device?: string
+          _from: string
+          _to: string
+        }
+        Returns: Json
+      }
       get_user_role: {
         Args: { _user_id: string }
         Returns: Database["public"]["Enums"]["app_role"]
