@@ -31,6 +31,7 @@ import { ResetPasswordPage } from "@/pages/ResetPasswordPage";
 import { TasksPage } from "@/pages/TasksPage";
 import { SAVPage } from "@/pages/SAVPage";
 import { PlanAtelierPage } from "@/pages/PlanAtelierPage";
+import { MarketingIntelligencePage } from "@/pages/MarketingIntelligencePage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -163,6 +164,13 @@ const App = () => (
                 <ProtectedRoute tabKey="plan-atelier">
                   <DashboardLayout>
                     <PlanAtelierPage />
+                  </DashboardLayout>
+                </ProtectedRoute>
+              } />
+              <Route path="/marketing-intelligence" element={
+                <ProtectedRoute tabKey="marketing-intelligence">
+                  <DashboardLayout>
+                    <MarketingIntelligencePage />
                   </DashboardLayout>
                 </ProtectedRoute>
               } />
