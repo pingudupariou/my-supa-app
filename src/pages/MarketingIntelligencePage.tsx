@@ -270,6 +270,44 @@ const CONNECTORS = [
   { name: 'Meta Ads (Crush AI)', data: 'Dépenses et performances des campagnes', needs: 'Compte publicitaire Meta et autorisation de lecture' },
 ];
 
+function GA4Test() {
+  const [loading, setLoading] = useState(false);
+  const [result, setResult] = useState<any>(null);
+  const test = async () => {
+    setLoading(true); setResult(null);
+    const { data, error } = await supabase.functions.invoke('ga4-test', { method: 'POST', body: {} });
+    setResult(error ? await readFnError(error) : data);
+    setLoading(false);
+  };
+  return (
+    <div className="space-y-2 text-sm">
+      <Button variant="outline" size="sm" onClick={test} disabled={loading}>
+        {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Tester la lecture GA4 (7 jours)
+      </Button>
+      {result?.status === 'error' && <p className="text-destructive">Échec{result.step ? ` (${result.step})` : ''}{result.http ? ` — HTTP ${result.http}` : ''} : {result.message}</p>}
+      {result?.status === 'success' && (
+        <div className="rounded border p-3 space-y-2">
+          <p>Connecté à la propriété <b>{result.property_id}</b> — {result.period} : <b>{result.total_sessions}</b> sessions, <b>{result.total_users}</b> utilisateurs.</p>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div>
+              <p className="font-medium">Par pays</p>
+              <Table><TableHeader><TableRow><TableHead>Pays</TableHead><TableHead className="text-right">Sessions</TableHead></TableRow></TableHeader>
+                <TableBody>{(result.by_country ?? []).slice(0, 10).map((r: any, i: number) => (
+                  <TableRow key={i}><TableCell>{r.country}</TableCell><TableCell className="text-right">{r.sessions}</TableCell></TableRow>))}</TableBody></Table>
+            </div>
+            <div>
+              <p className="font-medium">Par source / support</p>
+              <Table><TableHeader><TableRow><TableHead>Source</TableHead><TableHead className="text-right">Sessions</TableHead></TableRow></TableHeader>
+                <TableBody>{(result.by_source ?? []).slice(0, 10).map((r: any, i: number) => (
+                  <TableRow key={i}><TableCell>{r.sessionSource} / {r.sessionMedium}</TableCell><TableCell className="text-right">{r.sessions}</TableCell></TableRow>))}</TableBody></Table>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ConnectionsSection({ canWrite }: { canWrite: boolean }) {
   return (
     <div className="space-y-4"><GoogleAdsSyncCard canWrite={canWrite} />
@@ -278,7 +316,14 @@ function ConnectionsSection({ canWrite }: { canWrite: boolean }) {
         <CardHeader className="flex flex-row items-center justify-between"><CardTitle className="text-base">Shopify</CardTitle><Badge>Connecté</Badge></CardHeader>
         <CardContent className="text-sm text-muted-foreground">Référence des ventes réelles : commandes, produits, pays, remboursements.</CardContent>
       </Card>
-      {CONNECTORS.map((c) => (
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between"><CardTitle className="text-base">GA4</CardTitle><Badge>Connecté</Badge></CardHeader>
+        <CardContent className="space-y-2 text-sm">
+          <p className="text-muted-foreground">Sessions, acquisition, pays, appareils et tunnel d'achat (lecture seule via compte de service).</p>
+          <GA4Test />
+        </CardContent>
+      </Card>
+      {CONNECTORS.filter((c) => c.name !== 'GA4').map((c) => (
         <Card key={c.name}>
           <CardHeader className="flex flex-row items-center justify-between"><CardTitle className="text-base">{c.name}</CardTitle><Badge variant="outline">Non connecté</Badge></CardHeader>
           <CardContent className="space-y-2 text-sm">
