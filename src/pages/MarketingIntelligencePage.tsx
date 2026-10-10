@@ -10,8 +10,15 @@ export function MarketingIntelligencePage() {
 
   const test = async () => {
     setLoading(true); setResult(null);
-    const { data, error } = await supabase.functions.invoke('shopify-test');
-    setResult(error ? { status: 'error', message: error.message } : data);
+    const { data, error } = await supabase.functions.invoke('shopify-test', { method: 'POST', body: {} });
+    let res = data;
+    if (error) {
+      // Non-2xx from the function: read its JSON body when available.
+      const ctx: any = (error as any).context;
+      res = (ctx && typeof ctx.json === 'function' ? await ctx.json().catch(() => null) : null)
+        ?? { status: 'error', step: 'appel fonction', http: ctx?.status, message: error.message };
+    }
+    setResult(res);
     setLoading(false);
   };
 
@@ -26,7 +33,11 @@ export function MarketingIntelligencePage() {
             {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Tester la connexion Shopify
           </Button>
           {result?.status === 'error' && (
-            <p className="text-sm text-destructive">Échec{result.step ? ` (${result.step})` : ''} : {result.message}</p>
+            <div className="text-sm text-destructive space-y-1">
+              <p>Échec{result.step ? ` — étape : ${result.step}` : ''}{result.http ? ` — HTTP ${result.http}` : ''}</p>
+              <p>{result.message}</p>
+              {result.shop_domain && <p className="text-muted-foreground">Domaine utilisé : {result.shop_domain}</p>}
+            </div>
           )}
           {result?.status === 'success' && (
             <div className="space-y-4 text-sm">
