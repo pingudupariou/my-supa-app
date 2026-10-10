@@ -13,6 +13,39 @@ import { ShopifyReconciliation } from '@/components/marketing/ShopifyReconciliat
 
 const sb = supabase as any;
 type Period = '30' | '90' | '365' | 'all' | 'custom';
+
+type RevType = 'net_ht_ship' | 'net_ht' | 'gross_ht' | 'net_ttc' | 'gross_ttc';
+const REV_TYPES: Record<RevType, { label: string; hint: string; shopify?: string }> = {
+  net_ht_ship: { label: 'CA net HT (livraison incluse)', hint: 'Total actuel − taxes. Livraison incluse.', shopify: undefined },
+  net_ht: { label: 'Ventes nettes HT (hors livraison)', hint: 'Net HT − livraison. Retours à la date de commande (approx.)', shopify: 'Ventes nettes' },
+  gross_ht: { label: 'CA brut HT', hint: 'Avant remises, hors taxes (approx. : net HT + remises actuelles)' },
+  net_ttc: { label: 'CA net TTC', hint: 'Total actuel TTC, retours déduits à la date de commande' },
+  gross_ttc: { label: 'Ventes totales TTC', hint: 'TTC avant retours (retours rajoutés)', shopify: 'Ventes totales' },
+};
+
+async function fetchOrdersForRevenue(fromIso: string, toIso: string) {
+  const cols = 'id,created_at_shop,cancelled_at,test,subtotal,total_discounts,total_tax,total_shipping,total_price,total_refunded,net_revenue';
+  const out: any[] = [];
+  for (let p = 0; ; p++) {
+    const { data, error } = await sb.from('shopify_orders').select(cols)
+      .gte('created_at_shop', fromIso).lt('created_at_shop', toIso).order('id').range(p * 1000, p * 1000 + 999);
+    if (error) throw error;
+    out.push(...(data ?? []));
+    if (!data || data.length < 1000) break;
+  }
+  return out;
+}
+
+function revenueOf(o: any, t: RevType): number {
+  const num = (k: string) => Number(o[k]) || 0;
+  switch (t) {
+    case 'net_ht_ship': return num('net_revenue');
+    case 'net_ht': return num('net_revenue') - num('total_shipping');
+    case 'gross_ht': return num('net_revenue') + num('total_discounts');
+    case 'net_ttc': return num('total_price');
+    case 'gross_ttc': return num('total_price') + num('total_refunded');
+  }
+}
 const PERIODS: Record<Period, string> = { '30': '30 jours', '90': '90 jours', '365': '12 mois', all: "Tout l'historique", custom: 'Dates personnalisées' };
 const day = (d: Date) => d.toISOString().slice(0, 10);
 const ago = (n: number) => new Date(Date.now() - n * 86400e3);
