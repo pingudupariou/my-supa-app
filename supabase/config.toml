@@ -17,3 +17,6 @@ verify_jwt = false
 
 [functions.ga4-test]
 verify_jwt = false
+
+[functions.ga4-sync]
+verify_jwt = false
