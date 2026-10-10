@@ -211,9 +211,20 @@ function ShopifySection({ canWrite }: { canWrite: boolean }) {
           {dash?.error ? <p className="text-sm text-destructive">{dash.error}</p> : (
             <>
               <div className="grid gap-4 sm:grid-cols-3">
-                <Kpi label="CA net HT" value={money(dash?.net_revenue)} hint="Après remises et remboursements, hors taxes" />
+                <Kpi label={revMeta.label} value={money(revenue)} hint={revMeta.hint} shopify={revMeta.shopify} />
                 <Kpi label="Commandes" value={String(dash?.orders ?? 0)} hint="Hors annulées et commandes test" />
-                <Kpi label="Panier moyen" value={money(aov)} hint="CA net ÷ commandes" />
+                <Kpi label="Panier moyen" value={money(aov)} hint={`${revMeta.label} ÷ commandes`} />
+              </div>
+              <div className="rounded border p-3 text-xs text-muted-foreground space-y-1">
+                <p className="font-medium text-foreground">Légende des types de CA</p>
+                {(Object.entries(REV_TYPES) as [RevType, typeof REV_TYPES[RevType]][]).map(([k, t]) => (
+                  <p key={k}>
+                    <b className={k === revType ? 'text-foreground' : ''}>{t.label}</b>
+                    {t.shopify && <Badge variant="secondary" className="mx-1 align-middle">réf. Shopify « {t.shopify} »</Badge>}
+                    {' '}— {t.hint}
+                  </p>
+                ))}
+                <p>Les montants sont les montants « actuels » Shopify (retours déjà déduits à la date de commande, jour UTC). Les badges « réf. Shopify » indiquent les types qui correspondent aux rapports Shopify. Les tableaux par pays et par produit restent en CA net HT.</p>
               </div>
               <div className="grid gap-6 lg:grid-cols-2">
                 <Breakdown title="Par pays" rows={(dash?.by_country ?? []).map((r: any) => [r.country, r.orders, money(r.net_revenue)])} cols={['Pays', 'Commandes', 'CA net']} />
@@ -227,10 +238,10 @@ function ShopifySection({ canWrite }: { canWrite: boolean }) {
   );
 }
 
-function Kpi({ label, value, hint }: { label: string; value: string; hint?: string }) {
+function Kpi({ label, value, hint, shopify }: { label: string; value: string; hint?: string; shopify?: string }) {
   return (
     <div className="rounded-lg border p-4">
-      <p className="text-xs text-muted-foreground">{label}</p>
+      <p className="text-xs text-muted-foreground flex items-center gap-1 flex-wrap">{label}{shopify && <Badge variant="secondary">réf. Shopify « {shopify} »</Badge>}</p>
       <p className="text-2xl font-semibold">{value}</p>
       {hint && <p className="text-xs text-muted-foreground mt-1">{hint}</p>}
     </div>
