@@ -194,9 +194,17 @@ function ShopifySection({ canWrite }: { canWrite: boolean }) {
       <Card>
         <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-3">
           <CardTitle>Ventes Shopify</CardTitle>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <Input type="date" className="w-40" value={dFrom} onChange={(e) => setDFrom(e.target.value)} />
             <Input type="date" className="w-40" value={dTo} onChange={(e) => setDTo(e.target.value)} />
+            <Select value={revType} onValueChange={(v) => setRevType(v as RevType)}>
+              <SelectTrigger className="w-72"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {(Object.entries(REV_TYPES) as [RevType, typeof REV_TYPES[RevType]][]).map(([k, t]) => (
+                  <SelectItem key={k} value={k}>{t.label}{t.shopify ? ' · Shopify' : ''}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
         </CardHeader>
         <CardContent className="space-y-6">
