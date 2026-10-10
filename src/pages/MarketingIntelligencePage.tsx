@@ -135,7 +135,10 @@ function ShopifySection({ canWrite }: { canWrite: boolean }) {
 
   const cur = dash?.currency ?? 'EUR';
   const money = (n: number) => new Intl.NumberFormat('fr-FR', { style: 'currency', currency: cur, maximumFractionDigits: 0 }).format(Number(n) || 0);
-  const aov = dash?.orders ? dash.net_revenue / dash.orders : 0;
+  const counted = revOrders.filter((o) => !o.cancelled_at && !o.test);
+  const revenue = Math.round(counted.reduce((s, o) => s + revenueOf(o, revType), 0) * 100) / 100;
+  const aov = dash?.orders ? revenue / dash.orders : 0;
+  const revMeta = REV_TYPES[revType];
   const progress = run ? (run.status === 'running' ? (run.phase === 'products' ? 15 : 60) : 100) : 0;
 
   return (
