@@ -7,3 +7,4 @@
 - Order selection column visibility is persisted on the current device, independently of calculations — hiding a column must never change selected lines or quantities.
 - Customer names are synced with orders using only scalar name fields verified in the cached Customer definition — avoids guessed Erplain API fields.
 - Refresh the authenticated user's role, approval and tab permissions together on focus and periodically; discard stale responses — role changes must not leave workshop controls locked to an old role.
+- GA4 data is stored per dimension set (day×channel×country×device cube, source/medium table, daily users) and each sync chunk replaces its days — GA4 metrics are not additive across dimension sets and reruns must never duplicate.
