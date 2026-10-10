@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Loader2, RefreshCw } from 'lucide-react';
 import { ShopifyReconciliation } from '@/components/marketing/ShopifyReconciliation';
+import { GoogleAdsSyncCard, GoogleAdsDashboard } from '@/components/marketing/GoogleAdsSection';
 
 const sb = supabase as any;
 type Period = '30' | '90' | '365' | 'all' | 'custom';
@@ -265,13 +266,13 @@ function Breakdown({ title, rows, cols }: { title: string; rows: any[][]; cols: 
 }
 
 const CONNECTORS = [
-  { name: 'Google Ads', data: 'Campagnes, coûts, clics, conversions et valeur', needs: "Compte Google Ads et autorisation d'accès en lecture" },
   { name: 'GA4', data: "Sessions, acquisition, événements et tunnel d'achat", needs: 'Propriété GA4 et accès lecteur' },
   { name: 'Meta Ads (Crush AI)', data: 'Dépenses et performances des campagnes', needs: 'Compte publicitaire Meta et autorisation de lecture' },
 ];
 
-function ConnectionsSection() {
+function ConnectionsSection({ canWrite }: { canWrite: boolean }) {
   return (
+    <div className="space-y-4"><GoogleAdsSyncCard canWrite={canWrite} />
     <div className="grid gap-4 md:grid-cols-3">
       <Card>
         <CardHeader className="flex flex-row items-center justify-between"><CardTitle className="text-base">Shopify</CardTitle><Badge>Connecté</Badge></CardHeader>
@@ -287,21 +288,22 @@ function ConnectionsSection() {
           </CardContent>
         </Card>
       ))}
-    </div>
+    </div></div>
   );
 }
 
 function GlobalSection() {
   const metrics = useMemo(() => [
     ['CA Shopify', 'Disponible', 'Ventes réelles (référence)'],
-    ['Dépenses Ads', 'En attente de connexion', 'Google Ads + Meta Ads'],
+    ['Dépenses Ads', 'Disponible', 'Google Ads (Meta Ads à venir)'],
     ['ROAS par canal', 'En attente de connexion', 'Valeur attribuée par la plateforme ÷ dépenses du canal'],
-    ['MER', 'En attente de connexion', 'CA Shopify ÷ dépenses Ads totales'],
+    ['MER', 'Disponible', 'CA Shopify ÷ dépenses Ads totales'],
     ['CPA', 'En attente de connexion', 'Dépenses ÷ commandes Shopify'],
     ['Taux de conversion', 'En attente de GA4', 'Commandes ÷ sessions'],
     ['Marge', 'En attente des coûts', 'CA net − coût produits − dépenses Ads'],
   ], []);
   return (
+    <div className="space-y-6"><GoogleAdsDashboard />
     <Card>
       <CardHeader><CardTitle>Dashboard marketing global</CardTitle></CardHeader>
       <CardContent className="space-y-4 text-sm">
@@ -314,7 +316,7 @@ function GlobalSection() {
               <TableCell className="text-muted-foreground">{c}</TableCell></TableRow>))}</TableBody>
         </Table>
       </CardContent>
-    </Card>
+    </Card></div>
   );
 }
 
@@ -332,7 +334,7 @@ export function MarketingIntelligencePage() {
           <TabsTrigger value="ai" data-readonly-allow>Assistant IA</TabsTrigger>
         </TabsList>
         <TabsContent value="shopify" className="space-y-6"><ShopifySection canWrite={access === 'write'} /><ShopifyReconciliation /></TabsContent>
-        <TabsContent value="connections"><ConnectionsSection /></TabsContent>
+        <TabsContent value="connections"><ConnectionsSection canWrite={access === 'write'} /></TabsContent>
         <TabsContent value="global"><GlobalSection /></TabsContent>
         <TabsContent value="ai">
           <Card><CardContent className="pt-6 text-sm text-muted-foreground">L'assistant marketing IA sera configuré dès que tu auras précisé ce qu'il doit faire.</CardContent></Card>
