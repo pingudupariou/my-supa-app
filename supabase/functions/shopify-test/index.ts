@@ -15,22 +15,43 @@ Deno.serve(async (req) => {
   const { data: role } = await admin.from("user_roles").select("role, approved").eq("user_id", u.user.id).maybeSingle();
   if (role?.role !== "admin" || !role?.approved) return json({ status: "error", message: "Réservé à l'administrateur" }, 403);
 
-  const shop = (Deno.env.get("SHOPIFY_STORE_DOMAIN") ?? "").trim().replace(/^https?:\/\//, "").replace(/\/.*$/, "");
+  const shop = (Deno.env.get("SHOPIFY_STORE_DOMAIN") ?? "").trim().toLowerCase().replace(/^https?:\/\//, "").replace(/\/.*$/, "");
   const clientId = Deno.env.get("SHOPIFY_CLIENT_ID");
   const clientSecret = Deno.env.get("SHOPIFY_CLIENT_SECRET");
   if (!shop || !clientId || !clientSecret) return json({ status: "error", step: "config", message: "Secrets Shopify manquants" });
+  // The shop domain is not secret: shown so the admin can check it. Never derived from the admin URL.
+  if (!/^[a-z0-9][a-z0-9-]*\.myshopify\.com$/.test(shop)) {
+    return json({ status: "error", step: "config", shop_domain: shop, message: `Domaine invalide « ${shop} » : il doit être de la forme boutique.myshopify.com` });
+  }
 
-  // 1. Server-to-server token (client credentials grant).
-  const tokRes = await fetch(`https://${shop}/admin/oauth/access_token`, {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({ grant_type: "client_credentials", client_id: clientId, client_secret: clientSecret }),
-  });
+  // 1. Server-to-server token (client credentials grant). Redirects are not followed:
+  // a redirected POST becomes a GET, which Shopify answers with 405.
+  const tokUrl = `https://${shop}/admin/oauth/access_token`;
+  let tokRes: Response;
+  try {
+    tokRes = await fetch(tokUrl, {
+      method: "POST",
+      redirect: "manual",
+      headers: { "Content-Type": "application/x-www-form-urlencoded", Accept: "application/json" },
+      body: new URLSearchParams({ grant_type: "client_credentials", client_id: clientId, client_secret: clientSecret }).toString(),
+    });
+  } catch (e) {
+    return json({ status: "error", step: "token", shop_domain: shop, message: `Boutique injoignable : ${(e as Error).message}` });
+  }
+  if (tokRes.status >= 300 && tokRes.status < 400) {
+    return json({ status: "error", step: "token", shop_domain: shop, http: tokRes.status,
+      message: `Shopify redirige vers ${tokRes.headers.get("location") ?? "?"} : le domaine .myshopify.com configuré n'est probablement pas celui de la boutique` });
+  }
   const tokText = await tokRes.text();
   let tok: any = {};
   try { tok = JSON.parse(tokText); } catch { /* not json */ }
   if (!tokRes.ok || !tok.access_token) {
-    return json({ status: "error", step: "token", http: tokRes.status, message: tok.error_description ?? tok.error ?? tokText.slice(0, 300) });
+    const hint = tokRes.status === 405 ? " — méthode refusée par Shopify : vérifier le domaine .myshopify.com"
+      : tokRes.status === 400 || tokRes.status === 401 ? " — vérifier l'ID client / secret client et que l'application est installée sur cette boutique"
+      : tokRes.status === 404 ? " — boutique introuvable à ce domaine" : "";
+    const body = tokText.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim().slice(0, 300);
+    const raw = String(tok.error_description ?? tok.error ?? (body || tokRes.statusText));
+    return json({ status: "error", step: "token", shop_domain: shop, http: tokRes.status, message: raw + hint });
   }
 
   // 2. Read 5 products and 5 orders.
