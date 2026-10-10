@@ -13,6 +13,39 @@ import { ShopifyReconciliation } from '@/components/marketing/ShopifyReconciliat
 
 const sb = supabase as any;
 type Period = '30' | '90' | '365' | 'all' | 'custom';
+
+type RevType = 'net_ht_ship' | 'net_ht' | 'gross_ht' | 'net_ttc' | 'gross_ttc';
+const REV_TYPES: Record<RevType, { label: string; hint: string; shopify?: string }> = {
+  net_ht_ship: { label: 'CA net HT (livraison incluse)', hint: 'Total actuel − taxes. Livraison incluse.', shopify: undefined },
+  net_ht: { label: 'Ventes nettes HT (hors livraison)', hint: 'Net HT − livraison. Retours à la date de commande (approx.)', shopify: 'Ventes nettes' },
+  gross_ht: { label: 'CA brut HT', hint: 'Avant remises, hors taxes (approx. : net HT + remises actuelles)' },
+  net_ttc: { label: 'CA net TTC', hint: 'Total actuel TTC, retours déduits à la date de commande' },
+  gross_ttc: { label: 'Ventes totales TTC', hint: 'TTC avant retours (retours rajoutés)', shopify: 'Ventes totales' },
+};
+
+async function fetchOrdersForRevenue(fromIso: string, toIso: string) {
+  const cols = 'id,created_at_shop,cancelled_at,test,subtotal,total_discounts,total_tax,total_shipping,total_price,total_refunded,net_revenue';
+  const out: any[] = [];
+  for (let p = 0; ; p++) {
+    const { data, error } = await sb.from('shopify_orders').select(cols)
+      .gte('created_at_shop', fromIso).lt('created_at_shop', toIso).order('id').range(p * 1000, p * 1000 + 999);
+    if (error) throw error;
+    out.push(...(data ?? []));
+    if (!data || data.length < 1000) break;
+  }
+  return out;
+}
+
+function revenueOf(o: any, t: RevType): number {
+  const num = (k: string) => Number(o[k]) || 0;
+  switch (t) {
+    case 'net_ht_ship': return num('net_revenue');
+    case 'net_ht': return num('net_revenue') - num('total_shipping');
+    case 'gross_ht': return num('net_revenue') + num('total_discounts');
+    case 'net_ttc': return num('total_price');
+    case 'gross_ttc': return num('total_price') + num('total_refunded');
+  }
+}
 const PERIODS: Record<Period, string> = { '30': '30 jours', '90': '90 jours', '365': '12 mois', all: "Tout l'historique", custom: 'Dates personnalisées' };
 const day = (d: Date) => d.toISOString().slice(0, 10);
 const ago = (n: number) => new Date(Date.now() - n * 86400e3);
@@ -65,6 +98,8 @@ function ShopifySection({ canWrite }: { canWrite: boolean }) {
   const [dash, setDash] = useState<any>(null);
   const [dFrom, setDFrom] = useState(day(ago(30)));
   const [dTo, setDTo] = useState(day(new Date()));
+  const [revType, setRevType] = useState<RevType>('net_ht_ship');
+  const [revOrders, setRevOrders] = useState<any[]>([]);
 
   const loadHistory = useCallback(async () => {
     const { data } = await sb.from('shopify_sync_runs').select('*').order('id', { ascending: false }).limit(10);
@@ -74,6 +109,8 @@ function ShopifySection({ canWrite }: { canWrite: boolean }) {
     const end = new Date(dTo); end.setDate(end.getDate() + 1);
     const { data, error } = await sb.rpc('shopify_dashboard', { _from: new Date(dFrom).toISOString(), _to: end.toISOString() });
     setDash(error ? { error: error.message } : data);
+    try { setRevOrders(await fetchOrdersForRevenue(new Date(dFrom).toISOString(), end.toISOString())); }
+    catch { setRevOrders([]); }
   }, [dFrom, dTo]);
   useEffect(() => { loadHistory(); }, [loadHistory]);
   useEffect(() => { loadDash(); }, [loadDash]);
@@ -98,7 +135,10 @@ function ShopifySection({ canWrite }: { canWrite: boolean }) {
 
   const cur = dash?.currency ?? 'EUR';
   const money = (n: number) => new Intl.NumberFormat('fr-FR', { style: 'currency', currency: cur, maximumFractionDigits: 0 }).format(Number(n) || 0);
-  const aov = dash?.orders ? dash.net_revenue / dash.orders : 0;
+  const counted = revOrders.filter((o) => !o.cancelled_at && !o.test);
+  const revenue = Math.round(counted.reduce((s, o) => s + revenueOf(o, revType), 0) * 100) / 100;
+  const aov = dash?.orders ? revenue / dash.orders : 0;
+  const revMeta = REV_TYPES[revType];
   const progress = run ? (run.status === 'running' ? (run.phase === 'products' ? 15 : 60) : 100) : 0;
 
   return (
@@ -154,18 +194,37 @@ function ShopifySection({ canWrite }: { canWrite: boolean }) {
       <Card>
         <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-3">
           <CardTitle>Ventes Shopify</CardTitle>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <Input type="date" className="w-40" value={dFrom} onChange={(e) => setDFrom(e.target.value)} />
             <Input type="date" className="w-40" value={dTo} onChange={(e) => setDTo(e.target.value)} />
+            <Select value={revType} onValueChange={(v) => setRevType(v as RevType)}>
+              <SelectTrigger className="w-72"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {(Object.entries(REV_TYPES) as [RevType, typeof REV_TYPES[RevType]][]).map(([k, t]) => (
+                  <SelectItem key={k} value={k}>{t.label}{t.shopify ? ' · Shopify' : ''}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
         </CardHeader>
         <CardContent className="space-y-6">
           {dash?.error ? <p className="text-sm text-destructive">{dash.error}</p> : (
             <>
               <div className="grid gap-4 sm:grid-cols-3">
-                <Kpi label="CA net HT" value={money(dash?.net_revenue)} hint="Après remises et remboursements, hors taxes" />
+                <Kpi label={revMeta.label} value={money(revenue)} hint={revMeta.hint} shopify={revMeta.shopify} />
                 <Kpi label="Commandes" value={String(dash?.orders ?? 0)} hint="Hors annulées et commandes test" />
-                <Kpi label="Panier moyen" value={money(aov)} hint="CA net ÷ commandes" />
+                <Kpi label="Panier moyen" value={money(aov)} hint={`${revMeta.label} ÷ commandes`} />
+              </div>
+              <div className="rounded border p-3 text-xs text-muted-foreground space-y-1">
+                <p className="font-medium text-foreground">Légende des types de CA</p>
+                {(Object.entries(REV_TYPES) as [RevType, typeof REV_TYPES[RevType]][]).map(([k, t]) => (
+                  <p key={k}>
+                    <b className={k === revType ? 'text-foreground' : ''}>{t.label}</b>
+                    {t.shopify && <Badge variant="secondary" className="mx-1 align-middle">réf. Shopify « {t.shopify} »</Badge>}
+                    {' '}— {t.hint}
+                  </p>
+                ))}
+                <p>Les montants sont les montants « actuels » Shopify (retours déjà déduits à la date de commande, jour UTC). Les badges « réf. Shopify » indiquent les types qui correspondent aux rapports Shopify. Les tableaux par pays et par produit restent en CA net HT.</p>
               </div>
               <div className="grid gap-6 lg:grid-cols-2">
                 <Breakdown title="Par pays" rows={(dash?.by_country ?? []).map((r: any) => [r.country, r.orders, money(r.net_revenue)])} cols={['Pays', 'Commandes', 'CA net']} />
@@ -179,10 +238,10 @@ function ShopifySection({ canWrite }: { canWrite: boolean }) {
   );
 }
 
-function Kpi({ label, value, hint }: { label: string; value: string; hint?: string }) {
+function Kpi({ label, value, hint, shopify }: { label: string; value: string; hint?: string; shopify?: string }) {
   return (
     <div className="rounded-lg border p-4">
-      <p className="text-xs text-muted-foreground">{label}</p>
+      <p className="text-xs text-muted-foreground flex items-center gap-1 flex-wrap">{label}{shopify && <Badge variant="secondary">réf. Shopify « {shopify} »</Badge>}</p>
       <p className="text-2xl font-semibold">{value}</p>
       {hint && <p className="text-xs text-muted-foreground mt-1">{hint}</p>}
     </div>
