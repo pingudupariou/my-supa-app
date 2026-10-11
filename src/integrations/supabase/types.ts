@@ -2214,6 +2214,153 @@ export type Database = {
         }
         Relationships: []
       }
+      meta_ads_campaign_daily: {
+        Row: {
+          account_id: string
+          campaign_id: number
+          clicks: number
+          day: string
+          impressions: number
+          purchase_value: number
+          purchases: number
+          spend: number
+          synced_at: string
+        }
+        Insert: {
+          account_id: string
+          campaign_id: number
+          clicks?: number
+          day: string
+          impressions?: number
+          purchase_value?: number
+          purchases?: number
+          spend?: number
+          synced_at?: string
+        }
+        Update: {
+          account_id?: string
+          campaign_id?: number
+          clicks?: number
+          day?: string
+          impressions?: number
+          purchase_value?: number
+          purchases?: number
+          spend?: number
+          synced_at?: string
+        }
+        Relationships: []
+      }
+      meta_ads_campaigns: {
+        Row: {
+          account_id: string
+          id: number
+          name: string | null
+          objective: string | null
+          status: string | null
+          synced_at: string
+        }
+        Insert: {
+          account_id: string
+          id: number
+          name?: string | null
+          objective?: string | null
+          status?: string | null
+          synced_at?: string
+        }
+        Update: {
+          account_id?: string
+          id?: number
+          name?: string | null
+          objective?: string | null
+          status?: string | null
+          synced_at?: string
+        }
+        Relationships: []
+      }
+      meta_ads_country_daily: {
+        Row: {
+          account_id: string
+          campaign_id: number
+          clicks: number
+          country_code: string
+          day: string
+          impressions: number
+          purchase_value: number
+          purchases: number
+          spend: number
+          synced_at: string
+        }
+        Insert: {
+          account_id: string
+          campaign_id: number
+          clicks?: number
+          country_code: string
+          day: string
+          impressions?: number
+          purchase_value?: number
+          purchases?: number
+          spend?: number
+          synced_at?: string
+        }
+        Update: {
+          account_id?: string
+          campaign_id?: number
+          clicks?: number
+          country_code?: string
+          day?: string
+          impressions?: number
+          purchase_value?: number
+          purchases?: number
+          spend?: number
+          synced_at?: string
+        }
+        Relationships: []
+      }
+      meta_ads_sync_runs: {
+        Row: {
+          campaign_rows: number
+          campaigns: number
+          country_rows: number
+          finished_at: string | null
+          id: number
+          message: string | null
+          mode: string
+          period_from: string | null
+          period_to: string | null
+          started_at: string
+          status: string
+          triggered_by: string | null
+        }
+        Insert: {
+          campaign_rows?: number
+          campaigns?: number
+          country_rows?: number
+          finished_at?: string | null
+          id?: number
+          message?: string | null
+          mode: string
+          period_from?: string | null
+          period_to?: string | null
+          started_at?: string
+          status?: string
+          triggered_by?: string | null
+        }
+        Update: {
+          campaign_rows?: number
+          campaigns?: number
+          country_rows?: number
+          finished_at?: string | null
+          id?: number
+          message?: string | null
+          mode?: string
+          period_from?: string | null
+          period_to?: string | null
+          started_at?: string
+          status?: string
+          triggered_by?: string | null
+        }
+        Relationships: []
+      }
       page_images: {
         Row: {
           id: string
@@ -2953,6 +3100,10 @@ export type Database = {
         Returns: boolean
       }
       is_user_approved: { Args: { _user_id: string }; Returns: boolean }
+      meta_ads_dashboard: {
+        Args: { _from: string; _to: string }
+        Returns: Json
+      }
       next_erplain_mo_reference: {
         Args: never
         Returns: {

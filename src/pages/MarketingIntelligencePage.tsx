@@ -12,6 +12,7 @@ import { Loader2, RefreshCw } from 'lucide-react';
 import { ShopifyReconciliation } from '@/components/marketing/ShopifyReconciliation';
 import { GoogleAdsSyncCard, GoogleAdsDashboard } from '@/components/marketing/GoogleAdsSection';
 import { GA4SyncCard, GA4Dashboard } from '@/components/marketing/GA4Section';
+import { MetaAdsSyncCard, MetaAdsDashboard } from '@/components/marketing/MetaAdsSection';
 
 const sb = supabase as any;
 type Period = '30' | '90' | '365' | 'all' | 'custom';
@@ -345,7 +346,7 @@ function MetaTest() {
 
 function ConnectionsSection({ canWrite }: { canWrite: boolean }) {
   return (
-    <div className="space-y-4"><GoogleAdsSyncCard canWrite={canWrite} /><GA4SyncCard canWrite={canWrite} />
+    <div className="space-y-4"><GoogleAdsSyncCard canWrite={canWrite} /><GA4SyncCard canWrite={canWrite} /><MetaAdsSyncCard canWrite={canWrite} />
     <div className="grid gap-4 md:grid-cols-3">
       <Card>
         <CardHeader className="flex flex-row items-center justify-between"><CardTitle className="text-base">Shopify</CardTitle><Badge>Connecté</Badge></CardHeader>
@@ -372,7 +373,7 @@ function ConnectionsSection({ canWrite }: { canWrite: boolean }) {
 function GlobalSection() {
   const metrics = useMemo(() => [
     ['CA Shopify', 'Disponible', 'Ventes réelles (référence)'],
-    ['Dépenses Ads', 'Disponible', 'Google Ads (Meta Ads à venir)'],
+    ['Dépenses Ads', 'Disponible', 'Google Ads + Meta Ads'],
     ['ROAS par canal', 'En attente de connexion', 'Valeur attribuée par la plateforme ÷ dépenses du canal'],
     ['MER', 'Disponible', 'CA Shopify ÷ dépenses Ads totales'],
     ['CPA', 'En attente de connexion', 'Dépenses ÷ commandes Shopify'],
@@ -380,7 +381,7 @@ function GlobalSection() {
     ['Marge', 'En attente des coûts', 'CA net − coût produits − dépenses Ads'],
   ], []);
   return (
-    <div className="space-y-6"><GoogleAdsDashboard /><GA4Dashboard />
+    <div className="space-y-6"><MetaAdsDashboard /><GoogleAdsDashboard /><GA4Dashboard />
     <Card>
       <CardHeader><CardTitle>Dashboard marketing global</CardTitle></CardHeader>
       <CardContent className="space-y-4 text-sm">
