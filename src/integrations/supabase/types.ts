@@ -2380,6 +2380,173 @@ export type Database = {
           },
         ]
       }
+      merchant_offer_countries: {
+        Row: {
+          country: string
+          destinations: Json
+          offer_name: string
+          status: string
+        }
+        Insert: {
+          country: string
+          destinations?: Json
+          offer_name: string
+          status: string
+        }
+        Update: {
+          country?: string
+          destinations?: Json
+          offer_name?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "merchant_offer_countries_offer_name_fkey"
+            columns: ["offer_name"]
+            isOneToOne: false
+            referencedRelation: "merchant_offers"
+            referencedColumns: ["name"]
+          },
+        ]
+      }
+      merchant_offers: {
+        Row: {
+          availability: string | null
+          brand: string | null
+          color: string | null
+          content_language: string | null
+          currency: string | null
+          custom_label_0: string | null
+          custom_label_1: string | null
+          custom_label_2: string | null
+          custom_label_3: string | null
+          custom_label_4: string | null
+          feed_label: string | null
+          gtin: string | null
+          image_link: string | null
+          issues: Json
+          item_group_id: string | null
+          last_run_id: string | null
+          link: string | null
+          match_method: string
+          mpn: string | null
+          name: string
+          offer_id: string
+          price: number | null
+          product_type: string | null
+          shopify_product_id: number | null
+          shopify_variant_id: number | null
+          size: string | null
+          sku: string | null
+          synced_at: string
+          title: string | null
+        }
+        Insert: {
+          availability?: string | null
+          brand?: string | null
+          color?: string | null
+          content_language?: string | null
+          currency?: string | null
+          custom_label_0?: string | null
+          custom_label_1?: string | null
+          custom_label_2?: string | null
+          custom_label_3?: string | null
+          custom_label_4?: string | null
+          feed_label?: string | null
+          gtin?: string | null
+          image_link?: string | null
+          issues?: Json
+          item_group_id?: string | null
+          last_run_id?: string | null
+          link?: string | null
+          match_method?: string
+          mpn?: string | null
+          name: string
+          offer_id: string
+          price?: number | null
+          product_type?: string | null
+          shopify_product_id?: number | null
+          shopify_variant_id?: number | null
+          size?: string | null
+          sku?: string | null
+          synced_at?: string
+          title?: string | null
+        }
+        Update: {
+          availability?: string | null
+          brand?: string | null
+          color?: string | null
+          content_language?: string | null
+          currency?: string | null
+          custom_label_0?: string | null
+          custom_label_1?: string | null
+          custom_label_2?: string | null
+          custom_label_3?: string | null
+          custom_label_4?: string | null
+          feed_label?: string | null
+          gtin?: string | null
+          image_link?: string | null
+          issues?: Json
+          item_group_id?: string | null
+          last_run_id?: string | null
+          link?: string | null
+          match_method?: string
+          mpn?: string | null
+          name?: string
+          offer_id?: string
+          price?: number | null
+          product_type?: string | null
+          shopify_product_id?: number | null
+          shopify_variant_id?: number | null
+          size?: string | null
+          sku?: string | null
+          synced_at?: string
+          title?: string | null
+        }
+        Relationships: []
+      }
+      merchant_sync_runs: {
+        Row: {
+          error: string | null
+          finished_at: string | null
+          id: string
+          matched: number
+          mode: string
+          offers_read: number
+          page_token: string | null
+          removed: number
+          started_at: string
+          status: string
+          triggered_by: string | null
+        }
+        Insert: {
+          error?: string | null
+          finished_at?: string | null
+          id?: string
+          matched?: number
+          mode?: string
+          offers_read?: number
+          page_token?: string | null
+          removed?: number
+          started_at?: string
+          status?: string
+          triggered_by?: string | null
+        }
+        Update: {
+          error?: string | null
+          finished_at?: string | null
+          id?: string
+          matched?: number
+          mode?: string
+          offers_read?: number
+          page_token?: string | null
+          removed?: number
+          started_at?: string
+          status?: string
+          triggered_by?: string | null
+        }
+        Relationships: []
+      }
       meta_ads_campaign_daily: {
         Row: {
           account_id: string
