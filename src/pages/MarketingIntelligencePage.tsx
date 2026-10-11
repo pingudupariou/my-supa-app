@@ -14,6 +14,7 @@ import { GoogleAdsSyncCard, GoogleAdsDashboard } from '@/components/marketing/Go
 import { GA4SyncCard, GA4Dashboard } from '@/components/marketing/GA4Section';
 import { MetaAdsSyncCard, MetaAdsDashboard } from '@/components/marketing/MetaAdsSection';
 import { MarketingCockpit } from '@/components/marketing/cockpit/MarketingCockpit';
+import { MarketingTasks, TaskSummary } from '@/components/marketing/tasks/MarketingTasks';
 
 const sb = supabase as any;
 type Period = '30' | '90' | '365' | 'all' | 'custom';
@@ -412,19 +413,23 @@ function GlobalSection() {
 
 export function MarketingIntelligencePage() {
   const [access, setAccess] = useState<string>('read');
+  const [tab, setTab] = useState('cockpit');
   useEffect(() => { sb.rpc('current_user_marketing_access').then(({ data }: any) => data && setAccess(data)); }, []);
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-bold">Marketing Intelligence</h1>
-      <Tabs defaultValue="cockpit">
+      <TaskSummary onOpen={() => setTab('tasks')} />
+      <Tabs value={tab} onValueChange={setTab}>
         <TabsList>
           <TabsTrigger value="cockpit" data-readonly-allow>Cockpit</TabsTrigger>
+          <TabsTrigger value="tasks" data-readonly-allow>Tâches</TabsTrigger>
           <TabsTrigger value="shopify" data-readonly-allow>Shopify</TabsTrigger>
           <TabsTrigger value="connections" data-readonly-allow>Connexions</TabsTrigger>
           <TabsTrigger value="global" data-readonly-allow>Détails par source</TabsTrigger>
           <TabsTrigger value="ai" data-readonly-allow>Assistant IA</TabsTrigger>
         </TabsList>
-        <TabsContent value="cockpit"><MarketingCockpit /></TabsContent>
+        <TabsContent value="cockpit"><MarketingCockpit canWrite={access === 'write'} /></TabsContent>
+        <TabsContent value="tasks"><MarketingTasks canWrite={access === 'write'} /></TabsContent>
         <TabsContent value="shopify" className="space-y-6"><ShopifySection canWrite={access === 'write'} /><ShopifyReconciliation /></TabsContent>
         <TabsContent value="connections"><ConnectionsSection canWrite={access === 'write'} /></TabsContent>
         <TabsContent value="global"><GlobalSection /></TabsContent>

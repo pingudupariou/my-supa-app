@@ -3,17 +3,26 @@ import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Loader2, RotateCcw, ScanSearch } from 'lucide-react';
+import { ListPlus, Loader2, RotateCcw, ScanSearch } from 'lucide-react';
+import { toast } from 'sonner';
+import { createFromRecommendation } from '../tasks/taskApi';
+import { notifyTasksChanged } from '../tasks/MarketingTasks';
 
 type Finding = { kind: string; scope: string; title: string; fact: string; hypothesis: string | null; confidence: string };
-type Action = { priority: number; category: string; title: string; detail: string; country: string | null; campaign: string | null; expected_impact: string; confidence: string; justification: string };
+type Action = { priority: number; urgency?: string; category: string; title: string; detail: string; country: string | null; campaign: string | null; expected_impact: string; confidence: string; justification: string };
 type Result = { summary: string; findings: Finding[]; actions: Action[]; data_limits: string[] };
 
-const KIND: Record<string, string> = { anomalie: 'Anomalie', tendance: 'Tendance', opportunite: 'Opportunité' };
+const KIND: Record<string, string> = { anomalie: 'Anomalie', tendance: 'Tendance', opportunite: 'Opportunité', ecart_donnees: 'Écart de données' };
+const URG: Record<string, string> = { immediate: 'Immédiat', cette_semaine: 'Cette semaine', ce_mois: 'Ce mois', a_surveiller: 'À surveiller' };
 
 /** Diagnostic IA : envoie uniquement le résumé chiffré du cockpit ; résultat mis en cache côté serveur. */
-export function AiDiagnosis({ summary, from, to, filters }: { summary: unknown; from: string; to: string; filters: unknown }) {
-  const [res, setRes] = useState<{ result: Result; cached: boolean; created_at: string } | null>(null);
+export function AiDiagnosis({ summary, from, to, filters, canWrite = false }: { summary: unknown; from: string; to: string; filters: unknown; canWrite?: boolean }) {
+  const [made, setMade] = useState<Record<number, string>>({});
+  const toTask = async (a: Action, i: number) => {
+    try { const r = await createFromRecommendation(a, res?.id ?? null); setMade((m) => ({ ...m, [i]: r.duplicate ? 'Déjà suivie (récurrence +1)' : 'Tâche créée' })); toast.success(r.duplicate ? 'Une tâche ouverte existe déjà : récurrence enregistrée' : 'Tâche créée'); notifyTasksChanged(); }
+    catch (e: any) { toast.error(e.message ?? 'Erreur'); }
+  };
+  const [res, setRes] = useState<{ id?: string | null; result: Result; cached: boolean; created_at: string } | null>(null);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState('');
   const run = async (force = false) => {
@@ -49,7 +58,8 @@ export function AiDiagnosis({ summary, from, to, filters }: { summary: unknown; 
           <CardContent className="space-y-3">{[...r.actions].sort((a, b) => a.priority - b.priority).map((a, i) => (
             <div key={i} className="rounded-md border p-3 text-sm space-y-1">
               <div className="flex flex-wrap items-center gap-2"><Badge>{a.priority}</Badge><span className="font-medium">{a.title}</span><Badge variant="secondary">{a.category}</Badge>
-                {a.country && <Badge variant="outline">{a.country}</Badge>}{a.campaign && <Badge variant="outline">{a.campaign}</Badge>}<Badge variant="outline">Confiance {a.confidence}</Badge></div>
+                {a.country && <Badge variant="outline">{a.country}</Badge>}{a.campaign && <Badge variant="outline">{a.campaign}</Badge>}{a.urgency && <Badge variant={a.urgency === 'immediate' ? 'destructive' : 'outline'}>Urgence : {URG[a.urgency] ?? a.urgency}</Badge>}<Badge variant="outline">Confiance {a.confidence}</Badge>
+                {canWrite && <Button size="sm" variant="outline" className="ml-auto" disabled={!!made[i]} onClick={() => toTask(a, i)}><ListPlus className="mr-1 h-4 w-4" />{made[i] ?? 'Créer une tâche'}</Button>}</div>
               <p>{a.detail}</p>
               <p className="text-muted-foreground"><span className="font-medium text-foreground">Impact attendu :</span> {a.expected_impact}</p>
               <p className="text-muted-foreground"><span className="font-medium text-foreground">Justification :</span> {a.justification}</p>

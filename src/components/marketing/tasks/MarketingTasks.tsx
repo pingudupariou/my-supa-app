@@ -9,12 +9,11 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { AlertTriangle, Loader2, Plus, Repeat, Sparkles as _unused } from 'lucide-react';
+import { AlertTriangle, Loader2, Plus, Repeat } from 'lucide-react';
 import { useTeamMembers } from '@/hooks/useTeamMembers';
 import { toast } from 'sonner';
 import { addEvent, CHANNELS, isLate, listEvents, listTasks, OPEN, PRIO_L, PRIORITIES, saveTask, STATUS_L, STATUSES, type Task, type TaskEvent } from './taskApi';
 
-void _unused;
 const ALL = '__all';
 const FREE = '__free';
 const NONE = '__none';
