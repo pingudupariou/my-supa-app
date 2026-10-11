@@ -12,3 +12,6 @@
 - Compute optional daily moving averages client-side from seven consecutive complete actual values, leaving gaps for missing dates or undefined ratios, to preserve real curves without additional requests.
 - AI marketing analyses receive only the cockpit's compact aggregate summary and are cached by its SHA-256 in marketing_ai_analyses (limit per user per 24 h) — avoids paying twice for identical analyses and never sends raw rows.
 - Marketing task dedupe uses a normalized key (régie|pays|campagne|title keywords) unique among open tasks; a returning AI recommendation bumps recurrence_count and logs an event instead of creating a duplicate.
+
+- Merchant Center offers are matched to Shopify only by exact variant ID in the offer ID, then unique exact SKU (also inside the same product); never by title — avoids false matches.
+- merchant_offer_countries keeps one row per offer × country (best status across destinations) — prevents country counters exceeding offer counts.
