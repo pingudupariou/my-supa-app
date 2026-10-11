@@ -118,7 +118,12 @@ Deno.serve(async (req) => {
     const { data: running } = await db.from("shopify_sync_runs").select("id, updated_at").eq("status", "running");
     const stale = (running ?? []).filter((r: any) => Date.now() - new Date(r.updated_at).getTime() > 10 * 60e3);
     if (stale.length) await db.from("shopify_sync_runs").update({ status: "error", message: "Interrompue", finished_at: new Date().toISOString() }).in("id", stale.map((r: any) => r.id));
-    if ((running ?? []).length > stale.length) return json({ status: "error", message: "Une synchronisation est déjà en cours" }, 409);
+    if ((running ?? []).length > stale.length) {
+      // Another sync is active: report it (200) so the UI follows it instead of crashing.
+      const activeId = (running ?? []).find((r: any) => !stale.some((s: any) => s.id === r.id))?.id;
+      const { data: active } = await db.from("shopify_sync_runs").select("*").eq("id", activeId).maybeSingle();
+      return json({ status: "busy", message: "Une synchronisation est déjà en cours", run: active });
+    }
     const { data } = await db.from("shopify_sync_runs").insert({ mode: "manual", period_label: String(body?.label ?? "").slice(0, 60) || null,
       period_from: from?.toISOString() ?? null, period_to: to?.toISOString() ?? null, triggered_by: userId, phase: "products" }).select().single();
     run = data;

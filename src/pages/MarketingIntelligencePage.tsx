@@ -129,6 +129,17 @@ function ShopifySection({ canWrite }: { canWrite: boolean }) {
         const { data, error } = await supabase.functions.invoke('shopify-sync', { body });
         const res = error ? await readFnError(error) : data;
         if (res?.run) setRun(res.run); else setRun({ status: 'error', message: res?.message, errors: [] });
+        if (res?.status === 'busy') {
+          // Follow the sync already running (other tab, nightly job or double click) until it ends.
+          for (let j = 0; j < 120; j++) {
+            await new Promise((r) => setTimeout(r, 5000));
+            const { data: r } = await sb.from('shopify_sync_runs').select('*').eq('id', res.run?.id).maybeSingle();
+            if (!r) break;
+            setRun({ ...r, message: r.status === 'running' ? `Synchronisation déjà en cours, suivi… ${r.message ?? ''}` : r.message });
+            if (r.status !== 'running') break;
+          }
+          break;
+        }
         if (res?.status !== 'partial') break;
         body = { run_id: res.run.id };
       }
