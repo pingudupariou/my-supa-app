@@ -68,6 +68,7 @@ export function AiStrategy({ canWrite }: { canWrite: boolean }) {
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState<any>(null);
   const [err, setErr] = useState<string | null>(null);
+  const [rel, setRel] = useState<any>(null);
 
   const poll = async (id: string) => {
     for (let i = 0; i < 75; i++) {
@@ -87,6 +88,7 @@ export function AiStrategy({ canWrite }: { canWrite: boolean }) {
     localStorage.setItem(BUDGET_KEY, String(budget));
     const { data: d, error } = await supabase.functions.invoke('marketing-strategy', { body: { monthly_budget: budget, ...opts } });
     if (error) { setLoading(false); let msg = error.message; try { msg = (await (error as any).context?.json())?.error ?? msg; } catch { /* */ } setErr(msg); return; }
+    if (d?.reliability) setRel(d.reliability);
     if (d?.pending && d.id) return poll(d.id);
     setLoading(false);
     if (d?.result) setData(d);
@@ -112,6 +114,12 @@ export function AiStrategy({ canWrite }: { canWrite: boolean }) {
           {err && <p className="w-full text-sm text-destructive">{err}</p>}
         </CardContent>
       </Card>
+
+      {rel && <Card><CardHeader className="pb-2"><CardTitle className="flex items-center gap-2 text-base">Fiabilité des données
+          <Badge variant={rel.level === 'fiable' ? 'default' : rel.level === 'correcte' ? 'secondary' : 'destructive'}>{rel.level === 'fiable' ? 'Fiable' : rel.level === 'correcte' ? 'Correcte' : 'Fragile'} · {rel.score}/100</Badge></CardTitle></CardHeader>
+        <CardContent className="grid gap-1 text-sm md:grid-cols-2">{rel.checks.map((c: any, i: number) => (
+          <div key={i} className="flex gap-2"><span className={c.level === 'ok' ? 'text-primary' : c.level === 'warn' ? 'text-muted-foreground' : 'text-destructive'}>{c.level === 'ok' ? '●' : c.level === 'warn' ? '◐' : '○'}</span>
+            <span><span className="font-medium">{c.label}</span> <span className="text-muted-foreground">— {c.detail}</span></span></div>))}</CardContent></Card>}
 
       {!r && !loading && <Card><CardContent className="pt-6 text-sm text-muted-foreground">Aucune analyse pour les données actuelles. Lance « Analyser la stratégie ».</CardContent></Card>}
       {r && <>

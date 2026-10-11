@@ -73,6 +73,17 @@ Deno.serve(async (req) => {
     campaign_id: r.campaign.id, lost_budget: r.metrics?.searchBudgetLostImpressionShare ?? null, impression_share: r.metrics?.searchImpressionShare ?? null,
   })));
 
+  // Conversion setup (read-only): which actions are primary / counted in "Conversions" used for bidding.
+  await section("conversion_actions", async () => (await search(customer, `SELECT conversion_action.id, conversion_action.name, conversion_action.category, conversion_action.type, conversion_action.status, conversion_action.primary_for_goal, conversion_action.include_in_conversions_metric, conversion_action.counting_type, conversion_action.value_settings.default_value, conversion_action.value_settings.always_use_default_value FROM conversion_action WHERE conversion_action.status != 'REMOVED'`)).map((r) => ({
+    id: r.conversionAction.id, name: r.conversionAction.name, category: r.conversionAction.category, type: r.conversionAction.type, status: r.conversionAction.status,
+    primary: r.conversionAction.primaryForGoal ?? null, in_conversions: r.conversionAction.includeInConversionsMetric ?? null, counting: r.conversionAction.countingType,
+    default_value: r.conversionAction.valueSettings?.defaultValue ?? null, always_default: r.conversionAction.valueSettings?.alwaysUseDefaultValue ?? null,
+  })));
+  await section("conversions_by_action_30d", async () => (await search(customer, `SELECT segments.conversion_action_name, segments.conversion_action_category, metrics.conversions, metrics.conversions_value, metrics.all_conversions, metrics.all_conversions_value FROM customer WHERE segments.date DURING LAST_30_DAYS`)).map((r) => ({
+    name: r.segments?.conversionActionName, category: r.segments?.conversionActionCategory,
+    conversions: Number(r.metrics?.conversions ?? 0), value: Number(r.metrics?.conversionsValue ?? 0), all_conversions: Number(r.metrics?.allConversions ?? 0), all_value: Number(r.metrics?.allConversionsValue ?? 0),
+  })));
+
   await section("criteria", async () => {
     const rows = await search(customer, `SELECT campaign.id, campaign_criterion.type, campaign_criterion.negative, campaign_criterion.location.geo_target_constant, campaign_criterion.language.language_constant, campaign_criterion.keyword.text FROM campaign_criterion WHERE campaign.status != 'REMOVED' AND campaign_criterion.status != 'REMOVED' AND campaign_criterion.type IN ('LOCATION','LANGUAGE','KEYWORD')`);
     const geoIds = [...new Set(rows.map((r) => r.campaignCriterion.location?.geoTargetConstant?.split("/").pop()).filter(Boolean))];
