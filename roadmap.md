@@ -1,5 +1,7 @@
 - [x] Simplifier le Plan atelier avec couleurs Erplain et détails dépliables, sans changer les calculs ou les protections d’envoi.
-- [ ] Distinguer les montants Shopify HT, ajouter la moyenne glissante quotidienne et renommer le ratio Shopify / GA4 sans refonte.
+- [x] Afficher CA total HT (base MER inchangée), livraison importée et ventes hors livraison estimées ; moyenne glissante quotidienne optionnelle et ratio Shopify / GA4 renommé ; 4 tests réussis.
+- [ ] Obtenir la ventilation HT exacte hors livraison : taxes et remboursements de livraison absents des données actuellement importées.
+- [ ] Vérifier ces ajustements avec les données réelles : accès connecté indisponible pour ce Supabase externe.
 - [x] Vérifier le parcours opérateur simplifié et la sélection précise : 7 tests réussis et contrôle visuel sur données de test, sans envoi réel.
 - [x] Afficher le client et la date de création dans la sélection des commandes.
 - [x] Ajouter un choix visible des colonnes, mémorisé sur cet appareil.
