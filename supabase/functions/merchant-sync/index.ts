@@ -110,6 +110,12 @@ Deno.serve(async (req) => {
         let vid: number | null = null, pid: number | null = null, method = "none";
         const m = offerId.match(/shopify_[a-z]{2,3}_(\d+)_(\d+)/i);
         if (m && variants.has(Number(m[2]))) { vid = Number(m[2]); pid = variants.get(vid) ?? Number(m[1]); method = "variant_id"; }
+        // Format "<productId>_<sku>" (other Shopify feeds): exact SKU inside the same Shopify product.
+        const ps = offerId.match(/^(\d{8,})_(.+)$/);
+        if (!vid && ps) {
+          const hit = (skuMap.get(norm(ps[2])) ?? []).filter((h) => Number(h.pid) === Number(ps[1]));
+          if (hit.length === 1) { vid = hit[0].id; pid = hit[0].pid; method = "product_sku"; }
+        }
         if (!vid) {
           for (const k of [norm(a.sku), norm(offerId), norm(a.mpn)]) {
             const hit = k ? skuMap.get(k) : undefined;
@@ -118,7 +124,7 @@ Deno.serve(async (req) => {
           }
         }
         if (!vid && method === "none") {
-          const gp = m ? Number(m[1]) : /^\d+$/.test(String(a.itemGroupId ?? "")) ? Number(a.itemGroupId) : null;
+          const gp = m ? Number(m[1]) : ps ? Number(ps[1]) : /^\d+$/.test(String(a.itemGroupId ?? "")) ? Number(a.itemGroupId) : null;
           if (gp && products.has(gp)) { pid = gp; method = "product_only"; }
         }
         if (vid) matched++;
