@@ -2169,6 +2169,42 @@ export type Database = {
         }
         Relationships: []
       }
+      google_ads_structure_snapshots: {
+        Row: {
+          counts: Json
+          data: Json
+          errors: Json
+          finished_at: string | null
+          id: string
+          mode: string
+          status: string
+          taken_at: string
+          triggered_by: string | null
+        }
+        Insert: {
+          counts?: Json
+          data?: Json
+          errors?: Json
+          finished_at?: string | null
+          id?: string
+          mode?: string
+          status?: string
+          taken_at?: string
+          triggered_by?: string | null
+        }
+        Update: {
+          counts?: Json
+          data?: Json
+          errors?: Json
+          finished_at?: string | null
+          id?: string
+          mode?: string
+          status?: string
+          taken_at?: string
+          triggered_by?: string | null
+        }
+        Relationships: []
+      }
       google_ads_sync_runs: {
         Row: {
           campaign_rows: number
