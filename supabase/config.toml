@@ -26,3 +26,6 @@ verify_jwt = false
 
 [functions.merchant-test]
 verify_jwt = false
+
+[functions.merchant-sync]
+verify_jwt = false
