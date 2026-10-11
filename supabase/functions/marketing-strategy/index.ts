@@ -39,7 +39,37 @@ Règles strictes :
 - Évite de multiplier les campagnes ; tiens compte des campagnes actives et des chevauchements ; propose fusions/suppressions si pertinent. Pour chaque nouvelle campagne : type, pays, produits Merchant (familles/étiquettes/best-sellers), budget mensuel, objectif, paramètres, vérification de chevauchement.
 - Budget de référence Google + Meta fourni (flexible, pas d'obligation de le dépenser). 3 scénarios : prudent, reference, croissance.
 - Lecture seule : tout est recommandation manuelle. Meta est géré par Crush AI : formule les actions Meta pour transmission à Crush AI. Aucune action Merchant Center automatique.
+- Fiabilité : "data_reliability" liste les contrôles serveur ; toute vérification "bad"/"warn" doit apparaître dans data_limits et baisser la confiance des recommandations concernées.
+- Conversions Google : examine conversion_actions et conversions_by_action_30d (achats réels vs microconversions, actions primaires/comptées dans « Conversions », valeurs par défaut). Si des microconversions alimentent les enchères ou gonflent la valeur, recommande d'abord de corriger la mesure.
+- Google et Meta peuvent s'attribuer la même vente : ne cherche jamais à faire correspondre leurs valeurs à Shopify ; évalue chaque régie par son ROAS attribué, l'efficacité globale par le MER.
+- Tendances : utilise trends_non_overlapping (période courante vs précédente de même durée, sans chevauchement) ; une seule période en baisse/hausse = surveiller, pas décider.
+- Ventes par famille : revenue_lines_ht = lignes produits hors livraison (ne pas comparer directement au CA total HT).
+- Propose Shopping, PMax ou Search seulement si justifié par les chiffres ; chaque recommandation : chiffres, priorité, risques, actions concrètes.
 - 4 à 8 opportunités, 0 à 5 nouvelles campagnes, verdict pour chaque campagne active significative, 5 à 10 actions dans le plan (order 1 = d'abord). Français, concis, chiffré.`
+
+// Deterministic data-reliability checks, computed server-side (no AI cost).
+function reliability(metrics: any, struct: any) {
+  const checks: { label: string; level: 'ok' | 'warn' | 'bad'; detail: string }[] = []
+  const now = Date.now(); const ls = metrics?.last_sync ?? {}
+  const age = (t: string | null) => (t ? (now - new Date(t).getTime()) / 3600000 : Infinity)
+  const src: [string, string, number][] = [['Shopify', 'shopify', 36], ['Google Ads', 'google_ads', 36], ['Meta Ads', 'meta_ads', 36], ['GA4', 'ga4', 36], ['Merchant Center', 'merchant', 72], ['Structure Google Ads', 'google_structure', 72]]
+  for (const [l, k, max] of src) { const h = age(ls[k]); checks.push({ label: `Synchro ${l}`, level: h <= max ? 'ok' : h <= max * 3 ? 'warn' : 'bad', detail: ls[k] ? `dernière réussite ${new Date(ls[k]).toLocaleString('fr-FR', { timeZone: 'Europe/Paris' })}` : 'jamais synchronisé' }) }
+  const f = metrics?.families_90 ?? {}
+  if (f.lines != null) checks.push({ label: 'Ventes par famille sans doublon', level: f.lines === f.distinct_lines ? 'ok' : 'bad', detail: `${f.distinct_lines} lignes distinctes / ${f.lines} comptées · total lignes ${f.lines_total_ht} € HT (hors livraison)` })
+  if (f.unclassified_share_pct != null) checks.push({ label: 'Produits classés par famille (90 j)', level: f.unclassified_share_pct <= 10 ? 'ok' : f.unclassified_share_pct <= 30 ? 'warn' : 'bad', detail: `${f.unclassified_share_pct} % du CA lignes « Sans famille »` })
+  const ca = struct?.conversion_actions ?? []
+  if (!struct) checks.push({ label: 'Conversions Google', level: 'bad', detail: 'structure Google Ads absente' })
+  else if (!ca.length) checks.push({ label: 'Conversions Google', level: 'warn', detail: 'actions de conversion non lues : relancer la lecture de structure' })
+  else {
+    const bid = ca.filter((a: any) => a.used_for_bidding); const nonPurchase = bid.filter((a: any) => a.category !== 'PURCHASE')
+    checks.push({ label: 'Conversions Google utilisées pour les enchères', level: !bid.some((a: any) => a.category === 'PURCHASE') ? 'bad' : nonPurchase.length ? 'warn' : 'ok', detail: `${bid.length} action(s) comptée(s) dans « Conversions »${nonPurchase.length ? `, dont ${nonPurchase.length} hors achat : ${nonPurchase.map((a: any) => a.name).slice(0, 4).join(', ')}` : ', achats uniquement'}` })
+  }
+  const g90 = metrics?.windows?.['90']?.google_cost; const p90 = struct?.products_cost_90d_total
+  if (g90 && p90 != null) checks.push({ label: 'Cohérence Audit ↔ Stratégie (coût 90 j)', level: 'ok', detail: `coût campagnes ${g90} € ; coût attribué aux produits ${p90} € (${Math.round(100 * p90 / g90)} %). Écart normal : l'audit ne compte que les produits, pas les dépenses PMax hors Shopping.` })
+  const fd = metrics?.windows?.['365']?.first_day_meta; if (fd) checks.push({ label: 'Historique Meta', level: (now - new Date(fd).getTime()) / 86400000 >= 360 ? 'ok' : 'warn', detail: `données depuis le ${fd}` })
+  const pen = checks.reduce((a, c) => a + (c.level === 'bad' ? 2 : c.level === 'warn' ? 1 : 0), 0)
+  return { level: pen === 0 ? 'fiable' : pen <= 3 ? 'correcte' : 'fragile', score: Math.max(0, 100 - pen * 10), checks }
+}
 
 async function sha256(s: string) {
   const b = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s))
@@ -87,6 +117,9 @@ function compactStructure(snap: any, offers: any[]) {
   return {
     taken_at: snap.taken_at, campaigns: [...camps.values()].filter((c) => c.status !== 'REMOVED'),
     product_overlaps_90d: [...overlaps.entries()].sort((a, b) => b[1] - a[1]).slice(0, 10).map(([pair, n]) => ({ pair, products: n })),
+    conversion_actions: (d.conversion_actions ?? []).filter((a: any) => a.status === 'ENABLED').map((a: any) => ({ name: a.name, category: a.category, primary: a.primary, used_for_bidding: a.in_conversions, counting: a.counting, default_value: a.default_value, always_default: a.always_default })),
+    conversions_by_action_30d: (d.conversions_by_action_30d ?? []).filter((x: any) => x.all_conversions > 0).map((x: any) => ({ ...x, conversions: Math.round(x.conversions * 10) / 10, value: Math.round(x.value), all_conversions: Math.round(x.all_conversions * 10) / 10, all_value: Math.round(x.all_value) })),
+    products_cost_90d_total: Math.round((d.products_90d ?? []).reduce((a: number, p: any) => a + (p.cost ?? 0), 0)),
     merchant_offers_never_shown_90d_by_family: Object.fromEntries(Object.entries(unseen).sort((a, b) => b[1] - a[1]).slice(0, 12)),
     
   }
@@ -158,14 +191,16 @@ Deno.serve(async (req) => {
     const { data: metrics, error: me } = await userClient.rpc('marketing_strategy_summary')
     if (me) return json({ error: me.message }, 500)
     const { data: snapRow } = await admin.from('google_ads_structure_snapshots')
-      .select('taken_at, campaigns:data->campaigns, criteria:data->criteria, budget_lost:data->budget_lost, ad_groups:data->ad_groups, asset_groups:data->asset_groups, signals:data->signals, listing_groups_pmax:data->listing_groups_pmax, listing_groups_shopping:data->listing_groups_shopping, products_90d:data->products_90d').in('status', ['success', 'partial']).order('taken_at', { ascending: false }).limit(1).maybeSingle()
+      .select('taken_at, campaigns:data->campaigns, criteria:data->criteria, budget_lost:data->budget_lost, ad_groups:data->ad_groups, asset_groups:data->asset_groups, signals:data->signals, listing_groups_pmax:data->listing_groups_pmax, listing_groups_shopping:data->listing_groups_shopping, products_90d:data->products_90d, conversion_actions:data->conversion_actions, conversions_by_action_30d:data->conversions_by_action_30d').in('status', ['success', 'partial']).order('taken_at', { ascending: false }).limit(1).maybeSingle()
     const snap = snapRow ? { taken_at: snapRow.taken_at, data: snapRow } : null
     const offers: any[] = []
     for (let p = 0; ; p++) {
       const { data } = await admin.from('merchant_offers').select('offer_id, product_type').order('name').range(p * 1000, p * 1000 + 999)
       offers.push(...(data ?? [])); if (!data || data.length < 1000) break
     }
-    const summary = { reference_budget_google_plus_meta_eur_month: budget, today: new Date().toISOString().slice(0, 10), metrics, google_ads_structure: compactStructure(snap, offers) }
+    const struct = compactStructure(snap, offers)
+    const rel = reliability(metrics, struct)
+    const summary = { reference_budget_google_plus_meta_eur_month: budget, today: new Date().toISOString().slice(0, 10), data_reliability: rel, metrics, google_ads_structure: struct }
     const payload = JSON.stringify(summary)
     if (payload.length > 120000) return json({ error: 'Résumé trop volumineux' }, 400)
     const key = await sha256(payload)
@@ -173,9 +208,9 @@ Deno.serve(async (req) => {
     const { data: cached } = await admin.from('marketing_ai_analyses').select('id, result, created_at, updated_at, model').eq('kind', 'strategy').eq('cache_key', key).maybeSingle()
     const st = cached?.result?._status
     const fresh = cached && Date.now() - new Date(cached.updated_at).getTime() < 6 * 60000
-    if (cached && st === 'running' && fresh) return json({ pending: true, id: cached.id })
-    if (cached && !st && !body?.force) return json({ cached: true, ...cached })
-    if (body?.cache_only) return json({ cached: false, result: null })
+    if (cached && st === 'running' && fresh) return json({ pending: true, id: cached.id, reliability: rel })
+    if (cached && !st && !body?.force) return json({ cached: true, ...cached, reliability: rel })
+    if (body?.cache_only) return json({ cached: false, result: null, reliability: rel })
 
     const since = new Date(Date.now() - 86400000).toISOString()
     const { count } = await admin.from('marketing_ai_analyses').select('id', { count: 'exact', head: true }).eq('kind', 'strategy').eq('created_by', u.user.id).gte('updated_at', since)
@@ -192,7 +227,7 @@ Deno.serve(async (req) => {
     // @ts-ignore EdgeRuntime is provided by Supabase
     adminGlobal = admin; activeRuns.add(row.id)
     EdgeRuntime.waitUntil(runAnalysis(admin, row.id, apiKey, payload).finally(() => activeRuns.delete(row.id)))
-    return json({ pending: true, id: row.id })
+    return json({ pending: true, id: row.id, reliability: rel })
   } catch (e) {
     if (req.signal.aborted) return new Response(null, { status: 499 })
     console.error(e); return json({ error: e instanceof Error ? e.message : String(e) }, 500)
