@@ -26,7 +26,7 @@ export function AiDiagnosis({ summary, from, to, filters, canWrite = false }: { 
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState('');
   const run = async (force = false) => {
-    setLoading(true); setErr('');
+    setLoading(true); setErr(''); setMade({});
     const { data, error } = await supabase.functions.invoke('marketing-ai', { body: { summary, from, to, filters, force } });
     setLoading(false);
     if (error) {
