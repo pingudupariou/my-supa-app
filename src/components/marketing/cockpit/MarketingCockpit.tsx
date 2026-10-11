@@ -363,17 +363,17 @@ export function MarketingCockpit() {
           <TabsContent value="camp" className="space-y-4">
             <Card>
               <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2 pb-2">
-                <CardTitle className="text-base">Comparer des campagnes (dépenses par {weekly ? 'semaine' : 'jour'})</CardTitle>
+                <CardTitle className="text-base">Comparer des campagnes (dépenses par {gran === 'month' ? 'mois' : weekly ? 'semaine' : 'jour'})</CardTitle>
                 <MultiPick label="Campagnes" options={campOpts} value={cmpCamps} onChange={setCmpCamps} />
               </CardHeader>
               <CardContent>{cmpCamps.length === 0 ? <p className="text-sm text-muted-foreground">Sélectionnez une ou plusieurs campagnes à comparer.</p> : (
                 <ChartBox>
                   <LineChart data={(() => {
                     const m: Record<string, any> = {};
-                    for (const [s, b, id, sp] of raw!.ads) { const k = `${s}:${id}`; if (b >= cFrom && b <= to && cmpCamps.includes(k)) { (m[b] ??= { b })[k] = (m[b][k] ?? 0) + +sp; } }
+                    for (const [s, b, id, sp] of raw!.ads) { const k = `${s}:${id}`; if (b >= cFrom && b <= to && cmpCamps.includes(k)) { const bk = gran === 'month' ? b.slice(0, 7) : b; (m[bk] ??= { b: bk })[k] = (m[bk][k] ?? 0) + +sp; } }
                     return Object.values(m).sort((a: any, b: any) => (a.b < b.b ? -1 : 1));
                   })()}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" /><XAxis dataKey="b" tick={tick} /><YAxis tick={tick} />
+                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" /><XAxis dataKey="b" tick={tick} tickFormatter={fmtMonth} /><YAxis tick={tick} />
                     <Tooltip {...tip} formatter={(v: any, n: any) => [eur(v), campName.get(n) ?? n]} /><Legend formatter={(n) => campName.get(n) ?? n} />
                     {cmpCamps.map((k, i) => <Line key={k} dataKey={k} stroke={PALETTE[i % PALETTE.length]} dot={false} strokeWidth={2} connectNulls />)}
                   </LineChart>
