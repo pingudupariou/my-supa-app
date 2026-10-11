@@ -320,6 +320,14 @@ export function MarketingCockpit() {
   }, [cur, prev, eg, weekRows, cFrom, to, pFrom, pTo, today]);
   const all = useMemo(() => rawCur && aggregate(rawCur, cFrom, to, F0), [rawCur, cFrom, to]);
 
+  const countryOpts = useMemo(() => Object.values(all?.byCountry ?? {}).sort((a: any, b: any) => b.revenue + b.spend - a.revenue - a.spend).map((x: any) => ({ v: x.c, l: x.c })), [all]);
+  const campOpts = useMemo(() => Object.values(all?.byCamp ?? {}).filter((k: any) => k.spend > 0).sort((a: any, b: any) => b.spend - a.spend).map((k: any) => ({ v: k.key, l: `${SRC[k.s]} · ${campName.get(k.key) ?? k.id}` })), [all, campName]);
+  const channels = useMemo(() => Object.keys(all?.byChannel ?? {}).sort(), [all]);
+  const devices = useMemo(() => Object.keys(all?.byDevice ?? {}).sort(), [all]);
+
+  const adsFiltered = f.campaigns.length > 0 || f.adSrc !== 'all';
+  const gaFiltered = !!f.channel || !!f.device;
+  const merNote = adsFiltered ? 'Partiel : CA total HT, livraison incluse ÷ dépenses filtrées' : 'CA total HT, livraison incluse ÷ (Google + Meta)';
   // Compact summary sent to the AI diagnosis (aggregates only, never raw rows).
   const aiSummary = useMemo(() => {
     if (!cur || !prev || !raw) return null;
@@ -344,14 +352,6 @@ export function MarketingCockpit() {
     return { period: { from: cFrom, to, compared_to: { from: pFrom, to: pTo, mode: cmpLabel } }, notes: [merNote, 'Ventes nettes hors livraison estimées', 'Marges non disponibles'],
       kpi_current: kp(cur), kpi_previous: kp(prev), detail_current: tt(cur), detail_previous: tt(prev), countries: cty, campaigns: camps, ga4_channels: ch, ga4_devices: dv, top_products: top, product_moves: moves };
   }, [cur, prev, raw, f, campName, cFrom, to, pFrom, pTo, cmpLabel, merNote]);
-  const countryOpts = useMemo(() => Object.values(all?.byCountry ?? {}).sort((a: any, b: any) => b.revenue + b.spend - a.revenue - a.spend).map((x: any) => ({ v: x.c, l: x.c })), [all]);
-  const campOpts = useMemo(() => Object.values(all?.byCamp ?? {}).filter((k: any) => k.spend > 0).sort((a: any, b: any) => b.spend - a.spend).map((k: any) => ({ v: k.key, l: `${SRC[k.s]} · ${campName.get(k.key) ?? k.id}` })), [all, campName]);
-  const channels = useMemo(() => Object.keys(all?.byChannel ?? {}).sort(), [all]);
-  const devices = useMemo(() => Object.keys(all?.byDevice ?? {}).sort(), [all]);
-
-  const adsFiltered = f.campaigns.length > 0 || f.adSrc !== 'all';
-  const gaFiltered = !!f.channel || !!f.device;
-  const merNote = adsFiltered ? 'Partiel : CA total HT, livraison incluse ÷ dépenses filtrées' : 'CA total HT, livraison incluse ÷ (Google + Meta)';
   const crNote = gaFiltered ? 'Non comparable : commandes Shopify non filtrables par canal/appareil — voir taux GA4' : 'Commandes Shopify ÷ sessions GA4';
   const filtersOn = f.countries.length || f.campaigns.length || f.adSrc !== 'all' || f.channel || f.device;
 
