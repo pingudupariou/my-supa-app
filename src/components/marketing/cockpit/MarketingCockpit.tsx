@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { withMovingAverage } from './movingAverage';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -40,13 +41,15 @@ const G_L: Record<Gran, string> = { day: 'jour', week: 'semaine', month: 'mois' 
 const F0: F = { countries: [], campaigns: [], adSrc: 'all', channel: '', device: '' };
 
 const METRICS = {
-  revenue: { l: 'CA Shopify HT (réel)', f: eur },
+  revenue: { l: 'CA total Shopify HT · base MER', f: eur },
+  netSales: { l: 'Ventes nettes HT hors livraison · estimées', f: eur },
+  shipping: { l: 'Frais de livraison importés', f: eur },
   orders: { l: 'Commandes', f: int },
   spend: { l: 'Dépenses Ads', f: eur },
   mer: { l: 'MER global', f: dec },
   roas: { l: 'ROAS attribué', f: dec },
   sessions: { l: 'Sessions GA4', f: int },
-  cr: { l: 'Taux de conversion', f: pct },
+  cr: { l: 'Ratio commandes Shopify / sessions GA4', f: pct },
   cr_ga: { l: 'Taux conv. GA4', f: pct },
   aov: { l: 'Panier moyen HT', f: eur },
 } as const;
@@ -59,11 +62,15 @@ function aggregate(raw: Raw, from: string, to: string, f: F) {
   const okC = (c: string) => !cSet.size || cSet.has(c);
   const okK = (s: string, id: string) => (f.adSrc === 'all' || f.adSrc === s) && (!kSet.size || kSet.has(`${s}:${id}`));
   const days: Record<string, any> = {};
-  const day = (b: string) => (days[b] ??= { b, revenue: 0, orders: 0, spend: 0, g: 0, m: 0, value: 0, gv: 0, mv: 0, sessions: 0, pu: 0 });
-  const t = { revenue: 0, orders: 0, spend: 0, g: 0, m: 0, value: 0, gv: 0, mv: 0, conv: 0, clicks: 0, impr: 0, sessions: 0, vi: 0, ac: 0, bc: 0, pu: 0, pr: 0 };
+  const day = (b: string) => (days[b] ??= { b, revenue: 0, shipping: 0, netSales: 0, orders: 0, spend: 0, g: 0, m: 0, value: 0, gv: 0, mv: 0, sessions: 0, pu: 0 });
+  const t = { revenue: 0, shipping: 0, netSales: 0, orders: 0, spend: 0, g: 0, m: 0, value: 0, gv: 0, mv: 0, conv: 0, clicks: 0, impr: 0, sessions: 0, vi: 0, ac: 0, bc: 0, pu: 0, pr: 0 };
   const byCountry: Record<string, any> = {};
   const cty = (c: string) => (byCountry[c] ??= { c, revenue: 0, orders: 0, spend: 0, value: 0, sessions: 0, pu: 0 });
-  for (const [b, c, r, n] of raw.shop) if (inR(b) && okC(c)) { t.revenue += +r; t.orders += +n; day(b).revenue += +r; day(b).orders += +n; cty(c).revenue += +r; cty(c).orders += +n; }
+  for (const [b, c, r, n, sh] of raw.shop) if (inR(b) && okC(c)) {
+    const shipping = Number(sh) || 0;
+    t.revenue += +r; t.shipping += shipping; t.netSales += +r - shipping; t.orders += +n;
+    day(b).revenue += +r; day(b).shipping += shipping; day(b).netSales += +r - shipping; day(b).orders += +n; cty(c).revenue += +r; cty(c).orders += +n;
+  }
   // Ads totals: campaign table when no country filter, else country breakdown (part without country excluded).
   const byCamp: Record<string, any> = {};
   const camp = (s: string, id: string) => (byCamp[`${s}:${id}`] ??= { key: `${s}:${id}`, s, id, spend: 0, clicks: 0, impr: 0, conv: 0, value: 0 });
@@ -90,13 +97,13 @@ function aggregate(raw: Raw, from: string, to: string, f: F) {
     (byDevice[dv] ??= { k: dv, sessions: 0, pu: 0 }); byDevice[dv].sessions += +se; byDevice[dv].pu += +pu;
   }
   const kpi: Record<MK, number | null> = {
-    revenue: t.revenue, orders: t.orders, spend: t.spend, mer: div(t.revenue, t.spend), roas: div(t.value, t.spend),
+    revenue: t.revenue, shipping: t.shipping, netSales: t.netSales, orders: t.orders, spend: t.spend, mer: div(t.revenue, t.spend), roas: div(t.value, t.spend),
     sessions: t.sessions, cr: div(t.orders, t.sessions), cr_ga: div(t.pu, t.sessions), aov: div(t.revenue, t.orders),
   };
   return { t, kpi, series: Object.values(days), byCountry, byCamp, byChannel, byDevice };
 }
 
-const SUMS = ['revenue', 'orders', 'spend', 'g', 'm', 'value', 'gv', 'mv', 'sessions', 'pu'];
+const SUMS = ['revenue', 'shipping', 'netSales', 'orders', 'spend', 'g', 'm', 'value', 'gv', 'mv', 'sessions', 'pu'];
 /** Bucket key for a raw date (daily or ISO-week rows). Weekly rows go to the month containing their Thursday. */
 const makeKey = (g: Gran, weekRows: boolean) => (b: string) => g === 'day' ? b : g === 'week' ? monday(b) : (weekRows ? addD(b, 3) : b).slice(0, 7);
 /** Regroups a series into buckets (sums, then ratios recomputed — never averaged) and flags incomplete buckets. */
@@ -184,11 +191,14 @@ const grid = <CartesianGrid vertical={false} stroke="hsl(var(--border))" strokeO
 type MDef = { k: string; l: string; color: string; f: (n: any) => string; axis?: 'l' | 'r'; on?: boolean; dash?: boolean };
 
 /** One chart = one unit. Chips toggle curves, tooltip shows every visible value + comparison. */
-function TrendChart({ title, unit, data, defs, cmp, cmpLabel, fx, yl, yr, onZoom, canZoom, note, h = 260 }: {
+function TrendChart({ title, unit, data, defs, cmp, cmpLabel, fx, yl, yr, onZoom, canZoom, note, daily = false, h = 260 }: {
   title: string; unit: string; data: any[]; defs: MDef[]; cmp: boolean; cmpLabel: string; fx: (b: string) => string;
-  yl: (n: number) => string; yr?: (n: number) => string; onZoom?: (b: string) => void; canZoom?: boolean; note?: string; h?: number;
+  yl: (n: number) => string; yr?: (n: number) => string; onZoom?: (b: string) => void; canZoom?: boolean; note?: string; daily?: boolean; h?: number;
 }) {
   const [on, setOn] = useState<Set<string>>(() => new Set(defs.filter((d) => d.on).map((d) => d.k)));
+  const [smooth, setSmooth] = useState(false);
+  const showAverage = daily && smooth;
+  const plotted = useMemo(() => showAverage ? withMovingAverage(data, defs.map(d => d.k)) : data, [data, defs, showAverage]);
   const act = defs.filter((d) => on.has(d.k));
   const right = act.some((d) => d.axis === 'r');
   const toggle = (k: string) => setOn((s) => { const n = new Set(s); n.has(k) ? n.delete(k) : n.add(k); return n; });
@@ -202,6 +212,7 @@ function TrendChart({ title, unit, data, defs, cmp, cmpLabel, fx, yl, yr, onZoom
             <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full" style={{ background: d.color }} />{d.l}</span>
             <span className="tabular-nums font-medium">{d.f(r[d.k])}{cmp && r['p_b'] && <span className="ml-1.5 font-normal text-muted-foreground">vs {d.f(r['p_' + d.k])} <Delta cur={r[d.k]} prev={r['p_' + d.k]} neutral /></span>}</span>
           </div>))}
+        {showAverage && act.map(d => <div key={'ma7_' + d.k} className="flex justify-between gap-3 py-0.5 text-muted-foreground"><span>{d.l} · moy. 7 j</span><span className="tabular-nums">{r['ma7_' + d.k] == null ? '—' : d.f(r['ma7_' + d.k])}</span></div>)}
         {cmp && r.p_b && <div className="mt-1.5 border-t pt-1 text-muted-foreground">Comparé à : {fx(r.p_b)}{r.p_partial ? ' · incomplet' : ''}</div>}
         {canZoom && <div className="mt-1 text-muted-foreground">Cliquer pour zoomer</div>}
       </div>);
@@ -211,25 +222,27 @@ function TrendChart({ title, unit, data, defs, cmp, cmpLabel, fx, yl, yr, onZoom
       <CardHeader className="space-y-2 pb-1">
         <div className="flex items-baseline justify-between gap-2"><CardTitle className="text-sm font-semibold">{title}</CardTitle><span className="text-[11px] text-muted-foreground">{unit}</span></div>
         <div className="flex flex-wrap gap-1.5">{defs.map((d) => (
-          <button key={d.k} type="button" data-readonly-allow onClick={() => toggle(d.k)}
-            className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs transition ${on.has(d.k) ? 'bg-secondary text-foreground' : 'text-muted-foreground opacity-60 hover:opacity-100'}`}>
+          <Button key={d.k} variant="ghost" size="sm" type="button" data-readonly-allow onClick={() => toggle(d.k)}
+            className={`inline-flex items-center gap-1.5 h-auto rounded-full border px-2.5 py-0.5 text-xs transition ${on.has(d.k) ? 'bg-secondary text-foreground' : 'text-muted-foreground opacity-60 hover:opacity-100'}`}>
             <span className="h-2 w-2 rounded-full" style={{ background: on.has(d.k) ? d.color : 'hsl(var(--muted-foreground))' }} />{d.l}{d.axis === 'r' && <span className="text-[10px] text-muted-foreground">(axe droit)</span>}
-          </button>))}</div>
+          </Button>))}</div>
+        {daily && <label className="flex items-center gap-2 text-xs text-muted-foreground"><Checkbox checked={smooth} onCheckedChange={value => setSmooth(value === true)} data-readonly-allow />Moyenne glissante 7 jours</label>}
       </CardHeader>
       <CardContent className="pt-2">
         {act.length === 0 ? <p className="py-10 text-center text-sm text-muted-foreground">Sélectionnez au moins un indicateur.</p> : (
           <ChartBox h={h}>
-            <LineChart data={data} margin={{ top: 8, right: right ? 4 : 12, left: 0, bottom: 0 }} onClick={(e: any) => canZoom && e?.activeLabel && onZoom?.(e.activeLabel)} style={{ cursor: canZoom ? 'zoom-in' : 'default' }}>
+            <LineChart data={plotted} margin={{ top: 8, right: right ? 4 : 12, left: 0, bottom: 0 }} onClick={(e: any) => canZoom && e?.activeLabel && onZoom?.(e.activeLabel)} style={{ cursor: canZoom ? 'zoom-in' : 'default' }}>
               {grid}
               <XAxis dataKey="b" tick={tick} tickFormatter={(b, i) => fx(b) + (data[i]?.partial ? '*' : '')} tickLine={false} axisLine={false} minTickGap={16} />
               <YAxis yAxisId="l" tick={tick} tickFormatter={yl} tickLine={false} axisLine={false} width={56} />
               {right && <YAxis yAxisId="r" orientation="right" tick={tick} tickFormatter={yr ?? yl} tickLine={false} axisLine={false} width={48} />}
               <Tooltip content={<Tip />} cursor={{ stroke: 'hsl(var(--border))' }} />
               {cmp && act.map((d) => <Line key={'p' + d.k} yAxisId={d.axis ?? 'l'} dataKey={'p_' + d.k} stroke={d.color} strokeOpacity={0.45} strokeDasharray="4 4" dot={false} strokeWidth={1.5} connectNulls isAnimationActive={false} />)}
+              {showAverage && act.map(d => <Line key={'ma7_' + d.k} name={d.l + ' · moyenne 7 jours'} yAxisId={d.axis ?? 'l'} type="monotone" dataKey={'ma7_' + d.k} stroke={d.color} strokeDasharray="2 3" strokeWidth={2} strokeOpacity={0.7} dot={false} connectNulls={false} isAnimationActive={false} />)}
               {act.map((d) => <Line key={d.k} yAxisId={d.axis ?? 'l'} type="monotone" dataKey={d.k} stroke={d.color} strokeDasharray={d.dash ? '6 3' : undefined} dot={data.length < 20 ? { r: 2.5 } : false} activeDot={{ r: 4 }} strokeWidth={2.25} connectNulls isAnimationActive={false} />)}
             </LineChart>
           </ChartBox>)}
-        <p className="mt-1 text-[11px] text-muted-foreground">{cmp ? `Pointillés : ${cmpLabel}. ` : ''}* période incomplète.{note ? ` ${note}` : ''}</p>
+        <p className="mt-1 text-[11px] text-muted-foreground">{cmp ? `Pointillés : ${cmpLabel}. ` : ''}{showAverage ? 'Moyenne 7 jours : pointillés fins, moyenne des valeurs quotidiennes sur 7 jours complets ; valeurs réelles conservées. ' : ''}* période incomplète.{note ? ` ${note}` : ''}</p>
       </CardContent>
     </Card>
   );
@@ -239,7 +252,7 @@ const fetchCache = new Map<string, Promise<Raw>>();
 const getRaw = (a: string, b: string) => {
   const k = `${a}|${b}`;
   if (!fetchCache.has(k)) fetchCache.set(k, sb.rpc('marketing_cockpit', { _from: a, _to: b, _split: a }).then(({ data, error }: any) => { if (error) { fetchCache.delete(k); throw error; } return data as Raw; }));
-  return fetchCache.get(k)!;
+  return fetchCache.get(k) ?? Promise.reject(new Error('Chargement indisponible')); 
 };
 
 export function MarketingCockpit() {
@@ -313,7 +326,7 @@ export function MarketingCockpit() {
 
   const adsFiltered = f.campaigns.length > 0 || f.adSrc !== 'all';
   const gaFiltered = !!f.channel || !!f.device;
-  const merNote = adsFiltered ? 'Partiel : CA Shopify total ÷ dépenses filtrées' : 'CA Shopify réel ÷ (Google + Meta)';
+  const merNote = adsFiltered ? 'Partiel : CA total HT, livraison incluse ÷ dépenses filtrées' : 'CA total HT, livraison incluse ÷ (Google + Meta)';
   const crNote = gaFiltered ? 'Non comparable : commandes Shopify non filtrables par canal/appareil — voir taux GA4' : 'Commandes Shopify ÷ sessions GA4';
   const filtersOn = f.countries.length || f.campaigns.length || f.adSrc !== 'all' || f.channel || f.device;
 
@@ -403,11 +416,16 @@ export function MarketingCockpit() {
 
           <TabsContent value="overview" className="space-y-4">
             <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-              <Kpi big k="revenue" cur={cur.kpi} prev={prev.kpi} color={C.shop} note="Référence · HT, livraison incluse, hors annulées" />
+              <Kpi big k="revenue" cur={cur.kpi} prev={prev.kpi} color={C.shop} note="Indicateur principal · livraison incluse · hors annulées et tests" />
               <Kpi big k="spend" cur={cur.kpi} prev={prev.kpi} color={C.ink} neutral note={`Google ${eur(cur.t.g)} · Meta ${eur(cur.t.m)}`} />
               <Kpi big k="mer" cur={cur.kpi} prev={prev.kpi} color={C.mer} note={merNote} />
               <Kpi big k="orders" cur={cur.kpi} prev={prev.kpi} color={C.shop} note="Shopify, hors annulées et tests" />
             </div>
+            <div className="grid grid-cols-2 gap-3">
+              <Kpi k="netSales" cur={cur.kpi} prev={prev.kpi} color={C.shop} note="CA total HT − frais de livraison importés (approximation)" />
+              <Kpi k="shipping" cur={cur.kpi} prev={prev.kpi} color={C.shop} note="Taxes de livraison non ventilées dans les données importées" />
+            </div>
+            <p className="text-xs text-muted-foreground">CA total HT = montant actuel Shopify − taxes ; base du MER inchangée. Les ventes nettes hors livraison sont estimées : les taxes et remboursements de livraison ne sont pas ventilés. Ce n’est pas une réconciliation exacte du rapport Shopify.</p>
             <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-5">
               <Kpi k="aov" cur={cur.kpi} prev={prev.kpi} color={C.shop} />
               <Kpi k="roas" cur={cur.kpi} prev={prev.kpi} color={C.m} note="Valeur attribuée par les régies ÷ dépenses (≠ CA)" />
@@ -416,20 +434,20 @@ export function MarketingCockpit() {
               <Kpi k="cr_ga" cur={cur.kpi} prev={prev.kpi} color={C.ga} note="Achats GA4 ÷ sessions (sous-estimé : cookies)" />
             </div>
 
-            <TrendChart title="CA Shopify et dépenses publicitaires" unit="en €" data={chartSeries} cmp={overlay} cmpLabel={cmpLabel} fx={fx} yl={axEur} canZoom={canZoom} onZoom={zoom} h={300} note={zoomHint}
-              defs={[{ k: 'revenue', l: 'CA Shopify HT', color: C.shop, f: eur, on: true }, { k: 'spend', l: 'Dépenses totales', color: C.ink, f: eur, on: true },
-                { k: 'g', l: 'Google Ads', color: C.g, f: eur }, { k: 'm', l: 'Meta Ads', color: C.m, f: eur }, { k: 'aov', l: 'Panier moyen', color: C.shop, f: eur, dash: true }]} />
+            <TrendChart title="CA Shopify et dépenses publicitaires" unit="en €" data={chartSeries} cmp={overlay} cmpLabel={cmpLabel} fx={fx} yl={axEur} daily={eg === 'day'} canZoom={canZoom} onZoom={zoom} h={300} note={zoomHint}
+              defs={[{ k: 'revenue', l: 'CA total HT · base MER', color: C.shop, f: eur, on: true }, { k: 'spend', l: 'Dépenses totales', color: C.ink, f: eur, on: true },
+                { k: 'netSales', l: 'Ventes nettes HT estimées', color: C.shop, f: eur, dash: true }, { k: 'shipping', l: 'Livraison importée', color: C.ga, f: eur }, { k: 'g', l: 'Google Ads', color: C.g, f: eur }, { k: 'm', l: 'Meta Ads', color: C.m, f: eur }, { k: 'aov', l: 'Panier moyen', color: C.shop, f: eur, dash: true }]} />
             <div className="grid gap-4 lg:grid-cols-3">
-              <TrendChart title="MER global et ROAS attribué" unit="multiplicateur ×" data={chartSeries} cmp={overlay} cmpLabel={cmpLabel} fx={fx} yl={axX} canZoom={canZoom} onZoom={zoom}
-                note="MER = CA réel ÷ dépenses. ROAS = valeur attribuée par la régie ÷ ses dépenses."
+              <TrendChart title="MER global et ROAS attribué" unit="multiplicateur ×" data={chartSeries} cmp={overlay} cmpLabel={cmpLabel} fx={fx} yl={axX} daily={eg === 'day'} canZoom={canZoom} onZoom={zoom}
+                note="MER = CA total HT, livraison incluse ÷ dépenses. ROAS = valeur attribuée par la régie ÷ ses dépenses."
                 defs={[{ k: 'mer', l: 'MER global', color: C.mer, f: dec, on: true }, { k: 'roas', l: 'ROAS attribué', color: C.ink, f: dec, on: true, dash: true },
                   { k: 'roas_g', l: 'ROAS Google', color: C.g, f: dec }, { k: 'roas_m', l: 'ROAS Meta', color: C.m, f: dec }]} />
-              <TrendChart title="Sessions et commandes" unit="volumes" data={chartSeries} cmp={overlay} cmpLabel={cmpLabel} fx={fx} yl={axInt} yr={axInt} canZoom={canZoom} onZoom={zoom}
+              <TrendChart title="Sessions et commandes" unit="volumes" data={chartSeries} cmp={overlay} cmpLabel={cmpLabel} fx={fx} yl={axInt} yr={axInt} daily={eg === 'day'} canZoom={canZoom} onZoom={zoom}
                 note="Axe gauche : sessions · axe droit : commandes."
                 defs={[{ k: 'sessions', l: 'Sessions GA4', color: C.ga, f: int, on: true }, { k: 'orders', l: 'Commandes Shopify', color: C.shop, f: int, on: true, axis: 'r' }]} />
-              <TrendChart title="Taux de conversion" unit="en %" data={chartSeries} cmp={overlay} cmpLabel={cmpLabel} fx={fx} yl={axPct} canZoom={canZoom} onZoom={zoom}
-                note={gaFiltered ? 'Avec filtre canal/appareil, seul le taux GA4 est cohérent.' : 'Shopify = commandes ÷ sessions GA4.'}
-                defs={[{ k: 'cr', l: 'Shopify ÷ sessions', color: C.shop, f: pct, on: !gaFiltered }, { k: 'cr_ga', l: 'Achats GA4 ÷ sessions', color: C.ga, f: pct, on: true }]} />
+              <TrendChart title="Ratio Shopify / GA4 et taux GA4" unit="en %" data={chartSeries} cmp={overlay} cmpLabel={cmpLabel} fx={fx} yl={axPct} daily={eg === 'day'} canZoom={canZoom} onZoom={zoom}
+                note={gaFiltered ? 'Avec filtre canal/appareil, seul le taux GA4 est cohérent.' : 'Ratio intersources, pas un taux de conversion Shopify : méthodes de mesure Shopify et GA4 différentes.'}
+                defs={[{ k: 'cr', l: 'Ratio commandes Shopify / sessions GA4', color: C.shop, f: pct, on: !gaFiltered }, { k: 'cr_ga', l: 'Achats GA4 ÷ sessions', color: C.ga, f: pct, on: true }]} />
             </div>
           </TabsContent>
 
@@ -475,14 +493,14 @@ export function MarketingCockpit() {
                 <ChartBox>
                   <BarChart data={Object.values(cur.byCountry).filter((x: any) => cmpCountries.length ? cmpCountries.includes(x.c) : true).sort((a: any, b: any) => b.revenue - a.revenue).slice(0, cmpCountries.length || 12)}>
                     <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" /><XAxis dataKey="c" tick={tick} /><YAxis tick={tick} />
-                    <Tooltip {...tip} formatter={(v: any) => eur(v)} /><Legend /><Bar dataKey="revenue" name="CA Shopify (réel)" fill={C.shop} /><Bar dataKey="spend" name="Dépenses Ads" fill={C.g} /></BarChart>
+                    <Tooltip {...tip} formatter={(v: any) => eur(v)} /><Legend /><Bar dataKey="revenue" name="CA total Shopify HT" fill={C.shop} /><Bar dataKey="spend" name="Dépenses Ads" fill={C.g} /></BarChart>
                 </ChartBox>
               </CardContent>
             </Card>
             <Card><CardContent className="pt-6">
               <SortTable initial="revenue" rows={Object.values(cur.byCountry).map((x: any) => ({ ...x, mer: div(x.revenue, x.spend), cr: div(x.orders, x.sessions), d: (() => { const p = prev.byCountry[x.c]; return p?.revenue ? (x.revenue - p.revenue) / p.revenue : null; })() }))}
-                cols={[{ k: 'c', l: 'Pays' }, { k: 'revenue', l: 'CA Shopify', f: eur, num: true }, { k: 'd', l: 'Var. CA', f: pct, num: true }, { k: 'orders', l: 'Commandes', f: int, num: true },
-                  { k: 'spend', l: 'Dépenses Ads', f: eur, num: true }, { k: 'mer', l: 'MER pays', f: dec, num: true }, { k: 'sessions', l: 'Sessions', f: int, num: true }, { k: 'cr', l: 'Taux conv.', f: pct, num: true }]} />
+                cols={[{ k: 'c', l: 'Pays' }, { k: 'revenue', l: 'CA total Shopify HT', f: eur, num: true }, { k: 'd', l: 'Var. CA', f: pct, num: true }, { k: 'orders', l: 'Commandes', f: int, num: true },
+                  { k: 'spend', l: 'Dépenses Ads', f: eur, num: true }, { k: 'mer', l: 'MER pays', f: dec, num: true }, { k: 'sessions', l: 'Sessions', f: int, num: true }, { k: 'cr', l: 'Ratio commandes Shopify / sessions GA4', f: pct, num: true }]} />
               <p className="mt-2 text-xs text-muted-foreground">Dépenses par pays = ventilation par pays des régies (part sans pays connu exclue), donc leur somme peut être légèrement inférieure au total.</p>
             </CardContent></Card>
           </TabsContent>
