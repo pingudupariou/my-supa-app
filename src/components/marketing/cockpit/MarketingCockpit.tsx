@@ -9,46 +9,57 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { ArrowDown, ArrowUp, ChevronDown, Loader2 } from 'lucide-react';
+import { ArrowDown, ArrowLeft, ArrowUp, ChevronDown, Loader2, RotateCcw } from 'lucide-react';
 import { Bar, BarChart, CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 
 const sb = supabase as any;
-const C = { shop: 'hsl(var(--mi-shopify))', g: 'hsl(var(--mi-google))', m: 'hsl(var(--mi-meta))', ga: 'hsl(var(--mi-ga4))', mer: 'hsl(var(--mi-mer))' };
+const C = { shop: 'hsl(var(--mi-shopify))', g: 'hsl(var(--mi-google))', m: 'hsl(var(--mi-meta))', ga: 'hsl(var(--mi-ga4))', mer: 'hsl(var(--mi-mer))', ink: 'hsl(var(--foreground))' };
 const PALETTE = [C.shop, C.g, C.m, C.ga, C.mer, 'hsl(var(--primary))', 'hsl(var(--muted-foreground))'];
 const iso = (d: Date) => d.toISOString().slice(0, 10);
 const addD = (s: string, n: number) => { const d = new Date(s + 'T00:00:00Z'); d.setUTCDate(d.getUTCDate() + n); return iso(d); };
 const diffD = (a: string, b: string) => Math.round((new Date(b + 'T00:00:00Z').getTime() - new Date(a + 'T00:00:00Z').getTime()) / 86400000);
 const monday = (s: string) => { const d = new Date(s + 'T00:00:00Z'); return addD(s, -((d.getUTCDay() + 6) % 7)); };
+const monthEnd = (k: string) => { const [y, m] = k.split('-').map(Number); return iso(new Date(Date.UTC(y, m, 0))); };
 const eur = (n: number) => new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(Number(n) || 0);
 const int = (n: number) => new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 0 }).format(Number(n) || 0);
 const dec = (n: number | null) => (n == null || !isFinite(n) ? '—' : n.toFixed(2));
 const pct = (n: number | null) => (n == null || !isFinite(n) ? '—' : `${(n * 100).toFixed(1)} %`);
 const div = (a: number, b: number) => (b ? a / b : null);
+const fd = (s: string) => new Date(s + 'T00:00:00Z').toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
+const fdShort = (s: string) => new Date(s + 'T00:00:00Z').toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', timeZone: 'UTC' });
+const axEur = (n: number) => (Math.abs(n) >= 1000 ? `${(n / 1000).toFixed(0)} k€` : `${Math.round(n)} €`);
+const axX = (n: number) => `${Number(n).toFixed(1)}×`;
+const axPct = (n: number) => `${(n * 100).toFixed(1)} %`;
+const axInt = (n: number) => (Math.abs(n) >= 1000 ? `${(n / 1000).toFixed(1)} k` : `${Math.round(n)}`);
 const SRC: Record<string, string> = { g: 'Google Ads', m: 'Meta Ads' };
 
 type Raw = { week: boolean; shop: any[]; products: any[]; campaigns: any[]; ads: any[]; ads_country: any[]; ga4: any[] };
 type F = { countries: string[]; campaigns: string[]; adSrc: 'all' | 'g' | 'm'; channel: string; device: string };
+type Gran = 'day' | 'week' | 'month';
+const G_L: Record<Gran, string> = { day: 'jour', week: 'semaine', month: 'mois' };
+const F0: F = { countries: [], campaigns: [], adSrc: 'all', channel: '', device: '' };
 
 const METRICS = {
-  revenue: { l: 'CA Shopify (réel)', f: eur, color: C.shop },
-  orders: { l: 'Commandes', f: int, color: C.shop },
-  spend: { l: 'Dépenses Ads', f: eur, color: C.g },
-  mer: { l: 'MER', f: dec, color: C.mer },
-  roas: { l: 'ROAS attribué', f: dec, color: C.m },
-  sessions: { l: 'Sessions GA4', f: int, color: C.ga },
-  cr: { l: 'Taux de conversion', f: pct, color: C.ga },
-  aov: { l: 'Panier moyen', f: eur, color: C.shop },
+  revenue: { l: 'CA Shopify HT (réel)', f: eur },
+  orders: { l: 'Commandes', f: int },
+  spend: { l: 'Dépenses Ads', f: eur },
+  mer: { l: 'MER global', f: dec },
+  roas: { l: 'ROAS attribué', f: dec },
+  sessions: { l: 'Sessions GA4', f: int },
+  cr: { l: 'Taux de conversion', f: pct },
+  cr_ga: { l: 'Taux conv. GA4', f: pct },
+  aov: { l: 'Panier moyen HT', f: eur },
 } as const;
 type MK = keyof typeof METRICS;
 
-/** Aggregates one period from the single payload, applying filters client-side. */
+/** Aggregates one period from one payload, applying filters client-side. */
 function aggregate(raw: Raw, from: string, to: string, f: F) {
   const inR = (b: string) => b >= from && b <= to;
   const cSet = new Set(f.countries), kSet = new Set(f.campaigns);
   const okC = (c: string) => !cSet.size || cSet.has(c);
   const okK = (s: string, id: string) => (f.adSrc === 'all' || f.adSrc === s) && (!kSet.size || kSet.has(`${s}:${id}`));
   const days: Record<string, any> = {};
-  const day = (b: string) => (days[b] ??= { b, revenue: 0, orders: 0, spend: 0, g: 0, m: 0, value: 0, sessions: 0 });
+  const day = (b: string) => (days[b] ??= { b, revenue: 0, orders: 0, spend: 0, g: 0, m: 0, value: 0, gv: 0, mv: 0, sessions: 0, pu: 0 });
   const t = { revenue: 0, orders: 0, spend: 0, g: 0, m: 0, value: 0, gv: 0, mv: 0, conv: 0, clicks: 0, impr: 0, sessions: 0, vi: 0, ac: 0, bc: 0, pu: 0, pr: 0 };
   const byCountry: Record<string, any> = {};
   const cty = (c: string) => (byCountry[c] ??= { c, revenue: 0, orders: 0, spend: 0, value: 0, sessions: 0, pu: 0 });
@@ -59,7 +70,7 @@ function aggregate(raw: Raw, from: string, to: string, f: F) {
   if (!cSet.size) {
     for (const [s, b, id, sp, cl, im, cv, v] of raw.ads) if (inR(b) && okK(s, id)) {
       t.spend += +sp; t[s as 'g'] += +sp; t.value += +v; t[(s + 'v') as 'gv'] += +v; t.conv += +cv; t.clicks += +cl; t.impr += +im;
-      const d = day(b); d.spend += +sp; d[s] += +sp; d.value += +v;
+      const d = day(b); d.spend += +sp; d[s] += +sp; d.value += +v; d[s + 'v'] += +v;
       const k = camp(s, id); k.spend += +sp; k.clicks += +cl; k.impr += +im; k.conv += +cv; k.value += +v;
     }
   }
@@ -67,47 +78,46 @@ function aggregate(raw: Raw, from: string, to: string, f: F) {
     const x = cty(c); x.spend += +sp; x.value += +v;
     if (cSet.size) {
       t.spend += +sp; t[s as 'g'] += +sp; t.value += +v; t[(s + 'v') as 'gv'] += +v; t.conv += +cv; t.clicks += +cl;
-      const d = day(b); d.spend += +sp; d[s] += +sp; d.value += +v;
+      const d = day(b); d.spend += +sp; d[s] += +sp; d.value += +v; d[s + 'v'] += +v;
       const k = camp(s, id); k.spend += +sp; k.clicks += +cl; k.conv += +cv; k.value += +v;
     }
   }
   const byChannel: Record<string, any> = {}, byDevice: Record<string, any> = {};
   for (const [b, ch, c, dv, se, vi, ac, bc, pu, pr] of raw.ga4) if (inR(b) && okC(c) && (!f.channel || f.channel === ch) && (!f.device || f.device === dv)) {
-    t.sessions += +se; t.vi += +vi; t.ac += +ac; t.bc += +bc; t.pu += +pu; t.pr += +pr; day(b).sessions += +se;
+    t.sessions += +se; t.vi += +vi; t.ac += +ac; t.bc += +bc; t.pu += +pu; t.pr += +pr; day(b).sessions += +se; day(b).pu += +pu;
     cty(c).sessions += +se; cty(c).pu += +pu;
     (byChannel[ch] ??= { k: ch, sessions: 0, pu: 0, pr: 0 }); byChannel[ch].sessions += +se; byChannel[ch].pu += +pu; byChannel[ch].pr += +pr;
     (byDevice[dv] ??= { k: dv, sessions: 0, pu: 0 }); byDevice[dv].sessions += +se; byDevice[dv].pu += +pu;
   }
-  const series = Object.values(days).sort((a: any, b: any) => (a.b < b.b ? -1 : 1)).map((d: any) => ({
-    ...d, mer: div(d.revenue, d.spend), roas: div(d.value, d.spend), cr: div(d.orders, d.sessions), aov: div(d.revenue, d.orders),
-  }));
   const kpi: Record<MK, number | null> = {
     revenue: t.revenue, orders: t.orders, spend: t.spend, mer: div(t.revenue, t.spend), roas: div(t.value, t.spend),
-    sessions: t.sessions, cr: div(t.orders, t.sessions), aov: div(t.revenue, t.orders),
+    sessions: t.sessions, cr: div(t.orders, t.sessions), cr_ga: div(t.pu, t.sessions), aov: div(t.revenue, t.orders),
   };
-  return { t, kpi, series, byCountry, byCamp, byChannel, byDevice };
+  return { t, kpi, series: Object.values(days), byCountry, byCamp, byChannel, byDevice };
 }
 
-/** Regroups a daily series into monthly buckets (sums + recomputed ratios). */
-function byMonth(series: any[]) {
-  const m: Record<string, any> = {};
-  for (const d of series) {
-    const k = d.b.slice(0, 7);
-    const x = (m[k] ??= { b: k, revenue: 0, orders: 0, spend: 0, g: 0, m: 0, value: 0, sessions: 0 });
-    x.revenue += d.revenue; x.orders += d.orders; x.spend += d.spend; x.g += d.g; x.m += d.m; x.value += d.value; x.sessions += d.sessions;
-  }
-  return Object.values(m).sort((a: any, b: any) => (a.b < b.b ? -1 : 1)).map((x: any) => ({
-    ...x, mer: div(x.revenue, x.spend), roas: div(x.value, x.spend), cr: div(x.orders, x.sessions), aov: div(x.revenue, x.orders),
-  }));
+const SUMS = ['revenue', 'orders', 'spend', 'g', 'm', 'value', 'gv', 'mv', 'sessions', 'pu'];
+/** Bucket key for a raw date (daily or ISO-week rows). Weekly rows go to the month containing their Thursday. */
+const makeKey = (g: Gran, weekRows: boolean) => (b: string) => g === 'day' ? b : g === 'week' ? monday(b) : (weekRows ? addD(b, 3) : b).slice(0, 7);
+/** Regroups a series into buckets (sums, then ratios recomputed — never averaged) and flags incomplete buckets. */
+function bucketize(series: any[], g: Gran, weekRows: boolean, from: string, to: string, today: string) {
+  const key = makeKey(g, weekRows); const m: Record<string, any> = {};
+  for (const d of series) { const k = key(d.b); const x = (m[k] ??= { b: k, ...Object.fromEntries(SUMS.map((s) => [s, 0])) }); for (const s of SUMS) x[s] += d[s] ?? 0; }
+  return Object.values(m).sort((a: any, b: any) => (a.b < b.b ? -1 : 1)).map((x: any) => {
+    const start = g === 'month' ? x.b + '-01' : x.b, end = g === 'month' ? monthEnd(x.b) : g === 'week' ? addD(x.b, 6) : x.b;
+    const partial = start < from || end > to || (start <= today && end >= today);
+    return { ...x, partial, mer: div(x.revenue, x.spend), roas: div(x.value, x.spend), roas_g: div(x.gv, x.g), roas_m: div(x.mv, x.m),
+      cr: div(x.orders, x.sessions), cr_ga: div(x.pu, x.sessions), aov: div(x.revenue, x.orders) };
+  });
 }
-const fmtMonth = (b: string) => (b.length === 7 ? new Date(b + '-01T00:00:00Z').toLocaleDateString('fr-FR', { month: 'short', year: '2-digit', timeZone: 'UTC' }) : b);
+const fmtB = (g: Gran) => (b: string) => !b ? '' : g === 'month' ? new Date(b + '-01T00:00:00Z').toLocaleDateString('fr-FR', { month: 'short', year: '2-digit', timeZone: 'UTC' }) : g === 'week' ? `sem. ${fdShort(b)}` : fdShort(b);
 
 function MultiPick({ label, options, value, onChange }: { label: string; options: { v: string; l: string }[]; value: string[]; onChange: (v: string[]) => void }) {
   const [q, setQ] = useState('');
   const shown = options.filter((o) => o.l.toLowerCase().includes(q.toLowerCase())).slice(0, 200);
   return (
     <Popover>
-      <PopoverTrigger asChild><Button variant="outline" size="sm" className="h-9">{label}{value.length ? ` (${value.length})` : ' : tous'}<ChevronDown className="ml-1 h-4 w-4" /></Button></PopoverTrigger>
+      <PopoverTrigger asChild><Button variant={value.length ? 'secondary' : 'outline'} size="sm" className="h-9" data-readonly-allow>{label}{value.length ? ` (${value.length})` : ' : tous'}<ChevronDown className="ml-1 h-4 w-4" /></Button></PopoverTrigger>
       <PopoverContent className="w-72 p-2" align="start">
         <Input placeholder="Rechercher…" value={q} onChange={(e) => setQ(e.target.value)} className="mb-2 h-8" />
         <div className="max-h-64 overflow-auto space-y-1">
@@ -123,19 +133,22 @@ function MultiPick({ label, options, value, onChange }: { label: string; options
   );
 }
 
-function Delta({ cur, prev, invert }: { cur: number | null; prev: number | null; invert?: boolean }) {
+function Delta({ cur, prev, invert, neutral }: { cur: number | null; prev: number | null; invert?: boolean; neutral?: boolean }) {
   if (cur == null || prev == null || !prev) return <span className="text-xs text-muted-foreground">—</span>;
   const d = (cur - prev) / Math.abs(prev);
   const good = invert ? d < 0 : d > 0;
-  return <span className={`inline-flex items-center text-xs font-medium ${good ? 'text-primary' : 'text-destructive'}`}>{d >= 0 ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />}{Math.abs(d * 100).toFixed(1)} %</span>;
+  const cls = neutral ? 'text-muted-foreground' : good ? 'text-primary' : 'text-destructive';
+  return <span className={`inline-flex items-center text-xs font-medium ${cls}`}>{d >= 0 ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />}{Math.abs(d * 100).toFixed(1)} %</span>;
 }
 
-function Kpi({ k, cur, prev, note, color }: { k: MK; cur: any; prev: any; note?: string; color: string }) {
+function Kpi({ k, cur, prev, note, color, big, neutral }: { k: MK; cur: any; prev: any; note?: string; color: string; big?: boolean; neutral?: boolean }) {
   return (
-    <div className="rounded-lg border bg-card p-3" style={{ borderLeft: `3px solid ${color}` }}>
-      <div className="text-xs text-muted-foreground">{METRICS[k].l}</div>
-      <div className="text-xl font-semibold">{METRICS[k].f(cur[k])}</div>
-      <div className="flex items-center justify-between gap-2"><Delta cur={cur[k]} prev={prev[k]} />{note && <span className="text-[10px] text-muted-foreground truncate">{note}</span>}</div>
+    <div className={`relative overflow-hidden rounded-xl border bg-card ${big ? 'p-4' : 'p-3'}`}>
+      <span className="absolute inset-x-0 top-0 h-1" style={{ background: color }} />
+      <div className="text-xs font-medium text-muted-foreground">{METRICS[k].l}</div>
+      <div className={`${big ? 'text-2xl md:text-3xl' : 'text-lg'} mt-1 font-semibold tabular-nums tracking-tight`}>{METRICS[k].f(cur[k])}</div>
+      <div className="mt-1 flex flex-wrap items-center gap-x-2 text-xs"><Delta cur={cur[k]} prev={prev[k]} neutral={neutral} /><span className="text-muted-foreground tabular-nums">vs {METRICS[k].f(prev[k])}</span></div>
+      {note && <div className="mt-1 text-[11px] leading-tight text-muted-foreground">{note}</div>}
     </div>
   );
 }
@@ -165,47 +178,133 @@ function SortTable({ cols, rows, initial }: { cols: { k: string; l: string; f?: 
 
 const ChartBox = ({ children, h = 280 }: { children: React.ReactElement; h?: number }) => <div style={{ height: h }}><ResponsiveContainer width="100%" height="100%">{children}</ResponsiveContainer></div>;
 const tick = { fontSize: 11, fill: 'hsl(var(--muted-foreground))' };
-const tip = { contentStyle: { background: 'hsl(var(--popover))', border: '1px solid hsl(var(--border))', fontSize: 12 } };
+const tip = { contentStyle: { background: 'hsl(var(--popover))', border: '1px solid hsl(var(--border))', fontSize: 12, borderRadius: 8 } };
+const grid = <CartesianGrid vertical={false} stroke="hsl(var(--border))" strokeOpacity={0.6} />;
+
+type MDef = { k: string; l: string; color: string; f: (n: any) => string; axis?: 'l' | 'r'; on?: boolean; dash?: boolean };
+
+/** One chart = one unit. Chips toggle curves, tooltip shows every visible value + comparison. */
+function TrendChart({ title, unit, data, defs, cmp, cmpLabel, fx, yl, yr, onZoom, canZoom, note, h = 260 }: {
+  title: string; unit: string; data: any[]; defs: MDef[]; cmp: boolean; cmpLabel: string; fx: (b: string) => string;
+  yl: (n: number) => string; yr?: (n: number) => string; onZoom?: (b: string) => void; canZoom?: boolean; note?: string; h?: number;
+}) {
+  const [on, setOn] = useState<Set<string>>(() => new Set(defs.filter((d) => d.on).map((d) => d.k)));
+  const act = defs.filter((d) => on.has(d.k));
+  const right = act.some((d) => d.axis === 'r');
+  const toggle = (k: string) => setOn((s) => { const n = new Set(s); n.has(k) ? n.delete(k) : n.add(k); return n; });
+  const Tip = ({ active, payload, label }: any) => {
+    if (!active || !payload?.length) return null; const r = payload[0].payload;
+    return (
+      <div className="min-w-48 rounded-lg border bg-popover p-2.5 text-xs shadow-md">
+        <div className="mb-1.5 font-medium">{fx(label)}{r.partial && <span className="ml-1 text-muted-foreground">· incomplet</span>}</div>
+        {act.map((d) => (
+          <div key={d.k} className="flex items-center justify-between gap-3 py-0.5">
+            <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full" style={{ background: d.color }} />{d.l}</span>
+            <span className="tabular-nums font-medium">{d.f(r[d.k])}{cmp && r['p_b'] && <span className="ml-1.5 font-normal text-muted-foreground">vs {d.f(r['p_' + d.k])} <Delta cur={r[d.k]} prev={r['p_' + d.k]} neutral /></span>}</span>
+          </div>))}
+        {cmp && r.p_b && <div className="mt-1.5 border-t pt-1 text-muted-foreground">Comparé à : {fx(r.p_b)}{r.p_partial ? ' · incomplet' : ''}</div>}
+        {canZoom && <div className="mt-1 text-muted-foreground">Cliquer pour zoomer</div>}
+      </div>);
+  };
+  return (
+    <Card className="overflow-hidden">
+      <CardHeader className="space-y-2 pb-1">
+        <div className="flex items-baseline justify-between gap-2"><CardTitle className="text-sm font-semibold">{title}</CardTitle><span className="text-[11px] text-muted-foreground">{unit}</span></div>
+        <div className="flex flex-wrap gap-1.5">{defs.map((d) => (
+          <button key={d.k} type="button" data-readonly-allow onClick={() => toggle(d.k)}
+            className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs transition ${on.has(d.k) ? 'bg-secondary text-foreground' : 'text-muted-foreground opacity-60 hover:opacity-100'}`}>
+            <span className="h-2 w-2 rounded-full" style={{ background: on.has(d.k) ? d.color : 'hsl(var(--muted-foreground))' }} />{d.l}{d.axis === 'r' && <span className="text-[10px] text-muted-foreground">(axe droit)</span>}
+          </button>))}</div>
+      </CardHeader>
+      <CardContent className="pt-2">
+        {act.length === 0 ? <p className="py-10 text-center text-sm text-muted-foreground">Sélectionnez au moins un indicateur.</p> : (
+          <ChartBox h={h}>
+            <LineChart data={data} margin={{ top: 8, right: right ? 4 : 12, left: 0, bottom: 0 }} onClick={(e: any) => canZoom && e?.activeLabel && onZoom?.(e.activeLabel)} style={{ cursor: canZoom ? 'zoom-in' : 'default' }}>
+              {grid}
+              <XAxis dataKey="b" tick={tick} tickFormatter={(b, i) => fx(b) + (data[i]?.partial ? '*' : '')} tickLine={false} axisLine={false} minTickGap={16} />
+              <YAxis yAxisId="l" tick={tick} tickFormatter={yl} tickLine={false} axisLine={false} width={56} />
+              {right && <YAxis yAxisId="r" orientation="right" tick={tick} tickFormatter={yr ?? yl} tickLine={false} axisLine={false} width={48} />}
+              <Tooltip content={<Tip />} cursor={{ stroke: 'hsl(var(--border))' }} />
+              {cmp && act.map((d) => <Line key={'p' + d.k} yAxisId={d.axis ?? 'l'} dataKey={'p_' + d.k} stroke={d.color} strokeOpacity={0.45} strokeDasharray="4 4" dot={false} strokeWidth={1.5} connectNulls isAnimationActive={false} />)}
+              {act.map((d) => <Line key={d.k} yAxisId={d.axis ?? 'l'} type="monotone" dataKey={d.k} stroke={d.color} strokeDasharray={d.dash ? '6 3' : undefined} dot={data.length < 20 ? { r: 2.5 } : false} activeDot={{ r: 4 }} strokeWidth={2.25} connectNulls isAnimationActive={false} />)}
+            </LineChart>
+          </ChartBox>)}
+        <p className="mt-1 text-[11px] text-muted-foreground">{cmp ? `Pointillés : ${cmpLabel}. ` : ''}* période incomplète.{note ? ` ${note}` : ''}</p>
+      </CardContent>
+    </Card>
+  );
+}
+
+const fetchCache = new Map<string, Promise<Raw>>();
+const getRaw = (a: string, b: string) => {
+  const k = `${a}|${b}`;
+  if (!fetchCache.has(k)) fetchCache.set(k, sb.rpc('marketing_cockpit', { _from: a, _to: b, _split: a }).then(({ data, error }: any) => { if (error) { fetchCache.delete(k); throw error; } return data as Raw; }));
+  return fetchCache.get(k)!;
+};
 
 export function MarketingCockpit() {
   const today = iso(new Date());
+  const yesterday = addD(today, -1);
   const [preset, setPreset] = useState('30');
-  const [from, setFrom] = useState(addD(today, -29));
-  const [to, setTo] = useState(today);
-  const [raw, setRaw] = useState<Raw | null>(null);
+  const [from, setFrom] = useState(addD(yesterday, -29));
+  const [to, setTo] = useState(yesterday);
+  const [cmpMode, setCmpMode] = useState<'prev' | 'yoy' | 'custom'>('prev');
+  const [cmpStart, setCmpStart] = useState(addD(yesterday, -394));
+  const [overlay, setOverlay] = useState(true);
+  const [gran, setGran] = useState<'auto' | Gran>('auto');
+  const [stack, setStack] = useState<{ preset: string; from: string; to: string; gran: 'auto' | Gran }[]>([]);
+  const [rawCur, setRawCur] = useState<Raw | null>(null);
+  const [rawCmp, setRawCmp] = useState<Raw | null>(null);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState('');
-  const [f, setF] = useState<F>({ countries: [], campaigns: [], adSrc: 'all', channel: '', device: '' });
-  const [shown, setShown] = useState<MK[]>(['revenue', 'spend', 'mer']);
+  const [f, setF] = useState<F>(F0);
   const [cmpCountries, setCmpCountries] = useState<string[]>([]);
   const [cmpCamps, setCmpCamps] = useState<string[]>([]);
-  const [gran, setGran] = useState<'day' | 'month'>('day');
 
-  useEffect(() => { if (preset !== 'custom') { setFrom(addD(today, -(Number(preset) - 1))); setTo(today); } }, [preset, today]);
+  useEffect(() => { if (preset !== 'custom') { setFrom(addD(yesterday, -(Number(preset) - 1))); setTo(yesterday); } }, [preset, yesterday]);
 
-  // Periods: weekly buckets when the total range exceeds 200 days (same rule as the server).
+  // Long ranges are served in ISO weeks (server rule > 200 days): the period then starts on a Monday.
   const span = diffD(from, to) + 1;
-  const weekly = 2 * span > 201;
+  const weekly = span > 195;
   const cFrom = weekly ? monday(from) : from;
   const len = diffD(cFrom, to) + 1;
-  const pFrom = weekly ? addD(cFrom, -Math.ceil(len / 7) * 7) : addD(cFrom, -len);
-  const pTo = addD(cFrom, -1);
+  // Comparison always has the exact same length as the current period.
+  const pFrom = cmpMode === 'yoy' ? addD(cFrom, -364) : cmpMode === 'custom' ? (weekly ? monday(cmpStart) : cmpStart) : addD(cFrom, weekly ? -Math.ceil(len / 7) * 7 : -len);
+  const pTo = addD(pFrom, len - 1);
+  const cmpLabel = cmpMode === 'yoy' ? 'N-1 (mêmes jours de semaine, −52 sem.)' : cmpMode === 'custom' ? 'période personnalisée' : 'période précédente';
 
   useEffect(() => {
     if (from > to) return;
     let off = false; setLoading(true); setErr('');
-    sb.rpc('marketing_cockpit', { _from: pFrom, _to: to, _split: cFrom }).then(({ data, error }: any) => {
-      if (off) return; setLoading(false);
-      if (error) setErr(error.message); else setRaw(data);
-    });
+    Promise.all([getRaw(cFrom, to), getRaw(pFrom, pTo)]).then(([a, b]) => { if (!off) { setRawCur(a); setRawCmp(b); setLoading(false); } })
+      .catch((e) => { if (!off) { setErr(e.message ?? String(e)); setLoading(false); } });
     return () => { off = true; };
-  }, [pFrom, cFrom, to, from]);
+  }, [cFrom, to, pFrom, pTo, from]);
 
-  const campName = useMemo(() => new Map((raw?.campaigns ?? []).map(([s, id, n]: any) => [`${s}:${id}`, n ?? id])), [raw]);
-  const cur = useMemo(() => raw && aggregate(raw, cFrom, to, f), [raw, cFrom, to, f]);
-  const prev = useMemo(() => raw && aggregate(raw, pFrom, pTo, f), [raw, pFrom, pTo, f]);
-  const chartSeries = useMemo(() => (cur ? (gran === 'month' ? byMonth(cur.series) : cur.series) : []), [cur, gran]);
-  const all = useMemo(() => raw && aggregate(raw, cFrom, to, { countries: [], campaigns: [], adSrc: 'all', channel: '', device: '' }), [raw, cFrom, to]);
+  // Products: current payload = period 1, comparison payload = period 0 (same row format as before).
+  const raw = useMemo<Raw | null>(() => rawCur && rawCmp && ({ ...rawCur, products: [...rawCur.products.map((p: any[]) => [1, ...p.slice(1)]), ...rawCmp.products.map((p: any[]) => [0, ...p.slice(1)])] }), [rawCur, rawCmp]);
+  const weekRows = !!rawCur?.week;
+  const autoG: Gran = span > 120 ? 'month' : span > 45 ? 'week' : 'day';
+  const eg: Gran = (() => { const g = gran === 'auto' ? autoG : gran; return weekRows && g === 'day' ? 'week' : g; })();
+  const keyOf = makeKey(eg, weekRows);
+  const fx = fmtB(eg);
+  const fmtMonth = fx;
+
+  const campName = useMemo(() => new Map([...(rawCur?.campaigns ?? []), ...(rawCmp?.campaigns ?? [])].map(([s, id, n]: any) => [`${s}:${id}`, n ?? id])), [rawCur, rawCmp]);
+  const cur = useMemo(() => rawCur && aggregate(rawCur, cFrom, to, f), [rawCur, cFrom, to, f]);
+  const prev = useMemo(() => rawCmp && aggregate(rawCmp, pFrom, pTo, f), [rawCmp, pFrom, pTo, f]);
+  const chartSeries = useMemo(() => {
+    if (!cur || !prev) return [];
+    const a = bucketize(cur.series, eg, weekRows, cFrom, to, today);
+    // Align comparison buckets by offset from the first bucket of each period.
+    const pk = makeKey(eg, weekRows); const startKey = pk(pFrom), curKey = pk(cFrom);
+    const b = bucketize(prev.series, eg, weekRows, pFrom, pTo, today);
+    const shift = (k: string, n: number) => eg === 'month' ? (() => { const [y, m] = k.split('-').map(Number); const d = new Date(Date.UTC(y, m - 1 + n, 1)); return iso(d).slice(0, 7); })() : addD(k, n * (eg === 'week' ? 7 : 1));
+    const idx = (k: string) => eg === 'month' ? (Number(k.slice(0, 4)) * 12 + Number(k.slice(5, 7))) - (Number(curKey.slice(0, 4)) * 12 + Number(curKey.slice(5, 7))) : diffD(curKey, k) / (eg === 'week' ? 7 : 1);
+    const pm = new Map(b.map((x: any) => [x.b, x]));
+    return a.map((x: any) => { const p: any = pm.get(shift(startKey, idx(x.b))); return p ? { ...x, ...Object.fromEntries(Object.entries(p).map(([k, v]) => ['p_' + k, v])) } : x; });
+  }, [cur, prev, eg, weekRows, cFrom, to, pFrom, pTo, today]);
+  const all = useMemo(() => rawCur && aggregate(rawCur, cFrom, to, F0), [rawCur, cFrom, to]);
 
   const countryOpts = useMemo(() => Object.values(all?.byCountry ?? {}).sort((a: any, b: any) => b.revenue + b.spend - a.revenue - a.spend).map((x: any) => ({ v: x.c, l: x.c })), [all]);
   const campOpts = useMemo(() => Object.values(all?.byCamp ?? {}).filter((k: any) => k.spend > 0).sort((a: any, b: any) => b.spend - a.spend).map((k: any) => ({ v: k.key, l: `${SRC[k.s]} · ${campName.get(k.key) ?? k.id}` })), [all, campName]);
@@ -214,29 +313,58 @@ export function MarketingCockpit() {
 
   const adsFiltered = f.campaigns.length > 0 || f.adSrc !== 'all';
   const gaFiltered = !!f.channel || !!f.device;
-  const merNote = adsFiltered ? 'MER partiel : CA total ÷ dépenses filtrées' : 'CA Shopify ÷ (Google + Meta)';
+  const merNote = adsFiltered ? 'Partiel : CA Shopify total ÷ dépenses filtrées' : 'CA Shopify réel ÷ (Google + Meta)';
+  const crNote = gaFiltered ? 'Non comparable : commandes Shopify non filtrables par canal/appareil — voir taux GA4' : 'Commandes Shopify ÷ sessions GA4';
+  const filtersOn = f.countries.length || f.campaigns.length || f.adSrc !== 'all' || f.channel || f.device;
+
+  const zoom = (b: string) => {
+    if (eg === 'day') return;
+    const s = eg === 'month' ? b + '-01' : b, e = eg === 'month' ? monthEnd(b) : addD(b, 6);
+    setStack([...stack, { preset, from, to, gran }]);
+    setPreset('custom'); setFrom(s); setTo(e > today ? today : e); setGran('day');
+  };
+  const back = () => { const p = stack[stack.length - 1]; if (!p) return; setStack(stack.slice(0, -1)); setPreset(p.preset); setFrom(p.from); setTo(p.to); setGran(p.gran); };
+  const canZoom = eg !== 'day';
+  const zoomHint = canZoom ? `Cliquez un${eg === 'month' ? ' mois' : 'e semaine'} pour l'afficher par jour.` : undefined;
 
   return (
     <div className="space-y-4">
       {/* Global filters */}
-      <div className="sticky top-0 z-20 -mx-1 rounded-lg border bg-background/95 p-3 backdrop-blur supports-[backdrop-filter]:bg-background/80">
+      <div className="sticky top-0 z-20 -mx-1 space-y-2 rounded-xl border bg-background/95 p-3 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-background/80">
+        <div className="flex flex-wrap items-end gap-2">
+          <div className="space-y-1"><div className="text-[11px] font-medium text-muted-foreground">Période</div>
+            <Select value={preset} onValueChange={(v) => { setStack([]); setPreset(v); }}>
+              <SelectTrigger className="h-9 w-36"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="7">7 jours</SelectItem><SelectItem value="30">30 jours</SelectItem><SelectItem value="90">3 mois</SelectItem>
+                <SelectItem value="182">6 mois</SelectItem><SelectItem value="365">12 mois</SelectItem><SelectItem value="custom">Personnalisée</SelectItem>
+              </SelectContent>
+            </Select></div>
+          {preset === 'custom' && <div className="flex gap-1"><Input type="date" className="h-9 w-36" value={from} max={to} onChange={(e) => setFrom(e.target.value)} /><Input type="date" className="h-9 w-36" value={to} min={from} max={today} onChange={(e) => setTo(e.target.value)} /></div>}
+          <div className="space-y-1"><div className="text-[11px] font-medium text-muted-foreground">Comparer à</div>
+            <Select value={cmpMode} onValueChange={(v) => setCmpMode(v as any)}>
+              <SelectTrigger className="h-9 w-44"><SelectValue /></SelectTrigger>
+              <SelectContent><SelectItem value="prev">Période précédente</SelectItem><SelectItem value="yoy">Année précédente (N-1)</SelectItem><SelectItem value="custom">Dates personnalisées</SelectItem></SelectContent>
+            </Select></div>
+          {cmpMode === 'custom' && <div className="space-y-1"><div className="text-[11px] text-muted-foreground">Début (même durée)</div><Input type="date" className="h-9 w-36" value={cmpStart} max={today} onChange={(e) => setCmpStart(e.target.value)} /></div>}
+          <div className="space-y-1"><div className="text-[11px] font-medium text-muted-foreground">Échelle</div>
+            <Select value={gran} onValueChange={(v) => setGran(v as any)}>
+              <SelectTrigger className="h-9 w-36"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="auto">Auto ({G_L[autoG]})</SelectItem>
+                <SelectItem value="day" disabled={weekRows}>Jour{weekRows ? ' (≤ 6 mois)' : ''}</SelectItem>
+                <SelectItem value="week">Semaine</SelectItem><SelectItem value="month">Mois</SelectItem>
+              </SelectContent>
+            </Select></div>
+          <Button variant={overlay ? 'secondary' : 'outline'} size="sm" className="h-9" data-readonly-allow onClick={() => setOverlay(!overlay)}>{overlay ? 'Comparaison affichée' : 'Comparaison masquée'}</Button>
+          {stack.length > 0 && <Button variant="outline" size="sm" className="h-9" data-readonly-allow onClick={back}><ArrowLeft className="mr-1 h-4 w-4" />Revenir</Button>}
+          {loading && <Loader2 className="mb-2 h-4 w-4 animate-spin text-muted-foreground" />}
+        </div>
         <div className="flex flex-wrap items-center gap-2">
-          <Select value={preset} onValueChange={setPreset}>
-            <SelectTrigger className="h-9 w-40"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="7">7 jours</SelectItem><SelectItem value="30">30 jours</SelectItem><SelectItem value="90">3 mois</SelectItem>
-              <SelectItem value="182">6 mois</SelectItem><SelectItem value="365">12 mois</SelectItem><SelectItem value="custom">Personnalisée</SelectItem>
-            </SelectContent>
-          </Select>
-          {preset === 'custom' && <><Input type="date" className="h-9 w-36" value={from} onChange={(e) => setFrom(e.target.value)} /><Input type="date" className="h-9 w-36" value={to} max={today} onChange={(e) => setTo(e.target.value)} /></>}
-          <Select value={gran} onValueChange={(v) => setGran(v as 'day' | 'month')}>
-            <SelectTrigger className="h-9 w-36"><SelectValue /></SelectTrigger>
-            <SelectContent><SelectItem value="day">Échelle : jour</SelectItem><SelectItem value="month">Échelle : mois</SelectItem></SelectContent>
-          </Select>
           <MultiPick label="Pays" options={countryOpts} value={f.countries} onChange={(v) => setF({ ...f, countries: v })} />
           <Select value={f.adSrc} onValueChange={(v) => setF({ ...f, adSrc: v as F['adSrc'] })}>
             <SelectTrigger className="h-9 w-40"><SelectValue /></SelectTrigger>
-            <SelectContent><SelectItem value="all">Google + Meta</SelectItem><SelectItem value="g">Google Ads seul</SelectItem><SelectItem value="m">Meta Ads seul</SelectItem></SelectContent>
+            <SelectContent><SelectItem value="all">Régie : Google + Meta</SelectItem><SelectItem value="g">Google Ads seul</SelectItem><SelectItem value="m">Meta Ads seul</SelectItem></SelectContent>
           </Select>
           <MultiPick label="Campagnes" options={campOpts} value={f.campaigns} onChange={(v) => setF({ ...f, campaigns: v })} />
           <Select value={f.channel || 'all'} onValueChange={(v) => setF({ ...f, channel: v === 'all' ? '' : v })}>
@@ -247,10 +375,14 @@ export function MarketingCockpit() {
             <SelectTrigger className="h-9 w-36"><SelectValue /></SelectTrigger>
             <SelectContent><SelectItem value="all">Appareil : tous</SelectItem>{devices.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
           </Select>
-          {loading && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
+          {filtersOn ? <Button variant="ghost" size="sm" className="h-9" data-readonly-allow onClick={() => setF(F0)}><RotateCcw className="mr-1 h-4 w-4" />Réinitialiser</Button> : null}
         </div>
-        <div className="mt-2 flex flex-wrap gap-1 text-xs text-muted-foreground">
-          <span>Du {cFrom} au {to} · comparé au {pFrom} → {pTo}{weekly ? ' · par semaine' : ''}</span>
+        <div className="flex flex-wrap items-center gap-1 text-xs text-muted-foreground">
+          <span className="font-medium text-foreground">{fd(cFrom)} → {fd(to)}</span><span>({len} j)</span>
+          <span>· comparé à {fd(pFrom)} → {fd(pTo)} ({len} j)</span>
+          {weekly && cFrom !== from && <NA>Début aligné sur le lundi (données par semaine au-delà de 6 mois)</NA>}
+          {to >= today && <NA>Aujourd'hui inclus : données partielles (synchro nocturne)</NA>}
+          {pTo >= cFrom && <NA>Les deux périodes se chevauchent</NA>}
           {adsFiltered && <NA>Shopify et GA4 : non filtrables par campagne ni par régie</NA>}
           {gaFiltered && <NA>Canal GA4 / appareil : appliqués à GA4 uniquement</NA>}
           {f.countries.length > 0 && <NA>Pays : dépenses Ads issues de la ventilation par pays (part sans pays exclue)</NA>}
@@ -270,40 +402,35 @@ export function MarketingCockpit() {
           </TabsList></div>
 
           <TabsContent value="overview" className="space-y-4">
-            <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-              <Kpi k="revenue" cur={cur.kpi} prev={prev.kpi} color={C.shop} note="réel · référence" />
-              <Kpi k="orders" cur={cur.kpi} prev={prev.kpi} color={C.shop} />
-              <Kpi k="aov" cur={cur.kpi} prev={prev.kpi} color={C.shop} />
-              <Kpi k="spend" cur={cur.kpi} prev={prev.kpi} color={C.g} note={`G ${eur(cur.t.g)} · M ${eur(cur.t.m)}`} />
-              <Kpi k="mer" cur={cur.kpi} prev={prev.kpi} color={C.mer} note={merNote} />
-              <Kpi k="roas" cur={cur.kpi} prev={prev.kpi} color={C.m} note="attribué, ≠ CA" />
-              <Kpi k="sessions" cur={cur.kpi} prev={prev.kpi} color={C.ga} />
-              <Kpi k="cr" cur={cur.kpi} prev={prev.kpi} color={C.ga} note="commandes Shopify ÷ sessions" />
+            <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+              <Kpi big k="revenue" cur={cur.kpi} prev={prev.kpi} color={C.shop} note="Référence · HT, livraison incluse, hors annulées" />
+              <Kpi big k="spend" cur={cur.kpi} prev={prev.kpi} color={C.ink} neutral note={`Google ${eur(cur.t.g)} · Meta ${eur(cur.t.m)}`} />
+              <Kpi big k="mer" cur={cur.kpi} prev={prev.kpi} color={C.mer} note={merNote} />
+              <Kpi big k="orders" cur={cur.kpi} prev={prev.kpi} color={C.shop} note="Shopify, hors annulées et tests" />
             </div>
-            <Card>
-              <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2 pb-2">
-                <CardTitle className="text-base">Évolution</CardTitle>
-                <div className="flex flex-wrap gap-1">{(Object.keys(METRICS) as MK[]).map((k) => (
-                  <Button key={k} size="sm" variant={shown.includes(k) ? 'default' : 'outline'} className="h-7 text-xs"
-                    onClick={() => setShown(shown.includes(k) ? shown.filter((x) => x !== k) : [...shown, k])}>{METRICS[k].l}</Button>))}</div>
-              </CardHeader>
-              <CardContent>
-                <ChartBox h={320}>
-                  <LineChart data={chartSeries}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                    <XAxis dataKey="b" tick={tick} tickFormatter={fmtMonth} />
-                    <YAxis yAxisId="eur" tick={tick} />
-                    <YAxis yAxisId="r" orientation="right" tick={tick} />
-                    <YAxis yAxisId="n" orientation="right" tick={tick} width={45} />
-                    <YAxis yAxisId="p" hide />
-                    <Tooltip {...tip} formatter={(v: any, n: any) => [METRICS[n as MK]?.f(v) ?? v, METRICS[n as MK]?.l ?? n]} />
-                    <Legend formatter={(n) => METRICS[n as MK]?.l ?? n} />
-                    {shown.map((k, i) => <Line key={k} type="monotone" dataKey={k} yAxisId={k === 'cr' ? 'p' : ['mer', 'roas'].includes(k) ? 'r' : ['orders', 'sessions'].includes(k) ? 'n' : 'eur'} stroke={PALETTE[i % PALETTE.length]} dot={false} strokeWidth={2} connectNulls />)}
-                  </LineChart>
-                </ChartBox>
-                <p className="mt-2 text-xs text-muted-foreground">Axe de gauche : montants en €. Axes de droite : ratios (MER, ROAS, taux) et volumes (commandes, sessions), chacun à sa propre échelle.</p>
-              </CardContent>
-            </Card>
+            <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-5">
+              <Kpi k="aov" cur={cur.kpi} prev={prev.kpi} color={C.shop} />
+              <Kpi k="roas" cur={cur.kpi} prev={prev.kpi} color={C.m} note="Valeur attribuée par les régies ÷ dépenses (≠ CA)" />
+              <Kpi k="sessions" cur={cur.kpi} prev={prev.kpi} color={C.ga} />
+              <Kpi k="cr" cur={cur.kpi} prev={prev.kpi} color={C.shop} note={crNote} />
+              <Kpi k="cr_ga" cur={cur.kpi} prev={prev.kpi} color={C.ga} note="Achats GA4 ÷ sessions (sous-estimé : cookies)" />
+            </div>
+
+            <TrendChart title="CA Shopify et dépenses publicitaires" unit="en €" data={chartSeries} cmp={overlay} cmpLabel={cmpLabel} fx={fx} yl={axEur} canZoom={canZoom} onZoom={zoom} h={300} note={zoomHint}
+              defs={[{ k: 'revenue', l: 'CA Shopify HT', color: C.shop, f: eur, on: true }, { k: 'spend', l: 'Dépenses totales', color: C.ink, f: eur, on: true },
+                { k: 'g', l: 'Google Ads', color: C.g, f: eur }, { k: 'm', l: 'Meta Ads', color: C.m, f: eur }, { k: 'aov', l: 'Panier moyen', color: C.shop, f: eur, dash: true }]} />
+            <div className="grid gap-4 lg:grid-cols-3">
+              <TrendChart title="MER global et ROAS attribué" unit="multiplicateur ×" data={chartSeries} cmp={overlay} cmpLabel={cmpLabel} fx={fx} yl={axX} canZoom={canZoom} onZoom={zoom}
+                note="MER = CA réel ÷ dépenses. ROAS = valeur attribuée par la régie ÷ ses dépenses."
+                defs={[{ k: 'mer', l: 'MER global', color: C.mer, f: dec, on: true }, { k: 'roas', l: 'ROAS attribué', color: C.ink, f: dec, on: true, dash: true },
+                  { k: 'roas_g', l: 'ROAS Google', color: C.g, f: dec }, { k: 'roas_m', l: 'ROAS Meta', color: C.m, f: dec }]} />
+              <TrendChart title="Sessions et commandes" unit="volumes" data={chartSeries} cmp={overlay} cmpLabel={cmpLabel} fx={fx} yl={axInt} yr={axInt} canZoom={canZoom} onZoom={zoom}
+                note="Axe gauche : sessions · axe droit : commandes."
+                defs={[{ k: 'sessions', l: 'Sessions GA4', color: C.ga, f: int, on: true }, { k: 'orders', l: 'Commandes Shopify', color: C.shop, f: int, on: true, axis: 'r' }]} />
+              <TrendChart title="Taux de conversion" unit="en %" data={chartSeries} cmp={overlay} cmpLabel={cmpLabel} fx={fx} yl={axPct} canZoom={canZoom} onZoom={zoom}
+                note={gaFiltered ? 'Avec filtre canal/appareil, seul le taux GA4 est cohérent.' : 'Shopify = commandes ÷ sessions GA4.'}
+                defs={[{ k: 'cr', l: 'Shopify ÷ sessions', color: C.shop, f: pct, on: !gaFiltered }, { k: 'cr_ga', l: 'Achats GA4 ÷ sessions', color: C.ga, f: pct, on: true }]} />
+            </div>
           </TabsContent>
 
           <TabsContent value="acq" className="space-y-4">
@@ -363,14 +490,14 @@ export function MarketingCockpit() {
           <TabsContent value="camp" className="space-y-4">
             <Card>
               <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2 pb-2">
-                <CardTitle className="text-base">Comparer des campagnes (dépenses par {gran === 'month' ? 'mois' : weekly ? 'semaine' : 'jour'})</CardTitle>
+                <CardTitle className="text-base">Comparer des campagnes (dépenses par {G_L[eg]})</CardTitle>
                 <MultiPick label="Campagnes" options={campOpts} value={cmpCamps} onChange={setCmpCamps} />
               </CardHeader>
               <CardContent>{cmpCamps.length === 0 ? <p className="text-sm text-muted-foreground">Sélectionnez une ou plusieurs campagnes à comparer.</p> : (
                 <ChartBox>
                   <LineChart data={(() => {
                     const m: Record<string, any> = {};
-                    for (const [s, b, id, sp] of raw!.ads) { const k = `${s}:${id}`; if (b >= cFrom && b <= to && cmpCamps.includes(k)) { const bk = gran === 'month' ? b.slice(0, 7) : b; (m[bk] ??= { b: bk })[k] = (m[bk][k] ?? 0) + +sp; } }
+                    for (const [s, b, id, sp] of raw!.ads) { const k = `${s}:${id}`; if (b >= cFrom && b <= to && cmpCamps.includes(k)) { const bk = keyOf(b); (m[bk] ??= { b: bk })[k] = (m[bk][k] ?? 0) + +sp; } }
                     return Object.values(m).sort((a: any, b: any) => (a.b < b.b ? -1 : 1));
                   })()}>
                     <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" /><XAxis dataKey="b" tick={tick} tickFormatter={fmtMonth} /><YAxis tick={tick} />
