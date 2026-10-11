@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -154,7 +154,7 @@ export function GoogleAdsAudit({ canWrite }: { canWrite: boolean }) {
                 <TableHead>Pays</TableHead><TableHead>Produits ciblés</TableHead><TableHead className="text-right">Produits diffusés</TableHead>
                 <TableHead className="text-right">Coût 90 j</TableHead><TableHead className="text-right">Valeur attribuée</TableHead><TableHead className="text-right">ROAS attr.</TableHead>
               </TableRow></TableHeader>
-              <TableBody>{a.list.map((c) => (<>
+              <TableBody>{a.list.map((c) => (<Fragment key={c.id}>
                 <TableRow key={c.id} className={c.status !== 'ENABLED' ? 'opacity-60' : ''}>
                   <TableCell className="p-1"><button onClick={() => setOpen(open === c.id ? null : c.id)}>{open === c.id ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}</button></TableCell>
                   <TableCell className="font-medium">{c.name}{c.status !== 'ENABLED' && <Badge variant="outline" className="ml-1">{c.status === 'PAUSED' ? 'En pause' : c.status}</Badge>}</TableCell>
@@ -174,7 +174,7 @@ export function GoogleAdsAudit({ canWrite }: { canWrite: boolean }) {
                   {c.lost != null && <div><b>Impressions perdues (budget, 30 j) :</b> {Math.round(c.lost * 100)} %</div>}
                   {c.feed_label && <div><b>Flux Merchant :</b> {c.feed_label}</div>}
                 </TableCell></TableRow>}
-              </>))}</TableBody>
+              </Fragment>))}</TableBody>
             </Table>
           </CardContent>
         </Card>
