@@ -27,5 +27,6 @@
 
 ## Copilote Google Ads
 - [x] Étape 1 : audit de structure en lecture seule (lecture nocturne + onglet Audit)
-- [ ] Étape 2 : recommandations IA (attend validation de l'audit)
+- [x] Étape 2 : Copilote stratégique IA (onglet Stratégie IA)
+- [ ] Tester une analyse stratégique réelle (attend un lancement depuis un compte connecté)
 - [ ] Étape 3 : constructeur de campagnes (écriture désactivée)
