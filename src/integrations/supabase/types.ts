@@ -2214,6 +2214,48 @@ export type Database = {
         }
         Relationships: []
       }
+      marketing_ai_analyses: {
+        Row: {
+          cache_key: string
+          created_at: string
+          created_by: string | null
+          filters: Json
+          id: string
+          kind: string
+          model: string
+          period_from: string
+          period_to: string
+          result: Json
+          updated_at: string
+        }
+        Insert: {
+          cache_key: string
+          created_at?: string
+          created_by?: string | null
+          filters?: Json
+          id?: string
+          kind?: string
+          model: string
+          period_from: string
+          period_to: string
+          result: Json
+          updated_at?: string
+        }
+        Update: {
+          cache_key?: string
+          created_at?: string
+          created_by?: string | null
+          filters?: Json
+          id?: string
+          kind?: string
+          model?: string
+          period_from?: string
+          period_to?: string
+          result?: Json
+          updated_at?: string
+        }
+        Relationships: []
+      }
       meta_ads_campaign_daily: {
         Row: {
           account_id: string
