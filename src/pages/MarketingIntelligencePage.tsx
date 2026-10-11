@@ -357,6 +357,41 @@ function MetaTest() {
   );
 }
 
+function MerchantSync() {
+  const [runs, setRuns] = useState<any[]>([]);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState('');
+  const load = async () => {
+    const { data } = await (supabase as any).from('merchant_sync_runs').select('*').order('started_at', { ascending: false }).limit(5);
+    setRuns(data ?? []);
+  };
+  useEffect(() => { load(); }, []);
+  const sync = async () => {
+    setBusy(true); setMsg('');
+    for (let i = 0; i < 10; i++) {
+      const { data, error } = await supabase.functions.invoke('merchant-sync', { method: 'POST', body: {} });
+      const r = error ? await readFnError(error) : data;
+      await load();
+      if (r?.status !== 'partial') { setMsg(r?.status === 'success' ? `${r.offers_read} offres lues, ${r.matched} rapprochées Shopify` : `Échec : ${r?.message}`); break; }
+    }
+    setBusy(false);
+  };
+  return (
+    <div className="rounded border p-3 space-y-2">
+      <div className="flex items-center justify-between gap-2">
+        <span className="font-medium">Synchronisation (chaque nuit + manuelle)</span>
+        <Button size="sm" onClick={sync} disabled={busy}>{busy && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Actualiser</Button>
+      </div>
+      {msg && <p className="text-xs">{msg}</p>}
+      {runs.map((r) => (
+        <p key={r.id} className="text-xs text-muted-foreground">
+          {new Date(r.started_at).toLocaleString('fr-FR')} · {r.mode === 'cron' ? 'Quotidienne' : 'Manuelle'} · {r.status} · {r.offers_read} offres · {r.matched} rapprochées{r.error ? ` · ${r.error}` : ''}
+        </p>
+      ))}
+    </div>
+  );
+}
+
 function MerchantTest() {
   const [loading, setLoading] = useState(false);
   const [r, setR] = useState<any>(null);
@@ -383,6 +418,7 @@ function MerchantTest() {
       <CardHeader className="flex flex-row items-center justify-between"><CardTitle className="text-base">Google Merchant Center</CardTitle><Badge variant="outline">Test lecture seule</Badge></CardHeader>
       <CardContent className="space-y-2 text-sm">
         <p className="text-muted-foreground">Offres, custom labels, pays et statuts d'éligibilité ; correspondance avec les variantes Shopify. Rien n'est enregistré ni modifié.</p>
+        <MerchantSync />
         <div className="flex flex-wrap gap-2">
           <Button variant="outline" size="sm" onClick={test} disabled={loading}>
             {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}{reg?.status === 'registered' ? 'Relancer le test de lecture' : 'Tester la lecture Merchant Center'}
