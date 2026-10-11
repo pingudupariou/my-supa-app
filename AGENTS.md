@@ -8,3 +8,5 @@
 - Customer names are synced with orders using only scalar name fields verified in the cached Customer definition — avoids guessed Erplain API fields.
 - Refresh the authenticated user's role, approval and tab permissions together on focus and periodically; discard stale responses — role changes must not leave workshop controls locked to an old role.
 - GA4 data is stored per dimension set (day×channel×country×device cube, source/medium table, daily users) and each sync chunk replaces its days — GA4 metrics are not additive across dimension sets and reruns must never duplicate.
+- Cockpit shipping uses the existing aggregate RPC payload; mark the ex-shipping decomposition as estimated until shipping taxes and refunds are available, preserving the total-HT MER numerator to avoid false precision.
+- Compute optional daily moving averages client-side from seven consecutive complete actual values, leaving gaps for missing dates or undefined ratios, to preserve real curves without additional requests.
