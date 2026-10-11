@@ -3540,6 +3540,7 @@ export type Database = {
         Args: { _from: string; _split: string; _to: string }
         Returns: Json
       }
+      marketing_strategy_summary: { Args: never; Returns: Json }
       merchant_catalog_sales: { Args: { _days?: number }; Returns: Json }
       meta_ads_dashboard: {
         Args: { _from: string; _to: string }

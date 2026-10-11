@@ -16,6 +16,7 @@ import { MetaAdsSyncCard, MetaAdsDashboard } from '@/components/marketing/MetaAd
 import { MarketingCockpit } from '@/components/marketing/cockpit/MarketingCockpit';
 import { MarketingTasks, TaskSummary } from '@/components/marketing/tasks/MarketingTasks';
 import { GoogleAdsAudit } from '@/components/marketing/audit/GoogleAdsAudit';
+import { AiStrategy } from '@/components/marketing/strategy/AiStrategy';
 import { AdCatalog } from '@/components/marketing/catalog/AdCatalog';
 
 const sb = supabase as any;
@@ -542,6 +543,7 @@ export function MarketingIntelligencePage() {
         <TabsList className="h-auto flex-wrap">
           <TabsTrigger value="cockpit" data-readonly-allow>Cockpit</TabsTrigger>
           <TabsTrigger value="tasks" data-readonly-allow>Tâches</TabsTrigger>
+          <TabsTrigger value="strategy" data-readonly-allow>Stratégie IA</TabsTrigger>
           <TabsTrigger value="gads-audit" data-readonly-allow>Audit Google Ads</TabsTrigger>
           <TabsTrigger value="catalog" data-readonly-allow>Catalogue publicitaire</TabsTrigger>
           <TabsTrigger value="shopify" data-readonly-allow>Shopify</TabsTrigger>
@@ -551,6 +553,7 @@ export function MarketingIntelligencePage() {
         </TabsList>
         <TabsContent value="cockpit"><MarketingCockpit canWrite={access === 'write'} /></TabsContent>
         <TabsContent value="tasks"><MarketingTasks canWrite={access === 'write'} /></TabsContent>
+        <TabsContent value="strategy"><AiStrategy canWrite={access === 'write'} /></TabsContent>
         <TabsContent value="gads-audit"><GoogleAdsAudit canWrite={access === 'write'} /></TabsContent>
         <TabsContent value="catalog"><AdCatalog canWrite={access === 'write'} /></TabsContent>
         <TabsContent value="shopify" className="space-y-6"><ShopifySection canWrite={access === 'write'} /><ShopifyReconciliation /></TabsContent>
