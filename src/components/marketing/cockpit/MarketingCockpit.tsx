@@ -204,6 +204,7 @@ export function MarketingCockpit() {
   const campName = useMemo(() => new Map((raw?.campaigns ?? []).map(([s, id, n]: any) => [`${s}:${id}`, n ?? id])), [raw]);
   const cur = useMemo(() => raw && aggregate(raw, cFrom, to, f), [raw, cFrom, to, f]);
   const prev = useMemo(() => raw && aggregate(raw, pFrom, pTo, f), [raw, pFrom, pTo, f]);
+  const chartSeries = useMemo(() => (cur ? (gran === 'month' ? byMonth(cur.series) : cur.series) : []), [cur, gran]);
   const all = useMemo(() => raw && aggregate(raw, cFrom, to, { countries: [], campaigns: [], adSrc: 'all', channel: '', device: '' }), [raw, cFrom, to]);
 
   const countryOpts = useMemo(() => Object.values(all?.byCountry ?? {}).sort((a: any, b: any) => b.revenue + b.spend - a.revenue - a.spend).map((x: any) => ({ v: x.c, l: x.c })), [all]);
