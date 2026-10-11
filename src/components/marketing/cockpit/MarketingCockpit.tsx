@@ -321,7 +321,7 @@ export function MarketingCockpit() {
             <Card>
               <CardHeader className="pb-2"><CardTitle className="text-base">Dépenses Google vs Meta</CardTitle></CardHeader>
               <CardContent><ChartBox>
-                <BarChart data={cur.series}><CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" /><XAxis dataKey="b" tick={tick} /><YAxis tick={tick} />
+                <BarChart data={chartSeries}><CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" /><XAxis dataKey="b" tick={tick} tickFormatter={fmtMonth} /><YAxis tick={tick} />
                   <Tooltip {...tip} formatter={(v: any) => eur(v)} /><Legend /><Bar dataKey="g" name="Google Ads" stackId="a" fill={C.g} /><Bar dataKey="m" name="Meta Ads" stackId="a" fill={C.m} /></BarChart>
               </ChartBox></CardContent>
             </Card>
