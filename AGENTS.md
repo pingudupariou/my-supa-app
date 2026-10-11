@@ -16,3 +16,4 @@
 - Merchant Center offers are matched to Shopify only by exact variant ID in the offer ID, then unique exact SKU (also inside the same product); never by title — avoids false matches.
 - merchant_offer_countries keeps one row per offer × country (best status across destinations) — prevents country counters exceeding offer counts.
 - Ad catalogue groups merchant_offers client-side by Shopify variant (else offer_id) and checks eligibility per selected country from merchant_offer_countries; manual matches live in merchant_manual_matches, never written back by sync — keeps feed/country offers distinct without guessed matches.
+- Google Ads structure is stored as one JSON snapshot per read (google_ads_structure_snapshots, 30 kept) by google-ads-structure; sections fail independently — keeps the audit cheap and never mixes partial reads into metrics tables.
