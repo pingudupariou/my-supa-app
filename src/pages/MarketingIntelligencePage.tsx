@@ -309,6 +309,40 @@ function GA4Test() {
   );
 }
 
+function MetaTest() {
+  const [loading, setLoading] = useState(false);
+  const [result, setResult] = useState<any>(null);
+  const test = async () => {
+    setLoading(true); setResult(null);
+    const { data, error } = await supabase.functions.invoke('meta-test', { method: 'POST', body: {} });
+    setResult(error ? { ok: false, error: await readFnError(error) } : data);
+    setLoading(false);
+  };
+  const fmt = (n: number) => n.toLocaleString('fr-FR', { maximumFractionDigits: 0 });
+  return (
+    <div className="space-y-2 text-sm">
+      <Button variant="outline" size="sm" onClick={test} disabled={loading}>
+        {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Tester la lecture Meta Ads (7 jours)
+      </Button>
+      {result && !result.ok && (
+        <div className="rounded border border-destructive/40 p-3 space-y-1">
+          <p className="text-destructive">Échec{result.step ? ` (${result.step})` : ''}{result.http_status ? ` — HTTP ${result.http_status}` : ''} : {result.error}</p>
+          {result.action && <p className="text-muted-foreground">{result.action}</p>}
+        </div>
+      )}
+      {result?.ok && (
+        <div className="rounded border p-3 space-y-2">
+          <p>Compte <b>{result.account?.name ?? result.account?.id}</b> — {result.account?.currency}, fuseau {result.account?.timezone}. Période {result.period?.since} → {result.period?.until} : <b>{fmt(result.totals.spend)} €</b> dépensés, {fmt(result.totals.impressions)} impressions, {fmt(result.totals.clicks)} clics, {fmt(result.totals.purchases)} achats attribués ({fmt(result.totals.purchase_value)} €).</p>
+          <Table><TableHeader><TableRow><TableHead>Campagne</TableHead><TableHead className="text-right">Dépenses</TableHead><TableHead className="text-right">Clics</TableHead><TableHead className="text-right">Achats</TableHead><TableHead className="text-right">Valeur attribuée</TableHead></TableRow></TableHeader>
+            <TableBody>{(result.campaigns ?? []).slice(0, 15).map((c: any) => (
+              <TableRow key={c.campaign_id}><TableCell>{c.campaign_name}</TableCell><TableCell className="text-right">{fmt(c.spend)} €</TableCell><TableCell className="text-right">{fmt(c.clicks)}</TableCell><TableCell className="text-right">{fmt(c.purchases)}</TableCell><TableCell className="text-right">{fmt(c.purchase_value)} €</TableCell></TableRow>))}</TableBody></Table>
+          {(result.notes ?? []).map((n: string, i: number) => <p key={i} className="text-xs text-muted-foreground">{n}</p>)}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ConnectionsSection({ canWrite }: { canWrite: boolean }) {
   return (
     <div className="space-y-4"><GoogleAdsSyncCard canWrite={canWrite} /><GA4SyncCard canWrite={canWrite} />
@@ -324,16 +358,13 @@ function ConnectionsSection({ canWrite }: { canWrite: boolean }) {
           <GA4Test />
         </CardContent>
       </Card>
-      {CONNECTORS.filter((c) => c.name !== 'GA4').map((c) => (
-        <Card key={c.name}>
-          <CardHeader className="flex flex-row items-center justify-between"><CardTitle className="text-base">{c.name}</CardTitle><Badge variant="outline">Non connecté</Badge></CardHeader>
-          <CardContent className="space-y-2 text-sm">
-            <p><span className="text-muted-foreground">Données : </span>{c.data}</p>
-            <p><span className="text-muted-foreground">À fournir : </span>{c.needs}</p>
-            <Button size="sm" variant="outline" disabled>Connexion à venir</Button>
-          </CardContent>
-        </Card>
-      ))}
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between"><CardTitle className="text-base">Meta Ads (Crush AI)</CardTitle><Badge>Connecté</Badge></CardHeader>
+        <CardContent className="space-y-2 text-sm">
+          <p className="text-muted-foreground">Dépenses et performances des campagnes (lecture seule via utilisateur système Meta, droit ads_read).</p>
+          <MetaTest />
+        </CardContent>
+      </Card>
     </div></div>
   );
 }
