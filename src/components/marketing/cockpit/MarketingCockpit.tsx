@@ -275,9 +275,10 @@ export function MarketingCockpit() {
                     <YAxis yAxisId="eur" tick={tick} />
                     <YAxis yAxisId="r" orientation="right" tick={tick} />
                     <YAxis yAxisId="n" orientation="right" tick={tick} width={45} />
+                    <YAxis yAxisId="p" hide />
                     <Tooltip {...tip} formatter={(v: any, n: any) => [METRICS[n as MK]?.f(v) ?? v, METRICS[n as MK]?.l ?? n]} />
                     <Legend formatter={(n) => METRICS[n as MK]?.l ?? n} />
-                    {shown.map((k, i) => <Line key={k} type="monotone" dataKey={k} yAxisId={['mer', 'roas', 'cr'].includes(k) ? 'r' : ['orders', 'sessions'].includes(k) ? 'n' : 'eur'} stroke={PALETTE[i % PALETTE.length]} dot={false} strokeWidth={2} connectNulls />)}
+                    {shown.map((k, i) => <Line key={k} type="monotone" dataKey={k} yAxisId={k === 'cr' ? 'p' : ['mer', 'roas'].includes(k) ? 'r' : ['orders', 'sessions'].includes(k) ? 'n' : 'eur'} stroke={PALETTE[i % PALETTE.length]} dot={false} strokeWidth={2} connectNulls />)}
                   </LineChart>
                 </ChartBox>
                 <p className="mt-2 text-xs text-muted-foreground">Axe de gauche : montants en €. Axes de droite : ratios (MER, ROAS, taux) et volumes (commandes, sessions), chacun à sa propre échelle.</p>
