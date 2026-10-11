@@ -358,16 +358,13 @@ function ConnectionsSection({ canWrite }: { canWrite: boolean }) {
           <GA4Test />
         </CardContent>
       </Card>
-      {CONNECTORS.filter((c) => c.name !== 'GA4').map((c) => (
-        <Card key={c.name}>
-          <CardHeader className="flex flex-row items-center justify-between"><CardTitle className="text-base">{c.name}</CardTitle><Badge variant="outline">Non connecté</Badge></CardHeader>
-          <CardContent className="space-y-2 text-sm">
-            <p><span className="text-muted-foreground">Données : </span>{c.data}</p>
-            <p><span className="text-muted-foreground">À fournir : </span>{c.needs}</p>
-            <Button size="sm" variant="outline" disabled>Connexion à venir</Button>
-          </CardContent>
-        </Card>
-      ))}
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between"><CardTitle className="text-base">Meta Ads (Crush AI)</CardTitle><Badge>Connecté</Badge></CardHeader>
+        <CardContent className="space-y-2 text-sm">
+          <p className="text-muted-foreground">Dépenses et performances des campagnes (lecture seule via utilisateur système Meta, droit ads_read).</p>
+          <MetaTest />
+        </CardContent>
+      </Card>
     </div></div>
   );
 }
