@@ -333,3 +333,18 @@
   opacity: 1 !important;
   cursor: pointer !important;
 }
+/* Marketing cockpit: fixed colors per data source */
+:root {
+  --mi-shopify: 152 55% 38%;
+  --mi-google: 217 85% 52%;
+  --mi-meta: 262 60% 55%;
+  --mi-ga4: 32 92% 50%;
+  --mi-mer: 350 70% 50%;
+}
+.dark {
+  --mi-shopify: 152 50% 50%;
+  --mi-google: 217 85% 62%;
+  --mi-meta: 262 60% 68%;
+  --mi-ga4: 32 92% 58%;
+  --mi-mer: 350 70% 62%;
+}
