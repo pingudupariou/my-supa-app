@@ -2380,6 +2380,72 @@ export type Database = {
           },
         ]
       }
+      merchant_catalog_selections: {
+        Row: {
+          created_at: string
+          created_by: string
+          description: string | null
+          id: string
+          item_keys: string[]
+          kind: string
+          name: string
+          rules: Json
+          target_country: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          description?: string | null
+          id?: string
+          item_keys?: string[]
+          kind?: string
+          name: string
+          rules?: Json
+          target_country?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          description?: string | null
+          id?: string
+          item_keys?: string[]
+          kind?: string
+          name?: string
+          rules?: Json
+          target_country?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      merchant_manual_matches: {
+        Row: {
+          created_at: string
+          created_by: string
+          note: string | null
+          offer_id: string
+          shopify_variant_id: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          note?: string | null
+          offer_id: string
+          shopify_variant_id: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          note?: string | null
+          offer_id?: string
+          shopify_variant_id?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       merchant_offer_countries: {
         Row: {
           country: string
@@ -3437,6 +3503,7 @@ export type Database = {
         Args: { _from: string; _split: string; _to: string }
         Returns: Json
       }
+      merchant_catalog_sales: { Args: { _days?: number }; Returns: Json }
       meta_ads_dashboard: {
         Args: { _from: string; _to: string }
         Returns: Json
