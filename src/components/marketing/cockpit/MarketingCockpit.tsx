@@ -229,6 +229,10 @@ export function MarketingCockpit() {
             </SelectContent>
           </Select>
           {preset === 'custom' && <><Input type="date" className="h-9 w-36" value={from} onChange={(e) => setFrom(e.target.value)} /><Input type="date" className="h-9 w-36" value={to} max={today} onChange={(e) => setTo(e.target.value)} /></>}
+          <Select value={gran} onValueChange={(v) => setGran(v as 'day' | 'month')}>
+            <SelectTrigger className="h-9 w-36"><SelectValue /></SelectTrigger>
+            <SelectContent><SelectItem value="day">Échelle : jour</SelectItem><SelectItem value="month">Échelle : mois</SelectItem></SelectContent>
+          </Select>
           <MultiPick label="Pays" options={countryOpts} value={f.countries} onChange={(v) => setF({ ...f, countries: v })} />
           <Select value={f.adSrc} onValueChange={(v) => setF({ ...f, adSrc: v as F['adSrc'] })}>
             <SelectTrigger className="h-9 w-40"><SelectValue /></SelectTrigger>
