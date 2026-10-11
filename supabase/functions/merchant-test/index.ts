@@ -65,6 +65,33 @@ Deno.serve(async (req) => {
   if (!sa.client_email || !sa.private_key) return json({ status: "error", step: "config", message: "Clé du compte de service (GA4_SERVICE_ACCOUNT_JSON) absente ou invalide" });
   if (!/^\d+$/.test(merchantId)) return json({ status: "error", step: "config", service_account: sa.client_email, message: "MERCHANT_CENTER_ID manquant ou non numérique" });
 
+  const body = await req.json().catch(() => ({}));
+
+  if (body?.action === "register") {
+    // One-time developer registration of the service account's GCP project. Requires explicit confirmation.
+    if (body.confirm !== "ENREGISTRER") return json({ status: "error", step: "confirmation", message: "Confirmation explicite requise" }, 400);
+    const email = String(body.developer_email ?? "").trim();
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return json({ status: "error", step: "config", message: "Adresse de contact invalide" }, 400);
+    try {
+      const token = await saToken(sa);
+      const res = await fetch(`https://merchantapi.googleapis.com/accounts/v1/accounts/${merchantId}/developerRegistration:registerGcp`, {
+        method: "POST", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ developerEmail: email }) });
+      const b = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        const msg = b?.error?.message ?? res.statusText;
+        const action = res.status === 403 || res.status === 401
+          ? "Le compte de service doit avoir l'accès Administrateur dans Merchant Center le temps de l'enregistrement (repasser en Standard ensuite)."
+          : /email/i.test(msg) ? "Google refuse cette adresse : utiliser un e-mail de compte Google valide." : hint(res.status, msg);
+        return json({ status: "error", step: "enregistrement", http: res.status, service_account: sa.client_email, message: msg, action });
+      }
+      return json({ status: "registered", service_account: sa.client_email, google_response: b });
+    } catch (e) {
+      const err = e as Error & { http?: number; step?: string };
+      return json({ status: "error", step: err.step ?? "enregistrement", http: err.http, message: err.message });
+    }
+  }
+
   try {
     const token = await saToken(sa);
     const account = await get(token, `https://merchantapi.googleapis.com/accounts/v1/accounts/${merchantId}`, "compte").catch((e) => ({ _error: e.message }));
