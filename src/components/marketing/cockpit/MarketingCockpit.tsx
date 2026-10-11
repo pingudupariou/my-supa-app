@@ -289,9 +289,9 @@ export function MarketingCockpit() {
               </CardHeader>
               <CardContent>
                 <ChartBox h={320}>
-                  <LineChart data={cur.series}>
+                  <LineChart data={chartSeries}>
                     <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                    <XAxis dataKey="b" tick={tick} />
+                    <XAxis dataKey="b" tick={tick} tickFormatter={fmtMonth} />
                     <YAxis yAxisId="eur" tick={tick} />
                     <YAxis yAxisId="r" orientation="right" tick={tick} />
                     <YAxis yAxisId="n" orientation="right" tick={tick} width={45} />
