@@ -256,7 +256,7 @@ const getRaw = (a: string, b: string) => {
   return fetchCache.get(k) ?? Promise.reject(new Error('Chargement indisponible')); 
 };
 
-export function MarketingCockpit() {
+export function MarketingCockpit({ canWrite = false }: { canWrite?: boolean }) {
   const today = iso(new Date());
   const yesterday = addD(today, -1);
   const [preset, setPreset] = useState('30');
@@ -568,7 +568,7 @@ export function MarketingCockpit() {
           </TabsContent>
 
           <TabsContent value="ai">
-            <AiDiagnosis summary={aiSummary} from={cFrom} to={to} filters={f} />
+            <AiDiagnosis summary={aiSummary} from={cFrom} to={to} filters={f} canWrite={canWrite} />
           </TabsContent>
         </Tabs>
       )}

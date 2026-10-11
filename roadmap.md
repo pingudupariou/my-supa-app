@@ -15,6 +15,6 @@
 
 ## Phase 2 IA
 - [x] Étape A : diagnostic IA + cache
-- [ ] Étape B : tâches marketing (attend validation)
+- [x] Étape B : tâches marketing
 - [ ] Étape C : plans par pays
 - [ ] Étape D : assistant conversationnel (attend choix historique)

@@ -15,11 +15,11 @@ const SCHEMA = {
     summary: { type: 'string' },
     findings: { type: 'array', items: { type: 'object', additionalProperties: false,
       required: ['kind', 'scope', 'title', 'fact', 'hypothesis', 'confidence'],
-      properties: { kind: { type: 'string', enum: ['anomalie', 'tendance', 'opportunite'] }, scope: { type: 'string', enum: ['global', 'pays', 'campagne', 'canal', 'produit'] },
+      properties: { kind: { type: 'string', enum: ['anomalie', 'tendance', 'opportunite', 'ecart_donnees'] }, scope: { type: 'string', enum: ['global', 'pays', 'campagne', 'canal', 'produit'] },
         title: { type: 'string' }, fact: { type: 'string' }, hypothesis: nstr, confidence: conf } } },
     actions: { type: 'array', items: { type: 'object', additionalProperties: false,
-      required: ['priority', 'category', 'title', 'detail', 'country', 'campaign', 'expected_impact', 'confidence', 'justification'],
-      properties: { priority: { type: 'integer' }, category: { type: 'string', enum: ['Google Ads', 'Meta Ads', 'Shopify', 'SEO', 'Conversion', 'Développement pays'] },
+      required: ['priority', 'urgency', 'category', 'title', 'detail', 'country', 'campaign', 'expected_impact', 'confidence', 'justification'],
+      properties: { priority: { type: 'integer' }, urgency: { type: 'string', enum: ['immediate', 'cette_semaine', 'ce_mois', 'a_surveiller'] }, category: { type: 'string', enum: ['Google Ads', 'Meta Ads', 'Shopify', 'SEO', 'Conversion', 'Développement pays'] },
         title: { type: 'string' }, detail: { type: 'string' }, country: nstr, campaign: nstr, expected_impact: { type: 'string' }, confidence: conf, justification: { type: 'string' } } } },
     data_limits: { type: 'array', items: { type: 'string' } },
   },
@@ -33,6 +33,10 @@ Règles strictes :
 - Sépare faits mesurés ("fact") et hypothèses ("hypothesis", null si aucune).
 - Pas de marges disponibles : signale-le dans data_limits plutôt que de supposer.
 - Les accès publicitaires sont en lecture seule : les actions sont des recommandations à faire manuellement ; pour Meta, formule-les pour être transmises à Crush AI.
+- Urgence et confiance sont indépendantes : "urgency" = délai d'action, "confidence" = solidité des données.
+- Si les données sont insuffisantes ou incohérentes pour une décision, la première action est une vérification (catégorie adaptée), pas une décision.
+- Ne recommande jamais de réallocation budgétaire sur la seule base du MER : exige au moins un second indicateur (ROAS attribué, tendance du CA, conversion, volume) et dis-le dans la justification.
+- Signale les écarts entre sources (kind "ecart_donnees") en décrivant uniquement l'écart chiffré ; hypothesis = null, n'invente pas d'explication.
 - 4 à 10 constats, 3 à 5 actions priorisées (1 = plus urgent), chiffrées. Réponds en français, concis.`
 
 async function sha256(s: string) {
@@ -57,7 +61,7 @@ Deno.serve(async (req) => {
     const key = await sha256(payload)
     const admin = createClient(url, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!)
 
-    const { data: cached } = await admin.from('marketing_ai_analyses').select('result, created_at, model').eq('kind', 'diagnosis').eq('cache_key', key).maybeSingle()
+    const { data: cached } = await admin.from('marketing_ai_analyses').select('id, result, created_at, model').eq('kind', 'diagnosis').eq('cache_key', key).maybeSingle()
     if (cached && !force) return json({ cached: true, ...cached })
 
     const since = new Date(Date.now() - 86400000).toISOString()
@@ -100,9 +104,9 @@ Deno.serve(async (req) => {
     if (failed || !text) return json({ error: failed || 'Réponse IA vide' }, 502)
     let result; try { result = JSON.parse(text) } catch { return json({ error: 'Réponse IA illisible' }, 502) }
     const row = { kind: 'diagnosis', cache_key: key, period_from: from, period_to: to, filters: filters ?? {}, result, model: MODEL, created_by: u.user.id }
-    const { error: insErr } = await admin.from('marketing_ai_analyses').upsert(row, { onConflict: 'kind,cache_key' })
+    const { data: saved, error: insErr } = await admin.from('marketing_ai_analyses').upsert(row, { onConflict: 'kind,cache_key' }).select('id').single()
     if (insErr) console.error('cache insert', insErr.message)
-    return json({ cached: false, result, created_at: new Date().toISOString(), model: MODEL })
+    return json({ cached: false, id: saved?.id ?? null, result, created_at: new Date().toISOString(), model: MODEL })
   } catch (e) {
     if (req.signal.aborted) return new Response(null, { status: 499 })
     console.error(e); return json({ error: e instanceof Error ? e.message : String(e) }, 500)

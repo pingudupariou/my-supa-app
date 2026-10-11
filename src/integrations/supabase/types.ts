@@ -2256,6 +2256,130 @@ export type Database = {
         }
         Relationships: []
       }
+      marketing_task_events: {
+        Row: {
+          author_id: string | null
+          author_name: string | null
+          body: string
+          created_at: string
+          id: string
+          kind: string
+          task_id: string
+        }
+        Insert: {
+          author_id?: string | null
+          author_name?: string | null
+          body: string
+          created_at?: string
+          id?: string
+          kind?: string
+          task_id: string
+        }
+        Update: {
+          author_id?: string | null
+          author_name?: string | null
+          body?: string
+          created_at?: string
+          id?: string
+          kind?: string
+          task_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "marketing_task_events_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "marketing_tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      marketing_tasks: {
+        Row: {
+          assignee_label: string | null
+          assignee_user_id: string | null
+          campaign: string | null
+          channel: string | null
+          completed_at: string | null
+          country: string | null
+          created_at: string
+          created_by: string | null
+          dedupe_key: string | null
+          description: string | null
+          due_date: string | null
+          id: string
+          last_recommended_at: string | null
+          priority: string
+          product: string | null
+          recurrence_count: number
+          results: string | null
+          source: string
+          source_analysis_id: string | null
+          source_recommendation: Json | null
+          status: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          assignee_label?: string | null
+          assignee_user_id?: string | null
+          campaign?: string | null
+          channel?: string | null
+          completed_at?: string | null
+          country?: string | null
+          created_at?: string
+          created_by?: string | null
+          dedupe_key?: string | null
+          description?: string | null
+          due_date?: string | null
+          id?: string
+          last_recommended_at?: string | null
+          priority?: string
+          product?: string | null
+          recurrence_count?: number
+          results?: string | null
+          source?: string
+          source_analysis_id?: string | null
+          source_recommendation?: Json | null
+          status?: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          assignee_label?: string | null
+          assignee_user_id?: string | null
+          campaign?: string | null
+          channel?: string | null
+          completed_at?: string | null
+          country?: string | null
+          created_at?: string
+          created_by?: string | null
+          dedupe_key?: string | null
+          description?: string | null
+          due_date?: string | null
+          id?: string
+          last_recommended_at?: string | null
+          priority?: string
+          product?: string | null
+          recurrence_count?: number
+          results?: string | null
+          source?: string
+          source_analysis_id?: string | null
+          source_recommendation?: Json | null
+          status?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "marketing_tasks_source_analysis_id_fkey"
+            columns: ["source_analysis_id"]
+            isOneToOne: false
+            referencedRelation: "marketing_ai_analyses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       meta_ads_campaign_daily: {
         Row: {
           account_id: string
