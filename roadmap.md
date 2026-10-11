@@ -23,4 +23,4 @@
 - [x] Étape 1 : test de connexion lecture seule
 - [ ] Étape 1 : lancer le test (attend MERCHANT_CENTER_ID et accès du compte de service)
 - [x] Synchro complète + rapprochement Shopify (2 048 offres, 95,8 % rapprochées)
-- [ ] Onglet Catalogue publicitaire + sélections enregistrées (attend validation des résultats)
+- [x] Onglet Catalogue publicitaire : regroupement famille/modèle/couleur/variante, filtres, sélections fixes/dynamiques, non identifiées + correction manuelle, analyse des refus par pays
