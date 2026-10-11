@@ -94,13 +94,14 @@ function compactStructure(snap: any, offers: any[]) {
 
 async function runAnalysis(admin: any, id: string, apiKey: string, payload: string) {
   const fail = (m: string) => admin.from('marketing_ai_analyses').update({ result: { _status: 'error', message: m } }).eq('id', id)
+  const ctrl = new AbortController(); const timer = setTimeout(() => ctrl.abort(), 330_000)
   try {
     const res = await fetch('https://ai.gateway.lovable.dev/v1/responses', {
-      method: 'POST',
+      method: 'POST', signal: ctrl.signal,
       headers: { 'Content-Type': 'application/json', 'Lovable-API-Key': apiKey, 'X-Lovable-AIG-SDK': 'fetch' },
       body: JSON.stringify({
         model: MODEL, instructions: INSTRUCTIONS, stream: true, store: false,
-        reasoning: { effort: 'medium', summary: 'auto' }, include: ['reasoning.encrypted_content'],
+        reasoning: { effort: 'low' },
         input: [{ role: 'user', content: `Résumé :\n${payload}` }],
         text: { format: { type: 'json_schema', name: 'strategie', strict: true, schema: SCHEMA } },
       }),
@@ -128,8 +129,16 @@ async function runAnalysis(admin: any, id: string, apiKey: string, payload: stri
     if (failed || !text) return await fail(failed || 'Réponse IA vide')
     let result; try { result = JSON.parse(text) } catch { return await fail('Réponse IA illisible') }
     await admin.from('marketing_ai_analyses').update({ result }).eq('id', id)
-  } catch (e) { console.error('strategy', e); await fail(e instanceof Error ? e.message : String(e)) }
+  } catch (e) { console.error('strategy', e); await fail(ctrl.signal.aborted ? "L'analyse a dépassé le temps maximal, relancez-la." : e instanceof Error ? e.message : String(e)) }
+  finally { clearTimeout(timer) }
 }
+
+// Worker about to be killed: never leave a run stuck in 'running'.
+const activeRuns = new Set<string>()
+addEventListener('beforeunload', () => {
+  for (const id of activeRuns) adminGlobal?.from('marketing_ai_analyses').update({ result: { _status: 'error', message: "Analyse interrompue par le serveur, relancez-la." } }).eq('id', id).then(() => {})
+})
+let adminGlobal: any = null
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
@@ -163,7 +172,7 @@ Deno.serve(async (req) => {
 
     const { data: cached } = await admin.from('marketing_ai_analyses').select('id, result, created_at, updated_at, model').eq('kind', 'strategy').eq('cache_key', key).maybeSingle()
     const st = cached?.result?._status
-    const fresh = cached && Date.now() - new Date(cached.updated_at).getTime() < 10 * 60000
+    const fresh = cached && Date.now() - new Date(cached.updated_at).getTime() < 6 * 60000
     if (cached && st === 'running' && fresh) return json({ pending: true, id: cached.id })
     if (cached && !st && !body?.force) return json({ cached: true, ...cached })
     if (body?.cache_only) return json({ cached: false, result: null })
@@ -181,7 +190,8 @@ Deno.serve(async (req) => {
     if (insErr) return json({ error: insErr.message }, 500)
     // Long reasoning call runs in the background; the client polls the row.
     // @ts-ignore EdgeRuntime is provided by Supabase
-    EdgeRuntime.waitUntil(runAnalysis(admin, row.id, apiKey, payload))
+    adminGlobal = admin; activeRuns.add(row.id)
+    EdgeRuntime.waitUntil(runAnalysis(admin, row.id, apiKey, payload).finally(() => activeRuns.delete(row.id)))
     return json({ pending: true, id: row.id })
   } catch (e) {
     if (req.signal.aborted) return new Response(null, { status: 499 })
