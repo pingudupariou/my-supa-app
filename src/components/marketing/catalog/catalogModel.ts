@@ -66,8 +66,8 @@ export function variantStatus(v: Variant, statuses: Map<string, string> | undefi
   for (const o of v.offers) {
     const s = statuses.get(o.name);
     if (s === 'approved') return 'approved';
-    if (s === 'disapproved' || (s === 'pending' && best === 'absent')) best = s as CountryStatus;
-    if (s === 'pending' && best === 'disapproved') continue;
+    if (s === 'disapproved') best = 'disapproved';
+    else if (s === 'pending' && best === 'absent') best = 'pending';
   }
   return best;
 }
