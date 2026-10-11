@@ -70,10 +70,11 @@ export function AiStrategy({ canWrite }: { canWrite: boolean }) {
   const [err, setErr] = useState<string | null>(null);
 
   const poll = async (id: string) => {
-    for (let i = 0; i < 80; i++) {
+    for (let i = 0; i < 75; i++) {
       await new Promise((r) => setTimeout(r, 5000));
-      const { data: row } = await (supabase as any).from('marketing_ai_analyses').select('id, result, created_at, model, filters').eq('id', id).maybeSingle();
+      const { data: row } = await (supabase as any).from('marketing_ai_analyses').select('id, result, created_at, updated_at, model, filters').eq('id', id).maybeSingle();
       const st = row?.result?._status;
+      if (st === 'running' && Date.now() - new Date(row.updated_at).getTime() > 6 * 60000) { setLoading(false); setErr("L'analyse précédente a été interrompue. Cliquez à nouveau sur « Analyser la stratégie »."); return; }
       if (st === 'running') continue;
       setLoading(false);
       if (!row || st === 'error') { setErr(row?.result?.message ?? 'Analyse échouée'); return; }
