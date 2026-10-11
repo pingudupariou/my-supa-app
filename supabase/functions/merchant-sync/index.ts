@@ -110,6 +110,7 @@ Deno.serve(async (req) => {
         let vid: number | null = null, pid: number | null = null, method = "none";
         const m = offerId.match(/shopify_[a-z]{2,3}_(\d+)_(\d+)/i);
         if (m && variants.has(Number(m[2]))) { vid = Number(m[2]); pid = variants.get(vid) ?? Number(m[1]); method = "variant_id"; }
+        if (!vid && /^\d{10,}$/.test(offerId) && variants.has(Number(offerId))) { vid = Number(offerId); pid = variants.get(vid) ?? null; method = "variant_id"; }
         // Format "<productId>_<sku>" (other Shopify feeds): exact SKU inside the same Shopify product.
         const ps = offerId.match(/^(\d{8,})_(.+)$/);
         if (!vid && ps) {
