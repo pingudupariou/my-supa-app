@@ -360,20 +360,58 @@ function MetaTest() {
 function MerchantTest() {
   const [loading, setLoading] = useState(false);
   const [r, setR] = useState<any>(null);
+  const [reg, setReg] = useState<any>(null);
+  const [regOpen, setRegOpen] = useState(false);
+  const [email, setEmail] = useState('nova2ride@gmail.com');
+  const [confirmText, setConfirmText] = useState('');
+  const [regLoading, setRegLoading] = useState(false);
   const test = async () => {
     setLoading(true); setR(null);
     const { data, error } = await supabase.functions.invoke('merchant-test', { method: 'POST', body: {} });
     setR(error ? await readFnError(error) : data);
     setLoading(false);
   };
+  const register = async () => {
+    setRegLoading(true); setReg(null);
+    const { data, error } = await supabase.functions.invoke('merchant-test', { method: 'POST', body: { action: 'register', confirm: confirmText, developer_email: email } });
+    setReg(error ? await readFnError(error) : data);
+    setRegLoading(false); setConfirmText('');
+  };
+  const needsRegistration = r?.status === 'error' && /regist/i.test(`${r.message} ${r.action}`);
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between"><CardTitle className="text-base">Google Merchant Center</CardTitle><Badge variant="outline">Test lecture seule</Badge></CardHeader>
       <CardContent className="space-y-2 text-sm">
         <p className="text-muted-foreground">Offres, custom labels, pays et statuts d'éligibilité ; correspondance avec les variantes Shopify. Rien n'est enregistré ni modifié.</p>
-        <Button variant="outline" size="sm" onClick={test} disabled={loading}>
-          {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Tester la lecture Merchant Center
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button variant="outline" size="sm" onClick={test} disabled={loading}>
+            {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}{reg?.status === 'registered' ? 'Relancer le test de lecture' : 'Tester la lecture Merchant Center'}
+          </Button>
+          {(needsRegistration || regOpen) && reg?.status !== 'registered' && (
+            <Button variant="secondary" size="sm" onClick={() => setRegOpen(!regOpen)}>Enregistrement développeur (admin, une fois)</Button>
+          )}
+        </div>
+        {regOpen && reg?.status !== 'registered' && (
+          <div className="rounded border p-3 space-y-2">
+            <p className="text-muted-foreground">Enregistre une seule fois le projet Google Cloud du compte de service auprès de la Merchant API. Aucun produit n'est modifié. Google peut exiger que le compte de service soit temporairement Administrateur dans Merchant Center.</p>
+            <label className="block text-xs">Contact développeur
+              <input className="mt-1 w-full rounded border bg-background px-2 py-1" value={email} onChange={(e) => setEmail(e.target.value)} /></label>
+            <label className="block text-xs">Tapez <b>ENREGISTRER</b> pour confirmer
+              <input className="mt-1 w-full rounded border bg-background px-2 py-1" value={confirmText} onChange={(e) => setConfirmText(e.target.value)} /></label>
+            <Button size="sm" onClick={register} disabled={regLoading || confirmText !== 'ENREGISTRER'}>
+              {regLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Confirmer l'enregistrement
+            </Button>
+            {reg?.status === 'error' && (
+              <div className="text-destructive">Échec{reg.http ? ` — HTTP ${reg.http}` : ''} : {reg.message}{reg.action && <p className="text-muted-foreground">{reg.action}</p>}</div>
+            )}
+          </div>
+        )}
+        {reg?.status === 'registered' && (
+          <div className="rounded border p-3 space-y-1">
+            <p>Enregistrement accepté par Google. Attendez environ 5 minutes (propagation), puis relancez le test de lecture.</p>
+            <pre className="max-h-40 overflow-auto rounded bg-muted p-2 text-xs">{JSON.stringify(reg.google_response, null, 2)}</pre>
+          </div>
+        )}
         {r?.status === 'error' && (
           <div className="rounded border border-destructive/40 p-3 space-y-1">
             <p className="text-destructive">Échec{r.step ? ` (${r.step})` : ''}{r.http ? ` — HTTP ${r.http}` : ''} : {r.message}</p>
