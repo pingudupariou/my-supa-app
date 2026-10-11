@@ -3523,6 +3523,7 @@ export type Database = {
         Args: { _user_id: string }
         Returns: Database["public"]["Enums"]["app_role"]
       }
+      google_ads_country_vs_shopify: { Args: { _days?: number }; Returns: Json }
       google_ads_dashboard: {
         Args: { _from: string; _to: string }
         Returns: Json
