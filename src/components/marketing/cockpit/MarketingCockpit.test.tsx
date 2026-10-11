@@ -1,4 +1,5 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { cloneElement } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import { MarketingCockpit } from './MarketingCockpit';
 
@@ -14,7 +15,7 @@ vi.mock('@/integrations/supabase/client', () => ({ supabase: { rpc: vi.fn(async 
 }) } }));
 vi.mock('recharts', async () => {
   const actual = await vi.importActual<typeof import('recharts')>('recharts');
-  return { ...actual, ResponsiveContainer: ({ children }: any) => <actual.ResponsiveContainer width={600} height={260}>{children}</actual.ResponsiveContainer> };
+  return { ...actual, ResponsiveContainer: ({ children }: any) => cloneElement(children, { width: 600, height: 260 }) };
 });
 
 describe('cockpit adjustments', () => {
