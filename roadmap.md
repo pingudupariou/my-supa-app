@@ -24,3 +24,8 @@
 - [ ] Étape 1 : lancer le test (attend MERCHANT_CENTER_ID et accès du compte de service)
 - [x] Synchro complète + rapprochement Shopify (2 048 offres, 95,8 % rapprochées)
 - [x] Onglet Catalogue publicitaire : regroupement famille/modèle/couleur/variante, filtres, sélections fixes/dynamiques, non identifiées + correction manuelle, analyse des refus par pays
+
+## Copilote Google Ads
+- [x] Étape 1 : audit de structure en lecture seule (lecture nocturne + onglet Audit)
+- [ ] Étape 2 : recommandations IA (attend validation de l'audit)
+- [ ] Étape 3 : constructeur de campagnes (écriture désactivée)
