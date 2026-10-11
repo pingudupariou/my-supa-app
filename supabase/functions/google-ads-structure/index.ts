@@ -119,8 +119,9 @@ Deno.serve(async (req) => {
     const rows = await search(customer, `SELECT campaign.id, segments.product_item_id, metrics.cost_micros, metrics.clicks, metrics.impressions, metrics.conversions, metrics.conversions_value FROM shopping_performance_view WHERE ${range90}`);
     const agg = new Map<string, any>();
     for (const r of rows) {
-      const k = `${r.campaign.id}|${r.segments.productItemId}`;
-      const a = agg.get(k) ?? { campaign_id: r.campaign.id, item_id: r.segments.productItemId, cost: 0, clicks: 0, impressions: 0, conversions: 0, value: 0 };
+      const item = r.segments?.productItemId; if (!item) continue;
+      const k = `${r.campaign.id}|${item}`;
+      const a = agg.get(k) ?? { campaign_id: r.campaign.id, item_id: item, cost: 0, clicks: 0, impressions: 0, conversions: 0, value: 0 };
       a.cost += Number(r.metrics?.costMicros ?? 0) / 1e6; a.clicks += Number(r.metrics?.clicks ?? 0); a.impressions += Number(r.metrics?.impressions ?? 0);
       a.conversions += Number(r.metrics?.conversions ?? 0); a.value += Number(r.metrics?.conversionsValue ?? 0);
       agg.set(k, a);
