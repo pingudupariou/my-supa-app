@@ -69,12 +69,25 @@ export function AiStrategy({ canWrite }: { canWrite: boolean }) {
   const [data, setData] = useState<any>(null);
   const [err, setErr] = useState<string | null>(null);
 
+  const poll = async (id: string) => {
+    for (let i = 0; i < 80; i++) {
+      await new Promise((r) => setTimeout(r, 5000));
+      const { data: row } = await (supabase as any).from('marketing_ai_analyses').select('id, result, created_at, model, filters').eq('id', id).maybeSingle();
+      const st = row?.result?._status;
+      if (st === 'running') continue;
+      setLoading(false);
+      if (!row || st === 'error') { setErr(row?.result?.message ?? 'Analyse échouée'); return; }
+      setData({ ...row, cached: false }); return;
+    }
+    setLoading(false); setErr("L'analyse prend plus de temps que prévu. Revenez dans quelques minutes.");
+  };
   const run = async (opts: { force?: boolean; cache_only?: boolean } = {}) => {
     setLoading(true); setErr(null);
     localStorage.setItem(BUDGET_KEY, String(budget));
     const { data: d, error } = await supabase.functions.invoke('marketing-strategy', { body: { monthly_budget: budget, ...opts } });
+    if (error) { setLoading(false); let msg = error.message; try { msg = (await (error as any).context?.json())?.error ?? msg; } catch { /* */ } setErr(msg); return; }
+    if (d?.pending && d.id) return poll(d.id);
     setLoading(false);
-    if (error) { let msg = error.message; try { msg = (await (error as any).context?.json())?.error ?? msg; } catch { /* */ } setErr(msg); return; }
     if (d?.result) setData(d);
   };
   useEffect(() => { run({ cache_only: true }); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, []);

@@ -88,8 +88,47 @@ function compactStructure(snap: any, offers: any[]) {
     taken_at: snap.taken_at, campaigns: [...camps.values()].filter((c) => c.status !== 'REMOVED'),
     product_overlaps_90d: [...overlaps.entries()].sort((a, b) => b[1] - a[1]).slice(0, 10).map(([pair, n]) => ({ pair, products: n })),
     merchant_offers_never_shown_90d_by_family: Object.fromEntries(Object.entries(unseen).sort((a, b) => b[1] - a[1]).slice(0, 12)),
-    changes_30d: (d.changes ?? []).length,
+    
   }
+}
+
+async function runAnalysis(admin: any, id: string, apiKey: string, payload: string) {
+  const fail = (m: string) => admin.from('marketing_ai_analyses').update({ result: { _status: 'error', message: m } }).eq('id', id)
+  try {
+    const res = await fetch('https://ai.gateway.lovable.dev/v1/responses', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Lovable-API-Key': apiKey, 'X-Lovable-AIG-SDK': 'fetch' },
+      body: JSON.stringify({
+        model: MODEL, instructions: INSTRUCTIONS, stream: true, store: false,
+        reasoning: { effort: 'medium', summary: 'auto' }, include: ['reasoning.encrypted_content'],
+        input: [{ role: 'user', content: `Résumé :\n${payload}` }],
+        text: { format: { type: 'json_schema', name: 'strategie', strict: true, schema: SCHEMA } },
+      }),
+    })
+    if (!res.ok) {
+      const t = await res.text()
+      let msg = t.slice(0, 300); try { msg = JSON.parse(t)?.error?.message ?? JSON.parse(t)?.message ?? msg } catch { /* */ }
+      return await fail(res.status === 402 ? 'Crédits IA épuisés : rechargez dans Paramètres → Plans et crédits.' : res.status === 429 ? 'Trop de demandes IA, réessayez dans une minute.' : msg)
+    }
+    const reader = res.body!.getReader(); const dec = new TextDecoder(); let buf = '', text = '', failed = ''
+    for (;;) {
+      const { done, value } = await reader.read(); if (done) break
+      buf += dec.decode(value, { stream: true })
+      let i; while ((i = buf.indexOf('\n')) >= 0) {
+        const line = buf.slice(0, i).trim(); buf = buf.slice(i + 1)
+        if (!line.startsWith('data:')) continue
+        const d = line.slice(5).trim(); if (!d || d === '[DONE]') continue
+        if (!d.includes('output_text.delta') && !d.includes('refusal') && !d.includes('failed') && !d.includes('"error"')) continue
+        try { const e = JSON.parse(d)
+          if (e.type === 'response.output_text.delta') text += e.delta
+          else if (e.type === 'response.refusal.delta' || e.type === 'response.failed' || e.type === 'error') failed = e.error?.message ?? 'Analyse refusée'
+        } catch { /* */ }
+      }
+    }
+    if (failed || !text) return await fail(failed || 'Réponse IA vide')
+    let result; try { result = JSON.parse(text) } catch { return await fail('Réponse IA illisible') }
+    await admin.from('marketing_ai_analyses').update({ result }).eq('id', id)
+  } catch (e) { console.error('strategy', e); await fail(e instanceof Error ? e.message : String(e)) }
 }
 
 Deno.serve(async (req) => {
@@ -109,7 +148,9 @@ Deno.serve(async (req) => {
 
     const { data: metrics, error: me } = await userClient.rpc('marketing_strategy_summary')
     if (me) return json({ error: me.message }, 500)
-    const { data: snap } = await admin.from('google_ads_structure_snapshots').select('taken_at, data').in('status', ['success', 'partial']).order('taken_at', { ascending: false }).limit(1).maybeSingle()
+    const { data: snapRow } = await admin.from('google_ads_structure_snapshots')
+      .select('taken_at, campaigns:data->campaigns, criteria:data->criteria, budget_lost:data->budget_lost, ad_groups:data->ad_groups, asset_groups:data->asset_groups, signals:data->signals, listing_groups_pmax:data->listing_groups_pmax, listing_groups_shopping:data->listing_groups_shopping, products_90d:data->products_90d').in('status', ['success', 'partial']).order('taken_at', { ascending: false }).limit(1).maybeSingle()
+    const snap = snapRow ? { taken_at: snapRow.taken_at, data: snapRow } : null
     const offers: any[] = []
     for (let p = 0; ; p++) {
       const { data } = await admin.from('merchant_offers').select('offer_id, product_type').order('name').range(p * 1000, p * 1000 + 999)
@@ -120,53 +161,28 @@ Deno.serve(async (req) => {
     if (payload.length > 120000) return json({ error: 'Résumé trop volumineux' }, 400)
     const key = await sha256(payload)
 
-    const { data: cached } = await admin.from('marketing_ai_analyses').select('id, result, created_at, model').eq('kind', 'strategy').eq('cache_key', key).maybeSingle()
-    if (cached && !body?.force) return json({ cached: true, ...cached })
+    const { data: cached } = await admin.from('marketing_ai_analyses').select('id, result, created_at, updated_at, model').eq('kind', 'strategy').eq('cache_key', key).maybeSingle()
+    const st = cached?.result?._status
+    const fresh = cached && Date.now() - new Date(cached.updated_at).getTime() < 10 * 60000
+    if (cached && st === 'running' && fresh) return json({ pending: true, id: cached.id })
+    if (cached && !st && !body?.force) return json({ cached: true, ...cached })
     if (body?.cache_only) return json({ cached: false, result: null })
 
     const since = new Date(Date.now() - 86400000).toISOString()
     const { count } = await admin.from('marketing_ai_analyses').select('id', { count: 'exact', head: true }).eq('kind', 'strategy').eq('created_by', u.user.id).gte('updated_at', since)
     if ((count ?? 0) >= DAILY_LIMIT) return json({ error: `Limite de ${DAILY_LIMIT} analyses stratégiques par 24 h atteinte.` }, 429)
-
     const apiKey = Deno.env.get('LOVABLE_API_KEY')
     if (!apiKey) return json({ error: 'Configuration IA manquante' }, 500)
-    const res = await fetch('https://ai.gateway.lovable.dev/v1/responses', {
-      method: 'POST', signal: req.signal,
-      headers: { 'Content-Type': 'application/json', 'Lovable-API-Key': apiKey, 'X-Lovable-AIG-SDK': 'fetch' },
-      body: JSON.stringify({
-        model: MODEL, instructions: INSTRUCTIONS, stream: true, store: false,
-        reasoning: { effort: 'high', summary: 'auto' }, include: ['reasoning.encrypted_content'],
-        input: [{ role: 'user', content: `Résumé :\n${payload}` }],
-        text: { format: { type: 'json_schema', name: 'strategie', strict: true, schema: SCHEMA } },
-      }),
-    })
-    if (!res.ok) {
-      const t = await res.text()
-      let msg = t.slice(0, 300); try { msg = JSON.parse(t)?.error?.message ?? JSON.parse(t)?.message ?? msg } catch { /* */ }
-      const human = res.status === 402 ? 'Crédits IA épuisés : rechargez dans Paramètres → Plans et crédits.' : res.status === 429 ? 'Trop de demandes IA, réessayez dans une minute.' : msg
-      return json({ error: human }, res.status)
-    }
-    const reader = res.body!.getReader(); const dec = new TextDecoder(); let buf = '', text = '', failed = ''
-    for (;;) {
-      const { done, value } = await reader.read(); if (done) break
-      buf += dec.decode(value, { stream: true })
-      let i; while ((i = buf.indexOf('\n')) >= 0) {
-        const line = buf.slice(0, i).trim(); buf = buf.slice(i + 1)
-        if (!line.startsWith('data:')) continue
-        const d = line.slice(5).trim(); if (!d || d === '[DONE]') continue
-        try { const e = JSON.parse(d)
-          if (e.type === 'response.output_text.delta') text += e.delta
-          else if (e.type === 'response.refusal.delta' || e.type === 'response.failed' || e.type === 'error') failed = e.error?.message ?? 'Analyse refusée'
-        } catch { /* */ }
-      }
-    }
-    if (failed || !text) return json({ error: failed || 'Réponse IA vide' }, 502)
-    let result; try { result = JSON.parse(text) } catch { return json({ error: 'Réponse IA illisible' }, 502) }
+
     const today = new Date().toISOString().slice(0, 10)
-    const row = { kind: 'strategy', cache_key: key, period_from: new Date(Date.now() - 365 * 86400000).toISOString().slice(0, 10), period_to: today, filters: { monthly_budget: budget }, result, model: MODEL, created_by: u.user.id }
-    const { data: saved, error: insErr } = await admin.from('marketing_ai_analyses').upsert(row, { onConflict: 'kind,cache_key' }).select('id, created_at').single()
-    if (insErr) console.error('cache insert', insErr.message)
-    return json({ cached: false, id: saved?.id ?? null, result, created_at: saved?.created_at ?? new Date().toISOString(), model: MODEL })
+    const { data: row, error: insErr } = await admin.from('marketing_ai_analyses').upsert({ kind: 'strategy', cache_key: key,
+      period_from: new Date(Date.now() - 365 * 86400000).toISOString().slice(0, 10), period_to: today, filters: { monthly_budget: budget },
+      result: { _status: 'running' }, model: MODEL, created_by: u.user.id, updated_at: new Date().toISOString() }, { onConflict: 'kind,cache_key' }).select('id').single()
+    if (insErr) return json({ error: insErr.message }, 500)
+    // Long reasoning call runs in the background; the client polls the row.
+    // @ts-ignore EdgeRuntime is provided by Supabase
+    EdgeRuntime.waitUntil(runAnalysis(admin, row.id, apiKey, payload))
+    return json({ pending: true, id: row.id })
   } catch (e) {
     if (req.signal.aborted) return new Response(null, { status: 499 })
     console.error(e); return json({ error: e instanceof Error ? e.message : String(e) }, 500)
