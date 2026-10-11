@@ -179,6 +179,7 @@ export function MarketingCockpit() {
   const [shown, setShown] = useState<MK[]>(['revenue', 'spend', 'mer']);
   const [cmpCountries, setCmpCountries] = useState<string[]>([]);
   const [cmpCamps, setCmpCamps] = useState<string[]>([]);
+  const [gran, setGran] = useState<'day' | 'month'>('day');
 
   useEffect(() => { if (preset !== 'custom') { setFrom(addD(today, -(Number(preset) - 1))); setTo(today); } }, [preset, today]);
 
