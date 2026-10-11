@@ -88,6 +88,20 @@ function aggregate(raw: Raw, from: string, to: string, f: F) {
   return { t, kpi, series, byCountry, byCamp, byChannel, byDevice };
 }
 
+/** Regroups a daily series into monthly buckets (sums + recomputed ratios). */
+function byMonth(series: any[]) {
+  const m: Record<string, any> = {};
+  for (const d of series) {
+    const k = d.b.slice(0, 7);
+    const x = (m[k] ??= { b: k, revenue: 0, orders: 0, spend: 0, g: 0, m: 0, value: 0, sessions: 0 });
+    x.revenue += d.revenue; x.orders += d.orders; x.spend += d.spend; x.g += d.g; x.m += d.m; x.value += d.value; x.sessions += d.sessions;
+  }
+  return Object.values(m).sort((a: any, b: any) => (a.b < b.b ? -1 : 1)).map((x: any) => ({
+    ...x, mer: div(x.revenue, x.spend), roas: div(x.value, x.spend), cr: div(x.orders, x.sessions), aov: div(x.revenue, x.orders),
+  }));
+}
+const fmtMonth = (b: string) => (b.length === 7 ? new Date(b + '-01T00:00:00Z').toLocaleDateString('fr-FR', { month: 'short', year: '2-digit', timeZone: 'UTC' }) : b);
+
 function MultiPick({ label, options, value, onChange }: { label: string; options: { v: string; l: string }[]; value: string[]; onChange: (v: string[]) => void }) {
   const [q, setQ] = useState('');
   const shown = options.filter((o) => o.l.toLowerCase().includes(q.toLowerCase())).slice(0, 200);
