@@ -18,3 +18,8 @@
 - [x] Étape B : tâches marketing
 - [ ] Étape C : plans par pays
 - [ ] Étape D : assistant conversationnel (attend choix historique)
+
+## Merchant Center
+- [x] Étape 1 : test de connexion lecture seule
+- [ ] Étape 1 : lancer le test (attend MERCHANT_CENTER_ID et accès du compte de service)
+- [ ] Étapes 2-4 : tables/synchro, Catalogue publicitaire, sélections (attend validation)

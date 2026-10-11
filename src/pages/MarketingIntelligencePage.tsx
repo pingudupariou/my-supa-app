@@ -357,9 +357,52 @@ function MetaTest() {
   );
 }
 
+function MerchantTest() {
+  const [loading, setLoading] = useState(false);
+  const [r, setR] = useState<any>(null);
+  const test = async () => {
+    setLoading(true); setR(null);
+    const { data, error } = await supabase.functions.invoke('merchant-test', { method: 'POST', body: {} });
+    setR(error ? await readFnError(error) : data);
+    setLoading(false);
+  };
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between"><CardTitle className="text-base">Google Merchant Center</CardTitle><Badge variant="outline">Test lecture seule</Badge></CardHeader>
+      <CardContent className="space-y-2 text-sm">
+        <p className="text-muted-foreground">Offres, custom labels, pays et statuts d'éligibilité ; correspondance avec les variantes Shopify. Rien n'est enregistré ni modifié.</p>
+        <Button variant="outline" size="sm" onClick={test} disabled={loading}>
+          {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Tester la lecture Merchant Center
+        </Button>
+        {r?.status === 'error' && (
+          <div className="rounded border border-destructive/40 p-3 space-y-1">
+            <p className="text-destructive">Échec{r.step ? ` (${r.step})` : ''}{r.http ? ` — HTTP ${r.http}` : ''} : {r.message}</p>
+            {r.action && <p className="text-muted-foreground">{r.action}</p>}
+            {r.service_account && <p className="text-muted-foreground">Compte de service à ajouter : <b>{r.service_account}</b></p>}
+          </div>
+        )}
+        {r?.status === 'success' && (
+          <div className="rounded border p-3 space-y-2">
+            <p>Compte <b>{r.account_name ?? r.merchant_id}</b> : <b>{r.offers_read}</b> offres lues{r.truncated ? ' (test limité à 1 000)' : ''}, {r.with_color} avec couleur, {r.with_item_group} avec modèle (groupe), {r.with_issues} avec problèmes.</p>
+            <p>Correspondance Shopify : {r.matched_by_variant_id}/{r.shopify_format_offers} offres au format Shopify retrouvées par variante ; {r.matched_by_sku}/{r.other_offers} autres retrouvées par SKU.</p>
+            {r.account_note && <p className="text-xs text-muted-foreground">{r.account_note}</p>}
+            <Table><TableHeader><TableRow><TableHead>Pays</TableHead><TableHead className="text-right">Éligibles</TableHead><TableHead className="text-right">En attente</TableHead><TableHead className="text-right">Refusées</TableHead></TableRow></TableHeader>
+              <TableBody>{(r.countries ?? []).slice(0, 15).map((c: any) => (
+                <TableRow key={c.country}><TableCell>{c.country}</TableCell><TableCell className="text-right">{c.approved}</TableCell><TableCell className="text-right">{c.pending}</TableCell><TableCell className="text-right">{c.disapproved}</TableCell></TableRow>))}</TableBody></Table>
+            <div className="text-xs text-muted-foreground space-y-0.5">
+              {(r.custom_labels ?? []).map((l: any) => <p key={l.label}>{l.label} : {l.values.length ? l.values.join(', ') : '—'}</p>)}
+              <p>Exemples d'identifiants : {(r.sample ?? []).slice(0, 5).map((s: any) => s.offer_id).join(' · ')}</p>
+            </div>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 function ConnectionsSection({ canWrite }: { canWrite: boolean }) {
   return (
-    <div className="space-y-4"><GoogleAdsSyncCard canWrite={canWrite} /><GA4SyncCard canWrite={canWrite} /><MetaAdsSyncCard canWrite={canWrite} />
+    <div className="space-y-4"><GoogleAdsSyncCard canWrite={canWrite} /><GA4SyncCard canWrite={canWrite} /><MetaAdsSyncCard canWrite={canWrite} /><MerchantTest />
     <div className="grid gap-4 md:grid-cols-3">
       <Card>
         <CardHeader className="flex flex-row items-center justify-between"><CardTitle className="text-base">Shopify</CardTitle><Badge>Connecté</Badge></CardHeader>
