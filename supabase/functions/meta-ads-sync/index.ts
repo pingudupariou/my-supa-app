@@ -78,7 +78,7 @@ Deno.serve(async (req) => {
 
   const today = new Date().toISOString().slice(0, 10);
   let from: string, to: string;
-  if (isCron) { from = addDays(today, -14); to = today; }
+  if (isCron) { const n = Math.min(14, Math.max(1, Number(body.days) || 14)); from = addDays(today, -(n - 1)); to = today; }
   else {
     if (!isDate(body.from) || !isDate(body.to) || body.from > body.to) return json({ status: "error", message: "Période invalide" }, 400);
     // Meta keeps insights for 37 months max.
