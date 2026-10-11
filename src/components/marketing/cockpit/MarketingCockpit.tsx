@@ -88,6 +88,20 @@ function aggregate(raw: Raw, from: string, to: string, f: F) {
   return { t, kpi, series, byCountry, byCamp, byChannel, byDevice };
 }
 
+/** Regroups a daily series into monthly buckets (sums + recomputed ratios). */
+function byMonth(series: any[]) {
+  const m: Record<string, any> = {};
+  for (const d of series) {
+    const k = d.b.slice(0, 7);
+    const x = (m[k] ??= { b: k, revenue: 0, orders: 0, spend: 0, g: 0, m: 0, value: 0, sessions: 0 });
+    x.revenue += d.revenue; x.orders += d.orders; x.spend += d.spend; x.g += d.g; x.m += d.m; x.value += d.value; x.sessions += d.sessions;
+  }
+  return Object.values(m).sort((a: any, b: any) => (a.b < b.b ? -1 : 1)).map((x: any) => ({
+    ...x, mer: div(x.revenue, x.spend), roas: div(x.value, x.spend), cr: div(x.orders, x.sessions), aov: div(x.revenue, x.orders),
+  }));
+}
+const fmtMonth = (b: string) => (b.length === 7 ? new Date(b + '-01T00:00:00Z').toLocaleDateString('fr-FR', { month: 'short', year: '2-digit', timeZone: 'UTC' }) : b);
+
 function MultiPick({ label, options, value, onChange }: { label: string; options: { v: string; l: string }[]; value: string[]; onChange: (v: string[]) => void }) {
   const [q, setQ] = useState('');
   const shown = options.filter((o) => o.l.toLowerCase().includes(q.toLowerCase())).slice(0, 200);
@@ -165,6 +179,7 @@ export function MarketingCockpit() {
   const [shown, setShown] = useState<MK[]>(['revenue', 'spend', 'mer']);
   const [cmpCountries, setCmpCountries] = useState<string[]>([]);
   const [cmpCamps, setCmpCamps] = useState<string[]>([]);
+  const [gran, setGran] = useState<'day' | 'month'>('day');
 
   useEffect(() => { if (preset !== 'custom') { setFrom(addD(today, -(Number(preset) - 1))); setTo(today); } }, [preset, today]);
 
@@ -189,6 +204,7 @@ export function MarketingCockpit() {
   const campName = useMemo(() => new Map((raw?.campaigns ?? []).map(([s, id, n]: any) => [`${s}:${id}`, n ?? id])), [raw]);
   const cur = useMemo(() => raw && aggregate(raw, cFrom, to, f), [raw, cFrom, to, f]);
   const prev = useMemo(() => raw && aggregate(raw, pFrom, pTo, f), [raw, pFrom, pTo, f]);
+  const chartSeries = useMemo(() => (cur ? (gran === 'month' ? byMonth(cur.series) : cur.series) : []), [cur, gran]);
   const all = useMemo(() => raw && aggregate(raw, cFrom, to, { countries: [], campaigns: [], adSrc: 'all', channel: '', device: '' }), [raw, cFrom, to]);
 
   const countryOpts = useMemo(() => Object.values(all?.byCountry ?? {}).sort((a: any, b: any) => b.revenue + b.spend - a.revenue - a.spend).map((x: any) => ({ v: x.c, l: x.c })), [all]);
@@ -213,6 +229,10 @@ export function MarketingCockpit() {
             </SelectContent>
           </Select>
           {preset === 'custom' && <><Input type="date" className="h-9 w-36" value={from} onChange={(e) => setFrom(e.target.value)} /><Input type="date" className="h-9 w-36" value={to} max={today} onChange={(e) => setTo(e.target.value)} /></>}
+          <Select value={gran} onValueChange={(v) => setGran(v as 'day' | 'month')}>
+            <SelectTrigger className="h-9 w-36"><SelectValue /></SelectTrigger>
+            <SelectContent><SelectItem value="day">Échelle : jour</SelectItem><SelectItem value="month">Échelle : mois</SelectItem></SelectContent>
+          </Select>
           <MultiPick label="Pays" options={countryOpts} value={f.countries} onChange={(v) => setF({ ...f, countries: v })} />
           <Select value={f.adSrc} onValueChange={(v) => setF({ ...f, adSrc: v as F['adSrc'] })}>
             <SelectTrigger className="h-9 w-40"><SelectValue /></SelectTrigger>
@@ -269,9 +289,9 @@ export function MarketingCockpit() {
               </CardHeader>
               <CardContent>
                 <ChartBox h={320}>
-                  <LineChart data={cur.series}>
+                  <LineChart data={chartSeries}>
                     <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                    <XAxis dataKey="b" tick={tick} />
+                    <XAxis dataKey="b" tick={tick} tickFormatter={fmtMonth} />
                     <YAxis yAxisId="eur" tick={tick} />
                     <YAxis yAxisId="r" orientation="right" tick={tick} />
                     <YAxis yAxisId="n" orientation="right" tick={tick} width={45} />
@@ -301,7 +321,7 @@ export function MarketingCockpit() {
             <Card>
               <CardHeader className="pb-2"><CardTitle className="text-base">Dépenses Google vs Meta</CardTitle></CardHeader>
               <CardContent><ChartBox>
-                <BarChart data={cur.series}><CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" /><XAxis dataKey="b" tick={tick} /><YAxis tick={tick} />
+                <BarChart data={chartSeries}><CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" /><XAxis dataKey="b" tick={tick} tickFormatter={fmtMonth} /><YAxis tick={tick} />
                   <Tooltip {...tip} formatter={(v: any) => eur(v)} /><Legend /><Bar dataKey="g" name="Google Ads" stackId="a" fill={C.g} /><Bar dataKey="m" name="Meta Ads" stackId="a" fill={C.m} /></BarChart>
               </ChartBox></CardContent>
             </Card>
@@ -343,17 +363,17 @@ export function MarketingCockpit() {
           <TabsContent value="camp" className="space-y-4">
             <Card>
               <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2 pb-2">
-                <CardTitle className="text-base">Comparer des campagnes (dépenses par {weekly ? 'semaine' : 'jour'})</CardTitle>
+                <CardTitle className="text-base">Comparer des campagnes (dépenses par {gran === 'month' ? 'mois' : weekly ? 'semaine' : 'jour'})</CardTitle>
                 <MultiPick label="Campagnes" options={campOpts} value={cmpCamps} onChange={setCmpCamps} />
               </CardHeader>
               <CardContent>{cmpCamps.length === 0 ? <p className="text-sm text-muted-foreground">Sélectionnez une ou plusieurs campagnes à comparer.</p> : (
                 <ChartBox>
                   <LineChart data={(() => {
                     const m: Record<string, any> = {};
-                    for (const [s, b, id, sp] of raw!.ads) { const k = `${s}:${id}`; if (b >= cFrom && b <= to && cmpCamps.includes(k)) { (m[b] ??= { b })[k] = (m[b][k] ?? 0) + +sp; } }
+                    for (const [s, b, id, sp] of raw!.ads) { const k = `${s}:${id}`; if (b >= cFrom && b <= to && cmpCamps.includes(k)) { const bk = gran === 'month' ? b.slice(0, 7) : b; (m[bk] ??= { b: bk })[k] = (m[bk][k] ?? 0) + +sp; } }
                     return Object.values(m).sort((a: any, b: any) => (a.b < b.b ? -1 : 1));
                   })()}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" /><XAxis dataKey="b" tick={tick} /><YAxis tick={tick} />
+                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" /><XAxis dataKey="b" tick={tick} tickFormatter={fmtMonth} /><YAxis tick={tick} />
                     <Tooltip {...tip} formatter={(v: any, n: any) => [eur(v), campName.get(n) ?? n]} /><Legend formatter={(n) => campName.get(n) ?? n} />
                     {cmpCamps.map((k, i) => <Line key={k} dataKey={k} stroke={PALETTE[i % PALETTE.length]} dot={false} strokeWidth={2} connectNulls />)}
                   </LineChart>
