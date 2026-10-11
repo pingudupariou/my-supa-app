@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { withMovingAverage } from './movingAverage';
+import { AiDiagnosis } from './AiDiagnosis';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -319,6 +320,30 @@ export function MarketingCockpit() {
   }, [cur, prev, eg, weekRows, cFrom, to, pFrom, pTo, today]);
   const all = useMemo(() => rawCur && aggregate(rawCur, cFrom, to, F0), [rawCur, cFrom, to]);
 
+  // Compact summary sent to the AI diagnosis (aggregates only, never raw rows).
+  const aiSummary = useMemo(() => {
+    if (!cur || !prev || !raw) return null;
+    const r2 = (n: any) => (n == null || !isFinite(n) ? null : Math.round(Number(n) * 100) / 100);
+    const kp = (a: any) => Object.fromEntries(Object.entries(a.kpi).map(([k, v]) => [k, r2(v)]));
+    const tt = (a: any) => ({ google_spend: r2(a.t.g), meta_spend: r2(a.t.m), google_attributed_value: r2(a.t.gv), meta_attributed_value: r2(a.t.mv), ads_clicks: a.t.clicks, ads_conversions_attributed: r2(a.t.conv), ga4_funnel: { view_item: a.t.vi, add_to_cart: a.t.ac, begin_checkout: a.t.bc, ga4_purchases_attributed: a.t.pu } });
+    const cty = Object.values(cur.byCountry).sort((a: any, b: any) => b.revenue + b.spend - a.revenue - a.spend).slice(0, 12).map((x: any) => {
+      const p: any = prev.byCountry[x.c] ?? {};
+      return { country: x.c, shopify_revenue: r2(x.revenue), orders: x.orders, ads_spend: r2(x.spend), mer: r2(div(x.revenue, x.spend)), sessions: x.sessions, prev_revenue: r2(p.revenue ?? 0), prev_spend: r2(p.spend ?? 0) };
+    });
+    const camps = Object.values(cur.byCamp).filter((k: any) => k.spend > 0).sort((a: any, b: any) => b.spend - a.spend).slice(0, 15).map((k: any) => {
+      const p: any = prev.byCamp[k.key] ?? {};
+      return { source: SRC[k.s], name: campName.get(k.key) ?? k.id, spend: r2(k.spend), clicks: k.clicks, conversions_attributed: r2(k.conv), value_attributed: r2(k.value), roas_attributed: r2(div(k.value, k.spend)), prev_spend: r2(p.spend ?? 0), prev_roas: r2(div(p.value ?? 0, p.spend ?? 0)) };
+    });
+    const ch = Object.values(cur.byChannel).sort((a: any, b: any) => b.sessions - a.sessions).slice(0, 10).map((x: any) => ({ channel: x.k, sessions: x.sessions, ga4_purchases: x.pu }));
+    const dv = Object.values(cur.byDevice).map((x: any) => ({ device: x.k, sessions: x.sessions, ga4_purchases: x.pu }));
+    const set = new Set(f.countries); const pm: Record<string, any> = {};
+    for (const [p, t, c, r] of raw.products) if (!set.size || set.has(c)) { const x = (pm[t] ??= { product: t, revenue: 0, prev_revenue: 0 }); p === 1 ? (x.revenue += +r) : (x.prev_revenue += +r); }
+    const prods = Object.values(pm).map((x: any) => ({ ...x, revenue: r2(x.revenue), prev_revenue: r2(x.prev_revenue) }));
+    const top = [...prods].sort((a: any, b: any) => b.revenue - a.revenue).slice(0, 10);
+    const moves = [...prods].sort((a: any, b: any) => Math.abs(b.revenue - b.prev_revenue) - Math.abs(a.revenue - a.prev_revenue)).slice(0, 8);
+    return { period: { from: cFrom, to, compared_to: { from: pFrom, to: pTo, mode: cmpLabel } }, notes: [merNote, 'Ventes nettes hors livraison estimées', 'Marges non disponibles'],
+      kpi_current: kp(cur), kpi_previous: kp(prev), detail_current: tt(cur), detail_previous: tt(prev), countries: cty, campaigns: camps, ga4_channels: ch, ga4_devices: dv, top_products: top, product_moves: moves };
+  }, [cur, prev, raw, f, campName, cFrom, to, pFrom, pTo, cmpLabel, merNote]);
   const countryOpts = useMemo(() => Object.values(all?.byCountry ?? {}).sort((a: any, b: any) => b.revenue + b.spend - a.revenue - a.spend).map((x: any) => ({ v: x.c, l: x.c })), [all]);
   const campOpts = useMemo(() => Object.values(all?.byCamp ?? {}).filter((k: any) => k.spend > 0).sort((a: any, b: any) => b.spend - a.spend).map((k: any) => ({ v: k.key, l: `${SRC[k.s]} · ${campName.get(k.key) ?? k.id}` })), [all, campName]);
   const channels = useMemo(() => Object.keys(all?.byChannel ?? {}).sort(), [all]);
@@ -543,7 +568,7 @@ export function MarketingCockpit() {
           </TabsContent>
 
           <TabsContent value="ai">
-            <Card><CardContent className="pt-6 text-sm text-muted-foreground">Le diagnostic IA (anomalies, opportunités, actions prioritaires) arrive en phase 2. Il analysera uniquement les chiffres affichés ici, selon les filtres choisis.</CardContent></Card>
+            <AiDiagnosis summary={aiSummary} from={cFrom} to={to} filters={f} />
           </TabsContent>
         </Tabs>
       )}
