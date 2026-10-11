@@ -3100,6 +3100,10 @@ export type Database = {
         Returns: boolean
       }
       is_user_approved: { Args: { _user_id: string }; Returns: boolean }
+      marketing_cockpit: {
+        Args: { _from: string; _split: string; _to: string }
+        Returns: Json
+      }
       meta_ads_dashboard: {
         Args: { _from: string; _to: string }
         Returns: Json
