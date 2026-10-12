@@ -45,7 +45,8 @@ Règles strictes :
 - Tendances : utilise trends_non_overlapping (période courante vs précédente de même durée, sans chevauchement) ; une seule période en baisse/hausse = surveiller, pas décider.
 - Ventes par famille : revenue_lines_ht = lignes produits hors livraison (ne pas comparer directement au CA total HT).
 - Propose Shopping, PMax ou Search seulement si justifié par les chiffres ; chaque recommandation : chiffres, priorité, risques, actions concrètes.
-- 4 à 8 opportunités, 0 à 5 nouvelles campagnes, verdict pour chaque campagne active significative, 5 à 10 actions dans le plan (order 1 = d'abord). Français, concis, chiffré.`
+- Microconversions : google_ads_structure.conversion_audit indique, campagne par campagne, si les microconversions wetracked.io entrent dans les enchères et si plusieurs actions d'achat sont comptées ; base-toi dessus sans le contredire.
+- Limites de longueur STRICTES (sinon l'analyse échoue) : 4 à 6 opportunités, 0 à 3 nouvelles campagnes, au plus 10 verdicts (les campagnes les plus coûteuses ou problématiques ; regroupe les autres dans la synthèse), 5 à 8 actions dans le plan (order 1 = d'abord). Chaque champ texte : 1 à 2 phrases maximum, synthèse ≤ 8 phrases. Français, concis, chiffré.`
 
 // Deterministic data-reliability checks, computed server-side (no AI cost).
 function reliability(metrics: any, struct: any) {
