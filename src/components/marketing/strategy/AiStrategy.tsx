@@ -69,6 +69,8 @@ export function AiStrategy({ canWrite }: { canWrite: boolean }) {
   const [data, setData] = useState<any>(null);
   const [err, setErr] = useState<string | null>(null);
   const [rel, setRel] = useState<any>(null);
+  const [conv, setConv] = useState<any>(null);
+  const [progress, setProgress] = useState(0);
 
   const poll = async (id: string) => {
     for (let i = 0; i < 90; i++) {
@@ -84,11 +86,12 @@ export function AiStrategy({ canWrite }: { canWrite: boolean }) {
     setLoading(false); setErr("L'analyse prend plus de temps que prévu. Revenez dans quelques minutes.");
   };
   const run = async (opts: { force?: boolean; cache_only?: boolean } = {}) => {
-    setLoading(true); setErr(null);
+    setLoading(true); setErr(null); setProgress(0);
     localStorage.setItem(BUDGET_KEY, String(budget));
     const { data: d, error } = await supabase.functions.invoke('marketing-strategy', { body: { monthly_budget: budget, ...opts } });
     if (error) { setLoading(false); let msg = error.message; try { msg = (await (error as any).context?.json())?.error ?? msg; } catch { /* */ } setErr(msg); return; }
     if (d?.reliability) setRel(d.reliability);
+    if (d?.conversion_audit) setConv(d.conversion_audit);
     if (d?.pending && d.id) return poll(d.id);
     setLoading(false);
     if (d?.result) setData(d);
