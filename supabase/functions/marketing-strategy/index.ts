@@ -175,8 +175,11 @@ async function runAnalysis(admin: any, id: string, apiKey: string, payload: stri
       return await fail(res.status === 402 ? 'Crédits IA épuisés : rechargez dans Paramètres → Plans et crédits.' : res.status === 429 ? 'Trop de demandes IA, réessayez dans une minute.' : msg)
     }
     const reader = res.body!.getReader(); const dec = new TextDecoder(); let buf = '', text = '', failed = ''
+    let beat = Date.now()
     for (;;) {
       const { done, value } = await reader.read(); if (done) break
+      // Heartbeat: lets the page detect a killed worker within a minute instead of waiting for minutes.
+      if (Date.now() - beat > 15000) { beat = Date.now(); admin.from('marketing_ai_analyses').update({ updated_at: new Date().toISOString(), result: { _status: 'running', chars: text.length } }).eq('id', id).then(() => {}) }
       buf += dec.decode(value, { stream: true })
       let i; while ((i = buf.indexOf('\n')) >= 0) {
         const line = buf.slice(0, i).trim(); buf = buf.slice(i + 1)
@@ -237,7 +240,7 @@ Deno.serve(async (req) => {
 
     const { data: cached } = await admin.from('marketing_ai_analyses').select('id, result, created_at, updated_at, model').eq('kind', 'strategy').eq('cache_key', key).maybeSingle()
     const st = cached?.result?._status
-    const fresh = cached && Date.now() - new Date(cached.updated_at).getTime() < 6 * 60000
+    const fresh = cached && Date.now() - new Date(cached.updated_at).getTime() < 90000
     if (cached && st === 'running' && fresh) return json({ pending: true, id: cached.id, reliability: rel, conversion_audit: struct?.conversion_audit ?? null })
     if (cached && !st && !body?.force) return json({ cached: true, ...cached, reliability: rel, conversion_audit: struct?.conversion_audit ?? null })
     if (body?.cache_only) return json({ cached: false, result: null, reliability: rel, conversion_audit: struct?.conversion_audit ?? null })

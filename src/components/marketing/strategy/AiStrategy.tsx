@@ -71,12 +71,12 @@ export function AiStrategy({ canWrite }: { canWrite: boolean }) {
   const [rel, setRel] = useState<any>(null);
 
   const poll = async (id: string) => {
-    for (let i = 0; i < 75; i++) {
+    for (let i = 0; i < 90; i++) {
       await new Promise((r) => setTimeout(r, 5000));
       const { data: row } = await (supabase as any).from('marketing_ai_analyses').select('id, result, created_at, updated_at, model, filters').eq('id', id).maybeSingle();
       const st = row?.result?._status;
-      if (st === 'running' && Date.now() - new Date(row.updated_at).getTime() > 6 * 60000) { setLoading(false); setErr("L'analyse précédente a été interrompue. Cliquez à nouveau sur « Analyser la stratégie »."); return; }
-      if (st === 'running') continue;
+      if (st === 'running' && Date.now() - new Date(row.updated_at).getTime() > 90000) { setLoading(false); setErr("L'analyse précédente a été interrompue. Cliquez à nouveau sur « Analyser la stratégie »."); return; }
+      if (st === 'running') { setProgress(row.result.chars ?? 0); continue; }
       setLoading(false);
       if (!row || st === 'error') { setErr(row?.result?.message ?? 'Analyse échouée'); return; }
       setData({ ...row, cached: false }); return;
@@ -110,7 +110,7 @@ export function AiStrategy({ canWrite }: { canWrite: boolean }) {
             Analyse 7/30/90/180/365 j de Shopify, Google Ads (structure comprise), Meta, GA4 et Merchant Center. Même données = résultat en cache, sans nouveau coût. Recommandations uniquement : rien n'est modifié dans Google Ads, Meta (géré par Crush AI), Merchant Center ou Erplain.
             {data && ` · ${data.cached ? 'Résultat en cache' : 'Nouvelle analyse'} du ${new Date(data.created_at).toLocaleString('fr-FR')}`}
           </p>
-          {loading && <p className="text-xs text-muted-foreground">Analyse approfondie en cours, cela peut prendre 1 à 3 minutes…</p>}
+          {loading && <p className="text-xs text-muted-foreground">Analyse approfondie en cours, cela peut prendre 1 à 4 minutes…{progress > 0 && ` (${Math.round(progress / 1000)} k caractères reçus)`}</p>}
           {err && <p className="w-full text-sm text-destructive">{err}</p>}
         </CardContent>
       </Card>
