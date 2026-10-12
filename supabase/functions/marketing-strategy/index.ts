@@ -57,6 +57,14 @@ function reliability(metrics: any, struct: any) {
   for (const [l, k, max] of src) { const h = age(ls[k]); checks.push({ label: `Synchro ${l}`, level: h <= max ? 'ok' : h <= max * 3 ? 'warn' : 'bad', detail: ls[k] ? `dernière réussite ${new Date(ls[k]).toLocaleString('fr-FR', { timeZone: 'Europe/Paris' })}` : 'jamais synchronisé' }) }
   const f = metrics?.families_90 ?? {}
   if (f.lines != null) checks.push({ label: 'Ventes par famille sans doublon', level: f.lines === f.distinct_lines ? 'ok' : 'bad', detail: `${f.distinct_lines} lignes distinctes / ${f.lines} comptées · total lignes ${f.lines_total_ht} € HT (hors livraison)` })
+  const rc = metrics?.lines_reconciliation_90
+  if (rc) {
+    const e = (n: number) => `${Math.round(n ?? 0).toLocaleString('fr-FR')} €`
+    const shipHt = (rc.shopify_revenue_ht ?? 0) - (rc.lines_ht_allocated ?? 0)
+    const gap = Math.abs(rc.lines_vs_subtotal_gap ?? 0)
+    checks.push({ label: 'Rapprochement lignes produits ↔ CA Shopify (90 j)', level: rc.duplicate_line_ids || rc.orders_without_lines ? 'bad' : gap > 200 ? 'warn' : 'ok',
+      detail: `Lignes brutes TTC avant remises de commande ${e(rc.raw_lines_ttc_before_order_discounts)} − remises de commande ${e(rc.order_discounts)} (écart résiduel ${e(rc.lines_vs_subtotal_gap)} sur ${rc.orders_with_line_gap} cmd) = sous-total TTC ${e(rc.subtotal_ttc)} + livraison TTC ${e(rc.shipping_ttc)} = total TTC ${e(rc.total_ttc)} (remboursements ${e(rc.refunded_already_deducted)} déjà déduits, ${rc.cancelled_excluded} annulées exclues) − taxes ${e(rc.taxes)} = CA Shopify HT ${e(rc.shopify_revenue_ht)} = lignes HT ${e(rc.lines_ht_allocated)} + livraison HT ${e(shipHt)} · ${rc.duplicate_line_ids} doublon, ${rc.orders_without_lines} commande sans lignes` })
+  }
   if (f.unclassified_share_pct != null) checks.push({ label: 'Produits classés par famille (90 j)', level: f.unclassified_share_pct <= 10 ? 'ok' : f.unclassified_share_pct <= 30 ? 'warn' : 'bad', detail: `${f.unclassified_share_pct} % du CA lignes « Sans famille »` })
   const ca = struct?.conversion_actions ?? []; const au = struct?.conversion_audit
   if (!struct) checks.push({ label: 'Conversions Google', level: 'bad', detail: 'structure Google Ads absente' })
