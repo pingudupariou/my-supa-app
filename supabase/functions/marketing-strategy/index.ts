@@ -57,12 +57,15 @@ function reliability(metrics: any, struct: any) {
   const f = metrics?.families_90 ?? {}
   if (f.lines != null) checks.push({ label: 'Ventes par famille sans doublon', level: f.lines === f.distinct_lines ? 'ok' : 'bad', detail: `${f.distinct_lines} lignes distinctes / ${f.lines} comptées · total lignes ${f.lines_total_ht} € HT (hors livraison)` })
   if (f.unclassified_share_pct != null) checks.push({ label: 'Produits classés par famille (90 j)', level: f.unclassified_share_pct <= 10 ? 'ok' : f.unclassified_share_pct <= 30 ? 'warn' : 'bad', detail: `${f.unclassified_share_pct} % du CA lignes « Sans famille »` })
-  const ca = struct?.conversion_actions ?? []
+  const ca = struct?.conversion_actions ?? []; const au = struct?.conversion_audit
   if (!struct) checks.push({ label: 'Conversions Google', level: 'bad', detail: 'structure Google Ads absente' })
   else if (!ca.length) checks.push({ label: 'Conversions Google', level: 'warn', detail: 'actions de conversion non lues : relancer la lecture de structure' })
+  else if (!au?.goals_read) checks.push({ label: 'Microconversions wetracked.io et enchères', level: 'warn', detail: 'objectifs de campagne non encore lus : relancer la lecture Audit Google Ads' })
   else {
-    const bid = ca.filter((a: any) => a.used_for_bidding); const nonPurchase = bid.filter((a: any) => a.category !== 'PURCHASE')
-    checks.push({ label: 'Conversions Google utilisées pour les enchères', level: !bid.some((a: any) => a.category === 'PURCHASE') ? 'bad' : nonPurchase.length ? 'warn' : 'ok', detail: `${bid.length} action(s) comptée(s) dans « Conversions »${nonPurchase.length ? `, dont ${nonPurchase.length} hors achat : ${nonPurchase.map((a: any) => a.name).slice(0, 4).join(', ')}` : ', achats uniquement'}` })
+    const hit = au.campaigns.filter((c: any) => c.micro_in_bidding.length)
+    checks.push({ label: 'Microconversions wetracked.io et enchères', level: hit.length ? 'bad' : 'ok', detail: hit.length ? `${hit.length} campagne(s) enchérissent sur des microconversions : ${hit.map((c: any) => c.name).slice(0, 4).join(', ')}` : `primaires mais hors objectifs enchérissables de ${au.campaigns.length} campagnes actives (0 conversion comptée sur 30 j)` })
+    const dup = au.campaigns.filter((c: any) => c.purchase_actions_counted.length > 1)
+    checks.push({ label: 'Achats comptés une seule fois', level: dup.length ? 'warn' : 'ok', detail: dup.length ? `${dup.length} campagne(s) comptent plusieurs actions d'achat (${[...new Set(dup.flatMap((c: any) => c.purchase_actions_counted))].join(', ')}) : conversions et ROAS Google probablement surévalués` : 'une seule action d\u2019achat comptée par campagne' })
   }
   const g90 = metrics?.windows?.['90']?.google_cost; const p90 = struct?.products_cost_90d_total
   if (g90 && p90 != null) checks.push({ label: 'Cohérence Audit ↔ Stratégie (coût 90 j)', level: 'ok', detail: `coût campagnes ${g90} € ; coût attribué aux produits ${p90} € (${Math.round(100 * p90 / g90)} %). Écart normal : l'audit ne compte que les produits, pas les dépenses PMax hors Shopping.` })
@@ -121,8 +124,35 @@ function compactStructure(snap: any, offers: any[]) {
     conversions_by_action_30d: (d.conversions_by_action_30d ?? []).filter((x: any) => x.all_conversions > 0).map((x: any) => ({ ...x, conversions: Math.round(x.conversions * 10) / 10, value: Math.round(x.value), all_conversions: Math.round(x.all_conversions * 10) / 10, all_value: Math.round(x.all_value) })),
     products_cost_90d_total: Math.round((d.products_90d ?? []).reduce((a: number, p: any) => a + (p.cost ?? 0), 0)),
     merchant_offers_never_shown_90d_by_family: Object.fromEntries(Object.entries(unseen).sort((a, b) => b[1] - a[1]).slice(0, 12)),
-    
+    conversion_audit: conversionAudit(d, camps),
   }
+}
+
+// Deterministic check: do the wetracked.io micro-conversions (cart, checkout, page view) actually drive bidding?
+const MICRO = ['ADD_TO_CART', 'BEGIN_CHECKOUT', 'PAGE_VIEW']
+function conversionAudit(d: any, camps: Map<string, any>) {
+  const actions = (d.conversion_actions ?? []).filter((a: any) => a.status === 'ENABLED')
+  const micro = actions.filter((a: any) => /wetracked/i.test(a.name) && MICRO.includes(a.category))
+  const goalsRead = Array.isArray(d.campaign_conversion_goals)
+  const goals = new Map<string, Set<string>>()
+  for (const g of d.campaign_conversion_goals ?? []) if (g.biddable) { const s = goals.get(g.campaign_id) ?? new Set(); s.add(g.category); goals.set(g.campaign_id, s) }
+  const perCamp = new Map<string, any[]>()
+  for (const r of d.campaign_conversions_by_action_30d ?? []) { const a = perCamp.get(r.campaign_id) ?? []; a.push(r); perCamp.set(r.campaign_id, a) }
+  const campaigns: any[] = []
+  for (const [id, c] of camps) {
+    if (c.status !== 'ENABLED') continue
+    const bid = goals.get(id) ?? new Set<string>(); const rows = perCamp.get(id) ?? []
+    const microIn = micro.filter((m: any) => m.primary && bid.has(m.category)).map((m: any) => m.name)
+    const microConv = rows.filter((r) => micro.some((m: any) => m.name === r.name)).reduce((s, r) => s + r.conversions, 0)
+    for (const r of rows) if (micro.some((m: any) => m.name === r.name) && r.conversions > 0 && !microIn.includes(r.name)) microIn.push(r.name)
+    const purch = rows.filter((r) => r.category === 'PURCHASE' && r.conversions > 0).map((r) => r.name)
+    const fixes: string[] = []
+    if (microIn.length) fixes.push(`Passer ${microIn.join(', ')} en action secondaire, ou retirer leur objectif (${[...new Set(micro.filter((m: any) => microIn.includes(m.name)).map((m: any) => m.category))].join(', ')}) des objectifs de la campagne`)
+    if (purch.length > 1) fixes.push(`Ne garder qu'une action d'achat principale (actuellement ${purch.join(', ')}) ; passer les autres en secondaire`)
+    campaigns.push({ name: c.name, bidding: c.bidding, biddable_goals: [...bid], micro_in_bidding: microIn, micro_conversions_30d: Math.round(microConv * 10) / 10, purchase_actions_counted: purch, fixes })
+  }
+  return { goals_read: goalsRead, micro_actions: micro.map((m: any) => ({ name: m.name, category: m.category, primary: m.primary })),
+    account_biddable_goals: (d.customer_conversion_goals ?? []).filter((g: any) => g.biddable).map((g: any) => `${g.category}/${g.origin}`), campaigns }
 }
 
 async function runAnalysis(admin: any, id: string, apiKey: string, payload: string) {
