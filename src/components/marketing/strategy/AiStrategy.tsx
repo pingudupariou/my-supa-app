@@ -121,6 +121,17 @@ export function AiStrategy({ canWrite }: { canWrite: boolean }) {
           <div key={i} className="flex gap-2"><span className={c.level === 'ok' ? 'text-primary' : c.level === 'warn' ? 'text-muted-foreground' : 'text-destructive'}>{c.level === 'ok' ? '●' : c.level === 'warn' ? '◐' : '○'}</span>
             <span><span className="font-medium">{c.label}</span> <span className="text-muted-foreground">— {c.detail}</span></span></div>))}</CardContent></Card>}
 
+      {conv?.goals_read && <Card><CardHeader className="pb-2"><CardTitle className="text-base">Microconversions wetracked.io et enchères (lecture Google Ads)</CardTitle></CardHeader>
+        <CardContent className="space-y-2 text-sm">
+          <p className="text-xs text-muted-foreground">Actions : {conv.micro_actions.map((m: any) => `${m.name} (${m.category}, ${m.primary ? 'principale' : 'secondaire'})`).join(' · ') || 'aucune'}. Une action influence les enchères seulement si elle est principale ET que sa catégorie fait partie des objectifs enchérissables de la campagne.</p>
+          <div className="overflow-x-auto"><table className="w-full text-xs"><thead><tr className="text-left text-muted-foreground"><th className="p-1">Campagne</th><th className="p-1">Enchères</th><th className="p-1">Objectifs enchérissables</th><th className="p-1">Micro dans enchères</th><th className="p-1">Achats comptés</th><th className="p-1">Correction recommandée</th></tr></thead>
+            <tbody>{conv.campaigns.map((c: any, i: number) => (
+              <tr key={i} className="border-t align-top"><td className="p-1 font-medium">{c.name}</td><td className="p-1">{c.bidding}</td><td className="p-1">{c.biddable_goals.join(', ') || '—'}</td>
+                <td className={`p-1 ${c.micro_in_bidding.length ? 'text-destructive' : ''}`}>{c.micro_in_bidding.length ? `${c.micro_in_bidding.join(', ')} (${c.micro_conversions_30d} conv. 30 j)` : 'Non'}</td>
+                <td className="p-1">{c.purchase_actions_counted.join(', ') || '—'}</td><td className="p-1">{c.fixes.join(' ; ') || 'Aucune'}</td></tr>))}</tbody></table></div>
+          <p className="text-xs text-muted-foreground">Recommandations à appliquer manuellement dans Google Ads : rien n'est modifié par l'application.</p>
+        </CardContent></Card>}
+
       {!r && !loading && <Card><CardContent className="pt-6 text-sm text-muted-foreground">Aucune analyse pour les données actuelles. Lance « Analyser la stratégie ».</CardContent></Card>}
       {r && <>
         <Card><CardHeader className="pb-2"><CardTitle className="text-base">Synthèse stratégique</CardTitle></CardHeader>
