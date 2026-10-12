@@ -69,14 +69,16 @@ export function AiStrategy({ canWrite }: { canWrite: boolean }) {
   const [data, setData] = useState<any>(null);
   const [err, setErr] = useState<string | null>(null);
   const [rel, setRel] = useState<any>(null);
+  const [conv, setConv] = useState<any>(null);
+  const [progress, setProgress] = useState(0);
 
   const poll = async (id: string) => {
-    for (let i = 0; i < 75; i++) {
+    for (let i = 0; i < 90; i++) {
       await new Promise((r) => setTimeout(r, 5000));
       const { data: row } = await (supabase as any).from('marketing_ai_analyses').select('id, result, created_at, updated_at, model, filters').eq('id', id).maybeSingle();
       const st = row?.result?._status;
-      if (st === 'running' && Date.now() - new Date(row.updated_at).getTime() > 6 * 60000) { setLoading(false); setErr("L'analyse précédente a été interrompue. Cliquez à nouveau sur « Analyser la stratégie »."); return; }
-      if (st === 'running') continue;
+      if (st === 'running' && Date.now() - new Date(row.updated_at).getTime() > 90000) { setLoading(false); setErr("L'analyse précédente a été interrompue. Cliquez à nouveau sur « Analyser la stratégie »."); return; }
+      if (st === 'running') { setProgress(row.result.chars ?? 0); continue; }
       setLoading(false);
       if (!row || st === 'error') { setErr(row?.result?.message ?? 'Analyse échouée'); return; }
       setData({ ...row, cached: false }); return;
@@ -84,11 +86,12 @@ export function AiStrategy({ canWrite }: { canWrite: boolean }) {
     setLoading(false); setErr("L'analyse prend plus de temps que prévu. Revenez dans quelques minutes.");
   };
   const run = async (opts: { force?: boolean; cache_only?: boolean } = {}) => {
-    setLoading(true); setErr(null);
+    setLoading(true); setErr(null); setProgress(0);
     localStorage.setItem(BUDGET_KEY, String(budget));
     const { data: d, error } = await supabase.functions.invoke('marketing-strategy', { body: { monthly_budget: budget, ...opts } });
     if (error) { setLoading(false); let msg = error.message; try { msg = (await (error as any).context?.json())?.error ?? msg; } catch { /* */ } setErr(msg); return; }
     if (d?.reliability) setRel(d.reliability);
+    if (d?.conversion_audit) setConv(d.conversion_audit);
     if (d?.pending && d.id) return poll(d.id);
     setLoading(false);
     if (d?.result) setData(d);
@@ -110,7 +113,7 @@ export function AiStrategy({ canWrite }: { canWrite: boolean }) {
             Analyse 7/30/90/180/365 j de Shopify, Google Ads (structure comprise), Meta, GA4 et Merchant Center. Même données = résultat en cache, sans nouveau coût. Recommandations uniquement : rien n'est modifié dans Google Ads, Meta (géré par Crush AI), Merchant Center ou Erplain.
             {data && ` · ${data.cached ? 'Résultat en cache' : 'Nouvelle analyse'} du ${new Date(data.created_at).toLocaleString('fr-FR')}`}
           </p>
-          {loading && <p className="text-xs text-muted-foreground">Analyse approfondie en cours, cela peut prendre 1 à 3 minutes…</p>}
+          {loading && <p className="text-xs text-muted-foreground">Analyse approfondie en cours, cela peut prendre 1 à 4 minutes…{progress > 0 && ` (${Math.round(progress / 1000)} k caractères reçus)`}</p>}
           {err && <p className="w-full text-sm text-destructive">{err}</p>}
         </CardContent>
       </Card>
@@ -120,6 +123,17 @@ export function AiStrategy({ canWrite }: { canWrite: boolean }) {
         <CardContent className="grid gap-1 text-sm md:grid-cols-2">{rel.checks.map((c: any, i: number) => (
           <div key={i} className="flex gap-2"><span className={c.level === 'ok' ? 'text-primary' : c.level === 'warn' ? 'text-muted-foreground' : 'text-destructive'}>{c.level === 'ok' ? '●' : c.level === 'warn' ? '◐' : '○'}</span>
             <span><span className="font-medium">{c.label}</span> <span className="text-muted-foreground">— {c.detail}</span></span></div>))}</CardContent></Card>}
+
+      {conv?.goals_read && <Card><CardHeader className="pb-2"><CardTitle className="text-base">Microconversions wetracked.io et enchères (lecture Google Ads)</CardTitle></CardHeader>
+        <CardContent className="space-y-2 text-sm">
+          <p className="text-xs text-muted-foreground">Actions : {conv.micro_actions.map((m: any) => `${m.name} (${m.category}, ${m.primary ? 'principale' : 'secondaire'})`).join(' · ') || 'aucune'}. Une action influence les enchères seulement si elle est principale ET que sa catégorie fait partie des objectifs enchérissables de la campagne.</p>
+          <div className="overflow-x-auto"><table className="w-full text-xs"><thead><tr className="text-left text-muted-foreground"><th className="p-1">Campagne</th><th className="p-1">Enchères</th><th className="p-1">Objectifs enchérissables</th><th className="p-1">Micro dans enchères</th><th className="p-1">Achats comptés</th><th className="p-1">Correction recommandée</th></tr></thead>
+            <tbody>{conv.campaigns.map((c: any, i: number) => (
+              <tr key={i} className="border-t align-top"><td className="p-1 font-medium">{c.name}</td><td className="p-1">{c.bidding}</td><td className="p-1">{c.biddable_goals.join(', ') || '—'}</td>
+                <td className={`p-1 ${c.micro_in_bidding.length ? 'text-destructive' : ''}`}>{c.micro_in_bidding.length ? `${c.micro_in_bidding.join(', ')} (${c.micro_conversions_30d} conv. 30 j)` : 'Non'}</td>
+                <td className="p-1">{c.purchase_actions_counted.join(', ') || '—'}</td><td className="p-1">{c.fixes.join(' ; ') || 'Aucune'}</td></tr>))}</tbody></table></div>
+          <p className="text-xs text-muted-foreground">Recommandations à appliquer manuellement dans Google Ads : rien n'est modifié par l'application.</p>
+        </CardContent></Card>}
 
       {!r && !loading && <Card><CardContent className="pt-6 text-sm text-muted-foreground">Aucune analyse pour les données actuelles. Lance « Analyser la stratégie ».</CardContent></Card>}
       {r && <>

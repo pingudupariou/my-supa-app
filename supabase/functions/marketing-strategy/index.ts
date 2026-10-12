@@ -45,7 +45,8 @@ Règles strictes :
 - Tendances : utilise trends_non_overlapping (période courante vs précédente de même durée, sans chevauchement) ; une seule période en baisse/hausse = surveiller, pas décider.
 - Ventes par famille : revenue_lines_ht = lignes produits hors livraison (ne pas comparer directement au CA total HT).
 - Propose Shopping, PMax ou Search seulement si justifié par les chiffres ; chaque recommandation : chiffres, priorité, risques, actions concrètes.
-- 4 à 8 opportunités, 0 à 5 nouvelles campagnes, verdict pour chaque campagne active significative, 5 à 10 actions dans le plan (order 1 = d'abord). Français, concis, chiffré.`
+- Microconversions : google_ads_structure.conversion_audit indique, campagne par campagne, si les microconversions wetracked.io entrent dans les enchères et si plusieurs actions d'achat sont comptées ; base-toi dessus sans le contredire.
+- Limites de longueur STRICTES (sinon l'analyse échoue) : 4 à 6 opportunités, 0 à 3 nouvelles campagnes, au plus 10 verdicts (les campagnes les plus coûteuses ou problématiques ; regroupe les autres dans la synthèse), 5 à 8 actions dans le plan (order 1 = d'abord). Chaque champ texte : 1 à 2 phrases maximum, synthèse ≤ 8 phrases. Français, concis, chiffré.`
 
 // Deterministic data-reliability checks, computed server-side (no AI cost).
 function reliability(metrics: any, struct: any) {
@@ -57,12 +58,15 @@ function reliability(metrics: any, struct: any) {
   const f = metrics?.families_90 ?? {}
   if (f.lines != null) checks.push({ label: 'Ventes par famille sans doublon', level: f.lines === f.distinct_lines ? 'ok' : 'bad', detail: `${f.distinct_lines} lignes distinctes / ${f.lines} comptées · total lignes ${f.lines_total_ht} € HT (hors livraison)` })
   if (f.unclassified_share_pct != null) checks.push({ label: 'Produits classés par famille (90 j)', level: f.unclassified_share_pct <= 10 ? 'ok' : f.unclassified_share_pct <= 30 ? 'warn' : 'bad', detail: `${f.unclassified_share_pct} % du CA lignes « Sans famille »` })
-  const ca = struct?.conversion_actions ?? []
+  const ca = struct?.conversion_actions ?? []; const au = struct?.conversion_audit
   if (!struct) checks.push({ label: 'Conversions Google', level: 'bad', detail: 'structure Google Ads absente' })
   else if (!ca.length) checks.push({ label: 'Conversions Google', level: 'warn', detail: 'actions de conversion non lues : relancer la lecture de structure' })
+  else if (!au?.goals_read) checks.push({ label: 'Microconversions wetracked.io et enchères', level: 'warn', detail: 'objectifs de campagne non encore lus : relancer la lecture Audit Google Ads' })
   else {
-    const bid = ca.filter((a: any) => a.used_for_bidding); const nonPurchase = bid.filter((a: any) => a.category !== 'PURCHASE')
-    checks.push({ label: 'Conversions Google utilisées pour les enchères', level: !bid.some((a: any) => a.category === 'PURCHASE') ? 'bad' : nonPurchase.length ? 'warn' : 'ok', detail: `${bid.length} action(s) comptée(s) dans « Conversions »${nonPurchase.length ? `, dont ${nonPurchase.length} hors achat : ${nonPurchase.map((a: any) => a.name).slice(0, 4).join(', ')}` : ', achats uniquement'}` })
+    const hit = au.campaigns.filter((c: any) => c.micro_in_bidding.length)
+    checks.push({ label: 'Microconversions wetracked.io et enchères', level: hit.length ? 'bad' : 'ok', detail: hit.length ? `${hit.length} campagne(s) enchérissent sur des microconversions : ${hit.map((c: any) => c.name).slice(0, 4).join(', ')}` : `primaires mais hors objectifs enchérissables de ${au.campaigns.length} campagnes actives (0 conversion comptée sur 30 j)` })
+    const dup = au.campaigns.filter((c: any) => c.purchase_actions_counted.length > 1)
+    checks.push({ label: 'Achats comptés une seule fois', level: dup.length ? 'warn' : 'ok', detail: dup.length ? `${dup.length} campagne(s) comptent plusieurs actions d'achat (${[...new Set(dup.flatMap((c: any) => c.purchase_actions_counted))].join(', ')}) : conversions et ROAS Google probablement surévalués` : 'une seule action d\u2019achat comptée par campagne' })
   }
   const g90 = metrics?.windows?.['90']?.google_cost; const p90 = struct?.products_cost_90d_total
   if (g90 && p90 != null) checks.push({ label: 'Cohérence Audit ↔ Stratégie (coût 90 j)', level: 'ok', detail: `coût campagnes ${g90} € ; coût attribué aux produits ${p90} € (${Math.round(100 * p90 / g90)} %). Écart normal : l'audit ne compte que les produits, pas les dépenses PMax hors Shopping.` })
@@ -121,13 +125,43 @@ function compactStructure(snap: any, offers: any[]) {
     conversions_by_action_30d: (d.conversions_by_action_30d ?? []).filter((x: any) => x.all_conversions > 0).map((x: any) => ({ ...x, conversions: Math.round(x.conversions * 10) / 10, value: Math.round(x.value), all_conversions: Math.round(x.all_conversions * 10) / 10, all_value: Math.round(x.all_value) })),
     products_cost_90d_total: Math.round((d.products_90d ?? []).reduce((a: number, p: any) => a + (p.cost ?? 0), 0)),
     merchant_offers_never_shown_90d_by_family: Object.fromEntries(Object.entries(unseen).sort((a, b) => b[1] - a[1]).slice(0, 12)),
-    
+    conversion_audit: conversionAudit(d, camps),
   }
 }
 
+// Deterministic check: do the wetracked.io micro-conversions (cart, checkout, page view) actually drive bidding?
+const MICRO = ['ADD_TO_CART', 'BEGIN_CHECKOUT', 'PAGE_VIEW']
+function conversionAudit(d: any, camps: Map<string, any>) {
+  const actions = (d.conversion_actions ?? []).filter((a: any) => a.status === 'ENABLED')
+  const micro = actions.filter((a: any) => /wetracked/i.test(a.name) && MICRO.includes(a.category))
+  const goalsRead = Array.isArray(d.campaign_conversion_goals)
+  const goals = new Map<string, Set<string>>()
+  for (const g of d.campaign_conversion_goals ?? []) if (g.biddable) { const s = goals.get(g.campaign_id) ?? new Set(); s.add(g.category); goals.set(g.campaign_id, s) }
+  const perCamp = new Map<string, any[]>()
+  for (const r of d.campaign_conversions_by_action_30d ?? []) { const a = perCamp.get(r.campaign_id) ?? []; a.push(r); perCamp.set(r.campaign_id, a) }
+  const campaigns: any[] = []
+  for (const [id, c] of camps) {
+    if (c.status !== 'ENABLED') continue
+    const bid = goals.get(id) ?? new Set<string>(); const rows = perCamp.get(id) ?? []
+    const microIn = micro.filter((m: any) => m.primary && bid.has(m.category)).map((m: any) => m.name)
+    const microConv = rows.filter((r) => micro.some((m: any) => m.name === r.name)).reduce((s, r) => s + r.conversions, 0)
+    for (const r of rows) if (micro.some((m: any) => m.name === r.name) && r.conversions > 0 && !microIn.includes(r.name)) microIn.push(r.name)
+    const purch = rows.filter((r) => r.category === 'PURCHASE' && r.conversions > 0).map((r) => r.name)
+    const fixes: string[] = []
+    if (microIn.length) fixes.push(`Passer ${microIn.join(', ')} en action secondaire, ou retirer leur objectif (${[...new Set(micro.filter((m: any) => microIn.includes(m.name)).map((m: any) => m.category))].join(', ')}) des objectifs de la campagne`)
+    if (purch.length > 1) fixes.push(`Ne garder qu'une action d'achat principale (actuellement ${purch.join(', ')}) ; passer les autres en secondaire`)
+    campaigns.push({ name: c.name, bidding: c.bidding, biddable_goals: [...bid], micro_in_bidding: microIn, micro_conversions_30d: Math.round(microConv * 10) / 10, purchase_actions_counted: purch, fixes })
+  }
+  return { goals_read: goalsRead, micro_actions: micro.map((m: any) => ({ name: m.name, category: m.category, primary: m.primary })),
+    account_biddable_goals: (d.customer_conversion_goals ?? []).filter((g: any) => g.biddable).map((g: any) => `${g.category}/${g.origin}`), campaigns }
+}
+
 async function runAnalysis(admin: any, id: string, apiKey: string, payload: string) {
-  const fail = (m: string) => admin.from('marketing_ai_analyses').update({ result: { _status: 'error', message: m } }).eq('id', id)
+  const fail = (m: string) => { done = true; return admin.from('marketing_ai_analyses').update({ result: { _status: 'error', message: m } }).eq('id', id) }
   const ctrl = new AbortController(); const timer = setTimeout(() => ctrl.abort(), 330_000)
+  // Heartbeat: lets the page detect a killed worker within ~90 s instead of waiting for minutes.
+  let chars = 0, done = false
+  const hb = setInterval(() => { if (!done) admin.from('marketing_ai_analyses').update({ updated_at: new Date().toISOString(), result: { _status: 'running', chars } }).eq('id', id).eq('result->>_status', 'running').then(() => {}) }, 15000)
   try {
     const res = await fetch('https://ai.gateway.lovable.dev/v1/responses', {
       method: 'POST', signal: ctrl.signal,
@@ -147,6 +181,8 @@ async function runAnalysis(admin: any, id: string, apiKey: string, payload: stri
     const reader = res.body!.getReader(); const dec = new TextDecoder(); let buf = '', text = '', failed = ''
     for (;;) {
       const { done, value } = await reader.read(); if (done) break
+      // Heartbeat: lets the page detect a killed worker within a minute instead of waiting for minutes.
+      chars = text.length
       buf += dec.decode(value, { stream: true })
       let i; while ((i = buf.indexOf('\n')) >= 0) {
         const line = buf.slice(0, i).trim(); buf = buf.slice(i + 1)
@@ -161,9 +197,10 @@ async function runAnalysis(admin: any, id: string, apiKey: string, payload: stri
     }
     if (failed || !text) return await fail(failed || 'Réponse IA vide')
     let result; try { result = JSON.parse(text) } catch { return await fail('Réponse IA illisible') }
+    done = true; clearInterval(hb)
     await admin.from('marketing_ai_analyses').update({ result }).eq('id', id)
   } catch (e) { console.error('strategy', e); await fail(ctrl.signal.aborted ? "L'analyse a dépassé le temps maximal, relancez-la." : e instanceof Error ? e.message : String(e)) }
-  finally { clearTimeout(timer) }
+  finally { done = true; clearInterval(hb); clearTimeout(timer) }
 }
 
 // Worker about to be killed: never leave a run stuck in 'running'.
@@ -191,7 +228,7 @@ Deno.serve(async (req) => {
     const { data: metrics, error: me } = await userClient.rpc('marketing_strategy_summary')
     if (me) return json({ error: me.message }, 500)
     const { data: snapRow } = await admin.from('google_ads_structure_snapshots')
-      .select('taken_at, campaigns:data->campaigns, criteria:data->criteria, budget_lost:data->budget_lost, ad_groups:data->ad_groups, asset_groups:data->asset_groups, signals:data->signals, listing_groups_pmax:data->listing_groups_pmax, listing_groups_shopping:data->listing_groups_shopping, products_90d:data->products_90d, conversion_actions:data->conversion_actions, conversions_by_action_30d:data->conversions_by_action_30d').in('status', ['success', 'partial']).order('taken_at', { ascending: false }).limit(1).maybeSingle()
+      .select('taken_at, campaigns:data->campaigns, criteria:data->criteria, budget_lost:data->budget_lost, ad_groups:data->ad_groups, asset_groups:data->asset_groups, signals:data->signals, listing_groups_pmax:data->listing_groups_pmax, listing_groups_shopping:data->listing_groups_shopping, products_90d:data->products_90d, conversion_actions:data->conversion_actions, conversions_by_action_30d:data->conversions_by_action_30d, customer_conversion_goals:data->customer_conversion_goals, campaign_conversion_goals:data->campaign_conversion_goals, campaign_conversions_by_action_30d:data->campaign_conversions_by_action_30d').in('status', ['success', 'partial']).order('taken_at', { ascending: false }).limit(1).maybeSingle()
     const snap = snapRow ? { taken_at: snapRow.taken_at, data: snapRow } : null
     const offers: any[] = []
     for (let p = 0; ; p++) {
@@ -207,10 +244,10 @@ Deno.serve(async (req) => {
 
     const { data: cached } = await admin.from('marketing_ai_analyses').select('id, result, created_at, updated_at, model').eq('kind', 'strategy').eq('cache_key', key).maybeSingle()
     const st = cached?.result?._status
-    const fresh = cached && Date.now() - new Date(cached.updated_at).getTime() < 6 * 60000
-    if (cached && st === 'running' && fresh) return json({ pending: true, id: cached.id, reliability: rel })
-    if (cached && !st && !body?.force) return json({ cached: true, ...cached, reliability: rel })
-    if (body?.cache_only) return json({ cached: false, result: null, reliability: rel })
+    const fresh = cached && Date.now() - new Date(cached.updated_at).getTime() < 90000
+    if (cached && st === 'running' && fresh) return json({ pending: true, id: cached.id, reliability: rel, conversion_audit: struct?.conversion_audit ?? null })
+    if (cached && !st && !body?.force) return json({ cached: true, ...cached, reliability: rel, conversion_audit: struct?.conversion_audit ?? null })
+    if (body?.cache_only) return json({ cached: false, result: null, reliability: rel, conversion_audit: struct?.conversion_audit ?? null })
 
     const since = new Date(Date.now() - 86400000).toISOString()
     const { count } = await admin.from('marketing_ai_analyses').select('id', { count: 'exact', head: true }).eq('kind', 'strategy').eq('created_by', u.user.id).gte('updated_at', since)
@@ -227,7 +264,7 @@ Deno.serve(async (req) => {
     // @ts-ignore EdgeRuntime is provided by Supabase
     adminGlobal = admin; activeRuns.add(row.id)
     EdgeRuntime.waitUntil(runAnalysis(admin, row.id, apiKey, payload).finally(() => activeRuns.delete(row.id)))
-    return json({ pending: true, id: row.id, reliability: rel })
+    return json({ pending: true, id: row.id, reliability: rel, conversion_audit: struct?.conversion_audit ?? null })
   } catch (e) {
     if (req.signal.aborted) return new Response(null, { status: 499 })
     console.error(e); return json({ error: e instanceof Error ? e.message : String(e) }, 500)

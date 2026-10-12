@@ -83,6 +83,17 @@ Deno.serve(async (req) => {
     name: r.segments?.conversionActionName, category: r.segments?.conversionActionCategory,
     conversions: Number(r.metrics?.conversions ?? 0), value: Number(r.metrics?.conversionsValue ?? 0), all_conversions: Number(r.metrics?.allConversions ?? 0), all_value: Number(r.metrics?.allConversionsValue ?? 0),
   })));
+  // Which goal categories are biddable per account / campaign (decides what bidding actually optimises toward).
+  await section("customer_conversion_goals", async () => (await search(customer, `SELECT customer_conversion_goal.category, customer_conversion_goal.origin, customer_conversion_goal.biddable FROM customer_conversion_goal`)).map((r) => ({
+    category: r.customerConversionGoal?.category, origin: r.customerConversionGoal?.origin, biddable: !!r.customerConversionGoal?.biddable,
+  })));
+  await section("campaign_conversion_goals", async () => (await search(customer, `SELECT campaign.id, campaign_conversion_goal.category, campaign_conversion_goal.origin, campaign_conversion_goal.biddable FROM campaign_conversion_goal WHERE campaign.status = 'ENABLED'`)).map((r) => ({
+    campaign_id: r.campaign?.id, category: r.campaignConversionGoal?.category, origin: r.campaignConversionGoal?.origin, biddable: !!r.campaignConversionGoal?.biddable,
+  })));
+  await section("campaign_conversions_by_action_30d", async () => (await search(customer, `SELECT campaign.id, segments.conversion_action_name, segments.conversion_action_category, metrics.conversions, metrics.conversions_value, metrics.all_conversions FROM campaign WHERE campaign.status = 'ENABLED' AND segments.date DURING LAST_30_DAYS`)).map((r) => ({
+    campaign_id: r.campaign?.id, name: r.segments?.conversionActionName, category: r.segments?.conversionActionCategory,
+    conversions: Number(r.metrics?.conversions ?? 0), value: Number(r.metrics?.conversionsValue ?? 0), all_conversions: Number(r.metrics?.allConversions ?? 0),
+  })));
 
   await section("criteria", async () => {
     const rows = await search(customer, `SELECT campaign.id, campaign_criterion.type, campaign_criterion.negative, campaign_criterion.location.geo_target_constant, campaign_criterion.language.language_constant, campaign_criterion.keyword.text FROM campaign_criterion WHERE campaign.status != 'REMOVED' AND campaign_criterion.status != 'REMOVED' AND campaign_criterion.type IN ('LOCATION','LANGUAGE','KEYWORD')`);
