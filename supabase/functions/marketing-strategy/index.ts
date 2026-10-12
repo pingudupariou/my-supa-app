@@ -156,8 +156,11 @@ function conversionAudit(d: any, camps: Map<string, any>) {
 }
 
 async function runAnalysis(admin: any, id: string, apiKey: string, payload: string) {
-  const fail = (m: string) => admin.from('marketing_ai_analyses').update({ result: { _status: 'error', message: m } }).eq('id', id)
+  const fail = (m: string) => { done = true; return admin.from('marketing_ai_analyses').update({ result: { _status: 'error', message: m } }).eq('id', id) }
   const ctrl = new AbortController(); const timer = setTimeout(() => ctrl.abort(), 330_000)
+  // Heartbeat: lets the page detect a killed worker within ~90 s instead of waiting for minutes.
+  let chars = 0, done = false
+  const hb = setInterval(() => { if (!done) admin.from('marketing_ai_analyses').update({ updated_at: new Date().toISOString(), result: { _status: 'running', chars } }).eq('id', id).eq('result->>_status', 'running').then(() => {}) }, 15000)
   try {
     const res = await fetch('https://ai.gateway.lovable.dev/v1/responses', {
       method: 'POST', signal: ctrl.signal,
@@ -175,11 +178,10 @@ async function runAnalysis(admin: any, id: string, apiKey: string, payload: stri
       return await fail(res.status === 402 ? 'Crédits IA épuisés : rechargez dans Paramètres → Plans et crédits.' : res.status === 429 ? 'Trop de demandes IA, réessayez dans une minute.' : msg)
     }
     const reader = res.body!.getReader(); const dec = new TextDecoder(); let buf = '', text = '', failed = ''
-    let beat = Date.now()
     for (;;) {
       const { done, value } = await reader.read(); if (done) break
       // Heartbeat: lets the page detect a killed worker within a minute instead of waiting for minutes.
-      if (Date.now() - beat > 15000) { beat = Date.now(); admin.from('marketing_ai_analyses').update({ updated_at: new Date().toISOString(), result: { _status: 'running', chars: text.length } }).eq('id', id).then(() => {}) }
+      chars = text.length
       buf += dec.decode(value, { stream: true })
       let i; while ((i = buf.indexOf('\n')) >= 0) {
         const line = buf.slice(0, i).trim(); buf = buf.slice(i + 1)
@@ -194,9 +196,10 @@ async function runAnalysis(admin: any, id: string, apiKey: string, payload: stri
     }
     if (failed || !text) return await fail(failed || 'Réponse IA vide')
     let result; try { result = JSON.parse(text) } catch { return await fail('Réponse IA illisible') }
+    done = true; clearInterval(hb)
     await admin.from('marketing_ai_analyses').update({ result }).eq('id', id)
   } catch (e) { console.error('strategy', e); await fail(ctrl.signal.aborted ? "L'analyse a dépassé le temps maximal, relancez-la." : e instanceof Error ? e.message : String(e)) }
-  finally { clearTimeout(timer) }
+  finally { done = true; clearInterval(hb); clearTimeout(timer) }
 }
 
 // Worker about to be killed: never leave a run stuck in 'running'.
