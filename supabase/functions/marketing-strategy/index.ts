@@ -221,7 +221,7 @@ Deno.serve(async (req) => {
     const { data: metrics, error: me } = await userClient.rpc('marketing_strategy_summary')
     if (me) return json({ error: me.message }, 500)
     const { data: snapRow } = await admin.from('google_ads_structure_snapshots')
-      .select('taken_at, campaigns:data->campaigns, criteria:data->criteria, budget_lost:data->budget_lost, ad_groups:data->ad_groups, asset_groups:data->asset_groups, signals:data->signals, listing_groups_pmax:data->listing_groups_pmax, listing_groups_shopping:data->listing_groups_shopping, products_90d:data->products_90d, conversion_actions:data->conversion_actions, conversions_by_action_30d:data->conversions_by_action_30d').in('status', ['success', 'partial']).order('taken_at', { ascending: false }).limit(1).maybeSingle()
+      .select('taken_at, campaigns:data->campaigns, criteria:data->criteria, budget_lost:data->budget_lost, ad_groups:data->ad_groups, asset_groups:data->asset_groups, signals:data->signals, listing_groups_pmax:data->listing_groups_pmax, listing_groups_shopping:data->listing_groups_shopping, products_90d:data->products_90d, conversion_actions:data->conversion_actions, conversions_by_action_30d:data->conversions_by_action_30d, customer_conversion_goals:data->customer_conversion_goals, campaign_conversion_goals:data->campaign_conversion_goals, campaign_conversions_by_action_30d:data->campaign_conversions_by_action_30d').in('status', ['success', 'partial']).order('taken_at', { ascending: false }).limit(1).maybeSingle()
     const snap = snapRow ? { taken_at: snapRow.taken_at, data: snapRow } : null
     const offers: any[] = []
     for (let p = 0; ; p++) {
@@ -238,9 +238,9 @@ Deno.serve(async (req) => {
     const { data: cached } = await admin.from('marketing_ai_analyses').select('id, result, created_at, updated_at, model').eq('kind', 'strategy').eq('cache_key', key).maybeSingle()
     const st = cached?.result?._status
     const fresh = cached && Date.now() - new Date(cached.updated_at).getTime() < 6 * 60000
-    if (cached && st === 'running' && fresh) return json({ pending: true, id: cached.id, reliability: rel })
-    if (cached && !st && !body?.force) return json({ cached: true, ...cached, reliability: rel })
-    if (body?.cache_only) return json({ cached: false, result: null, reliability: rel })
+    if (cached && st === 'running' && fresh) return json({ pending: true, id: cached.id, reliability: rel, conversion_audit: struct?.conversion_audit ?? null })
+    if (cached && !st && !body?.force) return json({ cached: true, ...cached, reliability: rel, conversion_audit: struct?.conversion_audit ?? null })
+    if (body?.cache_only) return json({ cached: false, result: null, reliability: rel, conversion_audit: struct?.conversion_audit ?? null })
 
     const since = new Date(Date.now() - 86400000).toISOString()
     const { count } = await admin.from('marketing_ai_analyses').select('id', { count: 'exact', head: true }).eq('kind', 'strategy').eq('created_by', u.user.id).gte('updated_at', since)
@@ -257,7 +257,7 @@ Deno.serve(async (req) => {
     // @ts-ignore EdgeRuntime is provided by Supabase
     adminGlobal = admin; activeRuns.add(row.id)
     EdgeRuntime.waitUntil(runAnalysis(admin, row.id, apiKey, payload).finally(() => activeRuns.delete(row.id)))
-    return json({ pending: true, id: row.id, reliability: rel })
+    return json({ pending: true, id: row.id, reliability: rel, conversion_audit: struct?.conversion_audit ?? null })
   } catch (e) {
     if (req.signal.aborted) return new Response(null, { status: 499 })
     console.error(e); return json({ error: e instanceof Error ? e.message : String(e) }, 500)
