@@ -2235,19 +2235,101 @@ export type Database = {
         }
         Relationships: []
       }
+      google_ads_pilot_actions: {
+        Row: {
+          analysis_id: string | null
+          campaign_id: number | null
+          campaign_name: string | null
+          confidence: string | null
+          created_at: string
+          created_by: string
+          current_value: string | null
+          dedupe_key: string
+          draft_id: string | null
+          estimated_impact: string | null
+          evidence: string | null
+          executed_at: string | null
+          id: string
+          kind: string
+          note: string | null
+          proposed_daily_budget: number | null
+          proposed_target_roas: number | null
+          proposed_value: string | null
+          publish_action_id: string | null
+          risks: string | null
+          status: string
+          task_id: string | null
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          analysis_id?: string | null
+          campaign_id?: number | null
+          campaign_name?: string | null
+          confidence?: string | null
+          created_at?: string
+          created_by: string
+          current_value?: string | null
+          dedupe_key: string
+          draft_id?: string | null
+          estimated_impact?: string | null
+          evidence?: string | null
+          executed_at?: string | null
+          id?: string
+          kind: string
+          note?: string | null
+          proposed_daily_budget?: number | null
+          proposed_target_roas?: number | null
+          proposed_value?: string | null
+          publish_action_id?: string | null
+          risks?: string | null
+          status?: string
+          task_id?: string | null
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          analysis_id?: string | null
+          campaign_id?: number | null
+          campaign_name?: string | null
+          confidence?: string | null
+          created_at?: string
+          created_by?: string
+          current_value?: string | null
+          dedupe_key?: string
+          draft_id?: string | null
+          estimated_impact?: string | null
+          evidence?: string | null
+          executed_at?: string | null
+          id?: string
+          kind?: string
+          note?: string | null
+          proposed_daily_budget?: number | null
+          proposed_target_roas?: number | null
+          proposed_value?: string | null
+          publish_action_id?: string | null
+          risks?: string | null
+          status?: string
+          task_id?: string | null
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       google_ads_publish_actions: {
         Row: {
           action_kind: string
           approved_at: string | null
           approved_by: string | null
           created_at: string
-          draft_id: string
+          draft_id: string | null
           draft_snapshot: Json
           error: string | null
           executed_at: string | null
           google_response: Json | null
           id: string
           operations: Json
+          pilot_action_id: string | null
           preflight: Json | null
           requested_by: string
           status: string
@@ -2259,13 +2341,14 @@ export type Database = {
           approved_at?: string | null
           approved_by?: string | null
           created_at?: string
-          draft_id: string
+          draft_id?: string | null
           draft_snapshot: Json
           error?: string | null
           executed_at?: string | null
           google_response?: Json | null
           id?: string
           operations: Json
+          pilot_action_id?: string | null
           preflight?: Json | null
           requested_by: string
           status?: string
@@ -2277,13 +2360,14 @@ export type Database = {
           approved_at?: string | null
           approved_by?: string | null
           created_at?: string
-          draft_id?: string
+          draft_id?: string | null
           draft_snapshot?: Json
           error?: string | null
           executed_at?: string | null
           google_response?: Json | null
           id?: string
           operations?: Json
+          pilot_action_id?: string | null
           preflight?: Json | null
           requested_by?: string
           status?: string
@@ -2296,6 +2380,13 @@ export type Database = {
             columns: ["draft_id"]
             isOneToOne: false
             referencedRelation: "google_ads_campaign_drafts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "google_ads_publish_actions_pilot_action_id_fkey"
+            columns: ["pilot_action_id"]
+            isOneToOne: false
+            referencedRelation: "google_ads_pilot_actions"
             referencedColumns: ["id"]
           },
         ]
