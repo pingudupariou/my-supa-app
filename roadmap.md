@@ -31,3 +31,7 @@
 - [ ] Tester une analyse stratégique réelle (attend un lancement depuis un compte connecté)
 - [x] Étape 3 : constructeur de campagnes (projets Shopping/PMax/Search, conflits, validation — aucune écriture Google Ads)
 - [ ] Vérifier le constructeur avec un compte Marketing réel (session externe indisponible)
+- [x] Étape 4 : publication supervisée préparée (écriture désactivée côté serveur ; Search et Shopping ; PMax en attente des images)
+- [x] Audit des 16 alertes Supabase : rôles/approbation limités à soi-même ; autres alertes justifiées
+- [ ] Activer la protection des mots de passe divulgués (réglage Supabase Auth, à faire par l'utilisateur)
+- [ ] Première publication réelle (attend l'accord explicite et GOOGLE_ADS_ALLOW_WRITE=true)

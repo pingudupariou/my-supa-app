@@ -2235,6 +2235,71 @@ export type Database = {
         }
         Relationships: []
       }
+      google_ads_publish_actions: {
+        Row: {
+          action_kind: string
+          approved_at: string | null
+          approved_by: string | null
+          created_at: string
+          draft_id: string
+          draft_snapshot: Json
+          error: string | null
+          executed_at: string | null
+          google_response: Json | null
+          id: string
+          operations: Json
+          preflight: Json | null
+          requested_by: string
+          status: string
+          summary: string
+          updated_at: string
+        }
+        Insert: {
+          action_kind: string
+          approved_at?: string | null
+          approved_by?: string | null
+          created_at?: string
+          draft_id: string
+          draft_snapshot: Json
+          error?: string | null
+          executed_at?: string | null
+          google_response?: Json | null
+          id?: string
+          operations: Json
+          preflight?: Json | null
+          requested_by: string
+          status?: string
+          summary: string
+          updated_at?: string
+        }
+        Update: {
+          action_kind?: string
+          approved_at?: string | null
+          approved_by?: string | null
+          created_at?: string
+          draft_id?: string
+          draft_snapshot?: Json
+          error?: string | null
+          executed_at?: string | null
+          google_response?: Json | null
+          id?: string
+          operations?: Json
+          preflight?: Json | null
+          requested_by?: string
+          status?: string
+          summary?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "google_ads_publish_actions_draft_id_fkey"
+            columns: ["draft_id"]
+            isOneToOne: false
+            referencedRelation: "google_ads_campaign_drafts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       google_ads_structure_snapshots: {
         Row: {
           counts: Json
