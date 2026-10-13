@@ -18,6 +18,7 @@ import { MarketingTasks, TaskSummary } from '@/components/marketing/tasks/Market
 import { GoogleAdsAudit } from '@/components/marketing/audit/GoogleAdsAudit';
 import { AiStrategy } from '@/components/marketing/strategy/AiStrategy';
 import { AdCatalog } from '@/components/marketing/catalog/AdCatalog';
+import { PilotLoop } from '@/components/marketing/pilot/PilotLoop';
 import { CampaignBuilder } from '@/components/marketing/builder/CampaignBuilder';
 
 const sb = supabase as any;
@@ -548,6 +549,7 @@ export function MarketingIntelligencePage() {
           <TabsTrigger value="strategy" data-readonly-allow>Stratégie IA</TabsTrigger>
           <TabsTrigger value="gads-audit" data-readonly-allow>Audit Google Ads</TabsTrigger>
           <TabsTrigger value="catalog" data-readonly-allow>Catalogue publicitaire</TabsTrigger>
+          <TabsTrigger value="pilot" data-readonly-allow>Pilotage</TabsTrigger>
           <TabsTrigger value="builder" data-readonly-allow>Constructeur de campagnes</TabsTrigger>
           <TabsTrigger value="shopify" data-readonly-allow>Shopify</TabsTrigger>
           <TabsTrigger value="connections" data-readonly-allow>Connexions</TabsTrigger>
@@ -558,6 +560,7 @@ export function MarketingIntelligencePage() {
         <TabsContent value="tasks"><MarketingTasks canWrite={access === 'write'} /></TabsContent>
         <TabsContent value="strategy"><AiStrategy canWrite={access === 'write'} /></TabsContent>
         <TabsContent value="gads-audit"><GoogleAdsAudit canWrite={access === 'write'} /></TabsContent>
+        <TabsContent value="pilot">{tab === 'pilot' && <PilotLoop canWrite={access === 'write'} />}</TabsContent>
         <TabsContent value="builder">{tab === 'builder' && <CampaignBuilder canWrite={access === 'write'} />}</TabsContent>
         <TabsContent value="catalog"><AdCatalog canWrite={access === 'write'} /></TabsContent>
         <TabsContent value="shopify" className="space-y-6"><ShopifySection canWrite={access === 'write'} /><ShopifyReconciliation /></TabsContent>
