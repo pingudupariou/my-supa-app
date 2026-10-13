@@ -16,7 +16,7 @@ describe('checkConflicts', () => {
   it('warns (never blocks) on PMax covering whole catalogue in same country', () => {
     const c = checkConflicts(base, snap);
     expect(c.find((x) => x.campaign === 'PMax FR')?.level).toBe('attention');
-    expect(c.find((x) => x.campaign === 'PMax FR')?.message).toMatch(/priorité/);
+    expect(c.find((x) => x.campaign === 'PMax FR')?.message).toMatch(/prioritaire/);
     expect(c.find((x) => x.campaign === 'Shopping DE')).toBeUndefined();
   });
   it('matches item ids case-insensitively in another country', () => {
