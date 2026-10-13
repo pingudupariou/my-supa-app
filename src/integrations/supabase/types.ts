@@ -2100,6 +2100,72 @@ export type Database = {
         }
         Relationships: []
       }
+      google_ads_campaign_drafts: {
+        Row: {
+          ad_content: Json
+          bidding: Json
+          campaign_type: string
+          conflict_check: Json | null
+          countries: string[]
+          created_at: string
+          created_by: string
+          daily_budget: number | null
+          id: string
+          languages: string[]
+          name: string
+          notes: string | null
+          products: Json
+          source: string
+          source_ref: Json | null
+          status: string
+          updated_at: string
+          validated_at: string | null
+          validated_by: string | null
+        }
+        Insert: {
+          ad_content?: Json
+          bidding?: Json
+          campaign_type?: string
+          conflict_check?: Json | null
+          countries?: string[]
+          created_at?: string
+          created_by: string
+          daily_budget?: number | null
+          id?: string
+          languages?: string[]
+          name: string
+          notes?: string | null
+          products?: Json
+          source?: string
+          source_ref?: Json | null
+          status?: string
+          updated_at?: string
+          validated_at?: string | null
+          validated_by?: string | null
+        }
+        Update: {
+          ad_content?: Json
+          bidding?: Json
+          campaign_type?: string
+          conflict_check?: Json | null
+          countries?: string[]
+          created_at?: string
+          created_by?: string
+          daily_budget?: number | null
+          id?: string
+          languages?: string[]
+          name?: string
+          notes?: string | null
+          products?: Json
+          source?: string
+          source_ref?: Json | null
+          status?: string
+          updated_at?: string
+          validated_at?: string | null
+          validated_by?: string | null
+        }
+        Relationships: []
+      }
       google_ads_campaigns: {
         Row: {
           channel_type: string | null
