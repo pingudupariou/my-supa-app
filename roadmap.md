@@ -29,4 +29,5 @@
 - [x] Étape 1 : audit de structure en lecture seule (lecture nocturne + onglet Audit)
 - [x] Étape 2 : Copilote stratégique IA (onglet Stratégie IA)
 - [ ] Tester une analyse stratégique réelle (attend un lancement depuis un compte connecté)
-- [ ] Étape 3 : constructeur de campagnes (écriture désactivée)
+- [x] Étape 3 : constructeur de campagnes (projets Shopping/PMax/Search, conflits, validation — aucune écriture Google Ads)
+- [ ] Vérifier le constructeur avec un compte Marketing réel (session externe indisponible)

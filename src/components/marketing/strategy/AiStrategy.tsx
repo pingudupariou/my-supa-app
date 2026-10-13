@@ -163,7 +163,7 @@ export function AiStrategy({ canWrite }: { canWrite: boolean }) {
                   <div><b>Produits Merchant :</b> {x.products}</div>
                   <div><b>Paramètres :</b> {x.settings}</div>
                   <div><b>Chevauchement :</b> {x.overlap_check}</div>
-                  <div className="text-muted-foreground">Projet de campagne : sera transformable dans le futur constructeur (aucune création maintenant).</div>
+                  {canWrite && <Button size="sm" variant="outline" className="mt-1 h-7" onClick={() => { sessionStorage.setItem('novaride.builder.prefill', JSON.stringify(x)); window.dispatchEvent(new Event('novaride:open-builder')); }}>Préparer un projet de campagne</Button>}
                 </div>} />)}
             </CardContent></Card>
         </div>
