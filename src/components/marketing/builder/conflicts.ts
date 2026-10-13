@@ -66,9 +66,14 @@ export function checkConflicts(d: DraftLike, snap: any, totalMonthly?: number): 
       const srv = served.get(c.id); const servedOverlap = srv ? [...myOffers].filter((o) => srv.has(o)).length : 0;
       if (overlap || servedOverlap) {
         const pmaxVsShopping = d.campaign_type !== c.type;
+        const reason = pmaxVsShopping
+          ? (d.campaign_type === 'PERFORMANCE_MAX'
+            ? "Google donne la priorité à PMax sur Shopping pour un même produit et un même pays : la nouvelle PMax prendrait le trafic de cette campagne Shopping. Acceptable si c'est voulu (remplacement progressif) ; sinon excluez ces produits de l'une des deux."
+            : "La PMax existante est prioritaire sur Shopping pour ces produits : la nouvelle campagne Shopping risque de très peu diffuser. Excluez ces produits de la PMax ou réservez la Shopping aux produits hors PMax.")
+          : "Deux campagnes du même type sur les mêmes produits se font concurrence : Google choisit selon la priorité et l'enchère, ce qui rend les résultats difficiles à lire.";
         out.push({
-          level: pmaxVsShopping && (d.campaign_type === 'PERFORMANCE_MAX' || c.type === 'PERFORMANCE_MAX') ? 'bloquant' : 'attention', campaign: c.name,
-          message: `${c.type === 'PERFORMANCE_MAX' ? 'PMax' : 'Shopping'} active en ${shared.join(', ')} : ${how}${overlap && how !== 'tout le catalogue' ? ` (${overlap})` : ''}${servedOverlap ? ` · ${servedOverlap} produits du projet diffusés par elle sur 90 j` : ''}.${pmaxVsShopping ? ' PMax est prioritaire sur Shopping pour un même produit : risque de cannibalisation.' : ' Deux campagnes du même type se font concurrence sur les mêmes produits.'}`,
+          level: 'attention', campaign: c.name,
+          message: `${c.type === 'PERFORMANCE_MAX' ? 'PMax' : 'Shopping'} active en ${shared.join(', ')} : ${how}${overlap && how !== 'tout le catalogue' ? ` (${overlap})` : ''}${servedOverlap ? ` · ${servedOverlap} produits du projet diffusés par elle sur 90 j` : ''}. ${reason}`,
         });
       }
     }

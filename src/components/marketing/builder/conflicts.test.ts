@@ -13,9 +13,10 @@ const snap = { data: {
 const base = { campaign_type: 'SHOPPING', countries: ['FR'], daily_budget: 10, offerIds: ['ABC'], keywords: [], labels: [], productTypes: [] };
 
 describe('checkConflicts', () => {
-  it('flags PMax covering whole catalogue in same country as blocking', () => {
+  it('warns (never blocks) on PMax covering whole catalogue in same country', () => {
     const c = checkConflicts(base, snap);
-    expect(c.find((x) => x.campaign === 'PMax FR')?.level).toBe('bloquant');
+    expect(c.find((x) => x.campaign === 'PMax FR')?.level).toBe('attention');
+    expect(c.find((x) => x.campaign === 'PMax FR')?.message).toMatch(/prioritaire/);
     expect(c.find((x) => x.campaign === 'Shopping DE')).toBeUndefined();
   });
   it('matches item ids case-insensitively in another country', () => {
