@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Loader2, Plus, Save, ShieldCheck, CheckCircle2, Trash2, Lock } from 'lucide-react';
 import { toast } from 'sonner';
@@ -22,7 +23,7 @@ const BIDS: Record<string, string[]> = {
   SEARCH: ['MAXIMIZE_CONVERSIONS', 'MAXIMIZE_CONVERSION_VALUE', 'MAXIMIZE_CLICKS', 'MANUAL_CPC'],
 };
 const BID_L: Record<string, string> = { MAXIMIZE_CLICKS: 'Maximiser les clics', MAXIMIZE_CONVERSION_VALUE: 'Maximiser la valeur de conversion', TARGET_ROAS: 'ROAS cible', MAXIMIZE_CONVERSIONS: 'Maximiser les conversions', MANUAL_CPC: 'CPC manuel' };
-const STATUS: Record<string, { l: string; v: 'default' | 'secondary' | 'outline' }> = { brouillon: { l: 'Brouillon', v: 'outline' }, valide: { l: 'Validé (non publié)', v: 'default' }, archive: { l: 'Archivé', v: 'secondary' } };
+const STATUS: Record<string, { l: string; v: 'default' | 'secondary' | 'outline' }> = { brouillon: { l: 'Brouillon', v: 'outline' }, valide: { l: 'Validé — brouillon non publié', v: 'default' }, archive: { l: 'Archivé', v: 'secondary' } };
 const LIMITS = { headlines: 30, long_headlines: 90, descriptions: 90 };
 
 async function fetchAll(q: () => any) {
@@ -145,6 +146,27 @@ export function CampaignBuilder({ canWrite }: { canWrite: boolean }) {
     }
     for (const [k, max] of Object.entries(LIMITS)) if ((ad[k] ?? []).some((x: string) => x.length > max)) res.push({ level: 'bloquant', message: `Textes trop longs dans ${k === 'headlines' ? 'les titres' : k === 'long_headlines' ? 'les titres longs' : 'les descriptions'} (max ${max}).` });
     if (d.bidding.strategy === 'TARGET_ROAS' && !d.bidding.target_roas) res.push({ level: 'bloquant', message: 'ROAS cible manquant.' });
+    // Mandatory settings per type
+    if (!d.name?.trim()) res.push({ level: 'bloquant', message: 'Nom du projet manquant.' });
+    if (!d.languages?.length) res.push({ level: 'bloquant', message: 'Aucune langue ciblée.' });
+    if (d.campaign_type !== 'SHOPPING' && !/^https:\/\/[^\s]+\.[^\s]+/.test(ad.final_url ?? '')) res.push({ level: 'bloquant', message: 'URL finale https manquante ou invalide.' });
+    if (!BIDS[d.campaign_type].includes(d.bidding.strategy)) res.push({ level: 'bloquant', message: `Stratégie d'enchères « ${BID_L[d.bidding.strategy] ?? d.bidding.strategy} » non disponible pour ${TYPES[d.campaign_type]}.` });
+    if (d.bidding.target_roas != null && d.bidding.target_roas <= 0) res.push({ level: 'bloquant', message: 'ROAS cible invalide.' });
+    if (d.bidding.target_cpa != null && d.bidding.target_cpa <= 0) res.push({ level: 'bloquant', message: 'CPA cible invalide.' });
+    if (d.bidding.target_roas || d.bidding.target_cpa) res.push({ level: 'info', message: "Cible d'enchères fixée dès le lancement : peut freiner la diffusion tant que la campagne apprend." });
+    if (d.campaign_type === 'SEARCH' && (ad.keywords ?? []).some((k: string) => (ad.negatives ?? []).map((n: string) => n.toLowerCase()).includes(k.replace(/^[[\]"]+|[[\]"]+$/g, '').toLowerCase()))) res.push({ level: 'bloquant', message: 'Un mot-clé est aussi en négatif.' });
+    if (d.campaign_type === 'PERFORMANCE_MAX' && (ad.headlines ?? []).length < 11) res.push({ level: 'info', message: `PMax : ${(ad.headlines ?? []).length} titres, 11+ recommandés pour une force d'annonce « Excellente ».` });
+    if (d.campaign_type === 'SEARCH' && !(ad.negatives ?? []).length) res.push({ level: 'info', message: 'Search : aucun mot-clé négatif.' });
+    // Real per-country eligibility of the retained products
+    if (d.campaign_type !== 'SEARCH') {
+      if (!sel) res.push({ level: 'bloquant', message: 'Aucune sélection du Catalogue publicitaire choisie.' });
+      for (const c of d.countries) {
+        if (!statusCache[c]) { res.push({ level: 'bloquant', message: `Éligibilité ${c} pas encore chargée : relancez la vérification.` }); continue; }
+        const ok = picked.eligible.filter((v) => variantStatus(v, statusCache[c]) === 'approved').length;
+        if (sel && ok === 0) res.push({ level: 'bloquant', message: `${c} : aucun produit retenu n'est éligible dans Merchant Center.` });
+        else if (sel && ok < picked.eligible.length) res.push({ level: 'attention', message: `${c} : ${ok}/${picked.eligible.length} produits retenus éligibles ; les autres ne diffuseront pas dans ce pays.` });
+      }
+    }
     if (d.products.eligible_only && picked.all.length > picked.eligible.length) res.push({ level: 'info', message: `${picked.all.length - picked.eligible.length} variantes de la sélection exclues car non éligibles dans les pays ciblés.` });
     return res;
   };
@@ -161,8 +183,10 @@ export function CampaignBuilder({ canWrite }: { canWrite: boolean }) {
     setCur(data); load(); return data;
   };
   const check = async () => { const c = runCheck(cur); await save({ conflict_check: { at: new Date().toISOString(), snapshot_at: snap?.taken_at ?? null, items: c } }); toast.success('Vérification enregistrée'); };
-  const validate = async () => {
-    const c = runCheck(cur);
+  const [recap, setRecap] = useState<Conflict[] | null>(null);
+  const validate = () => setRecap(runCheck(cur));
+  const confirmValidate = async () => {
+    const c = runCheck(cur); setRecap(null);
     if (c.some((x) => x.level === 'bloquant')) { await save({ conflict_check: { at: new Date().toISOString(), snapshot_at: snap?.taken_at ?? null, items: c } }); toast.error('Points bloquants à corriger avant validation'); return; }
     await save({ status: 'valide', validated_by: user.id, validated_at: new Date().toISOString(), conflict_check: { at: new Date().toISOString(), snapshot_at: snap?.taken_at ?? null, items: c } });
     toast.success('Projet validé — rien n’a été envoyé à Google Ads');
@@ -258,13 +282,33 @@ export function CampaignBuilder({ canWrite }: { canWrite: boolean }) {
               {canWrite && <div className="flex flex-wrap gap-2">
                 <Button onClick={() => save().then((d) => d && toast.success('Projet enregistré'))} disabled={busy || locked}><Save className="mr-1 h-4 w-4" />Enregistrer</Button>
                 <Button variant="outline" onClick={check} disabled={busy || locked}><ShieldCheck className="mr-1 h-4 w-4" />Vérifier les conflits</Button>
-                <Button variant="outline" onClick={validate} disabled={busy || locked || cur.status === 'valide'}><CheckCircle2 className="mr-1 h-4 w-4" />Valider le projet</Button>
+                <Button variant="outline" onClick={validate} disabled={busy || locked || cur.status === 'valide'}><CheckCircle2 className="mr-1 h-4 w-4" />Récapitulatif et validation</Button>
                 {cur.id && <Button variant="ghost" onClick={() => save({ status: cur.status === 'archive' ? 'brouillon' : 'archive' })} disabled={busy}>{cur.status === 'archive' ? 'Désarchiver' : 'Archiver'}</Button>}
                 {cur.id && <Button variant="ghost" onClick={remove}><Trash2 className="mr-1 h-4 w-4" />Supprimer</Button>}
               </div>}
               <p className="text-xs text-muted-foreground">Toute modification d’un projet validé le repasse en brouillon. Publication Google Ads désactivée.</p>
             </CardContent></Card>)}
       </div>
+      <Dialog open={!!recap} onOpenChange={(o) => !o && setRecap(null)}>
+        <DialogContent className="max-h-[85vh] max-w-2xl overflow-auto">
+          <DialogHeader><DialogTitle>Récapitulatif avant validation</DialogTitle></DialogHeader>
+          {cur && recap && <div className="space-y-3 text-sm">
+            <section><div className="font-medium">Campagne</div><p>{cur.name} · {TYPES[cur.campaign_type]} · origine {cur.source === 'ia' ? 'recommandation IA' : 'manuelle'}</p></section>
+            <section><div className="font-medium">Ciblage</div><p>Pays : {cur.countries.join(', ') || '—'} · Langues : {cur.languages.join(', ') || '—'}{cur.campaign_type !== 'SHOPPING' && ` · URL : ${cur.ad_content.final_url || '—'}`}</p></section>
+            <section><div className="font-medium">Produits</div>{cur.campaign_type === 'SEARCH' ? <p>{(cur.ad_content.keywords ?? []).length} mots-clés · {(cur.ad_content.negatives ?? []).length} négatifs</p>
+              : <p>{sel?.name ?? 'Aucune sélection'} · {picked.eligible.length} variantes retenues / {picked.all.length}{cur.countries.map((c: string) => ` · ${c} : ${statusCache[c] ? picked.eligible.filter((v) => variantStatus(v, statusCache[c]) === 'approved').length : '?'} éligibles`).join('')}</p>}
+              {cur.campaign_type !== 'SHOPPING' && <p className="text-xs text-muted-foreground">{(cur.ad_content.headlines ?? []).length} titres{cur.campaign_type === 'PERFORMANCE_MAX' && ` · ${(cur.ad_content.long_headlines ?? []).length} titres longs`} · {(cur.ad_content.descriptions ?? []).length} descriptions</p>}</section>
+            <section><div className="font-medium">Enchères</div><p>{BID_L[cur.bidding.strategy]}{cur.bidding.target_roas ? ` · ROAS cible ${cur.bidding.target_roas} %` : ''}{cur.bidding.target_cpa ? ` · CPA cible ${cur.bidding.target_cpa} €` : ''} · objectif achats uniquement</p></section>
+            <section><div className="font-medium">Budget</div><p>{cur.daily_budget || '—'} €/jour ≈ {Math.round((Number(cur.daily_budget) || 0) * 30.4)} €/mois</p></section>
+            <section><div className="font-medium">Risques et contrôles ({recap.filter((x) => x.level === 'bloquant').length} bloquant(s), {recap.filter((x) => x.level === 'attention').length} avertissement(s))</div>
+              {recap.length === 0 && <p className="text-xs">Aucun point relevé.</p>}
+              {(['bloquant', 'attention', 'info'] as const).flatMap((lv) => recap.filter((x) => x.level === lv)).map((c, i) => <div key={i} className="flex gap-2 py-0.5 text-xs"><Badge variant={c.level === 'bloquant' ? 'destructive' : c.level === 'attention' ? 'default' : 'outline'}>{c.level}</Badge><span>{c.campaign && <b>{c.campaign} : </b>}{c.message}</span></div>)}</section>
+            <p className="text-xs text-muted-foreground">La validation garde le projet comme brouillon non publié : rien n'est envoyé à Google Ads.</p>
+          </div>}
+          <DialogFooter><Button variant="ghost" onClick={() => setRecap(null)}>Retour</Button>
+            <Button onClick={confirmValidate} disabled={busy || !!recap?.some((x) => x.level === 'bloquant')}>{recap?.some((x) => x.level === 'bloquant') ? 'Corriger les points bloquants' : recap?.some((x) => x.level === 'attention') ? 'Valider malgré les avertissements' : 'Valider le projet'}</Button></DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
