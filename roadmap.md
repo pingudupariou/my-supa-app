@@ -34,4 +34,6 @@
 - [x] Étape 4 : publication supervisée préparée (écriture désactivée côté serveur ; Search et Shopping ; PMax en attente des images)
 - [x] Audit des 16 alertes Supabase : rôles/approbation limités à soi-même ; autres alertes justifiées
 - [ ] Activer la protection des mots de passe divulgués (réglage Supabase Auth, à faire par l'utilisateur)
+- [x] Étape 5 : boucle de pilotage (onglet Pilotage : propositions chiffrées issues de Stratégie IA, approbation, modification budget/ROAS/pause supervisée, suivi avant/après)
+- [ ] Relancer une analyse Stratégie IA et l'audit de structure pour obtenir les premières propositions (compte connecté requis)
 - [ ] Première publication réelle (attend l'accord explicite et GOOGLE_ADS_ALLOW_WRITE=true)
