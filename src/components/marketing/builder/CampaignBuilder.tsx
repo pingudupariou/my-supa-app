@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Loader2, Plus, Save, ShieldCheck, CheckCircle2, Trash2, Lock } from 'lucide-react';
 import { toast } from 'sonner';
 import { buildCatalog, matchesRules, variantStatus, type Offer, type Variant } from '@/components/marketing/catalog/catalogModel';
+import { PublishPanel } from './PublishPanel';
 import { checkConflicts, type Conflict } from './conflicts';
 
 const sb = supabase as any;
@@ -23,7 +24,7 @@ const BIDS: Record<string, string[]> = {
   SEARCH: ['MAXIMIZE_CONVERSIONS', 'MAXIMIZE_CONVERSION_VALUE', 'MAXIMIZE_CLICKS', 'MANUAL_CPC'],
 };
 const BID_L: Record<string, string> = { MAXIMIZE_CLICKS: 'Maximiser les clics', MAXIMIZE_CONVERSION_VALUE: 'Maximiser la valeur de conversion', TARGET_ROAS: 'ROAS cible', MAXIMIZE_CONVERSIONS: 'Maximiser les conversions', MANUAL_CPC: 'CPC manuel' };
-const STATUS: Record<string, { l: string; v: 'default' | 'secondary' | 'outline' }> = { brouillon: { l: 'Brouillon', v: 'outline' }, valide: { l: 'Validé — brouillon non publié', v: 'default' }, archive: { l: 'Archivé', v: 'secondary' } };
+const STATUS: Record<string, { l: string; v: 'default' | 'secondary' | 'outline' }> = { brouillon: { l: 'Brouillon', v: 'outline' }, valide: { l: 'Validé — brouillon non publié', v: 'default' }, archive: { l: 'Archivé', v: 'secondary' }, publie: { l: 'Publié en pause', v: 'secondary' } };
 const LIMITS = { headlines: 30, long_headlines: 90, descriptions: 90 };
 
 async function fetchAll(q: () => any) {
@@ -124,7 +125,7 @@ export function CampaignBuilder({ canWrite }: { canWrite: boolean }) {
 
   const set = (patch: Partial<Draft>) => setCur((c: Draft) => ({ ...c, ...patch, status: c.status === 'valide' ? 'brouillon' : c.status }));
   const setAd = (patch: any) => set({ ad_content: { ...cur.ad_content, ...patch } });
-  const locked = !canWrite || cur?.status === 'archive';
+  const locked = !canWrite || cur?.status === 'archive' || cur?.status === 'publie';
 
   const runCheck = (d: Draft): Conflict[] => {
     const offerIds = [...new Set(picked.eligible.flatMap((v) => v.offers.map((o) => o.offer_id)))];
@@ -286,7 +287,8 @@ export function CampaignBuilder({ canWrite }: { canWrite: boolean }) {
                 {cur.id && <Button variant="ghost" onClick={() => save({ status: cur.status === 'archive' ? 'brouillon' : 'archive' })} disabled={busy}>{cur.status === 'archive' ? 'Désarchiver' : 'Archiver'}</Button>}
                 {cur.id && <Button variant="ghost" onClick={remove}><Trash2 className="mr-1 h-4 w-4" />Supprimer</Button>}
               </div>}
-              <p className="text-xs text-muted-foreground">Toute modification d’un projet validé le repasse en brouillon. Publication Google Ads désactivée.</p>
+              {canWrite && cur.id && cur.status === 'valide' && <PublishPanel draft={cur} onChanged={() => sb.from('google_ads_campaign_drafts').select('*').eq('id', cur.id).single().then(({ data }: any) => { if (data) setCur(data); load(); })} />}
+              <p className="text-xs text-muted-foreground">Toute modification d’un projet validé le repasse en brouillon. La publication passe par l’étape supervisée ci-dessus, jamais automatiquement.</p>
             </CardContent></Card>)}
       </div>
       <Dialog open={!!recap} onOpenChange={(o) => !o && setRecap(null)}>
