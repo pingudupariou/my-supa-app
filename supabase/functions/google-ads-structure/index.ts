@@ -59,14 +59,14 @@ Deno.serve(async (req) => {
   };
   const range90 = `segments.date BETWEEN '${day(90)}' AND '${day(1)}'`;
 
-  await section("campaigns", async () => (await search(customer, `SELECT campaign.id, campaign.name, campaign.status, campaign.primary_status, campaign.advertising_channel_type, campaign.advertising_channel_sub_type, campaign.bidding_strategy_type, campaign.maximize_conversion_value.target_roas, campaign.maximize_conversions.target_cpa_micros, campaign.target_roas.target_roas, campaign.target_cpa.target_cpa_micros, campaign.start_date_time, campaign.end_date_time, campaign.shopping_setting.merchant_id, campaign.shopping_setting.feed_label, campaign_budget.amount_micros, campaign_budget.explicitly_shared, campaign_budget.name FROM campaign WHERE campaign.status != 'REMOVED'`)).map((r) => ({
+  await section("campaigns", async () => (await search(customer, `SELECT campaign.id, campaign.name, campaign.status, campaign.primary_status, campaign.advertising_channel_type, campaign.advertising_channel_sub_type, campaign.bidding_strategy_type, campaign.maximize_conversion_value.target_roas, campaign.maximize_conversions.target_cpa_micros, campaign.target_roas.target_roas, campaign.target_cpa.target_cpa_micros, campaign.start_date_time, campaign.end_date_time, campaign.shopping_setting.merchant_id, campaign.shopping_setting.feed_label, campaign.campaign_budget, campaign_budget.amount_micros, campaign_budget.explicitly_shared, campaign_budget.name FROM campaign WHERE campaign.status != 'REMOVED'`)).map((r) => ({
     id: r.campaign.id, name: r.campaign.name, status: r.campaign.status, primary_status: r.campaign.primaryStatus,
     type: r.campaign.advertisingChannelType, sub_type: r.campaign.advertisingChannelSubType, bidding: r.campaign.biddingStrategyType,
     target_roas: r.campaign.maximizeConversionValue?.targetRoas ?? r.campaign.targetRoas?.targetRoas ?? null,
     target_cpa: micros(r.campaign.maximizeConversions?.targetCpaMicros ?? r.campaign.targetCpa?.targetCpaMicros),
     start: r.campaign.startDateTime ?? null, end: r.campaign.endDateTime ?? null,
     feed_label: r.campaign.shoppingSetting?.feedLabel ?? null, merchant_id: r.campaign.shoppingSetting?.merchantId ?? null,
-    budget: micros(r.campaignBudget?.amountMicros), budget_shared: !!r.campaignBudget?.explicitlyShared, budget_name: r.campaignBudget?.name ?? null,
+    budget: micros(r.campaignBudget?.amountMicros), budget_id: r.campaign?.campaignBudget?.split("/").pop() ?? null, budget_shared: !!r.campaignBudget?.explicitlyShared, budget_name: r.campaignBudget?.name ?? null,
   })));
 
   await section("budget_lost", async () => (await search(customer, `SELECT campaign.id, metrics.search_budget_lost_impression_share, metrics.search_impression_share FROM campaign WHERE campaign.status = 'ENABLED' AND segments.date DURING LAST_30_DAYS`)).map((r) => ({

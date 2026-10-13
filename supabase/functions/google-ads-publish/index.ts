@@ -10,6 +10,7 @@ const GATEWAY = "https://connector-gateway.lovable.dev/google_ads";
 const json = (b: unknown, status = 200) => new Response(JSON.stringify(b), { status, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 const GEO: Record<string, number> = { FR: 2250, BE: 2056, DE: 2276, ES: 2724, IT: 2380, NL: 2528, CH: 2756, GB: 2826, US: 2840, AT: 2040, PT: 2620, LU: 2442, CA: 2124, IE: 2372, DK: 2208, SE: 2752, NO: 2578, FI: 2246, PL: 2616, AU: 2036 };
 const LANG: Record<string, number> = { en: 1000, de: 1001, fr: 1002, es: 1003, it: 1004, nl: 1010, pt: 1014, sv: 1015, da: 1009, no: 1013, fi: 1011, pl: 1030 };
+const pilotFingerprint = (p: any) => sha({ k: p.kind, c: p.campaign_id, b: p.proposed_daily_budget, r: p.proposed_target_roas, s: p.status === "en_approbation" ? "acceptee" : p.status, u: p.title });
 const PREFLIGHT_TTL_MS = 30 * 60e3;
 
 async function sha(o: unknown) {
@@ -125,10 +126,16 @@ Deno.serve(async (req) => {
       if (typeof body.action_id !== "string") throw new Error("action_id requis");
       const { data: a } = await db.from("google_ads_publish_actions").select("*").eq("id", body.action_id).maybeSingle();
       if (!a) throw new Error("Action introuvable");
+      if (a.pilot_action_id) {
+        const { data: p } = await db.from("google_ads_pilot_actions").select("*").eq("id", a.pilot_action_id).maybeSingle();
+        if (!p) throw new Error("Proposition introuvable");
+        if (a.draft_snapshot.fingerprint !== await pilotFingerprint(p)) throw new Error("La proposition a été modifiée depuis la préparation : préparez-la à nouveau.");
+        return { a, d: null as any, p };
+      }
       const { data: d } = await db.from("google_ads_campaign_drafts").select("*").eq("id", a.draft_id).maybeSingle();
       if (!d) throw new Error("Projet introuvable");
       if (a.draft_snapshot.fingerprint !== await draftFingerprint(d)) throw new Error("Le projet a été modifié depuis la préparation : préparez une nouvelle publication.");
-      return { a, d };
+      return { a, d, p: null as any };
     };
 
     if (mode === "plan") {
@@ -151,6 +158,48 @@ Deno.serve(async (req) => {
       return json({ action: a });
     }
 
+    if (mode === "plan_change") {
+      // Modification of an EXISTING campaign from a pilot proposal. Operations built here from the live structure snapshot.
+      if (typeof body.pilot_action_id !== "string") return json({ error: "pilot_action_id requis" }, 400);
+      const { data: p } = await db.from("google_ads_pilot_actions").select("*").eq("id", body.pilot_action_id).maybeSingle();
+      if (!p) return json({ error: "Proposition introuvable" }, 404);
+      if (p.status !== "acceptee") return json({ error: "La proposition doit d'abord être acceptée." }, 409);
+      const { data: snap } = await db.from("google_ads_structure_snapshots").select("data, taken_at").in("status", ["success", "partial"]).order("taken_at", { ascending: false }).limit(1).maybeSingle();
+      const camp = (snap?.data?.campaigns ?? []).find((c: any) => String(c.id) === String(p.campaign_id));
+      const blockers: string[] = [];
+      if (!camp) blockers.push("Campagne introuvable dans la dernière lecture de structure : relancez l'audit.");
+      if (snap && Date.now() - new Date(snap.taken_at).getTime() > 36 * 3600e3) blockers.push("Lecture de structure de plus de 36 h : relancez l'audit avant de modifier.");
+      const ops: any[] = []; let summary = "";
+      const C = `customers/${customer}`;
+      if (camp && p.kind === "pause") {
+        if (camp.status !== "ENABLED") blockers.push("La campagne n'est pas active.");
+        ops.push({ description: "Mettre la campagne en pause", operation: { campaignOperation: { update: { resourceName: `${C}/campaigns/${camp.id}`, status: "PAUSED" }, updateMask: "status" } } });
+        summary = `Mettre en pause « ${camp.name} ».`;
+      } else if (camp && p.kind === "budget") {
+        const nb = Number(p.proposed_daily_budget);
+        if (!(nb > 0)) blockers.push("Budget proposé manquant.");
+        if (camp.budget_shared) blockers.push("Budget partagé entre plusieurs campagnes : modification refusée (elle toucherait les autres campagnes).");
+        if (!camp.budget_id) blockers.push("Identifiant du budget absent de la structure : relancez l'audit.");
+        if (camp.budget && nb > camp.budget * 2) blockers.push("Hausse supérieure à ×2 en une fois : limitez la hausse (l'apprentissage serait perturbé).");
+        ops.push({ description: `Changer le budget quotidien de ${camp.budget} € à ${nb} €`, operation: { campaignBudgetOperation: { update: { resourceName: `${C}/campaignBudgets/${camp.budget_id}`, amountMicros: String(Math.round(nb * 1e6)) }, updateMask: "amount_micros" } } });
+        summary = `Budget de « ${camp.name} » : ${camp.budget} € → ${nb} €/jour.`;
+      } else if (camp && p.kind === "bidding") {
+        const r = Number(p.proposed_target_roas);
+        if (!(r > 0)) blockers.push("Seul un ROAS cible chiffré est applicable automatiquement ; sinon, créez une tâche.");
+        if (camp.bidding !== "MAXIMIZE_CONVERSION_VALUE") blockers.push("ROAS cible applicable seulement aux campagnes en « Maximiser la valeur de conversion » ; un changement de stratégie passe par une tâche.");
+        ops.push({ description: `Fixer le ROAS cible à ${r} %`, operation: { campaignOperation: { update: { resourceName: `${C}/campaigns/${camp.id}`, maximizeConversionValue: { targetRoas: r / 100 } }, updateMask: "maximize_conversion_value.target_roas" } } });
+        summary = `ROAS cible de « ${camp.name} » : ${camp.target_roas ? Math.round(camp.target_roas * 100) + " %" : "aucun"} → ${r} %.`;
+      } else if (camp) blockers.push("Ce type de proposition n'est pas applicable automatiquement : transformez-la en tâche ou en projet.");
+      if (blockers.length) return json({ blockers });
+      const { data: a, error } = await db.from("google_ads_publish_actions").insert({
+        pilot_action_id: p.id, draft_snapshot: { fingerprint: await pilotFingerprint(p), pilot: p, before: camp }, action_kind: `update_${p.kind}`,
+        summary, operations: ops, status: "prevue", requested_by: uid,
+      }).select().single();
+      if (error) throw error;
+      await db.from("google_ads_pilot_actions").update({ status: "en_approbation", publish_action_id: a.id }).eq("id", p.id);
+      return json({ action: a });
+    }
+
     if (mode === "preflight") {
       const { a } = await loadAction();
       if (!["prevue", "verifiee", "echec_verification"].includes(a.status)) return json({ error: `Statut ${a.status} : vérification impossible` }, 409);
@@ -165,13 +214,14 @@ Deno.serve(async (req) => {
       const { data: a } = await db.from("google_ads_publish_actions").select("id,status").eq("id", body.action_id).maybeSingle();
       if (!a || ["executee", "en_cours"].includes(a.status)) return json({ error: "Action non annulable" }, 409);
       await db.from("google_ads_publish_actions").update({ status: "refusee", approved_by: uid, approved_at: new Date().toISOString() }).eq("id", a.id);
+      await db.from("google_ads_pilot_actions").update({ status: "acceptee", publish_action_id: null }).eq("publish_action_id", a.id).eq("status", "en_approbation");
       return json({ ok: true });
     }
 
     if (mode === "execute") {
       if (!isAdmin) return json({ error: "Seul un administrateur peut publier" }, 403);
       if (body.confirm !== "PUBLIER") return json({ error: "Confirmation « PUBLIER » requise" }, 400);
-      const { a, d } = await loadAction();
+      const { a, d, p } = await loadAction();
       if (a.status !== "verifiee") return json({ error: "Vérification Google réussie requise avant publication" }, 409);
       if (Date.now() - new Date(a.preflight?.at ?? 0).getTime() > PREFLIGHT_TTL_MS) return json({ error: "Vérification de plus de 30 minutes : relancez-la" }, 409);
       if (!writeEnabled) {
@@ -189,6 +239,10 @@ Deno.serve(async (req) => {
       }
       const campaignRes = (res.body?.mutateOperationResponses ?? []).find((x: any) => x.campaignResult)?.campaignResult?.resourceName ?? null;
       await db.from("google_ads_publish_actions").update({ status: "executee", executed_at: new Date().toISOString(), google_response: res.body }).eq("id", a.id);
+      if (p) {
+        await db.from("google_ads_pilot_actions").update({ status: "executee", executed_at: new Date().toISOString() }).eq("id", p.id);
+        return json({ ok: true });
+      }
       await db.from("google_ads_campaign_drafts").update({ status: "publie", conflict_check: { ...(d.conflict_check ?? {}), published: { at: new Date().toISOString(), campaign: campaignRes, action_id: a.id } } }).eq("id", d.id);
       return json({ ok: true, campaign: campaignRes });
     }

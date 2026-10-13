@@ -25,6 +25,7 @@ const SCHEMA = obj({
   new_campaigns: { type: 'array', items: obj({ ...reco, type: { type: 'string', enum: ['Shopping', 'Performance Max', 'Search', 'Demand Gen', 'Remarketing', 'Autre'] }, products: { type: 'string' }, objective: { type: 'string' }, settings: { type: 'string' }, overlap_check: { type: 'string' } }) },
   scenarios: { type: 'array', items: obj({ name: { type: 'string', enum: ['prudent', 'reference', 'croissance'] }, google_monthly_eur: { type: 'number' }, meta_monthly_eur: { type: 'number' }, reallocations: strs, expected: { type: 'string' }, conditions: { type: 'string' } }) },
   action_plan: { type: 'array', items: obj({ ...reco, order: { type: 'integer' }, detail: { type: 'string' }, urgency: { type: 'string', enum: ['immediate', 'cette_semaine', 'ce_mois', 'a_surveiller'] } }) },
+  pilot_actions: { type: 'array', items: obj({ kind: { type: 'string', enum: ['budget', 'bidding', 'products', 'targeting', 'pause', 'new_campaign'] }, campaign: nstr, title: { type: 'string' }, current: nstr, proposed: { type: 'string' }, proposed_daily_budget_eur: nnum, proposed_target_roas_pct: nnum, estimated_impact: { type: 'string' }, evidence: { type: 'string' }, risks: { type: 'string' }, confidence: conf }) },
   data_limits: strs,
 })
 
@@ -46,6 +47,7 @@ Règles strictes :
 - Ventes par famille : revenue_lines_ht = lignes produits hors livraison (ne pas comparer directement au CA total HT).
 - Propose Shopping, PMax ou Search seulement si justifié par les chiffres ; chaque recommandation : chiffres, priorité, risques, actions concrètes.
 - Microconversions : google_ads_structure.conversion_audit indique, campagne par campagne, si les microconversions wetracked.io entrent dans les enchères et si plusieurs actions d'achat sont comptées ; base-toi dessus sans le contredire.
+- pilot_actions (Google Ads uniquement, 3 à 8) : actions concrètes et exécutables sur les campagnes existantes (campaign = nom EXACT de la structure fournie) ou nouvelle campagne (campaign = null, kind new_campaign). budget → proposed_daily_budget_eur (jamais sur budget partagé) ; bidding → proposed_target_roas_pct si ROAS cible ; pause → campagne précise ; products/targeting → décrire précisément. current = valeur actuelle lue dans la structure. estimated_impact chiffré (€/jour, conversions, ROAS attribué) et présenté comme estimation. Ne propose rien pour Meta ici.
 - Limites de longueur STRICTES (sinon l'analyse échoue) : 4 à 6 opportunités, 0 à 3 nouvelles campagnes, au plus 10 verdicts (les campagnes les plus coûteuses ou problématiques ; regroupe les autres dans la synthèse), 5 à 8 actions dans le plan (order 1 = d'abord). Chaque champ texte : 1 à 2 phrases maximum, synthèse ≤ 8 phrases. Français, concis, chiffré.`
 
 // Deterministic data-reliability checks, computed server-side (no AI cost).
