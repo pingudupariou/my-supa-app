@@ -106,7 +106,8 @@ export function UserRolesManager() {
   const updateRole = async (userId: string, newRole: AppRole) => {
     try {
       const previous = users.find(u => u.id === userId)?.role;
-      await supabase.from('user_roles' as any).upsert({ user_id: userId, role: newRole } as any, { onConflict: 'user_id' });
+      const { data: saved, error } = await supabase.from('user_roles' as any).upsert({ user_id: userId, role: newRole } as any, { onConflict: 'user_id' }).select('role').maybeSingle();
+      if (error || (saved as any)?.role !== newRole) throw error ?? new Error('not saved');
       await supabase.from('user_approval_history' as any).insert({
         target_user_id: userId,
         target_email: users.find(u => u.id === userId)?.email ?? null,
@@ -115,13 +116,14 @@ export function UserRolesManager() {
         details: { from: previous, to: newRole },
       } as any);
       setUsers(prev => prev.map(u => u.id === userId ? { ...u, role: newRole } : u));
-      toast({ title: 'Rôle mis à jour' });
-    } catch { toast({ title: 'Erreur', variant: 'destructive' }); }
+      toast({ title: 'Rôle mis à jour', description: "Les nouveaux droits s'appliquent à cet utilisateur en moins de 15 secondes." });
+    } catch { toast({ title: "Le rôle n'a pas été enregistré", description: 'Réessayez ; la liste a été rechargée.', variant: 'destructive' }); void fetchUsers(); }
   };
 
   const setApproval = async (userId: string, approved: boolean) => {
     try {
-      await supabase.from('user_roles' as any).update({ approved } as any).eq('user_id', userId);
+      const { data: saved, error } = await supabase.from('user_roles' as any).update({ approved } as any).eq('user_id', userId).select('approved');
+      if (error || !saved?.length) throw error ?? new Error('not saved');
       await supabase.from('user_approval_history' as any).insert({
         target_user_id: userId,
         target_email: users.find(u => u.id === userId)?.email ?? null,
