@@ -14,6 +14,7 @@
 - [x] Ajouter « Tout cocher » dans la vue classique des commandes à fabriquer (case à trois états : tout cocher, partiel, tout décocher) — 9 tests réussis, build OK.
 
 ## Phase 2 IA
+- [ ] Simplifier la gestion visuelle des catégories du Plan produit et empêcher le double comptage des produits.
 - [x] Étape A : diagnostic IA + cache
 - [x] Étape B : tâches marketing
 - [ ] Étape C : plans par pays
