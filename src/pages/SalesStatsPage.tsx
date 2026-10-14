@@ -10,7 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { AlertTriangle, CheckCircle2, Loader2, RefreshCw } from 'lucide-react';
-import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import { Bar, BarChart, CartesianGrid, ComposedChart, Legend, Line, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { toast } from 'sonner';
 
 type Row = { key: string; label?: string; channel?: string; ca_ht: number; qty: number; default_share?: number; prod_ht?: number; cogs?: number; cov_ht?: number; est_ht?: number; unit_cost?: number | null };
@@ -55,6 +55,78 @@ function periodRange(p: string, from: string, to: string): [string, string] {
   if (p === 'ytd') return [`${now.getFullYear()}-01-01`, iso(now)];
   const d = new Date(now); d.setMonth(d.getMonth() - Number(p));
   return [iso(d), iso(now)];
+}
+
+const DIMS = [['month', 'Période'], ['channel', 'Canal'], ['product', 'Produit'], ['cc', 'Pays commercial'], ['dc', 'Pays de livraison'], ['customer', 'Client']] as const;
+const METRICS = [['ca', 'CA HT net', 'hsl(var(--primary))'], ['cogs', 'Coût vendu', 'hsl(var(--muted-foreground))'], ['margin', 'Marge €', 'hsl(var(--chart-2, 160 60% 40%))'], ['pct', 'Marge %', 'hsl(var(--chart-4, 35 90% 50%))'], ['qty', 'Quantités', 'hsl(var(--chart-5, 280 60% 55%))']] as const;
+
+function Explorer({ stats }: { stats: Stats }) {
+  const [dim, setDim] = useState<string>('month');
+  const [mets, setMets] = useState<string[]>(['ca', 'margin', 'pct']);
+  const [top, setTop] = useState(15);
+  const data = useMemo(() => {
+    let rows: Row[];
+    if (dim === 'month') {
+      const m: Record<string, Row> = {};
+      for (const r of stats.by_month) { const o = m[r.month] ?? (m[r.month] = { key: r.month, ca_ht: 0, qty: 0, prod_ht: 0, cogs: 0, cov_ht: 0, est_ht: 0 }); o.ca_ht += r.ca_ht; o.qty += r.qty; o.prod_ht! += r.prod_ht; o.cogs! += r.cogs; o.cov_ht! += r.cov_ht; o.est_ht! += r.est_ht; }
+      rows = Object.values(m).sort((a, b) => a.key.localeCompare(b.key));
+    } else {
+      const src = { channel: stats.by_channel.map((r) => ({ ...r, label: CH_LABEL[r.key] ?? r.key })), product: stats.by_product, cc: stats.by_commercial_country, dc: stats.by_delivery_country, customer: stats.by_customer }[dim] ?? [];
+      rows = [...src].sort((a, b) => b.ca_ht - a.ca_ht).slice(0, top);
+    }
+    return rows.map((r) => { const x = margin(r); const name = (r.label || r.key || '?').trim();
+      return { name: name.length > 28 ? name.slice(0, 27) + '…' : name, ca: r.ca_ht, cogs: r.cogs ?? 0, margin: x.m, pct: x.pct == null ? null : Math.round(x.pct * 1000) / 10, qty: r.qty, cov: x.coverage, est: x.estimated }; });
+  }, [stats, dim, top]);
+  const showEur = mets.some((m) => ['ca', 'cogs', 'margin'].includes(m));
+  const vertical = dim !== 'month' && data.length > 8;
+  const toggle = (m: string) => setMets((ms) => ms.includes(m) ? (ms.length > 1 ? ms.filter((x) => x !== m) : ms) : [...ms, m]);
+  return (
+    <Card>
+      <CardHeader className="pb-2"><CardTitle className="text-base">Explorateur</CardTitle></CardHeader>
+      <CardContent className="space-y-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-xs text-muted-foreground">Afficher par</span>
+          {DIMS.map(([k, l]) => <Button key={k} size="sm" variant={dim === k ? 'default' : 'outline'} onClick={() => setDim(k)}>{l}</Button>)}
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-xs text-muted-foreground">Indicateurs</span>
+          {METRICS.map(([k, l, c]) => (
+            <button key={k} type="button" onClick={() => toggle(k)}
+              className={`flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs transition-colors ${mets.includes(k) ? 'border-primary bg-primary/10' : 'text-muted-foreground hover:bg-muted/50'}`}>
+              <span className="h-2.5 w-2.5 rounded-full" style={{ background: c }} />{l}</button>))}
+          {dim !== 'month' && <Select value={String(top)} onValueChange={(v) => setTop(Number(v))}>
+            <SelectTrigger className="h-8 w-28 ml-auto"><SelectValue /></SelectTrigger>
+            <SelectContent>{[10, 15, 25, 50].map((n) => <SelectItem key={n} value={String(n)}>Top {n}</SelectItem>)}</SelectContent></Select>}
+        </div>
+        <div style={{ height: vertical ? Math.max(320, data.length * 30) : 340 }}>
+          <ResponsiveContainer width="100%" height="100%">
+            <ComposedChart data={data} layout={vertical ? 'vertical' : 'horizontal'} margin={{ left: vertical ? 10 : 0, right: 20 }}>
+              <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+              {vertical ? <>
+                <YAxis type="category" dataKey="name" width={180} fontSize={11} />
+                <XAxis xAxisId="eur" type="number" fontSize={11} tickFormatter={(v) => mets.includes('qty') && !showEur ? nb(v) : `${Math.round(v / 1000)} k`} hide={!showEur && !mets.includes('qty')} />
+                <XAxis xAxisId="pct" type="number" orientation="top" fontSize={11} unit=" %" hide={!mets.includes('pct')} />
+              </> : <>
+                <XAxis dataKey="name" fontSize={11} />
+                <YAxis yAxisId="eur" fontSize={11} tickFormatter={(v) => showEur ? `${Math.round(v / 1000)} k` : nb(v)} />
+                <YAxis yAxisId="pct" orientation="right" fontSize={11} unit=" %" hide={!mets.includes('pct')} />
+              </>}
+              <Tooltip formatter={(v: number, n: string) => n === 'Marge %' ? `${v} %` : n === 'Quantités' ? nb(v) : eur(v)}
+                labelFormatter={(l, p) => { const d: any = p?.[0]?.payload; return d ? `${l}${d.cov != null && d.cov < 0.995 ? ` · coûts couverts ${Math.round(d.cov * 100)} % (incomplet)` : ''}${d.est ? ' · marge estimée' : ''}` : l; }} />
+              <Legend />
+              {METRICS.filter(([k]) => mets.includes(k)).map(([k, l, c]) => {
+                const axis = k === 'pct' ? 'pct' : 'eur'; const ax = vertical ? { xAxisId: axis } : { yAxisId: axis };
+                return k === 'pct' || (dim === 'month' && k === 'qty')
+                  ? <Line key={k} {...ax} dataKey={k} name={l} stroke={c} strokeWidth={2} dot={{ r: 3 }} connectNulls={false} type="monotone" />
+                  : <Bar key={k} {...ax} dataKey={k} name={l} fill={c} radius={vertical ? [0, 3, 3, 0] : [3, 3, 0, 0]} />;
+              })}
+            </ComposedChart>
+          </ResponsiveContainer>
+        </div>
+        <p className="text-xs text-muted-foreground">Marge calculée uniquement sur les ventes ayant un coût validé ; l'infobulle signale les couvertures incomplètes et les marges estimées. Quantités et euros partagent le même axe : affichez-les séparément pour mieux lire.</p>
+      </CardContent>
+    </Card>
+  );
 }
 
 export function SalesStatsPage() {
@@ -291,6 +363,8 @@ export function SalesStatsPage() {
           </ResponsiveContainer>
         </CardContent>
       </Card>
+
+      {stats && <Explorer stats={stats} />}
 
       <Tabs defaultValue="customers">
         <div className="flex flex-wrap items-center justify-between gap-2">
