@@ -295,12 +295,15 @@ export function SalesStatsPage() {
       <Tabs defaultValue="customers">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <TabsList>
-            <TabsTrigger value="customers">Clients</TabsTrigger><TabsTrigger value="products">Produits</TabsTrigger>
+            <TabsTrigger value="months">Périodes</TabsTrigger><TabsTrigger value="customers">Clients</TabsTrigger><TabsTrigger value="products">Produits</TabsTrigger>
             <TabsTrigger value="cc">Pays commercial</TabsTrigger><TabsTrigger value="dc">Pays de livraison</TabsTrigger><TabsTrigger value="channels">Canaux</TabsTrigger>
           </TabsList>
           <Input placeholder="Rechercher…" value={search} onChange={(e) => setSearch(e.target.value)} className="w-56" />
         </div>
         <Card className="mt-2"><CardContent className="pt-4">
+          <TabsContent value="months">{table(Object.values((stats?.by_month ?? []).reduce((m: Record<string, Row>, r) => {
+            const o = m[r.month] ?? (m[r.month] = { key: r.month, ca_ht: 0, qty: 0, prod_ht: 0, cogs: 0, cov_ht: 0, est_ht: 0 });
+            o.ca_ht += r.ca_ht; o.qty += r.qty; o.prod_ht! += r.prod_ht; o.cogs! += r.cogs; o.cov_ht! += r.cov_ht; o.est_ht! += r.est_ht; return m; }, {})).sort((a, b) => b.key.localeCompare(a.key)), 'country')}</TabsContent>
           <TabsContent value="customers">{table(stats?.by_customer ?? [], 'customer')}</TabsContent>
           <TabsContent value="products">{table(stats?.by_product ?? [], 'product')}</TabsContent>
           <TabsContent value="cc">{table(stats?.by_commercial_country ?? [], 'cc')}</TabsContent>
