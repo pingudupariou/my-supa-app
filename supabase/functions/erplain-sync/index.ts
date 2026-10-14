@@ -5,6 +5,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import { DATASETS, FILTER_TYPES, makeGql, pageQuery, whereColumns, ordersWithCustomer } from "./erplain.ts";
 import { computePlan, moPayload } from "./plan.ts";
 import { costflowPreview, costflowCatalog, costflowVariant } from "./costflow.ts";
+import { salesSync } from "./sales.ts";
 
 const DEFAULT_ENDPOINT = "https://api.erplain.app/graphql";
 
@@ -415,6 +416,30 @@ Deno.serve(async (req) => {
     // Server-side source of truth for the page: which role and permission the caller actually has.
     if (peekAction === "access") {
       return json({ role: role?.role ?? null, approved: !!role?.approved, permission: role?.approved || role?.role === "admin" ? permission : "hidden" });
+    }
+    if (peekAction === "sales_sync") {
+      // Statistiques commerciales: read-only import of invoices/credit notes; needs write on the sales-stats tab.
+      let sp = role?.role === "admin" ? "write" : "hidden";
+      if (role?.role !== "admin" && role?.role && role?.approved) {
+        const { data: perm } = await admin.from("tab_permissions").select("permission").eq("role", role.role).eq("tab_key", "sales-stats").maybeSingle();
+        sp = perm?.permission ?? "hidden";
+      }
+      if (sp !== "write") return json({ error: "Forbidden" }, 403);
+      const b = await req.json().catch(() => ({}));
+      const tk = Deno.env.get("ERPLAIN_API_TOKEN");
+      if (!tk) return json({ status: "config_error", message: "Secret ERPLAIN_API_TOKEN absent côté serveur." });
+      const { data: rootRow } = await admin.from("erplain_schema_cache").select("data").eq("type_name", "__root").maybeSingle();
+      const steps: any[] = [];
+      const deadline = Date.now() + 110000;
+      const gql = makeGql(tk, rootRow?.data?.endpoint ?? DEFAULT_ENDPOINT, deadline, (st) => steps.push(st));
+      try {
+        const run = await salesSync(admin, gql, claims.claims.sub, b.restart === true, deadline);
+        return json({ status: run.status === "running" ? "partial" : run.status, run });
+      } catch (e) {
+        const msg = String((e as Error).message).slice(0, 400);
+        await admin.from("erplain_sales_sync_runs").update({ status: "error", message: msg, finished_at: new Date().toISOString() }).eq("status", "running");
+        return json({ status: "api_error", message: msg, steps: steps.slice(-5) });
+      }
     }
     if (peekAction === "costflow_preview" || peekAction === "costflow_catalog" || peekAction === "costflow_variant" || peekAction === "costflow_refresh_bom" || peekAction === "costflow_set_method") {
       // Read-only comparison for CostFlow: needs read access on the costflow tab (admins always).
