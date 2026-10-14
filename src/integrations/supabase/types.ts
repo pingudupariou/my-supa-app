@@ -4030,6 +4030,10 @@ export type Database = {
           reference: string
         }[]
       }
+      sales_breakdown: {
+        Args: { _channels?: string[]; _from: string; _to: string }
+        Returns: Json
+      }
       sales_stats: {
         Args: {
           _channels?: string[]

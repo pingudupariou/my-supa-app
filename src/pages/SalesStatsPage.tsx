@@ -12,6 +12,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { AlertTriangle, CheckCircle2, Loader2, RefreshCw } from 'lucide-react';
 import { Bar, BarChart, CartesianGrid, ComposedChart, Legend, Line, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { toast } from 'sonner';
+import { SalesBreakdown } from '@/components/sales/SalesBreakdown';
 
 type Row = { key: string; label?: string; channel?: string; ca_ht: number; qty: number; default_share?: number; prod_ht?: number; cogs?: number; cov_ht?: number; est_ht?: number; unit_cost?: number | null };
 type Stats = {
@@ -53,7 +54,8 @@ function periodRange(p: string, from: string, to: string): [string, string] {
   if (p === 'custom') return [from || '2000-01-01', to || iso(now)];
   if (p === 'all') return ['2000-01-01', iso(now)];
   if (p === 'ytd') return [`${now.getFullYear()}-01-01`, iso(now)];
-  const d = new Date(now); d.setMonth(d.getMonth() - Number(p));
+  const d = new Date(now);
+  if (p.startsWith('d')) d.setDate(d.getDate() - Number(p.slice(1))); else d.setMonth(d.getMonth() - Number(p));
   return [iso(d), iso(now)];
 }
 
@@ -281,7 +283,7 @@ export function SalesStatsPage() {
         <div className="space-y-1"><span className="text-xs text-muted-foreground">Période</span>
           <Select value={period} onValueChange={setPeriod}>
             <SelectTrigger className="w-44"><SelectValue /></SelectTrigger>
-            <SelectContent><SelectItem value="3">3 derniers mois</SelectItem><SelectItem value="12">12 derniers mois</SelectItem><SelectItem value="24">24 derniers mois</SelectItem><SelectItem value="ytd">Année en cours</SelectItem><SelectItem value="all">Tout l'historique</SelectItem><SelectItem value="custom">Personnalisée</SelectItem></SelectContent>
+            <SelectContent><SelectItem value="d7">7 derniers jours</SelectItem><SelectItem value="d30">30 derniers jours</SelectItem><SelectItem value="d90">90 derniers jours</SelectItem><SelectItem value="3">3 derniers mois</SelectItem><SelectItem value="12">12 derniers mois</SelectItem><SelectItem value="24">24 derniers mois</SelectItem><SelectItem value="ytd">Année en cours</SelectItem><SelectItem value="all">Tout l'historique</SelectItem><SelectItem value="custom">Personnalisée</SelectItem></SelectContent>
           </Select></div>
         {period === 'custom' && <>
           <div className="space-y-1"><span className="text-xs text-muted-foreground">Du</span><Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="w-40" /></div>
@@ -370,7 +372,7 @@ export function SalesStatsPage() {
         <div className="flex flex-wrap items-center justify-between gap-2">
           <TabsList>
             <TabsTrigger value="months">Périodes</TabsTrigger><TabsTrigger value="customers">Clients</TabsTrigger><TabsTrigger value="products">Produits</TabsTrigger>
-            <TabsTrigger value="cc">Pays commercial</TabsTrigger><TabsTrigger value="dc">Pays de livraison</TabsTrigger><TabsTrigger value="channels">Canaux</TabsTrigger>
+            <TabsTrigger value="cc">Pays commercial</TabsTrigger><TabsTrigger value="dc">Pays de livraison</TabsTrigger><TabsTrigger value="channels">Canaux</TabsTrigger><TabsTrigger value="breakdown">Canal › pays › produit</TabsTrigger>
           </TabsList>
           <Input placeholder="Rechercher…" value={search} onChange={(e) => setSearch(e.target.value)} className="w-56" />
         </div>
@@ -383,6 +385,7 @@ export function SalesStatsPage() {
           <TabsContent value="cc">{table(stats?.by_commercial_country ?? [], 'cc')}</TabsContent>
           <TabsContent value="dc">{table(stats?.by_delivery_country ?? [], 'country')}</TabsContent>
           <TabsContent value="channels">{table((stats?.by_channel ?? []).map((r) => ({ ...r, label: CH_LABEL[r.key] ?? r.key })), 'country')}</TabsContent>
+          <TabsContent value="breakdown"><SalesBreakdown from={range0} to={range1} search={search} /></TabsContent>
         </CardContent></Card>
       </Tabs>
     </div>
