@@ -231,6 +231,14 @@ function loadState(): FinancialState {
     const stored = localStorage.getItem(STATE_KEY);
     if (stored) {
       const parsed = JSON.parse(stored);
+      {
+        const d = getDefaultState();
+        for (const k of Object.keys(d)) {
+          if (parsed[k] === undefined || parsed[k] === null) parsed[k] = (d as any)[k];
+        }
+        parsed.scenarioSettings = { ...d.scenarioSettings, ...parsed.scenarioSettings };
+        parsed.scenarioConfigs = { ...d.scenarioConfigs, ...parsed.scenarioConfigs };
+      }
       // Ensure valuationConfig exists for older saved states
       if (!parsed.valuationConfig) {
         parsed.valuationConfig = { ...defaultValuationConfig };
@@ -356,6 +364,14 @@ export function FinancialProvider({ children }: { children: ReactNode }) {
            if (!cloudState.hiringSimulation) cloudState.hiringSimulation = { ...defaultHiringSimulation };
            if (!cloudState.fundingPlan) cloudState.fundingPlan = { enabled: false, entries: [] };
            if (!cloudState.productCategories) cloudState.productCategories = [];
+          {
+            const d = getDefaultState();
+            for (const k of Object.keys(d) as (keyof FinancialState)[]) {
+              if (cloudState[k] === undefined || cloudState[k] === null) (cloudState as any)[k] = d[k];
+            }
+            cloudState.scenarioSettings = { ...d.scenarioSettings, ...cloudState.scenarioSettings };
+            cloudState.scenarioConfigs = { ...d.scenarioConfigs, ...cloudState.scenarioConfigs };
+          }
           setState({ ...cloudState, hasUnsavedChanges: false });
           localStorage.setItem(STATE_KEY, JSON.stringify(cloudState));
         }
