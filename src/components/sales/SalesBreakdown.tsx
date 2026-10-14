@@ -129,8 +129,8 @@ export function SalesBreakdown({ from, to, search }: { from: string; to: string;
       })()}
       {(ch !== 'B2C' || cc !== 'all') && (<>
         <p className="text-xs text-muted-foreground">3. Produits {ch === 'all' ? 'tous canaux' : CH_LABEL[ch] ?? ch} · {cc === 'all' ? 'tous pays' : cc} — {prods.length} produits, hors livraison. Pays = pays de livraison Erplain.{ch === 'B2C' && cc !== 'all' ? ' Le détail Ads par produit n\'est disponible que tous pays confondus.' : ''}</p>
-        <Table><TableHeader><TableRow><TableHead>Produit</TableHead><TableHead className="text-right">CA HT</TableHead><TableHead className="text-right">Qté</TableHead><TableHead className="text-right">Coût vendu</TableHead><TableHead className="text-right">Marge</TableHead><TableHead className="text-right">Marge %</TableHead><TableHead className="text-right">Couverture</TableHead></TableRow></TableHeader>
-          <TableBody>{prods.slice(0, 300).map((r) => { const x = marginOf(r); return (
+        <Table><TableHeader><TableRow><Th k="label" label="Produit" right={false} /><Th k="ca_ht" label="CA HT" /><Th k="qty" label="Qté" /><Th k="cogs" label="Coût vendu" /><Th k="m" label="Marge" /><Th k="pct" label="Marge %" /><Th k="cov" label="Couverture" /></TableRow></TableHeader>
+          <TableBody>{prods.map((r) => ({ r })).sort(cmpRows).slice(0, 300).map(({ r }) => { const x = marginOf(r); return (
             <TableRow key={r.key}><TableCell className="max-w-[320px] truncate">{r.label}</TableCell><TableCell className="text-right tabular-nums">{eur(r.ca_ht)}</TableCell><TableCell className="text-right tabular-nums">{nb(r.qty)}</TableCell>
               <TableCell className="text-right tabular-nums">{eur(r.cogs)}</TableCell><TableCell className="text-right tabular-nums">{eur(x.m)}{x.est && <span className="text-muted-foreground"> est.</span>}</TableCell>
               <TableCell className="text-right tabular-nums">{pctf(x.pct)}</TableCell><TableCell className={`text-right tabular-nums ${x.inc ? 'text-destructive' : ''}`}>{pctf(x.cov)}{x.inc ? ' · incomplet' : ''}</TableCell></TableRow>); })}</TableBody></Table>
