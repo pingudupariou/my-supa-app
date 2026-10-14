@@ -87,14 +87,18 @@ export function CostFlowPage() {
           </TabsList>
           {section !== 'legacy' && (
             <div className="flex items-center gap-2 text-xs text-muted-foreground" data-readonly-allow="true">
-              <span>Synchro Erplain : stock {erp.synced.stock ? new Date(erp.synced.stock).toLocaleString('fr-FR') : '—'} · nomenclatures {erp.synced.bom ? new Date(erp.synced.bom).toLocaleString('fr-FR') : '—'}{erp.bomStatus && !erp.bomStatus.complete ? ' (incomplètes)' : ''}</span>
+              <span>Nomenclatures : {(erp.bomStatus?.finishedAt ?? erp.synced.bom) ? new Date((erp.bomStatus?.finishedAt ?? erp.synced.bom)!).toLocaleString('fr-FR') : '—'}{erp.bomStatus && !erp.bomStatus.complete ? ' (incomplètes)' : ''}</span>
+              <span>· Coûts : {erp.costReadAt ? `lus en direct le ${new Date(erp.costReadAt).toLocaleString('fr-FR')}` : "lus en direct à l'ouverture d'un produit"}</span>
+              <span>· Stock : {erp.synced.stock ? new Date(erp.synced.stock).toLocaleString('fr-FR') : '—'}</span>
+              {erp.refreshing && <span className="text-primary">{erp.refreshing}</span>}
+              <Button variant="outline" size="sm" onClick={erp.refreshBom} disabled={!!erp.refreshing || erp.loading} title="Relit nomenclatures et références dans Erplain, sans synchro complète du Plan atelier"><RefreshCw className={`h-3 w-3 mr-1 ${erp.refreshing ? 'animate-spin' : ''}`} />Actualiser nomenclatures</Button>
               <Button variant="outline" size="sm" onClick={erp.reload} disabled={erp.loading}><RefreshCw className={`h-3 w-3 mr-1 ${erp.loading ? 'animate-spin' : ''}`} />Recharger</Button>
             </div>
           )}
         </div>
         {erp.error && section !== 'legacy' && <p className="text-sm text-destructive">{erp.error}</p>}
         <TabsContent value="erp-products">
-          {erp.loading && !erp.variants.length ? <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /> : <ErplainProducts variants={erp.variants} />}
+          {erp.loading && !erp.variants.length ? <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /> : <ErplainProducts variants={erp.variants} onCostRead={erp.setCostReadAt} />}
         </TabsContent>
         <TabsContent value="erp-usage">
           {erp.loading && !erp.variants.length ? <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /> : <ErplainWhereUsed variants={erp.variants} edges={erp.edges} bomStatus={erp.bomStatus} />}

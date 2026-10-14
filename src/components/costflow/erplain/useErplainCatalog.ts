@@ -30,6 +30,24 @@ export function useErplainCatalog() {
     setEdges(data.edges ?? []); setBomStatus(data.bomStatus ?? null); setReadAt(data.readAt ?? null);
   }, []);
 
+  const [costReadAt, setCostReadAt] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState<string | null>(null);
+
+  /** Re-reads only BOMs + routings from Erplain (read-only for Erplain), resuming chunked runs, then reloads the catalog. */
+  const refreshBom = useCallback(async () => {
+    setError(null); setRefreshing('Lecture des nomenclatures Erplain…');
+    try {
+      for (let i = 0; i < 30; i++) {
+        const { data, error } = await supabase.functions.invoke('erplain-sync', { body: { action: 'costflow_refresh_bom' } });
+        if (error || data?.status !== 'success') throw new Error(data?.failure || data?.message || data?.error || error?.message || 'Actualisation impossible');
+        if (data.done) { await load(); return; }
+        setRefreshing(`Lecture des nomenclatures… (${data.current ?? ''} page ${data.page ?? ''})`);
+      }
+      throw new Error('Actualisation interrompue : relancez pour reprendre où elle s\'est arrêtée.');
+    } catch (e) { setError((e as Error).message); }
+    finally { setRefreshing(null); }
+  }, [load]);
+
   useEffect(() => { load(); }, [load]);
-  return { variants, synced, edges, bomStatus, readAt, loading, error, reload: load };
+  return { variants, synced, edges, bomStatus, readAt, loading, error, reload: load, refreshBom, refreshing, costReadAt, setCostReadAt };
 }

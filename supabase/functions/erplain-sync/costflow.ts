@@ -185,7 +185,36 @@ export async function costflowVariant(gql: Gql, id: string) {
       isSubAssembly: !!sub || comp.type === "assembly",
       children: (sub?.components ?? []).map((sc: any) => ({ id: String(sc.component?.id), sku: sc.component?.sku, label: sc.component?.label, quantity: n(sc.quantity), ...costs(sc.component) })) };
   });
-  return { variant: { id: String(v.id), sku: v.sku, label: v.label, type: v.type, product: v.product?.label ?? null, ...costs(v) },
-    bom: b ? { id: String(b.id), label: b.label } : null, lines, warnings, totals: { componentsCump: missing ? null : total, partialCump: total, missing },
+  const vc = costs(v);
+  const analysis = analyzeCosts(missing ? null : total, vc.unit_cost, vc.unit_manufacturing_cost);
+  return { variant: { id: String(v.id), sku: v.sku, label: v.label, type: v.type, product: v.product?.label ?? null, ...vc },
+    bom: b ? { id: String(b.id), label: b.label } : null, lines, warnings, totals: { componentsCump: missing ? null : total, partialCump: total, missing }, analysis,
     readAt: new Date().toISOString(), live: true, depth };
+}
+
+/** Empirical check (Erplain documents no field semantics): which combination does the finished product's CUMP match?
+ *  tolerance 2 % (min 0.05 €). Full cost is defined only from verified pieces, never summing a cost twice. */
+export function analyzeCosts(comp: number | null, cump: number | null, mfg: number | null) {
+  const close = (a: number, b: number) => Math.abs(a - b) <= Math.max(0.05, Math.abs(b) * 0.02);
+  const m = mfg ?? 0;
+  let mfgMeaning: "zero" | "labor_only" | "includes_components" | "unknown" = "unknown";
+  if (mfg === null || mfg === 0) mfgMeaning = "zero";
+  else if (comp !== null && (close(mfg, comp) || mfg > comp)) mfgMeaning = "includes_components";
+  else if (comp !== null) mfgMeaning = "labor_only";
+  let cumpMatch: "components" | "components_plus_mfg" | "mfg" | "none" | "unknown" = "unknown";
+  if (cump !== null && comp !== null) {
+    if (mfg && mfgMeaning === "labor_only" && close(cump, comp + m)) cumpMatch = "components_plus_mfg";
+    else if (close(cump, comp)) cumpMatch = "components";
+    else if (mfg && close(cump, mfg)) cumpMatch = "mfg";
+    else cumpMatch = "none";
+  }
+  // Full cost: components + manufacturing only if manufacturing is a separate (labor) cost; otherwise the manufacturing figure alone.
+  let full: number | null = null; let fullFormula = "";
+  if (comp !== null) {
+    if (mfgMeaning === "zero") { full = comp; fullFormula = "Coût composants (aucun coût de fabrication renseigné)"; }
+    else if (mfgMeaning === "labor_only") { full = comp + m; fullFormula = "Coût composants + coût de fabrication (main d'œuvre/gamme, distinct des composants)"; }
+    else if (mfgMeaning === "includes_components") { full = m; fullFormula = "Coût de fabrication seul (il contient déjà les composants : pas d'addition)"; }
+  }
+  return { mfgMeaning, cumpMatch, full, fullFormula, gapCump: cump !== null && comp !== null ? cump - comp : null,
+    gapCumpFull: cump !== null && full !== null ? cump - full : null };
 }
