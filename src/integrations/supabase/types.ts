@@ -471,6 +471,33 @@ export type Database = {
         }
         Relationships: []
       }
+      costflow_cost_methods: {
+        Row: {
+          created_at: string
+          method: string
+          set_by: string | null
+          source: string
+          updated_at: string
+          variant_id: string
+        }
+        Insert: {
+          created_at?: string
+          method: string
+          set_by?: string | null
+          source: string
+          updated_at?: string
+          variant_id: string
+        }
+        Update: {
+          created_at?: string
+          method?: string
+          set_by?: string | null
+          source?: string
+          updated_at?: string
+          variant_id?: string
+        }
+        Relationships: []
+      }
       costflow_meeting_tasks: {
         Row: {
           created_at: string
