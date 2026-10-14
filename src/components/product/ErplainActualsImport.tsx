@@ -16,7 +16,7 @@ import { ManualPlanProductDialog } from './ManualPlanProductDialog';
 
 type Ch = 'B2C' | 'B2B' | 'OEM';
 const CHS: Ch[] = ['B2C', 'B2B', 'OEM'];
-interface Agg { key: string; label: string; byYear: Record<number, Record<Ch, { qty: number; ca: number }>>; cogs: number; cogsQty: number }
+interface Agg { key: string; label: string; byYear: Record<number, Record<Ch, { qty: number; ca: number }>>; cogs: number; cogsQty: number; cy?: Record<number, { cogs: number; qty: number }> }
 
 interface Props { products: Product[]; years: number[]; onApply: (products: Product[]) => void; onSave?: () => void }
 
@@ -24,6 +24,9 @@ export function ErplainActualsImport({ products, years, onApply, onSave }: Props
   const thisYear = new Date().getFullYear();
   const pastYears = years.filter(y => y <= thisYear);
   const futureYears = years.filter(y => y > thisYear);
+  // Sales years are independent of the plan start: the reference year can precede it.
+  const salesYears = [...new Set([...Array.from({ length: 5 }, (_, i) => thisYear - 4 + i), ...pastYears])].sort((a, b) => a - b);
+  const [priceYear, setPriceYear] = useState(pastYears[pastYears.length - 1] ?? thisYear - 1);
   const [loading, setLoading] = useState(false);
   const [rows, setRows] = useState<Agg[] | null>(null);
   const [sel, setSel] = useState<Set<string>>(new Set());
@@ -32,7 +35,7 @@ export function ErplainActualsImport({ products, years, onApply, onSave }: Props
   const [memberSearch, setMemberSearch] = useState('');
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [deleteId, setDeleteId] = useState<string | null>(null);
-  const [viewYear, setViewYear] = useState(pastYears[pastYears.length - 1]);
+  const [viewYear, setViewYear] = useState(pastYears[pastYears.length - 1] ?? thisYear - 1);
   const [formError, setFormError] = useState('');
   const [project, setProject] = useState(true);
   const [growth, setGrowth] = useState(0);
@@ -63,7 +66,7 @@ export function ErplainActualsImport({ products, years, onApply, onSave }: Props
     setLoading(true);
     const map = new Map<string, Agg>();
     try {
-      for (const y of pastYears) {
+      for (const y of salesYears) {
         const to = y === thisYear ? new Date().toISOString().slice(0, 10) : `${y}-12-31`;
         const { data, error } = await supabase.rpc('sales_breakdown' as any, { _from: `${y}-01-01`, _to: to });
         if (error) throw error;
@@ -72,24 +75,62 @@ export function ErplainActualsImport({ products, years, onApply, onSave }: Props
           const yy = a.byYear[y] ??= { B2C: { qty: 0, ca: 0 }, B2B: { qty: 0, ca: 0 }, OEM: { qty: 0, ca: 0 } };
           const c = yy[r.channel as Ch]; if (!c) continue;
           c.qty += Number(r.qty) || 0; c.ca += Number(r.prod_ht) || 0;
-          if (Number(r.cov_ht) > 0 && Number(r.cogs) > 0) { a.cogs += Number(r.cogs); a.cogsQty += Number(r.qty) || 0; }
+          if (Number(r.cov_ht) > 0 && Number(r.cogs) > 0) { a.cogs += Number(r.cogs); a.cogsQty += Number(r.qty) || 0; const cy = (a.cy ??= {})[y] ??= { cogs: 0, qty: 0 }; cy.cogs += Number(r.cogs); cy.qty += Number(r.qty) || 0; }
           map.set(k, a);
         }
       }
       const list = [...map.values()].filter(a => Object.values(a.byYear).some(y => CHS.some(c => y[c].qty > 0)));
       list.sort((a, b) => total(b) - total(a));
       setRows(list);
+      refreshCategories(list, priceYear);
     } catch (e: any) { toast.error(`Lecture des ventes impossible : ${e.message}`); }
     setLoading(false);
   };
 
   const total = (a: Agg) => Object.values(a.byYear).reduce((s, y) => s + CHS.reduce((t, c) => t + y[c].ca, 0), 0);
   const lastYearOf = (a: Agg) => Math.max(...Object.keys(a.byYear).map(Number));
-  // Average HT price per channel: latest full sale year where that channel sold, else all years.
-  const avgPrice = (a: Agg, ch: Ch) => {
-    const ys = Object.keys(a.byYear).map(Number).sort((x, y) => y - x);
-    for (const y of ys) { const v = a.byYear[y][ch]; if (v.qty > 0) return v.ca / v.qty; }
-    return 0;
+  // Average HT price per channel for the chosen reference year only (0 = no sale that year).
+  const avgPrice = (a: Agg, ch: Ch, year = priceYear) => {
+    const v = a.byYear[year]?.[ch];
+    return v && v.qty > 0 ? v.ca / v.qty : 0;
+  };
+  const unitCostOf = (a: Agg, year = priceYear) => {
+    const c = a.cy?.[year]; return c && c.qty > 0 ? round(c.cogs / c.qty) : 0;
+  };
+  const soldIn = (a: Agg | undefined, year: number) => !!a && CHS.some(c => (a.byYear[year]?.[c].qty ?? 0) > 0);
+
+  // Refresh prices/cost of every plan category (and its members) from Erplain sales of the reference year.
+  // Members without sales that year keep their previous price and are listed as missing; volumes are untouched.
+  const refreshCategories = (list: Agg[], year: number) => {
+    const byKey = new Map(list.map(a => [a.key, a]));
+    let changed = 0;
+    const next = products.map(cat => {
+      if (!cat.erplainMembers?.length) return cat;
+      const present = cat.erplainMembers.map(k => byKey.get(k)).filter((a): a is Agg => soldIn(a, year));
+      if (!present.length) return cat;
+      const sum = { B2C: { qty: 0, ca: 0 }, B2B: { qty: 0, ca: 0 }, OEM: { qty: 0, ca: 0 } } as Record<Ch, { qty: number; ca: number }>;
+      let cogs = 0, cq = 0;
+      for (const a of present) {
+        for (const c of CHS) { sum[c].qty += a.byYear[year][c].qty; sum[c].ca += a.byYear[year][c].ca; }
+        const cy = a.cy?.[year]; if (cy) { cogs += cy.cogs; cq += cy.qty; }
+      }
+      const pr = (c: Ch) => sum[c].qty > 0 ? sum[c].ca / sum[c].qty : 0;
+      const b2c = pr('B2C'), b2b = pr('B2B'), oem = pr('OEM');
+      changed++;
+      return {
+        ...cat,
+        priceHT: b2c ? round(b2c) : cat.priceHT, priceTTC_B2C: b2c ? round(b2c * 1.2) : cat.priceTTC_B2C,
+        priceHT_B2B: b2b ? round(b2b) : cat.priceHT_B2B, priceHT_OEM: oem ? round(oem) : cat.priceHT_OEM,
+        unitCost: cq > 0 ? round(cogs / cq) : cat.unitCost,
+        erplainMemberProducts: cat.erplainMemberProducts?.map(m => {
+          const a = byKey.get(m.id.replace(/^erplain-/, ''));
+          if (!soldIn(a, year)) return m;
+          const p1 = avgPrice(a!, 'B2C', year), p2 = avgPrice(a!, 'B2B', year), p3 = avgPrice(a!, 'OEM', year), uc = unitCostOf(a!, year);
+          return { ...m, priceHT: p1 ? round(p1) : m.priceHT, priceTTC_B2C: p1 ? round(p1 * 1.2) : m.priceTTC_B2C, priceHT_B2B: p2 ? round(p2) : m.priceHT_B2B, priceHT_OEM: p3 ? round(p3) : m.priceHT_OEM, unitCost: uc || m.unitCost };
+        }),
+      };
+    });
+    if (changed) { onApply(next); toast.success(`Prix de ${changed} catégorie(s) mis à jour avec les ventes ${year}`); }
   };
 
   const apply = (group?: string, keys: string[] = [...sel], categoryId?: string) => {
@@ -106,13 +147,14 @@ export function ErplainActualsImport({ products, years, onApply, onSave }: Props
         const last = lastYearOf(a);
         volumesByChannel[c][y] = Math.round(a.byYear[y]?.[c].qty ?? (project && y > last ? (a.byYear[last]?.[c].qty ?? 0) * Math.pow(1 + growth / 100, y - last) : 0));
       }
-      return { id: `erplain-${a.key}`, name: a.label, category: 'B2C', launchYear: Math.min(...Object.keys(a.byYear).map(Number)), devCost: 0, unitCost: a.cogsQty > 0 ? round(a.cogs / a.cogsQty) : 0, priceHT: round(avgPrice(a, 'B2C')), priceTTC_B2C: round(avgPrice(a, 'B2C') * 1.2), priceHT_B2B: round(avgPrice(a, 'B2B')), priceHT_OEM: round(avgPrice(a, 'OEM')), vatRate: .2, coef_shop: 1.5, coef_dist: 1.3, coef_oem: 1.2, productStatus: 'validated', volumesByChannel, volumesByYear: Object.fromEntries(years.map(y => [y, CHS.reduce((s, c) => s + (volumesByChannel[c][y] ?? 0), 0)])) } as Product;
+      return { id: `erplain-${a.key}`, name: a.label, category: 'B2C', launchYear: Math.min(...Object.keys(a.byYear).map(Number)), devCost: 0, unitCost: unitCostOf(a), priceHT: round(avgPrice(a, 'B2C')), priceTTC_B2C: round(avgPrice(a, 'B2C') * 1.2), priceHT_B2B: round(avgPrice(a, 'B2B')), priceHT_OEM: round(avgPrice(a, 'OEM')), vatRate: .2, coef_shop: 1.5, coef_dist: 1.3, coef_oem: 1.2, productStatus: 'validated', volumesByChannel, volumesByYear: Object.fromEntries(years.map(y => [y, CHS.reduce((s, c) => s + (volumesByChannel[c][y] ?? 0), 0)])) } as Product;
     });
     if (group) {
       // Merge selected products: summed volumes/CA → weighted average price and cost for the category.
       const g: Agg = { key: categoryId?.replace(/^erplain-/, '') ?? `cat-${crypto.randomUUID()}`, label: group, byYear: {}, cogs: 0, cogsQty: 0 };
       for (const a of chosen) {
         g.cogs += a.cogs; g.cogsQty += a.cogsQty;
+        for (const [y, c] of Object.entries(a.cy ?? {})) { const t = (g.cy ??= {})[+y] ??= { cogs: 0, qty: 0 }; t.cogs += c.cogs; t.qty += c.qty; }
         for (const [y, v] of Object.entries(a.byYear)) {
           const t = g.byYear[+y] ??= { B2C: { qty: 0, ca: 0 }, B2B: { qty: 0, ca: 0 }, OEM: { qty: 0, ca: 0 } };
           for (const c of CHS) { t[c].qty += v[c].qty; t[c].ca += v[c].ca; }
@@ -140,9 +182,9 @@ export function ErplainActualsImport({ products, years, onApply, onSave }: Props
           productComment: `Importé d'Erplain (variante ${a.key})`,
         } as Product),
         name: a.label, launchYear: Math.min(existing?.launchYear ?? firstYear, firstYear),
-        priceHT: round(b2c || b2b || oem), priceTTC_B2C: round((b2c || b2b || oem) * 1.2),
-        priceHT_B2B: round(b2b || b2c), priceHT_OEM: round(oem || b2b || b2c),
-        unitCost: a.cogsQty > 0 ? round(a.cogs / a.cogsQty) : existing?.unitCost ?? 0,
+        priceHT: round(b2c || b2b || oem) || existing?.priceHT || 0, priceTTC_B2C: round((b2c || b2b || oem) * 1.2) || existing?.priceTTC_B2C || 0,
+        priceHT_B2B: round(b2b || b2c) || existing?.priceHT_B2B || 0, priceHT_OEM: round(oem || b2b || b2c) || existing?.priceHT_OEM || 0,
+        unitCost: unitCostOf(a) || existing?.unitCost || 0,
         volumesByChannel: vbc, volumesByYear: vby, productStatus: 'validated',
         ...(group ? { erplainMembers: keys, erplainMemberProducts: memberProducts, productComment: `Catégorie du plan : ${keys.length} produit(s)` } : {}),
       };
@@ -185,10 +227,17 @@ export function ErplainActualsImport({ products, years, onApply, onSave }: Props
   return (
     <SectionCard title="Réalisé Erplain · catégories du plan">
       <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
-        <Button size="sm" onClick={load} disabled={loading || !pastYears.length}>
+        <Button size="sm" onClick={load} disabled={loading}>
           {loading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Download className="h-4 w-4 mr-2" />}
           {rows ? 'Actualiser les ventes' : 'Charger les ventes'}
         </Button>
+        <label className="flex items-center gap-2 text-sm">Année de référence des prix
+          <select aria-label="Année de référence des prix" className="h-9 rounded-md border bg-background px-2 text-sm" value={priceYear}
+            onChange={e => { const y = Number(e.target.value); setPriceYear(y); setViewYear(y); if (rows) refreshCategories(rows, y); }}>
+            {salesYears.map(y => <option key={y} value={y}>{y}{y === thisYear ? ' (en cours)' : ''}</option>)}
+          </select>
+        </label>
+        <span className="text-xs text-muted-foreground">Plan à partir de {years[0]}</span>
         <div className="flex flex-wrap gap-2"><ManualPlanProductDialog years={years} onAdd={p => onApply([...products, p])} />{onSave && <Button size="sm" variant="outline" onClick={onSave}><Save className="h-4 w-4 mr-2" />Sauvegarder le plan</Button>}</div>
       </div>
 
@@ -209,6 +258,7 @@ export function ErplainActualsImport({ products, years, onApply, onSave }: Props
           <div className="grid grid-cols-3 gap-2 mt-4 text-sm">
             {CHS.map(ch => <div key={ch}><div className="text-xs text-muted-foreground">{ch} · prix HT</div><div className="font-medium mt-1">{formatCurrency(ch === 'B2C' ? c.priceHT : ch === 'B2B' ? c.priceHT_B2B : c.priceHT_OEM)}</div></div>)}
           </div>
+          {rows && (() => { const missing = [...new Set(c.erplainMembers ?? [])].filter(k => !soldIn(candidates.get(k), priceYear) || !rows.some(r => r.key === k)); return missing.length > 0 && <div role="alert" className="mt-3 rounded-md border border-destructive/40 bg-destructive/10 p-2 text-xs text-destructive"><div className="font-medium">{missing.length} produit(s) sans vente Erplain en {priceYear} — prix non mis à jour pour eux :</div><ul className="mt-1 list-disc pl-4">{missing.map(k => <li key={k} className="break-words">{memberName(k)}</li>)}</ul></div>; })()}
           <div className="flex justify-between gap-2 text-xs border-t mt-3 pt-3"><span className="text-muted-foreground">Volume {viewYear}</span><span className="font-medium">{c.volumesByYear[viewYear] ?? 0}</span></div>
           <Button size="sm" variant="ghost" className="mt-2 w-full justify-between" onClick={() => { toggleExpanded(c.id); if (!expanded.has(c.id) && c.erplainMembers?.some(key => !candidates.has(key)) && !loading) void load(); }} aria-expanded={expanded.has(c.id)}>Produits de la catégorie{expanded.has(c.id) ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}</Button>
           <Button size="sm" variant="outline" className="mt-2 w-full" onClick={() => openEditor(c)}><Plus className="h-4 w-4 mr-2" />Ajouter des produits</Button>
@@ -231,7 +281,7 @@ export function ErplainActualsImport({ products, years, onApply, onSave }: Props
           <h3 className="font-semibold">Produits Erplain <span className="text-muted-foreground font-normal text-sm">({rows.length})</span></h3>
           <div className="flex flex-wrap gap-2 items-center">
             <div className="relative"><Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" /><Input aria-label="Rechercher un produit" placeholder="Rechercher un produit…" value={search} onChange={e => setSearch(e.target.value)} className="pl-9 h-9 w-60 max-w-full" /></div>
-            <div className="flex gap-1" aria-label="Année des ventes">{pastYears.map(y => <Button key={y} variant={viewYear === y ? 'secondary' : 'ghost'} size="sm" onClick={() => setViewYear(y)}>{y}</Button>)}</div>
+            <div className="flex gap-1" aria-label="Année des ventes">{salesYears.map(y => <Button key={y} variant={viewYear === y ? 'secondary' : 'ghost'} size="sm" onClick={() => setViewYear(y)}>{y}</Button>)}</div>
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2 mb-3">
