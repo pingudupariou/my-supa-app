@@ -416,7 +416,7 @@ Deno.serve(async (req) => {
     if (peekAction === "access") {
       return json({ role: role?.role ?? null, approved: !!role?.approved, permission: role?.approved || role?.role === "admin" ? permission : "hidden" });
     }
-    if (peekAction === "costflow_preview" || peekAction === "costflow_catalog" || peekAction === "costflow_variant") {
+    if (peekAction === "costflow_preview" || peekAction === "costflow_catalog" || peekAction === "costflow_variant" || peekAction === "costflow_refresh_bom") {
       // Read-only comparison for CostFlow: needs read access on the costflow tab (admins always).
       let cf = role?.role === "admin" ? "write" : "hidden";
       if (role?.role !== "admin" && role?.role && role?.approved) {
@@ -425,6 +425,13 @@ Deno.serve(async (req) => {
       }
       if (cf !== "read" && cf !== "write") return json({ error: "Forbidden" }, 403);
       const b = await req.json().catch(() => ({}));
+      if (peekAction === "costflow_refresh_bom") {
+        // Reads BOMs + routings from Erplain into the app's copy only (Erplain itself is never written). Needs costflow write.
+        if (cf !== "write") return json({ error: "Forbidden" }, 403);
+        const tk = Deno.env.get("ERPLAIN_API_TOKEN");
+        if (!tk) return json({ status: "config_error", message: "Secret ERPLAIN_API_TOKEN absent côté serveur." });
+        return await handleData("sync", { mode: "bom", restart: b.restart === true }, admin, tk, claims.claims.sub);
+      }
       if (peekAction === "costflow_catalog") {
         try { return json({ status: "success", ...(await costflowCatalog(admin)) }); }
         catch (e) { return json({ status: "api_error", message: String((e as Error).message).slice(0, 400) }); }
