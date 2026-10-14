@@ -9,3 +9,4 @@
 - Compute optional daily moving averages client-side from seven consecutive complete actual values, leaving gaps for missing dates or undefined ratios, to preserve real curves without additional requests.
 - AI marketing analyses receive only the cockpit's compact aggregate summary and are cached by its SHA-256 in marketing_ai_analyses (limit per user per 24 h) — avoids paying twice for identical analyses and never sends raw rows.
 - Marketing task dedupe uses a normalized key (régie|pays|campagne|title keywords) unique among open tasks; a returning AI recommendation bumps recurrence_count and logs an event instead of creating a duplicate.
+- B2C margin after ads comes from RPC b2c_ad_margin (Erplain B2C invoices + validated costs − Google/Meta spend); product direct spend only on the Shopping snapshot window via offer→unique SKU, rest allocated by revenue share, leftovers shown as unallocated — every ad euro counted once, Shopify orders never re-added.
