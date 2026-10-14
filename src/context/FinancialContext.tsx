@@ -332,10 +332,12 @@ export function FinancialProvider({ children }: { children: ReactNode }) {
     if (!user || cloudLoaded) return;
     (async () => {
       try {
+        // The plan is shared by the whole team: load the most recently saved version, whoever saved it.
         const { data } = await supabase
           .from('financial_scenarios')
           .select('state_data')
-          .eq('user_id', user.id)
+          .order('updated_at', { ascending: false })
+          .limit(1)
           .maybeSingle();
         if (data?.state_data) {
           const cloudState = data.state_data as unknown as FinancialState;
@@ -427,7 +429,7 @@ export function FinancialProvider({ children }: { children: ReactNode }) {
         const { hasUnsavedChanges: _, ...stateForCloud } = toSave;
         await supabase
           .from('financial_scenarios')
-          .upsert({ user_id: user.id, state_data: stateForCloud as any }, { onConflict: 'user_id' });
+          .upsert({ user_id: user.id, state_data: stateForCloud as any, updated_at: new Date().toISOString() }, { onConflict: 'user_id' });
       }
 
       toast({ title: 'Données sauvegardées', description: user ? 'Sauvegardé en local et dans le cloud.' : 'Sauvegardé en local.' });
