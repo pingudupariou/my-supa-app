@@ -3973,6 +3973,15 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      b2c_ad_margin: {
+        Args: {
+          _from: string
+          _include_shipping?: boolean
+          _ship_cost_per_doc?: number
+          _to: string
+        }
+        Returns: Json
+      }
       bump_erplain_mo_reference: { Args: { _min: number }; Returns: undefined }
       current_user_can_write_plan_atelier: { Args: never; Returns: boolean }
       current_user_marketing_access: { Args: never; Returns: string }
