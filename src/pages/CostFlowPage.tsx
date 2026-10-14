@@ -21,6 +21,7 @@ import { TaskManager } from '@/components/tasks/TaskManager';
 import { useTasksData } from '@/hooks/useTasksData';
 import { useTeamMembers } from '@/hooks/useTeamMembers';
 import { Loader2 } from 'lucide-react';
+import { ErplainComparison } from '@/components/costflow/ErplainComparison';
 
 export function CostFlowPage() {
   const { isAdmin } = useAuth();
@@ -87,6 +88,7 @@ export function CostFlowPage() {
             )}
           </TabsTrigger>
           <TabsTrigger value="planning">📅 Planning Dev</TabsTrigger>
+          <TabsTrigger value="erplain">🔄 Erplain</TabsTrigger>
           <TabsTrigger value="trash" className="relative">
             🗑️ Corbeille
             {(data.trashedProducts.length + data.trashedReferences.length) > 0 && (
@@ -214,6 +216,9 @@ export function CostFlowPage() {
 
         <TabsContent value="planning">
           <ProductPlanningGantt />
+        </TabsContent>
+        <TabsContent value="erplain">
+          <ErplainComparison products={data.products} />
         </TabsContent>
         <TabsContent value="trash">
           <TrashManager
