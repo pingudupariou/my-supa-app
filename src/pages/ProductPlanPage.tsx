@@ -305,7 +305,7 @@ export function ProductPlanPage() {
         {/* Volumes by Year */}
         <TabsContent value="volumes">
           <div className="mb-4">
-            <ErplainActualsImport products={state.products} years={YEARS} onApply={updateProducts} />
+            <ErplainActualsImport products={state.products} years={YEARS} onApply={updateProducts} onSave={saveAll} />
           </div>
           <div id="product-volumes">
             <VolumesByChannelTable
