@@ -108,3 +108,73 @@ export async function costflowPreview(gql: Gql, userClient: any, body: any) {
   }
   return out;
 }
+
+// ---- Clean Erplain-only catalog for CostFlow (no dependency on costflow_* manual tables). ----
+async function readAll(admin: any, table: string, cols: string) {
+  const out: any[] = [];
+  for (let from = 0; ; from += 1000) {
+    const { data, error } = await admin.from(table).select(cols).range(from, from + 999);
+    if (error) throw new Error(error.message);
+    out.push(...(data ?? []));
+    if (!data || data.length < 1000) return out;
+  }
+}
+
+// List of variants from the last Erplain sync: stock summed across locations + default/active BOM info.
+export async function costflowCatalog(admin: any) {
+  const [stocks, boms] = await Promise.all([
+    readAll(admin, "erplain_stock_levels", "variant_id,sku,variant_label,location_label,on_hand,available,reserved,incoming,synced_at"),
+    readAll(admin, "erplain_boms", "id,label,active,is_default,variant_id,sku,variant_label,components,synced_at"),
+  ]);
+  const map = new Map<string, any>();
+  const get = (id: string, sku: any, label: any) => {
+    if (!map.has(id)) map.set(id, { id, sku: sku ?? null, label: label ?? null, on_hand: 0, available: 0, reserved: 0, incoming: 0, locations: [], bomCount: 0, bom: null, usedIn: 0 });
+    return map.get(id);
+  };
+  let syncedStock: string | null = null, syncedBom: string | null = null;
+  for (const s of stocks) {
+    if (!s.variant_id) continue;
+    const v = get(String(s.variant_id), s.sku, s.variant_label);
+    for (const k of ["on_hand", "available", "reserved", "incoming"]) v[k] += Number(s[k]) || 0;
+    v.locations.push({ label: s.location_label, on_hand: n(s.on_hand), available: n(s.available), reserved: n(s.reserved), incoming: n(s.incoming) });
+    if (!syncedStock || s.synced_at > syncedStock) syncedStock = s.synced_at;
+  }
+  const byVariant = new Map<string, any[]>();
+  for (const b of boms) {
+    if (!b.variant_id) continue;
+    if (!syncedBom || b.synced_at > syncedBom) syncedBom = b.synced_at;
+    const k = String(b.variant_id); byVariant.set(k, [...(byVariant.get(k) ?? []), b]);
+    for (const c of b.active !== false ? b.components ?? [] : []) if (c.component_id) get(String(c.component_id), c.sku, c.label).usedIn++;
+  }
+  for (const [k, list] of byVariant) {
+    const v = get(k, list[0].sku, list[0].variant_label);
+    v.bomCount = list.filter((b) => b.active !== false).length;
+    const b = pickBom(list);
+    v.bom = b ? { id: String(b.id), label: b.label, components: (b.components ?? []).length } : null;
+  }
+  return { variants: [...map.values()], syncedStock, syncedBom };
+}
+
+// Live read of one variant: Erplain costs + BOM; sub-assemblies counted once at their own CUMP.
+export async function costflowVariant(gql: Gql, id: string) {
+  if (!id) throw new Error("Variante manquante.");
+  const { v, depth } = await variantDetail(gql, String(id));
+  if (!v) throw new Error("Variante introuvable dans Erplain.");
+  const boms = v.bill_of_materials ?? [];
+  const b = pickBom(boms);
+  const warnings: string[] = [];
+  if (!b && boms.length > 1) warnings.push(`${boms.length} nomenclatures sans nomenclature par défaut : aucune retenue.`);
+  if (depth === 1) warnings.push("Sous-ensembles lus sur un seul niveau (limite de complexité Erplain).");
+  let total = 0, missing = 0;
+  const lines = (b?.components ?? []).map((c: any) => {
+    const comp = c.component ?? {};
+    const q = n(c.quantity) ?? 0; const cc = costs(comp);
+    const sub = pickBom(comp.bill_of_materials ?? []);
+    if (cc.unit_cost === null) missing++; else total += q * cc.unit_cost;
+    return { id: String(comp.id), sku: comp.sku ?? null, label: comp.label ?? null, type: comp.type ?? null, quantity: q, ...cc,
+      isSubAssembly: !!sub || comp.type === "assembly",
+      children: (sub?.components ?? []).map((sc: any) => ({ id: String(sc.component?.id), sku: sc.component?.sku, label: sc.component?.label, quantity: n(sc.quantity), ...costs(sc.component) })) };
+  });
+  return { variant: { id: String(v.id), sku: v.sku, label: v.label, type: v.type, product: v.product?.label ?? null, ...costs(v) },
+    bom: b ? { id: String(b.id), label: b.label } : null, lines, warnings, totals: { componentsCump: total, missing } };
+}

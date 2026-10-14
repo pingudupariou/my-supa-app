@@ -22,6 +22,11 @@ import { useTasksData } from '@/hooks/useTasksData';
 import { useTeamMembers } from '@/hooks/useTeamMembers';
 import { Loader2 } from 'lucide-react';
 import { ErplainComparison } from '@/components/costflow/ErplainComparison';
+import { ErplainProducts } from '@/components/costflow/erplain/ErplainProducts';
+import { ErplainStock } from '@/components/costflow/erplain/ErplainStock';
+import { useErplainCatalog } from '@/components/costflow/erplain/useErplainCatalog';
+import { Button } from '@/components/ui/button';
+import { RefreshCw } from 'lucide-react';
 
 export function CostFlowPage() {
   const { isAdmin } = useAuth();
@@ -31,6 +36,8 @@ export function CostFlowPage() {
   const [selectedRef, setSelectedRef] = useState<CostFlowReference | null>(null);
   const [selectedProduct, setSelectedProduct] = useState<CostFlowProduct | null>(null);
   const [activeTab, setActiveTab] = useState('references');
+  const [section, setSection] = useState('erp-products');
+  const erp = useErplainCatalog();
   const [salesRules, setSalesRules] = useState<{ id: string; name: string; type: string }[]>([]);
 
   // Load sales rules from pricing_config
@@ -66,8 +73,32 @@ export function CostFlowPage() {
     <div className="space-y-6">
       <div>
         <h1 className="page-title">CostFlow — Production & Bureau d'études</h1>
-        <p className="text-sm text-muted-foreground">Gestion des références, nomenclatures et calcul des coûts de revient</p>
+        <p className="text-sm text-muted-foreground">Produits, nomenclatures, coûts et stock lus depuis Erplain (lecture seule)</p>
       </div>
+
+      <Tabs value={section} onValueChange={setSection} className="space-y-4">
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <TabsList>
+            <TabsTrigger value="erp-products">Produits & coûts</TabsTrigger>
+            <TabsTrigger value="erp-stock">Stock</TabsTrigger>
+            <TabsTrigger value="legacy" className="text-muted-foreground">Ancien (manuel)</TabsTrigger>
+          </TabsList>
+          {section !== 'legacy' && (
+            <div className="flex items-center gap-2 text-xs text-muted-foreground" data-readonly-allow="true">
+              <span>Synchro Erplain : stock {erp.synced.stock ? new Date(erp.synced.stock).toLocaleString('fr-FR') : '—'} · nomenclatures {erp.synced.bom ? new Date(erp.synced.bom).toLocaleString('fr-FR') : '—'}</span>
+              <Button variant="outline" size="sm" onClick={erp.reload} disabled={erp.loading}><RefreshCw className={`h-3 w-3 mr-1 ${erp.loading ? 'animate-spin' : ''}`} />Recharger</Button>
+            </div>
+          )}
+        </div>
+        {erp.error && section !== 'legacy' && <p className="text-sm text-destructive">{erp.error}</p>}
+        <TabsContent value="erp-products">
+          {erp.loading && !erp.variants.length ? <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /> : <ErplainProducts variants={erp.variants} />}
+        </TabsContent>
+        <TabsContent value="erp-stock">
+          {erp.loading && !erp.variants.length ? <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /> : <ErplainStock variants={erp.variants} />}
+        </TabsContent>
+        <TabsContent value="legacy" className="space-y-4">
+      <p className="text-xs text-muted-foreground">Données saisies à la main, conservées à part. Elles ne sont utilisées par aucun calcul Erplain.</p>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
         <TabsList>
@@ -230,6 +261,8 @@ export function CostFlowPage() {
             onPermanentDeleteReference={data.permanentDeleteReference}
             isAdmin={isAdmin}
           />
+        </TabsContent>
+      </Tabs>
         </TabsContent>
       </Tabs>
     </div>
