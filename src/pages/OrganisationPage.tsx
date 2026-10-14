@@ -29,7 +29,6 @@ import {
 } from 'recharts';
 
 const DEPARTMENTS: Department[] = ['R&D', 'Production', 'Sales', 'Support', 'Admin'];
-const YEARS = [2025, 2026, 2027, 2028, 2029, 2030];
 
 const EXPORT_SECTIONS: ExportableSection[] = [
   { id: 'kpis', label: 'KPIs RH', elementId: 'org-kpis' },
@@ -44,13 +43,16 @@ export function OrganisationPage() {
   const [editingRole, setEditingRole] = useState<Role | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editForm, setEditForm] = useState<Partial<Role>>({});
+  const { startYear, durationYears } = state.scenarioSettings;
+  const YEARS = Array.from({ length: durationYears }, (_, i) => startYear + i);
+  const lastYear = startYear + durationYears - 1;
 
   const handleAddRole = (department?: Department) => {
     const newRole: Role = {
       id: `role-${Date.now()}`,
       title: 'Nouveau Poste',
       department: department || 'R&D',
-      startYear: 2026,
+      startYear: startYear + 1,
       annualCostLoaded: 50000,
     };
     setEditForm(newRole);
@@ -86,7 +88,7 @@ export function OrganisationPage() {
     headcount: p.headcount,
   }));
 
-  const futureHires = state.roles.filter(r => r.startYear > 2025);
+  const futureHires = state.roles.filter(r => r.startYear > startYear);
   const hiresByYear = YEARS.slice(1).map(year => ({
     year,
     count: state.roles.filter(r => r.startYear === year).length,
@@ -152,10 +154,10 @@ export function OrganisationPage() {
 
           {/* KPIs */}
           <div id="org-kpis" className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <KPICard label="Masse Salariale 2025" value={formatCurrency(computed.currentPayroll, true)} subValue={`${computed.totalHeadcount} personnes`} />
-            <KPICard label="Recrutements Prévus" value={futureHires.length.toString()} subValue="2026-2030" />
+            <KPICard label={`Masse Salariale ${startYear}`} value={formatCurrency(computed.currentPayroll, true)} subValue={`${computed.totalHeadcount} personnes`} />
+            <KPICard label="Recrutements Prévus" value={futureHires.length.toString()} subValue={`${startYear + 1}-${lastYear}`} />
             <KPICard label="Coût Moyen / ETP" value={formatCurrency(computed.currentPayroll / (computed.totalHeadcount || 1), true)} subValue="Chargé" />
-            <KPICard label="Masse Salariale 2030" value={formatCurrency(computed.payrollByYear.find(p => p.year === 2030)?.payroll || 0, true)} subValue="Projection" trend="up" />
+            <KPICard label={`Masse Salariale ${lastYear}`} value={formatCurrency(computed.payrollByYear.find(p => p.year === lastYear)?.payroll || 0, true)} subValue="Projection" trend="up" />
           </div>
 
           {/* Payroll Projection */}
@@ -214,10 +216,10 @@ export function OrganisationPage() {
                     </TableHeader>
                     <TableBody>
                       {state.roles.map((role) => (
-                        <TableRow key={role.id} className={role.startYear > 2025 ? 'bg-muted/20' : ''}>
+                        <TableRow key={role.id} className={role.startYear > startYear ? 'bg-muted/20' : ''}>
                           <TableCell className="font-medium">
                             {role.title}
-                            {role.startYear > 2025 && <Badge variant="secondary" className="ml-2 text-xs">Prévu</Badge>}
+                            {role.startYear > startYear && <Badge variant="secondary" className="ml-2 text-xs">Prévu</Badge>}
                           </TableCell>
                           <TableCell><Badge variant="outline">{role.department}</Badge></TableCell>
                           <TableCell>{role.startYear}</TableCell>
@@ -271,7 +273,7 @@ export function OrganisationPage() {
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <label className="text-sm font-medium">Année de début</label>
-                <Input type="number" value={editForm.startYear || 2026} onChange={(e) => setEditForm({ ...editForm, startYear: Number(e.target.value) })} min={2025} max={2030} />
+                <Input type="number" value={editForm.startYear || startYear + 1} onChange={(e) => setEditForm({ ...editForm, startYear: Number(e.target.value) })} min={startYear - 5} max={lastYear} />
               </div>
               <div className="space-y-2">
                 <label className="text-sm font-medium">Coût annuel chargé (€)</label>
