@@ -8,7 +8,7 @@ export interface ErplainVariantRow {
   bomCount: number; bom: { id: string; label: string | null; components: number } | null; usedIn: number;
 }
 
-export interface BomStatus { complete: boolean; runStatus: string | null; finishedAt: string | null; ambiguousParents: number }
+export interface BomStatus { refStats?: { componentLinks: number; distinctComponents: number; missingRef: number; subAssemblies: number }; complete: boolean; runStatus: string | null; finishedAt: string | null; ambiguousParents: number }
 
 /** Erplain-only catalog (last sync of stock + BOMs). No dependency on manual CostFlow tables. */
 export function useErplainCatalog() {

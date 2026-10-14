@@ -164,7 +164,7 @@ function CostMethodCard({ detail, onSaved }: { detail: any; onSaved: () => void 
           <div><p className="text-muted-foreground text-xs">Écart CUMP − coût composants</p><p className="font-mono-numbers">{eur(a.gapCump)}</p></div>
         </div>
         <p className="text-xs text-muted-foreground">Un écart entre CUMP et coût composants peut venir de fabrications ou achats passés à d'autres prix, d'une nomenclature modifiée, d'un produit aussi acheté fini, d'ajustements de stock — ou de frais de fabrication inclus dans le CUMP. Aucune conclusion n'est tirée automatiquement.</p>
-        <div className="rounded border p-3 space-y-2" data-readonly-allow="false">
+        <div className="rounded border p-3 space-y-2">
           <p className="text-xs font-medium">Choisir une méthode documentée</p>
           {METHODS.map(m => (
             <label key={m.key} className="flex gap-2 items-start text-xs cursor-pointer">

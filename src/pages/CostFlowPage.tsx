@@ -87,7 +87,7 @@ export function CostFlowPage() {
           </TabsList>
           {section !== 'legacy' && (
             <div className="flex items-center gap-2 text-xs text-muted-foreground" data-readonly-allow="true">
-              <span>Nomenclatures : {(erp.bomStatus?.finishedAt ?? erp.synced.bom) ? new Date((erp.bomStatus?.finishedAt ?? erp.synced.bom)!).toLocaleString('fr-FR') : '—'}{erp.bomStatus && !erp.bomStatus.complete ? ' (incomplètes)' : ''}</span>
+              <span>Nomenclatures : {(erp.bomStatus?.finishedAt ?? erp.synced.bom) ? new Date((erp.bomStatus?.finishedAt ?? erp.synced.bom)!).toLocaleString('fr-FR') : '—'}{erp.bomStatus && !erp.bomStatus.complete ? ' (incomplètes)' : ''}{erp.bomStatus?.refStats ? ` — ${erp.bomStatus.refStats.distinctComponents} références composants dont ${erp.bomStatus.refStats.subAssemblies} sous-ensembles${erp.bomStatus.refStats.missingRef ? `, ${erp.bomStatus.refStats.missingRef} sans SKU ni nom` : ''}` : ''}</span>
               <span>· Coûts : {erp.costReadAt ? `lus en direct le ${new Date(erp.costReadAt).toLocaleString('fr-FR')}` : "lus en direct à l'ouverture d'un produit"}</span>
               <span>· Stock : {erp.synced.stock ? new Date(erp.synced.stock).toLocaleString('fr-FR') : '—'}</span>
               {erp.refreshing && <span className="text-primary">{erp.refreshing}</span>}
