@@ -13,12 +13,15 @@ import { AlertTriangle, CheckCircle2, Loader2, RefreshCw } from 'lucide-react';
 import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { toast } from 'sonner';
 
-type Row = { key: string; label?: string; channel?: string; ca_ht: number; qty: number; default_share?: number };
+type Row = { key: string; label?: string; channel?: string; ca_ht: number; qty: number; default_share?: number; prod_ht?: number; cogs?: number; cov_ht?: number; est_ht?: number; unit_cost?: number | null };
 type Stats = {
-  totals: { ca_ht: number; qty: number; shipping_ht: number; docs: number };
-  by_month: { month: string; channel: string; ca_ht: number; qty: number }[];
+  totals: { ca_ht: number; qty: number; shipping_ht: number; docs: number; prod_ht: number; cogs: number; cov_ht: number; est_ht: number };
+  shipping: { billed_ht: number; docs: number; est_cost: number | null; real_cost: number | null };
+  costs: { methods: number; valued: number; oldest: string | null; newest: string | null; by_method: Record<string, number>; sources: string[] };
+  missing_cost: { key: string; label: string; ht: number; reason: string }[];
+  by_month: { month: string; channel: string; ca_ht: number; qty: number; prod_ht: number; cogs: number; cov_ht: number; est_ht: number }[];
   by_channel: Row[]; by_customer: Row[]; by_product: Row[]; by_commercial_country: Row[]; by_delivery_country: Row[];
-  reconciliation: { docs_ht: number; lines_ht: number; invoices: number; credit_notes: number; missing_total: number; no_customer: number };
+  reconciliation: { docs_ht: number; lines_ht: number; invoices: number; credit_notes: number; missing_total: number; no_customer: number; credit_no_qty_ht: number };
   excluded: { reason: string; doc_type: string; n: number; ht: number }[];
 };
 const CHANNELS = ['B2C', 'B2B', 'OEM', 'A_CLASSER'] as const;
@@ -26,6 +29,23 @@ const CH_LABEL: Record<string, string> = { B2C: 'B2C (Shopify)', B2B: 'B2B', OEM
 const CH_COLOR: Record<string, string> = { B2C: 'hsl(var(--primary))', B2B: 'hsl(var(--chart-2, 160 60% 40%))', OEM: 'hsl(var(--chart-4, 35 90% 50%))', A_CLASSER: 'hsl(var(--muted-foreground))' };
 const eur = (v: number | null | undefined) => v == null ? '—' : new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(v);
 const nb = (v: number) => new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 1 }).format(v);
+const METHOD_LABEL: Record<string, string> = { cump_finished: 'CUMP produit fini', components_plus_mfg: 'Composants + frais de fabrication', confirmed_full: 'Coût complet confirmé' };
+/** Margin on lines with a validated cost only; incomplete if some product revenue has no cost, estimated if a current cost is applied to older sales. */
+function margin(r: { prod_ht?: number; cogs?: number; cov_ht?: number; est_ht?: number }) {
+  const prod = r.prod_ht ?? 0, cov = r.cov_ht ?? 0, cogs = r.cogs ?? 0;
+  const m = cov - cogs;
+  return { m: cov ? m : null, pct: cov ? m / cov : null, coverage: prod ? cov / prod : null, incomplete: Math.abs(prod - cov) > 0.5, estimated: (r.est_ht ?? 0) > 0.5 };
+}
+const pctf = (v: number | null) => v == null ? '—' : `${(v * 100).toFixed(1)} %`;
+function MarginCell({ r }: { r: Row }) {
+  const x = margin(r);
+  return <>
+    <TableCell className="text-right tabular-nums">{eur(r.cogs)}</TableCell>
+    <TableCell className="text-right tabular-nums">{eur(x.m)}{x.estimated && <span className="text-muted-foreground"> est.</span>}</TableCell>
+    <TableCell className="text-right tabular-nums">{pctf(x.pct)}</TableCell>
+    <TableCell className="text-right tabular-nums">{x.coverage == null ? '—' : <span className={x.incomplete ? 'text-destructive' : ''}>{pctf(x.coverage)}{x.incomplete ? ' · incomplet' : ''}</span>}</TableCell>
+  </>;
+}
 const iso = (d: Date) => d.toISOString().slice(0, 10);
 
 function periodRange(p: string, from: string, to: string): [string, string] {
@@ -50,12 +70,15 @@ export function SalesStatsPage() {
   const [syncing, setSyncing] = useState(false);
   const [customers, setCustomers] = useState<Record<string, { channel: string; commercial_country: string | null }>>({});
   const [search, setSearch] = useState('');
+  const [shipCost, setShipCost] = useState<string>(() => localStorage.getItem('sales-ship-cost') ?? '');
+  useEffect(() => { localStorage.setItem('sales-ship-cost', shipCost); }, [shipCost]);
+  const shipCostNum = shipCost.trim() === '' || !Number.isFinite(Number(shipCost.replace(',', '.'))) ? null : Number(shipCost.replace(',', '.'));
   const [range0, range1] = periodRange(period, from, to);
 
   const load = useCallback(async () => {
     setLoading(true);
     const [s, r, c] = await Promise.all([
-      supabase.rpc('sales_stats' as any, { _from: range0, _to: range1, _include_shipping: shipping, _channels: channels.length === CHANNELS.length ? null : channels }),
+      supabase.rpc('sales_stats' as any, { _from: range0, _to: range1, _include_shipping: shipping, _channels: channels.length === CHANNELS.length ? null : channels, _ship_cost_per_doc: shipCostNum }),
       supabase.from('erplain_sales_sync_runs' as any).select('*').order('started_at', { ascending: false }).limit(1).maybeSingle(),
       supabase.from('erplain_sales_customers' as any).select('customer_id,channel,commercial_country').range(0, 4999),
     ]);
@@ -63,7 +86,7 @@ export function SalesStatsPage() {
     setRun(r.data);
     setCustomers(Object.fromEntries(((c.data as any[]) ?? []).map((x) => [x.customer_id, x])));
     setLoading(false);
-  }, [range0, range1, shipping, channels]);
+  }, [range0, range1, shipping, channels, shipCostNum]);
   useEffect(() => { load(); }, [load]);
 
   const sync = async (restart = false) => {
@@ -122,6 +145,8 @@ export function SalesStatsPage() {
           {kind === 'customer' && <><TableHead>Canal</TableHead><TableHead>Pays commercial</TableHead></>}
           {kind === 'cc' && <TableHead>Pays par défaut</TableHead>}
           <TableHead className="text-right">CA HT net</TableHead><TableHead className="text-right">Quantités</TableHead>
+          {kind === 'product' && <TableHead className="text-right">Coût unit.</TableHead>}
+          <TableHead className="text-right">Coût vendu</TableHead><TableHead className="text-right">Marge €</TableHead><TableHead className="text-right">Marge %</TableHead><TableHead className="text-right">Couverture coûts</TableHead>
         </TableRow></TableHeader>
         <TableBody>
           {list.map((r) => {
@@ -147,10 +172,12 @@ export function SalesStatsPage() {
                 {kind === 'cc' && <TableCell>{r.default_share != null ? `${Math.round(r.default_share * 100)} %` : '—'}</TableCell>}
                 <TableCell className="text-right tabular-nums">{eur(r.ca_ht)}</TableCell>
                 <TableCell className="text-right tabular-nums">{nb(r.qty)}</TableCell>
+                {kind === 'product' && <TableCell className="text-right tabular-nums">{r.unit_cost == null ? <span className="text-destructive">manquant</span> : eur(r.unit_cost)}</TableCell>}
+                <MarginCell r={r} />
               </TableRow>
             );
           })}
-          {!list.length && <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground">Aucune donnée</TableCell></TableRow>}
+          {!list.length && <TableRow><TableCell colSpan={10} className="text-center text-muted-foreground">Aucune donnée</TableCell></TableRow>}
         </TableBody>
       </Table>
     );
@@ -201,6 +228,39 @@ export function SalesStatsPage() {
         ))}
       </div>
 
+      {stats && (() => {
+        const t = margin(stats.totals); const sh = stats.shipping; const co = stats.costs;
+        const sumCh = (stats.by_channel ?? []).reduce((a, r) => ({ cogs: a.cogs + (r.cogs ?? 0), cov: a.cov + (r.cov_ht ?? 0) }), { cogs: 0, cov: 0 });
+        const recOk = Math.abs(sumCh.cogs - stats.totals.cogs) < 1 && Math.abs(sumCh.cov - stats.totals.cov_ht) < 1;
+        return (
+          <Card>
+            <CardHeader><CardTitle className="text-base">Marge produits (CA produits HT net − coût des produits vendus)</CardTitle></CardHeader>
+            <CardContent className="space-y-3 text-sm">
+              <div className="grid gap-4 md:grid-cols-4">
+                {[['CA produits HT', eur(stats.totals.prod_ht)], ['Coût des produits vendus', eur(stats.totals.cogs)],
+                  [t.estimated ? 'Marge estimée' : 'Marge', `${eur(t.m)} · ${pctf(t.pct)}`], ['Couverture des coûts', pctf(t.coverage)]].map(([l, v]) => (
+                  <div key={l}><p className="text-xs text-muted-foreground">{l}</p><p className="text-xl font-semibold tabular-nums">{v}</p></div>))}
+              </div>
+              {t.incomplete && <p className="text-destructive">Résultat incomplet : {eur(stats.totals.prod_ht - stats.totals.cov_ht)} de CA produits sans coût validé. La marge porte uniquement sur les {eur(stats.totals.cov_ht)} couverts.</p>}
+              {t.estimated && <p className="text-muted-foreground">Marge estimée : {eur(stats.totals.est_ht)} de ventes antérieures à la date de lecture de leur coût — le coût actuel est appliqué à d'anciennes ventes.</p>}
+              <p className="text-xs text-muted-foreground">Coûts : {co.valued} variante(s) avec coût validé dans Production et BE ({Object.entries(co.by_method).map(([k, n]) => `${METHOD_LABEL[k] ?? k} ${n}`).join(', ') || 'aucune méthode'}) · lus dans Erplain du {co.oldest ? new Date(co.oldest).toLocaleDateString('fr-FR') : '—'} au {co.newest ? new Date(co.newest).toLocaleDateString('fr-FR') : '—'}{co.sources.length ? ` · sources : ${co.sources.slice(0, 5).join(' ; ')}` : ''}. Lien par identifiant de variante Erplain uniquement.</p>
+              <p className="text-xs text-muted-foreground">Retours : un avoir avec quantité retire le CA et réintègre le coût (quantité négative × même coût). {stats.reconciliation.credit_no_qty_ht ? `${eur(stats.reconciliation.credit_no_qty_ht)} d'avoirs sans quantité réduisent le CA sans réintégrer de coût.` : ''}</p>
+              <p className={`text-xs ${recOk ? 'text-muted-foreground' : 'text-destructive'}`}>Rapprochement : somme par canal coût {eur(sumCh.cogs)} / CA couvert {eur(sumCh.cov)} {recOk ? '= totaux' : '≠ totaux — à vérifier'}.</p>
+              <div className="border-t pt-3 space-y-1">
+                <p className="font-medium">Transport (hors marge produits)</p>
+                <div className="flex flex-wrap items-center gap-3">
+                  <span>Livraison facturée HT : {eur(sh.billed_ht)} ({sh.docs} document(s))</span>
+                  <span>Coût d'expédition réel : <span className="text-muted-foreground">non disponible dans Erplain</span></span>
+                  <label className="flex items-center gap-2">Coût estimé / facture expédiée <Input className="h-8 w-24" value={shipCost} onChange={(e) => setShipCost(e.target.value)} placeholder="€" /></label>
+                </div>
+                {sh.est_cost != null && <p>Marge transport estimée : {eur(sh.billed_ht)} − {eur(sh.est_cost)} = {eur(sh.billed_ht - sh.est_cost)} <Badge variant="outline">estimé</Badge></p>}
+              </div>
+              {stats.missing_cost.length > 0 && <details className="text-xs"><summary className="cursor-pointer">Produits sans coût ({stats.missing_cost.length})</summary>
+                <ul className="mt-1 space-y-0.5">{stats.missing_cost.map((m) => <li key={m.key + m.reason}>{m.label.trim() || m.key} — {eur(m.ht)} — {m.reason}</li>)}</ul></details>}
+            </CardContent>
+          </Card>);
+      })()}
+
       <Card>
         <CardHeader><CardTitle className="text-base flex items-center gap-2">{warnings.length ? <AlertTriangle className="h-4 w-4 text-destructive" /> : <CheckCircle2 className="h-4 w-4 text-primary" />}Rapprochement avec Erplain</CardTitle></CardHeader>
         <CardContent className="space-y-2 text-sm">
@@ -235,12 +295,15 @@ export function SalesStatsPage() {
       <Tabs defaultValue="customers">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <TabsList>
-            <TabsTrigger value="customers">Clients</TabsTrigger><TabsTrigger value="products">Produits</TabsTrigger>
+            <TabsTrigger value="months">Périodes</TabsTrigger><TabsTrigger value="customers">Clients</TabsTrigger><TabsTrigger value="products">Produits</TabsTrigger>
             <TabsTrigger value="cc">Pays commercial</TabsTrigger><TabsTrigger value="dc">Pays de livraison</TabsTrigger><TabsTrigger value="channels">Canaux</TabsTrigger>
           </TabsList>
           <Input placeholder="Rechercher…" value={search} onChange={(e) => setSearch(e.target.value)} className="w-56" />
         </div>
         <Card className="mt-2"><CardContent className="pt-4">
+          <TabsContent value="months">{table(Object.values((stats?.by_month ?? []).reduce((m: Record<string, Row>, r) => {
+            const o = m[r.month] ?? (m[r.month] = { key: r.month, ca_ht: 0, qty: 0, prod_ht: 0, cogs: 0, cov_ht: 0, est_ht: 0 });
+            o.ca_ht += r.ca_ht; o.qty += r.qty; o.prod_ht! += r.prod_ht; o.cogs! += r.cogs; o.cov_ht! += r.cov_ht; o.est_ht! += r.est_ht; return m; }, {})).sort((a, b) => b.key.localeCompare(a.key)), 'country')}</TabsContent>
           <TabsContent value="customers">{table(stats?.by_customer ?? [], 'customer')}</TabsContent>
           <TabsContent value="products">{table(stats?.by_product ?? [], 'product')}</TabsContent>
           <TabsContent value="cc">{table(stats?.by_commercial_country ?? [], 'cc')}</TabsContent>
