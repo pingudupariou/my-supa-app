@@ -10,7 +10,21 @@ import type { ErplainVariantRow } from './useErplainCatalog';
 
 const eur = (v: number | null | undefined) => (v === null || v === undefined ? '—' : `${v.toFixed(2)} €`);
 
-export function ErplainProducts({ variants }: { variants: ErplainVariantRow[] }) {
+const MFG: Record<string, string> = {
+  zero: 'Aucun coût de fabrication renseigné dans Erplain.',
+  labor_only: 'Inférieur au coût composants : correspond à la fabrication seule (gamme/main d\'œuvre), distinct des composants.',
+  includes_components: 'Égal ou supérieur au coût composants : il semble déjà inclure les composants — jamais additionné.',
+  unknown: 'Signification indéterminable (coût composants incomplet).',
+};
+const CUMP: Record<string, string> = {
+  components: 'Le CUMP du produit fini correspond au coût composants : la fabrication n\'y est pas incluse.',
+  components_plus_mfg: 'Le CUMP du produit fini correspond à coût composants + fabrication : la fabrication est incluse dans unit_cost.',
+  mfg: 'Le CUMP du produit fini correspond au coût de fabrication.',
+  none: 'Le CUMP ne correspond à aucune combinaison. Causes habituelles : CUMP moyenné sur des fabrications/achats passés à d\'autres prix, nomenclature modifiée depuis, produit aussi acheté fini, ajustements de stock ou CUMP non recalculé.',
+  unknown: 'Comparaison impossible (CUMP ou coût composants manquant).',
+};
+
+export function ErplainProducts({ variants, onCostRead }: { variants: ErplainVariantRow[]; onCostRead?: (at: string) => void }) {
   const [search, setSearch] = useState('');
   const [onlyBom, setOnlyBom] = useState(true);
   const [detail, setDetail] = useState<any | null>(null);
@@ -31,7 +45,7 @@ export function ErplainProducts({ variants }: { variants: ErplainVariantRow[] })
     const { data, error } = await supabase.functions.invoke('erplain-sync', { body: { action: 'costflow_variant', variantId: id } });
     setLoadingId(null);
     if (error || data?.status !== 'success') { setError(data?.message || error?.message || 'Lecture Erplain impossible'); return; }
-    setDetail(data);
+    setDetail(data); onCostRead?.(data.readAt);
   };
 
   if (detail) {
@@ -42,17 +56,32 @@ export function ErplainProducts({ variants }: { variants: ErplainVariantRow[] })
         <Card>
           <CardHeader><CardTitle className="text-base">{v.label} <span className="text-muted-foreground font-mono text-sm">{v.sku}</span></CardTitle></CardHeader>
           <CardContent className="grid grid-cols-2 md:grid-cols-5 gap-3 text-sm">
-            <div><p className="text-muted-foreground text-xs">CUMP</p><p className="font-mono-numbers font-medium">{eur(v.unit_cost)}</p></div>
+            <div><p className="text-muted-foreground text-xs">CUMP produit fini</p><p className="font-mono-numbers font-medium">{eur(v.unit_cost)}</p></div>
             <div><p className="text-muted-foreground text-xs">Dernier prix d'achat</p><p className="font-mono-numbers">{eur(v.last_purchased_price)}</p></div>
             <div><p className="text-muted-foreground text-xs">Coût de fabrication</p><p className="font-mono-numbers">{eur(v.unit_manufacturing_cost)}</p></div>
-            <div><p className="text-muted-foreground text-xs">Σ composants (CUMP)</p><p className="font-mono-numbers font-medium">{detail.totals.componentsCump === null ? <span className="text-destructive">Incomplet ({eur(detail.totals.partialCump)} partiel)</span> : eur(detail.totals.componentsCump)}</p></div>
+            <div><p className="text-muted-foreground text-xs">Coût composants</p><p className="font-mono-numbers font-medium">{detail.totals.componentsCump === null ? <span className="text-destructive">Incomplet ({eur(detail.totals.partialCump)} partiel)</span> : eur(detail.totals.componentsCump)}</p></div>
             <div><p className="text-muted-foreground text-xs">Nomenclature</p><p>{detail.bom?.label ?? '—'}</p></div>
           </CardContent>
         </Card>
+        {detail.analysis && (() => { const a = detail.analysis; return (
+          <Card>
+            <CardHeader><CardTitle className="text-sm">Coût de revient complet et comparaison au CUMP</CardTitle></CardHeader>
+            <CardContent className="text-sm space-y-2">
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                <div><p className="text-muted-foreground text-xs">Coût de revient complet</p><p className="font-mono-numbers font-semibold">{a.full === null ? <span className="text-destructive">Non défini</span> : eur(a.full)}</p></div>
+                <div><p className="text-muted-foreground text-xs">Écart CUMP − coût composants</p><p className="font-mono-numbers">{eur(a.gapCump)}</p></div>
+                <div><p className="text-muted-foreground text-xs">Écart CUMP − coût complet</p><p className="font-mono-numbers">{eur(a.gapCumpFull)}</p></div>
+              </div>
+              <p className="text-xs text-muted-foreground"><b>Formule :</b> {a.fullFormula || 'non définie tant que le coût composants est incomplet ou que la nature du coût de fabrication est indéterminée.'}</p>
+              <p className="text-xs"><b>unit_manufacturing_cost :</b> {MFG[a.mfgMeaning]}</p>
+              <p className="text-xs"><b>CUMP :</b> {CUMP[a.cumpMatch]}</p>
+              <p className="text-xs text-muted-foreground">Erplain ne documente pas ces champs : la vérification compare les montants (tolérance 2 %). À confirmer sur plusieurs produits avant d'en faire une règle.</p>
+            </CardContent>
+          </Card>); })()}
         <div className="text-xs text-muted-foreground rounded border p-3 space-y-1">
-          <p>Lu en direct dans Erplain le {new Date(detail.readAt).toLocaleString('fr-FR')} (variante #{v.id}{v.sku ? '' : ', sans SKU'}).</p>
+          <p>Coûts lus en direct dans Erplain le {new Date(detail.readAt).toLocaleString('fr-FR')} (variante #{v.id}{v.sku ? '' : ', sans SKU'}).</p>
           <p><b>Champs :</b> CUMP = <code>unit_cost</code> · dernier prix d'achat = <code>last_purchased_price</code> · coût de fabrication = <code>unit_manufacturing_cost</code> (gamme, affiché à part, jamais ajouté).</p>
-          <p><b>Formule :</b> Σ (quantité × <code>unit_cost</code>) des composants directs de la nomenclature retenue. Un sous-ensemble compte une fois à son propre CUMP ; ses composants sont informatifs. Un coût absent reste « — » : le total est alors marqué incomplet, jamais complété par zéro.</p>
+          <p><b>Coût composants :</b> Σ (quantité × <code>unit_cost</code>) des composants directs de la nomenclature retenue. Un sous-ensemble compte une fois à son propre CUMP ; ses composants sont informatifs. Un coût absent reste « — » : le total est alors marqué incomplet, jamais complété par zéro.</p>
         </div>
         {(detail.warnings.length > 0 || detail.totals.missing > 0) && (
           <div className="text-sm text-destructive flex flex-col gap-1">
