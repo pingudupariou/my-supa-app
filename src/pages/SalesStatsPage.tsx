@@ -371,7 +371,7 @@ export function SalesStatsPage() {
         <div className="flex flex-wrap items-center justify-between gap-2">
           <TabsList>
             <TabsTrigger value="months">Périodes</TabsTrigger><TabsTrigger value="customers">Clients</TabsTrigger><TabsTrigger value="products">Produits</TabsTrigger>
-            <TabsTrigger value="cc">Pays commercial</TabsTrigger><TabsTrigger value="dc">Pays de livraison</TabsTrigger><TabsTrigger value="channels">Canaux</TabsTrigger>
+            <TabsTrigger value="cc">Pays commercial</TabsTrigger><TabsTrigger value="dc">Pays de livraison</TabsTrigger><TabsTrigger value="channels">Canaux</TabsTrigger><TabsTrigger value="breakdown">Canal › pays › produit</TabsTrigger>
           </TabsList>
           <Input placeholder="Rechercher…" value={search} onChange={(e) => setSearch(e.target.value)} className="w-56" />
         </div>
@@ -384,6 +384,7 @@ export function SalesStatsPage() {
           <TabsContent value="cc">{table(stats?.by_commercial_country ?? [], 'cc')}</TabsContent>
           <TabsContent value="dc">{table(stats?.by_delivery_country ?? [], 'country')}</TabsContent>
           <TabsContent value="channels">{table((stats?.by_channel ?? []).map((r) => ({ ...r, label: CH_LABEL[r.key] ?? r.key })), 'country')}</TabsContent>
+          <TabsContent value="breakdown"><Breakdown from={range0} to={range1} search={search} /></TabsContent>
         </CardContent></Card>
       </Tabs>
     </div>
