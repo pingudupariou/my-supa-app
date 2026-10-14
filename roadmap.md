@@ -14,6 +14,8 @@
 - [x] Ajouter « Tout cocher » dans la vue classique des commandes à fabriquer (case à trois états : tout cocher, partiel, tout décocher) — 9 tests réussis, build OK.
 
 ## Phase 2 IA
+- [x] Simplifier la gestion visuelle des catégories du Plan produit et empêcher les nouveaux doublons (3 tests réussis et contrôle visuel sur ventes de test).
+- [ ] Vérifier la gestion des catégories sur un plan réel sauvegardé : session Supabase externe indisponible.
 - [x] Étape A : diagnostic IA + cache
 - [x] Étape B : tâches marketing
 - [ ] Étape C : plans par pays
