@@ -30,6 +30,16 @@ export function SalesBreakdown({ from, to, search }: { from: string; to: string;
     });
     return () => { live = false; };
   }, [from, to]);
+  const [ads, setAds] = useState<any>(null);
+  const [adsErr, setAdsErr] = useState<string | null>(null);
+  useEffect(() => {
+    if (ch !== 'B2C') return;
+    let live = true; setAdsErr(null);
+    supabase.rpc('b2c_ad_margin' as any, { _from: from, _to: to, _include_shipping: false, _ship_cost_per_doc: null }).then(({ data, error }) => {
+      if (!live) return; if (error) setAdsErr(error.message.includes('forbidden') ? 'Accès Marketing Intelligence requis pour voir les dépenses Ads.' : error.message); setAds(data);
+    });
+    return () => { live = false; };
+  }, [ch, from, to]);
   const agg = (rs: BRow[], k: (r: BRow) => string) => Object.values(rs.reduce((m: Record<string, Agg>, r) => {
     const key = k(r); const o = m[key] ?? (m[key] = { key, label: key, ca_ht: 0, qty: 0, prod_ht: 0, cogs: 0, cov_ht: 0, est_ht: 0 });
     o.ca_ht += r.ca_ht; o.qty += r.qty; o.prod_ht += r.prod_ht; o.cogs += r.cogs; o.cov_ht += r.cov_ht; o.est_ht += r.est_ht; return m;
@@ -53,6 +63,24 @@ export function SalesBreakdown({ from, to, search }: { from: string; to: string;
       <div className="flex flex-wrap items-center gap-2"><span className="w-20 text-xs text-muted-foreground">2. Pays livré</span>
         {chip(cc === 'all', () => setCc('all'), 'Tous', countries.reduce((a, r) => a + r.ca_ht, 0))}
         {countries.slice(0, 20).map((r) => chip(cc === r.key, () => setCc(r.key), r.key === '?' ? 'Inconnu' : r.key, r.ca_ht))}</div>
+      {ch === 'B2C' && (() => {
+        const tot = agg(inCc, () => 'x')[0];
+        const before = tot ? tot.cov_ht - tot.cogs : 0;
+        const crow = cc === 'all' ? null : (ads?.by_country ?? []).find((r: any) => r.k === cc);
+        const g = cc === 'all' ? ads?.totals?.google ?? 0 : crow?.google ?? 0, m = cc === 'all' ? ads?.totals?.meta ?? 0 : crow?.meta ?? 0;
+        const inc = tot && Math.abs(tot.prod_ht - tot.cov_ht) > 0.5;
+        const k = (l: string, v: string, s?: string, strong?: boolean) => <div className="rounded-md border p-3"><div className="text-xs text-muted-foreground">{l}</div><div className={`text-lg tabular-nums ${strong ? 'font-semibold' : ''}`}>{v}</div>{s && <div className="text-xs text-muted-foreground">{s}</div>}</div>;
+        return <div className="space-y-1">
+          <div className="grid gap-2 md:grid-cols-4">
+            {k('CA produits HT B2C', eur(tot?.prod_ht ?? 0), tot ? `couverture coûts ${pctf(marginOf(tot).cov)}` : '')}
+            {k('Marge avant Ads', eur(before), tot ? pctf(marginOf(tot).pct) : '')}
+            {k(cc === 'all' ? 'Dépenses Ads (Google + Meta)' : `Ads ciblant ${cc}`, ads ? eur(g + m) : adsErr ? '—' : '…', `Google ${eur(g)} · Meta ${eur(m)}`)}
+            {k('Marge après Ads', ads ? eur(before - g - m) : '—', inc ? 'incomplète : coûts manquants' : before ? pctf((before - g - m) / tot!.cov_ht) : '', true)}
+          </div>
+          {adsErr && <p className="text-xs text-destructive">{adsErr}</p>}
+          <p className="text-xs text-muted-foreground">{cc === 'all' ? 'Toutes les dépenses Google + Meta de la période.' : 'Dépenses dont le pays publicitaire = ce pays de livraison (approximation). Les Ads sans pays connu restent hors pays.'} Valeurs attribuées par Google/Meta non additionnées. Même calcul que « Marge B2C après Ads » dans Marketing Intelligence.</p>
+        </div>;
+      })()}
       {prods.length > 0 && (
         <div className="h-64"><ResponsiveContainer width="100%" height="100%">
           <BarChart data={prods.slice(0, 15).map((p) => ({ n: p.label.slice(0, 20), ca: p.ca_ht, m: marginOf(p).m ?? 0 }))} margin={{ bottom: 50 }}>
