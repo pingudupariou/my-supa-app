@@ -36,12 +36,12 @@ export function ErplainActualsImport({ products, years, onApply }: Props) {
         const { data, error } = await supabase.rpc('sales_breakdown' as any, { _from: `${y}-01-01`, _to: to });
         if (error) throw error;
         for (const r of (data as any[]) ?? []) {
-          const a = map.get(r.key) ?? { key: r.key, label: r.label || r.key, byYear: {}, cogs: 0, cogsQty: 0 };
+          const k = String(r.key ?? r.label ?? 'sans-reference'); const a = map.get(k) ?? { key: k, label: String(r.label || r.key || 'Sans référence'), byYear: {}, cogs: 0, cogsQty: 0 };
           const yy = a.byYear[y] ??= { B2C: { qty: 0, ca: 0 }, B2B: { qty: 0, ca: 0 }, OEM: { qty: 0, ca: 0 } };
           const c = yy[r.channel as Ch]; if (!c) continue;
           c.qty += Number(r.qty) || 0; c.ca += Number(r.prod_ht) || 0;
           if (Number(r.cov_ht) > 0 && Number(r.cogs) > 0) { a.cogs += Number(r.cogs); a.cogsQty += Number(r.qty) || 0; }
-          map.set(r.key, a);
+          map.set(k, a);
         }
       }
       const list = [...map.values()].filter(a => Object.values(a.byYear).some(y => CHS.some(c => y[c].qty > 0)));
@@ -94,7 +94,7 @@ export function ErplainActualsImport({ products, years, onApply }: Props) {
     toast.success(`${chosen.length} produit(s) appliqué(s) au plan`);
   };
 
-  const shown = (rows ?? []).filter(r => r.label.toLowerCase().includes(search.toLowerCase()));
+  const shown = (rows ?? []).filter(r => (r.label ?? '').toLowerCase().includes(search.toLowerCase()));
 
   return (
     <SectionCard title="Réalisé Erplain (années passées et en cours)">
