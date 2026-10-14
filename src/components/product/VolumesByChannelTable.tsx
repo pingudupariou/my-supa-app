@@ -1,3 +1,4 @@
+import { Button } from '@/components/ui/button';
 import { useState } from 'react';
 import { Product, VolumesByChannel } from '@/engine/types';
 import { SectionCard } from '@/components/ui/KPICard';
@@ -44,6 +45,28 @@ export function VolumesByChannelTable({ products, years, onChannelVolumeChange }
         channels[channel][year] = newVol;
       }
     });
+  };
+
+  // Fill only empty years after the last filled year, per product and channel, from that last value
+  const missingCount = products.reduce((n, p) => n + CHANNELS.reduce((m, ch) => {
+    const v = p.volumesByChannel?.[ch] || {};
+    const filled = years.filter(y => (v[y] || 0) > 0);
+    if (!filled.length) return m;
+    const last = filled[filled.length - 1];
+    return m + years.filter(y => y > last && !v[y]).length;
+  }, 0), 0);
+  const extrapolateEmptyYears = () => {
+    products.forEach(p => CHANNELS.forEach(ch => {
+      const v = p.volumesByChannel?.[ch] || {};
+      const filled = years.filter(y => (v[y] || 0) > 0);
+      if (!filled.length) return;
+      const last = filled[filled.length - 1];
+      const base = v[last];
+      const rate = growthRates[ch] / 100;
+      years.filter(y => y > last && !v[y]).forEach(y => {
+        onChannelVolumeChange(p.id, y, ch, Math.round(base * Math.pow(1 + rate, y - last)));
+      });
+    }));
   };
 
   // Compute totals per year per channel (with scenario adjustments)
@@ -98,6 +121,9 @@ export function VolumesByChannelTable({ products, years, onChannelVolumeChange }
         <span className="text-xs text-muted-foreground ml-2">
           Cliquez sur le nom d'un produit pour appliquer la croissance.
         </span>
+        <Button size="sm" variant={missingCount ? 'default' : 'outline'} className="ml-auto h-7 text-xs" disabled={!missingCount} onClick={extrapolateEmptyYears}>
+          {missingCount ? `Extrapoler les années vides (${missingCount})` : 'Toutes les années sont remplies'}
+        </Button>
       </div>
 
       <div className="overflow-x-auto">
