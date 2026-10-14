@@ -186,5 +186,6 @@ export async function costflowVariant(gql: Gql, id: string) {
       children: (sub?.components ?? []).map((sc: any) => ({ id: String(sc.component?.id), sku: sc.component?.sku, label: sc.component?.label, quantity: n(sc.quantity), ...costs(sc.component) })) };
   });
   return { variant: { id: String(v.id), sku: v.sku, label: v.label, type: v.type, product: v.product?.label ?? null, ...costs(v) },
-    bom: b ? { id: String(b.id), label: b.label } : null, lines, warnings, totals: { componentsCump: total, missing } };
+    bom: b ? { id: String(b.id), label: b.label } : null, lines, warnings, totals: { componentsCump: missing ? null : total, partialCump: total, missing },
+    readAt: new Date().toISOString(), live: true, depth };
 }
