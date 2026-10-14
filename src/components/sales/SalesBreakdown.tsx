@@ -102,7 +102,7 @@ export function SalesBreakdown({ from, to, search }: { from: string; to: string;
                 <TableCell className="text-right tabular-nums">{eur(r.cogs)}</TableCell><TableCell className="text-right tabular-nums">{eur(x.m)}{x.est && <span className="text-muted-foreground"> est.</span>}</TableCell>
                 <TableCell className="text-right tabular-nums" title={direct > 0 ? `dont ${eur(direct)} attribués directement` : 'Part estimée au prorata du CA'}>{ads ? eur(spend) : '…'}</TableCell>
                 <TableCell className="text-right tabular-nums">{ads ? eur(after) : '…'}</TableCell>
-                <TableCell className="text-right tabular-nums">{pctf(x.pct)}</TableCell><TableCell className={`text-right tabular-nums ${x.inc ? 'text-destructive' : ''}`}>{pctf(x.cov)}{x.inc ? ' · incomplet' : ''}</TableCell></TableRow>));}</TableBody></Table>
+                <TableCell className="text-right tabular-nums">{pctf(x.pct)}</TableCell><TableCell className={`text-right tabular-nums ${x.inc ? 'text-destructive' : ''}`}>{pctf(x.cov)}{x.inc ? ' · incomplet' : ''}</TableCell></TableRow>))}</TableBody></Table>
         </>);
       })()}
       {(ch !== 'B2C' || cc !== 'all') && (<>
