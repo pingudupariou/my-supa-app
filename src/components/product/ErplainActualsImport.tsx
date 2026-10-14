@@ -23,6 +23,7 @@ export function ErplainActualsImport({ products, years, onApply }: Props) {
   const [loading, setLoading] = useState(false);
   const [rows, setRows] = useState<Agg[] | null>(null);
   const [sel, setSel] = useState<Set<string>>(new Set());
+  const [groupName, setGroupName] = useState('');
   const [project, setProject] = useState(true);
   const [growth, setGrowth] = useState(0);
   const [search, setSearch] = useState('');
@@ -60,9 +61,21 @@ export function ErplainActualsImport({ products, years, onApply }: Props) {
     return 0;
   };
 
-  const apply = () => {
+  const apply = (group?: string) => {
     if (!rows) return;
-    const chosen = rows.filter(r => sel.has(r.key));
+    let chosen = rows.filter(r => sel.has(r.key));
+    if (group) {
+      // Merge selected products: summed volumes/CA → weighted average price and cost for the category.
+      const g: Agg = { key: `cat-${group.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`, label: group, byYear: {}, cogs: 0, cogsQty: 0 };
+      for (const a of chosen) {
+        g.cogs += a.cogs; g.cogsQty += a.cogsQty;
+        for (const [y, v] of Object.entries(a.byYear)) {
+          const t = g.byYear[+y] ??= { B2C: { qty: 0, ca: 0 }, B2B: { qty: 0, ca: 0 }, OEM: { qty: 0, ca: 0 } };
+          for (const c of CHS) { t[c].qty += v[c].qty; t[c].ca += v[c].ca; }
+        }
+      }
+      chosen = [g];
+    }
     let next = [...products];
     for (const a of chosen) {
       const id = `erplain-${a.key}`;
@@ -112,7 +125,11 @@ export function ErplainActualsImport({ products, years, onApply }: Props) {
             <label className="flex items-center gap-2"><Checkbox checked={project} onCheckedChange={v => setProject(!!v)} />Dupliquer sur les années suivantes</label>
             {project && <span className="flex items-center gap-1">croissance <Input type="number" value={growth} onChange={e => setGrowth(Number(e.target.value))} className="h-7 w-16 text-center" step={5} /> %/an</span>}
             <Button size="sm" variant="secondary" onClick={() => setSel(new Set(sel.size ? [] : shown.map(r => r.key)))}>{sel.size ? 'Tout décocher' : 'Tout cocher'}</Button>
-            <Button size="sm" onClick={apply} disabled={!sel.size}>Appliquer au plan ({sel.size})</Button>
+            <Button size="sm" onClick={() => apply()} disabled={!sel.size}>Appliquer au plan ({sel.size})</Button>
+            <span className="flex items-center gap-1 border-l pl-3">
+              <Input placeholder="Nom de catégorie…" value={groupName} onChange={e => setGroupName(e.target.value)} className="h-8 w-44" />
+              <Button size="sm" variant="outline" disabled={sel.size < 2 || !groupName.trim()} onClick={() => apply(groupName.trim())}>Regrouper en 1 ligne ({sel.size})</Button>
+            </span>
           </div>
           <div className="overflow-x-auto max-h-[480px]">
             <Table>
