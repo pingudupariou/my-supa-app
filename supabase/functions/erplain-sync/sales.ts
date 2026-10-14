@@ -94,13 +94,13 @@ function toRows(d: any, docType: string, runId: string) {
     const ship = SHIP_RX.test(String(l.type ?? "")) || (!l.variant?.id && SHIP_RX.test(String(l.label ?? "")));
     return { id: `${id}:${l.id}`, document_id: id, variant_id: l.variant?.id != null ? String(l.variant.id) : null, sku: l.sku ?? l.variant?.sku ?? null,
       label: l.label ?? l.variant?.label ?? null, line_type: l.type != null ? String(l.type) : null, is_shipping: ship,
-      quantity: ship ? null : (num(l.quantity) ?? 0) * sign, raw_total: raw };
+      quantity: ship ? null : Math.abs(num(l.quantity) ?? 0) * sign, raw_total: raw };
   });
   const docShip = num(d.shipping_cost) ?? num(d.shipping_amount) ?? num(d.total_shipping) ?? num(d.shipping_price);
   if (docShip && !lines.some((l: any) => l.is_shipping)) lines.push({ id: `${id}:ship`, document_id: id, variant_id: null, sku: null, label: "Livraison facturée", line_type: "document_shipping", is_shipping: true, quantity: null, raw_total: docShip });
   const rawSum = lines.reduce((s: number, l: any) => s + (l.raw_total ?? 0), 0);
   // Lines are scaled so that their sum equals the document HT total (discounts and line taxes spread pro rata).
-  const factor = ht !== null && rawSum ? Math.abs(ht) / rawSum : null;
+  const factor = ht !== null && rawSum ? Math.abs(ht) / Math.abs(rawSum) * (rawSum < 0 ? -1 : 1) : null;
   for (const l of lines as any[]) l.amount_ht = factor !== null ? r2((l.raw_total ?? 0) * factor * sign) : null;
   if (ht !== null) ht = r2(Math.abs(ht) * sign);
   const shipHt = lines.filter((l: any) => l.is_shipping).reduce((s: number, l: any) => s + (l.amount_ht ?? 0), 0);
