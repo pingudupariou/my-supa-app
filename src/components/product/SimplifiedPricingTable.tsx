@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { formatCurrency } from '@/data/financialConfig';
-import { Plus, Trash2, ChevronDown, ChevronRight, MessageSquare, CheckCircle2, Clock } from 'lucide-react';
+import { Trash2, ChevronDown, ChevronRight, MessageSquare, CheckCircle2, Clock } from 'lucide-react';
 import { useMemo } from 'react';
 import { cn } from '@/lib/utils';
 import { ManualPlanProductDialog } from './ManualPlanProductDialog';
@@ -38,30 +38,6 @@ export function SimplifiedPricingTable({ products, categories, onUpdateProduct, 
       next.has(catId) ? next.delete(catId) : next.add(catId);
       return next;
     });
-  };
-
-  const handleAdd = () => {
-    const newProduct: Product = {
-      id: `product-${Date.now()}`,
-      name: 'Nouveau Produit',
-      category: 'B2C',
-      launchYear: 2026,
-      devCost: 100000,
-      devAmortizationYears: 5,
-      unitCost: 200,
-      priceHT: 500,
-      priceTTC_B2C: 600,
-      priceHT_B2B: 300,
-      priceHT_OEM: 220,
-      vatRate: 0.20,
-      coef_shop: 1.8,
-      coef_dist: 1.4,
-      coef_oem: 1.5,
-      volumesByYear: {},
-      productComment: '',
-      productStatus: 'standby',
-    };
-    onAddProduct(newProduct);
   };
 
   const sortedCategories = useMemo(() =>

@@ -205,7 +205,7 @@ export function ErplainActualsImport({ products, years, onApply, onSave }: Props
             {CHS.map(ch => <div key={ch}><div className="text-xs text-muted-foreground">{ch} · prix HT</div><div className="font-medium mt-1">{formatCurrency(ch === 'B2C' ? c.priceHT : ch === 'B2B' ? c.priceHT_B2B : c.priceHT_OEM)}</div></div>)}
           </div>
           <div className="flex justify-between gap-2 text-xs border-t mt-3 pt-3"><span className="text-muted-foreground">Volume {viewYear}</span><span className="font-medium">{c.volumesByYear[viewYear] ?? 0}</span></div>
-          <Button size="sm" variant="ghost" className="mt-2 w-full justify-between" onClick={() => toggleExpanded(c.id)} aria-expanded={expanded.has(c.id)}>Produits de la catégorie{expanded.has(c.id) ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}</Button>
+          <Button size="sm" variant="ghost" className="mt-2 w-full justify-between" onClick={() => { toggleExpanded(c.id); if (!expanded.has(c.id) && c.erplainMembers?.some(key => !candidates.has(key)) && !loading) void load(); }} aria-expanded={expanded.has(c.id)}>Produits de la catégorie{expanded.has(c.id) ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}</Button>
           <Button size="sm" variant="outline" className="mt-2 w-full" onClick={() => openEditor(c)}><Plus className="h-4 w-4 mr-2" />Ajouter des produits</Button>
           {expanded.has(c.id) && <ul className="mt-2 space-y-2 border-t pt-3 text-xs">{[...new Set(c.erplainMembers ?? [])].map(key => <li key={key} className="break-words">{memberName(key)}</li>)}</ul>}
         </div>)}

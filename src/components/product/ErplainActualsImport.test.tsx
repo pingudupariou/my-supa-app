@@ -27,6 +27,43 @@ describe('Plan category uniqueness', () => {
     expect(() => replacePlanCategory([existing], product('two', 'Autre', ['a']))).toThrow('autre catégorie');
     expect(() => replacePlanCategory([existing], product('two', ' ceramique ', ['b']))).toThrow('ce nom');
   });
+  it('creates a manual product, adds it to a saved category, keeps names after remount and removes individual products', async () => {
+    let latest: Product[] = [];
+    const red = product('erplain-a', 'Galets rouges');
+    const initial = { ...product('erplain-cat-one', 'Galets', ['a']), erplainMemberProducts: [red] };
+    function Harness({ initialProducts = [initial] }: { initialProducts?: Product[] }) {
+      const [products, setProducts] = useState<Product[]>(initialProducts);
+      latest = products;
+      return <ErplainActualsImport products={products} years={[year, year + 1]} onApply={setProducts} />;
+    }
+    const rendered = render(<Harness />);
+    fireEvent.click(screen.getByRole('button', { name: 'Nouveau produit manuel' }));
+    fireEvent.change(screen.getByRole('textbox', { name: 'Nom du nouveau produit' }), { target: { value: 'Nouveau galet' } });
+    fireEvent.change(screen.getByRole('spinbutton', { name: 'Prix B2C HT' }), { target: { value: '50' } });
+    fireEvent.change(screen.getByRole('spinbutton', { name: 'Volume B2C initial' }), { target: { value: '20' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Créer le produit', exact: true }));
+    expect(latest).toHaveLength(2);
+    fireEvent.click(screen.getByRole('button', { name: 'Ajouter des produits' }));
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Inclure Nouveau galet' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Enregistrer les modifications' }));
+    expect(latest).toHaveLength(1);
+    expect(latest[0].volumesByYear[year]).toBe(30);
+    expect(latest[0].priceHT).toBe(66.67);
+    const saved = JSON.parse(JSON.stringify(latest));
+    rendered.unmount();
+    render(<Harness initialProducts={[...saved, product('manual-other', 'À retirer')]} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Produits de la catégorie' }));
+    expect(screen.getByText('Galets rouges')).toBeInTheDocument();
+    expect(screen.getByText('Nouveau galet')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Retirer À retirer du plan' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Retirer du plan', exact: true }));
+    expect(latest).toHaveLength(1);
+    fireEvent.click(screen.getByRole('button', { name: 'Ajouter des produits' }));
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Inclure Nouveau galet' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Enregistrer les modifications' }));
+    expect(latest[0].erplainMembers).toEqual(['a']);
+    expect(latest[0].volumesByYear[year]).toBe(10);
+  });
   it('creates, edits, removes members, and deletes a category without duplicate rows', async () => {
     let latest: Product[] = [];
     const save = vi.fn();
