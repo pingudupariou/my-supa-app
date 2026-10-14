@@ -3,7 +3,7 @@ import { ProductPlanningGantt } from '@/components/costflow/ProductPlanningGantt
 
 export function PlanningDevPage() {
   return (
-    <ReadOnlyWrapper tabKey="costflow">
+    <ReadOnlyWrapper tabKey="planning-dev">
       <div className="space-y-6">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Planning Développement</h1>

@@ -332,10 +332,12 @@ export function FinancialProvider({ children }: { children: ReactNode }) {
     if (!user || cloudLoaded) return;
     (async () => {
       try {
+        // The plan is shared by the whole team: load the most recently saved version, whoever saved it.
         const { data } = await supabase
           .from('financial_scenarios')
           .select('state_data')
-          .eq('user_id', user.id)
+          .order('updated_at', { ascending: false })
+          .limit(1)
           .maybeSingle();
         if (data?.state_data) {
           const cloudState = data.state_data as unknown as FinancialState;
