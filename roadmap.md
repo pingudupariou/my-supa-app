@@ -26,6 +26,8 @@
 - [x] Onglet Catalogue publicitaire : regroupement famille/modèle/couleur/variante, filtres, sélections fixes/dynamiques, non identifiées + correction manuelle, analyse des refus par pays
 
 ## Copilote Google Ads
+- [x] Ajouter au Pilotage les tendances, comparaisons de campagnes et historiques de budget/ROAS issus des données importées, sans appel IA ni écriture Google (5 tests et contrôle visuel sur données de test).
+- [ ] Vérifier les graphiques Pilotage avec les propositions et données réelles (session Supabase externe indisponible).
 - [x] Étape 1 : audit de structure en lecture seule (lecture nocturne + onglet Audit)
 - [x] Étape 2 : Copilote stratégique IA (onglet Stratégie IA)
 - [ ] Tester une analyse stratégique réelle (attend un lancement depuis un compte connecté)
