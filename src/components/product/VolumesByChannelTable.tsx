@@ -1,3 +1,4 @@
+import { Button } from '@/components/ui/button';
 import { useState } from 'react';
 import { Product, VolumesByChannel } from '@/engine/types';
 import { SectionCard } from '@/components/ui/KPICard';
@@ -13,11 +14,12 @@ interface Props {
   products: Product[];
   years: number[];
   onChannelVolumeChange: (productId: string, year: number, channel: 'B2C' | 'B2B' | 'OEM', volume: number) => void;
+  onBulkChannelVolumes?: (changes: { productId: string; year: number; channel: 'B2C' | 'B2B' | 'OEM'; volume: number }[]) => void;
 }
 
 const CHANNELS = ['B2C', 'B2B', 'OEM'] as const;
 
-export function VolumesByChannelTable({ products, years, onChannelVolumeChange }: Props) {
+export function VolumesByChannelTable({ products, years, onChannelVolumeChange, onBulkChannelVolumes }: Props) {
   const { state } = useFinancial();
   const config = state.scenarioConfigs[state.activeScenarioId];
   const volAdj = 1 + config.volumeAdjustment;
@@ -44,6 +46,31 @@ export function VolumesByChannelTable({ products, years, onChannelVolumeChange }
         channels[channel][year] = newVol;
       }
     });
+  };
+
+  // Fill only empty years after the last filled year, per product and channel, from that last value
+  const missingCount = products.reduce((n, p) => n + CHANNELS.reduce((m, ch) => {
+    const v = p.volumesByChannel?.[ch] || {};
+    const filled = years.filter(y => (v[y] || 0) > 0);
+    if (!filled.length) return m;
+    const last = filled[filled.length - 1];
+    return m + years.filter(y => y > last && !v[y]).length;
+  }, 0), 0);
+  const extrapolateEmptyYears = () => {
+    const changes: { productId: string; year: number; channel: 'B2C' | 'B2B' | 'OEM'; volume: number }[] = [];
+    products.forEach(p => CHANNELS.forEach(ch => {
+      const v = p.volumesByChannel?.[ch] || {};
+      const filled = years.filter(y => (v[y] || 0) > 0);
+      if (!filled.length) return;
+      const last = filled[filled.length - 1];
+      const base = v[last];
+      const rate = growthRates[ch] / 100;
+      years.filter(y => y > last && !v[y]).forEach(y => {
+        changes.push({ productId: p.id, year: y, channel: ch, volume: Math.round(base * Math.pow(1 + rate, y - last)) });
+      });
+    }));
+    if (onBulkChannelVolumes) onBulkChannelVolumes(changes);
+    else changes.forEach(c => onChannelVolumeChange(c.productId, c.year, c.channel, c.volume));
   };
 
   // Compute totals per year per channel (with scenario adjustments)
@@ -98,6 +125,9 @@ export function VolumesByChannelTable({ products, years, onChannelVolumeChange }
         <span className="text-xs text-muted-foreground ml-2">
           Cliquez sur le nom d'un produit pour appliquer la croissance.
         </span>
+        <Button size="sm" variant={missingCount ? 'default' : 'outline'} className="ml-auto h-7 text-xs" disabled={!missingCount} onClick={extrapolateEmptyYears}>
+          {missingCount ? `Extrapoler les années vides (${missingCount})` : 'Toutes les années sont remplies'}
+        </Button>
       </div>
 
       <div className="overflow-x-auto">
