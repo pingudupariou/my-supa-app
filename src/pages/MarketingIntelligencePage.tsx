@@ -1,3 +1,4 @@
+import { B2CAdMargin } from '@/components/marketing/margin/B2CAdMargin';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
@@ -545,6 +546,7 @@ export function MarketingIntelligencePage() {
       <Tabs value={tab} onValueChange={setTab}>
         <TabsList className="h-auto flex-wrap">
           <TabsTrigger value="cockpit" data-readonly-allow>Cockpit</TabsTrigger>
+          <TabsTrigger value="b2c-margin" data-readonly-allow>Marge B2C après Ads</TabsTrigger>
           <TabsTrigger value="tasks" data-readonly-allow>Tâches</TabsTrigger>
           <TabsTrigger value="strategy" data-readonly-allow>Stratégie IA</TabsTrigger>
           <TabsTrigger value="gads-audit" data-readonly-allow>Audit Google Ads</TabsTrigger>
@@ -557,6 +559,7 @@ export function MarketingIntelligencePage() {
           <TabsTrigger value="ai" data-readonly-allow>Assistant IA</TabsTrigger>
         </TabsList>
         <TabsContent value="cockpit"><MarketingCockpit canWrite={access === 'write'} /></TabsContent>
+        <TabsContent value="b2c-margin">{tab === 'b2c-margin' && <B2CAdMargin />}</TabsContent>
         <TabsContent value="tasks"><MarketingTasks canWrite={access === 'write'} /></TabsContent>
         <TabsContent value="strategy"><AiStrategy canWrite={access === 'write'} /></TabsContent>
         <TabsContent value="gads-audit"><GoogleAdsAudit canWrite={access === 'write'} /></TabsContent>
