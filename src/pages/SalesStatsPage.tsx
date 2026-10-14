@@ -53,7 +53,8 @@ function periodRange(p: string, from: string, to: string): [string, string] {
   if (p === 'custom') return [from || '2000-01-01', to || iso(now)];
   if (p === 'all') return ['2000-01-01', iso(now)];
   if (p === 'ytd') return [`${now.getFullYear()}-01-01`, iso(now)];
-  const d = new Date(now); d.setMonth(d.getMonth() - Number(p));
+  const d = new Date(now);
+  if (p.startsWith('d')) d.setDate(d.getDate() - Number(p.slice(1))); else d.setMonth(d.getMonth() - Number(p));
   return [iso(d), iso(now)];
 }
 
@@ -281,7 +282,7 @@ export function SalesStatsPage() {
         <div className="space-y-1"><span className="text-xs text-muted-foreground">Période</span>
           <Select value={period} onValueChange={setPeriod}>
             <SelectTrigger className="w-44"><SelectValue /></SelectTrigger>
-            <SelectContent><SelectItem value="3">3 derniers mois</SelectItem><SelectItem value="12">12 derniers mois</SelectItem><SelectItem value="24">24 derniers mois</SelectItem><SelectItem value="ytd">Année en cours</SelectItem><SelectItem value="all">Tout l'historique</SelectItem><SelectItem value="custom">Personnalisée</SelectItem></SelectContent>
+            <SelectContent><SelectItem value="d7">7 derniers jours</SelectItem><SelectItem value="d30">30 derniers jours</SelectItem><SelectItem value="d90">90 derniers jours</SelectItem><SelectItem value="3">3 derniers mois</SelectItem><SelectItem value="12">12 derniers mois</SelectItem><SelectItem value="24">24 derniers mois</SelectItem><SelectItem value="ytd">Année en cours</SelectItem><SelectItem value="all">Tout l'historique</SelectItem><SelectItem value="custom">Personnalisée</SelectItem></SelectContent>
           </Select></div>
         {period === 'custom' && <>
           <div className="space-y-1"><span className="text-xs text-muted-foreground">Du</span><Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="w-40" /></div>
