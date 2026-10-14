@@ -4,7 +4,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { DATASETS, FILTER_TYPES, makeGql, pageQuery, whereColumns, ordersWithCustomer } from "./erplain.ts";
 import { computePlan, moPayload } from "./plan.ts";
-import { costflowPreview, costflowCatalog, costflowVariant } from "./costflow.ts";
+import { costflowPreview, costflowCatalog, costflowVariant, costByMethod } from "./costflow.ts";
 import { salesSync } from "./sales.ts";
 
 const DEFAULT_ENDPOINT = "https://api.erplain.app/graphql";
@@ -470,21 +470,29 @@ Deno.serve(async (req) => {
         const end = Date.now() + 45000;
         const g = makeGql(tk3, rr?.data?.endpoint ?? DEFAULT_ENDPOINT, Date.now() + 100000, () => {});
         let existing = new Set<string>();
-        if (b.keepExisting) { const { data: ex } = await admin.from("costflow_cost_methods").select("variant_id").in("variant_id", ids); existing = new Set((ex ?? []).map((x: any) => x.variant_id)); }
-        const done: string[] = []; const res = { ok: 0, missing: 0, skipped: 0, errors: 0 };
+        // Only rows with a successful snapshot (ok/missing) are kept; failed reads ("error") or never-read rows are retried.
+        if (b.keepExisting) { const { data: ex } = await admin.from("costflow_cost_methods").select("variant_id,cost_status").in("variant_id", ids); existing = new Set((ex ?? []).filter((x: any) => x.cost_status === "ok" || x.cost_status === "missing").map((x: any) => x.variant_id)); }
+        const done: string[] = []; const res = { ok: 0, missing: 0, skipped: 0, errors: 0 }; let lastError: string | null = null; let timedOut = false;
         for (const vid of ids) {
           if (Date.now() > end) break;
-          done.push(vid);
-          if (existing.has(vid)) { res.skipped++; continue; }
+          if (existing.has(vid)) { done.push(vid); res.skipped++; continue; }
           try {
-            await admin.from("costflow_cost_methods").upsert({ variant_id: vid, method, source, set_by: claims.claims.sub });
-            const snap = await costflowVariant(g, vid, admin); const c = snap.analysis.cost;
-            await admin.from("costflow_cost_methods").update({ unit_cost: c.value, cost_status: c.status, cost_formula: c.formula, cost_read_at: snap.readAt,
-              variant_label: [snap.variant.sku, snap.variant.label].filter(Boolean).join(" ").slice(0, 200) }).eq("variant_id", vid);
+            const snap = await costflowVariant(g, vid, admin);
+            const c = costByMethod(method, snap.totals.componentsCump, snap.variant.unit_cost, snap.variant.unit_manufacturing_cost);
+            const { error: ue } = await admin.from("costflow_cost_methods").upsert({ variant_id: vid, method, source, set_by: claims.claims.sub, unit_cost: c.value, cost_status: c.status, cost_formula: c.formula, cost_read_at: snap.readAt,
+              variant_label: [snap.variant.sku, snap.variant.label].filter(Boolean).join(" ").slice(0, 200) });
+            if (ue) throw new Error(ue.message);
+            done.push(vid);
             if (c.status === "ok") res.ok++; else res.missing++;
-          } catch { res.errors++; await admin.from("costflow_cost_methods").update({ unit_cost: null, cost_status: "error", cost_formula: "Lecture Erplain impossible" }).eq("variant_id", vid); }
+          } catch (e) {
+            const msg = String((e as Error).message).slice(0, 300);
+            // Time budget / rate limit: not this variant's fault — leave it for the next chunk.
+            if (/Délai d'exécution|429/.test(msg)) { timedOut = true; break; }
+            done.push(vid); res.errors++; lastError = msg;
+            await admin.from("costflow_cost_methods").upsert({ variant_id: vid, method, source, set_by: claims.claims.sub, unit_cost: null, cost_status: "error", cost_formula: `Lecture Erplain impossible : ${msg}` });
+          }
         }
-        return json({ status: "success", done, ...res });
+        return json({ status: "success", done, ...res, lastError, timedOut });
       }
       if (peekAction === "costflow_set_method") {
         if (cf !== "write") return json({ error: "Forbidden" }, 403);
