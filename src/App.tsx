@@ -20,6 +20,7 @@ import { AuthPage } from "@/pages/AuthPage";
 import { PendingApprovalPage } from "@/pages/PendingApprovalPage";
 import { PermissionsPage } from "@/pages/PermissionsPage";
 import { CostFlowPage } from "@/pages/CostFlowPage";
+import { SalesStatsPage } from "@/pages/SalesStatsPage";
 import { TimeTrackingPage } from "@/pages/TimeTrackingPage";
 import { SnapshotsPage } from "@/pages/SnapshotsPage";
 import { PricingPage } from "@/pages/PricingPage";
@@ -160,6 +161,13 @@ const App = () => (
               </ProtectedRoute>
               } />
               
+              <Route path="/statistiques-commerciales" element={
+                <ProtectedRoute tabKey="sales-stats">
+                  <DashboardLayout>
+                    <SalesStatsPage />
+                  </DashboardLayout>
+                </ProtectedRoute>
+              } />
               <Route path="/plan-atelier" element={
                 <ProtectedRoute tabKey="plan-atelier">
                   <DashboardLayout>

@@ -53,6 +53,7 @@ const navGroups: NavGroup[] = [
       { to: '/pricing', label: 'Pricing', icon: Tag, tabKey: 'pricing' },
       { to: '/costflow', label: 'Production et BE', icon: Cog, tabKey: 'costflow' },
       { to: '/plan-atelier', label: 'Plan atelier', icon: Factory, tabKey: 'plan-atelier' },
+      { to: '/statistiques-commerciales', label: 'Statistiques commerciales', icon: BarChart3, tabKey: 'sales-stats' },
       { to: '/marketing-intelligence', label: 'Marketing Intelligence', icon: Megaphone, tabKey: 'marketing-intelligence' },
       { to: '/planning-dev', label: 'Planning Dev', icon: CalendarRange, tabKey: 'planning-dev' },
       { to: '/timetracking', label: "Suivi d'activité", icon: Clock, tabKey: 'timetracking' },
