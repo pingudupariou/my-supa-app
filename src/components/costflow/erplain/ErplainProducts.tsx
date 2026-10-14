@@ -45,10 +45,15 @@ export function ErplainProducts({ variants }: { variants: ErplainVariantRow[] })
             <div><p className="text-muted-foreground text-xs">CUMP</p><p className="font-mono-numbers font-medium">{eur(v.unit_cost)}</p></div>
             <div><p className="text-muted-foreground text-xs">Dernier prix d'achat</p><p className="font-mono-numbers">{eur(v.last_purchased_price)}</p></div>
             <div><p className="text-muted-foreground text-xs">Coût de fabrication</p><p className="font-mono-numbers">{eur(v.unit_manufacturing_cost)}</p></div>
-            <div><p className="text-muted-foreground text-xs">Σ composants (CUMP)</p><p className="font-mono-numbers font-medium">{eur(detail.totals.componentsCump)}</p></div>
+            <div><p className="text-muted-foreground text-xs">Σ composants (CUMP)</p><p className="font-mono-numbers font-medium">{detail.totals.componentsCump === null ? <span className="text-destructive">Incomplet ({eur(detail.totals.partialCump)} partiel)</span> : eur(detail.totals.componentsCump)}</p></div>
             <div><p className="text-muted-foreground text-xs">Nomenclature</p><p>{detail.bom?.label ?? '—'}</p></div>
           </CardContent>
         </Card>
+        <div className="text-xs text-muted-foreground rounded border p-3 space-y-1">
+          <p>Lu en direct dans Erplain le {new Date(detail.readAt).toLocaleString('fr-FR')} (variante #{v.id}{v.sku ? '' : ', sans SKU'}).</p>
+          <p><b>Champs :</b> CUMP = <code>unit_cost</code> · dernier prix d'achat = <code>last_purchased_price</code> · coût de fabrication = <code>unit_manufacturing_cost</code> (gamme, affiché à part, jamais ajouté).</p>
+          <p><b>Formule :</b> Σ (quantité × <code>unit_cost</code>) des composants directs de la nomenclature retenue. Un sous-ensemble compte une fois à son propre CUMP ; ses composants sont informatifs. Un coût absent reste « — » : le total est alors marqué incomplet, jamais complété par zéro.</p>
+        </div>
         {(detail.warnings.length > 0 || detail.totals.missing > 0) && (
           <div className="text-sm text-destructive flex flex-col gap-1">
             {detail.warnings.map((w: string) => <span key={w} className="flex gap-1 items-center"><AlertTriangle className="h-4 w-4" />{w}</span>)}
