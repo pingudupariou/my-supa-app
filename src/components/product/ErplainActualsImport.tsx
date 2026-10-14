@@ -26,7 +26,7 @@ export function ErplainActualsImport({ products, years, onApply, onSave }: Props
   const futureYears = years.filter(y => y > thisYear);
   // Sales years are independent of the plan start: the reference year can precede it.
   const salesYears = [...new Set([...Array.from({ length: 5 }, (_, i) => thisYear - 4 + i), ...pastYears])].sort((a, b) => a - b);
-  const [priceYear, setPriceYear] = useState(thisYear - 1);
+  const [priceYear, setPriceYear] = useState(pastYears[pastYears.length - 1] ?? thisYear - 1);
   const [loading, setLoading] = useState(false);
   const [rows, setRows] = useState<Agg[] | null>(null);
   const [sel, setSel] = useState<Set<string>>(new Set());
@@ -35,7 +35,7 @@ export function ErplainActualsImport({ products, years, onApply, onSave }: Props
   const [memberSearch, setMemberSearch] = useState('');
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [deleteId, setDeleteId] = useState<string | null>(null);
-  const [viewYear, setViewYear] = useState(thisYear - 1);
+  const [viewYear, setViewYear] = useState(pastYears[pastYears.length - 1] ?? thisYear - 1);
   const [formError, setFormError] = useState('');
   const [project, setProject] = useState(true);
   const [growth, setGrowth] = useState(0);
