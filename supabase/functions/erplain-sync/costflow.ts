@@ -191,7 +191,7 @@ export async function costflowVariant(gql: Gql, id: string, admin?: any) {
       children: (sub?.components ?? []).map((sc: any) => ({ id: String(sc.component?.id), sku: sc.component?.sku, label: sc.component?.label, quantity: n(sc.quantity), ...costs(sc.component) })) };
   });
   const vc = costs(v);
-  const { data: m } = admin ? await admin.from("costflow_cost_methods").select("method,source,set_by,updated_at").eq("variant_id", String(v.id)).maybeSingle() : { data: null };
+  const { data: m } = admin ? await admin.from("costflow_cost_methods").select("method,source,set_by,updated_at,unit_cost,cost_status,cost_read_at").eq("variant_id", String(v.id)).maybeSingle() : { data: null };
   const comp = missing ? null : total;
   const analysis = { method: m ?? null, cost: costByMethod(m?.method ?? null, comp, vc.unit_cost, vc.unit_manufacturing_cost),
     gapCump: vc.unit_cost !== null && comp !== null ? vc.unit_cost - comp : null };

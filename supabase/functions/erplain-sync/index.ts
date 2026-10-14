@@ -464,8 +464,19 @@ Deno.serve(async (req) => {
         if (method === null) { await admin.from("costflow_cost_methods").delete().eq("variant_id", vid); return json({ status: "success" }); }
         if (!["cump_finished", "components_plus_mfg", "confirmed_full"].includes(method)) return json({ status: "api_error", message: "Méthode inconnue." }, 400);
         if (source.length < 3) return json({ status: "api_error", message: "Indiquez la source qui documente cette méthode." }, 400);
-        const { error } = await admin.from("costflow_cost_methods").upsert({ variant_id: vid, method, source, set_by: claims.claims.sub });
-        return json(error ? { status: "api_error", message: error.message } : { status: "success" });
+        // Snapshot the cost per the chosen method from a live Erplain read, so sales margins use the validated value, its formula and read date.
+        const tk2 = Deno.env.get("ERPLAIN_API_TOKEN");
+        if (!tk2) return json({ status: "config_error", message: "Secret ERPLAIN_API_TOKEN absent côté serveur." });
+        const { data: rr } = await admin.from("erplain_schema_cache").select("data").eq("type_name", "__root").maybeSingle();
+        let snap: any;
+        try {
+          await admin.from("costflow_cost_methods").upsert({ variant_id: vid, method, source, set_by: claims.claims.sub });
+          snap = await costflowVariant(makeGql(tk2, rr?.data?.endpoint ?? DEFAULT_ENDPOINT, Date.now() + 100000, () => {}), vid, admin);
+        } catch (e) { return json({ status: "api_error", message: String((e as Error).message).slice(0, 400) }); }
+        const c = snap.analysis.cost;
+        const { error } = await admin.from("costflow_cost_methods").update({ unit_cost: c.value, cost_status: c.status, cost_formula: c.formula, cost_read_at: snap.readAt,
+          variant_label: [snap.variant.sku, snap.variant.label].filter(Boolean).join(" ").slice(0, 200) }).eq("variant_id", vid);
+        return json(error ? { status: "api_error", message: error.message } : { status: "success", cost: c, readAt: snap.readAt });
       }
       if (peekAction === "costflow_catalog") {
         try { return json({ status: "success", ...(await costflowCatalog(admin)) }); }
