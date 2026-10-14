@@ -8,10 +8,15 @@ export interface ErplainVariantRow {
   bomCount: number; bom: { id: string; label: string | null; components: number } | null; usedIn: number;
 }
 
+export interface BomStatus { complete: boolean; runStatus: string | null; finishedAt: string | null; ambiguousParents: number }
+
 /** Erplain-only catalog (last sync of stock + BOMs). No dependency on manual CostFlow tables. */
 export function useErplainCatalog() {
   const [variants, setVariants] = useState<ErplainVariantRow[]>([]);
   const [synced, setSynced] = useState<{ stock: string | null; bom: string | null }>({ stock: null, bom: null });
+  const [edges, setEdges] = useState<[string, string, number][]>([]);
+  const [bomStatus, setBomStatus] = useState<BomStatus | null>(null);
+  const [readAt, setReadAt] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -22,8 +27,9 @@ export function useErplainCatalog() {
     if (error || data?.status !== 'success') { setError(data?.message || data?.error || error?.message || 'Lecture Erplain impossible'); return; }
     setVariants(data.variants ?? []);
     setSynced({ stock: data.syncedStock, bom: data.syncedBom });
+    setEdges(data.edges ?? []); setBomStatus(data.bomStatus ?? null); setReadAt(data.readAt ?? null);
   }, []);
 
   useEffect(() => { load(); }, [load]);
-  return { variants, synced, loading, error, reload: load };
+  return { variants, synced, edges, bomStatus, readAt, loading, error, reload: load };
 }

@@ -146,13 +146,23 @@ export async function costflowCatalog(admin: any) {
     const k = String(b.variant_id); byVariant.set(k, [...(byVariant.get(k) ?? []), b]);
     for (const c of b.active !== false ? b.components ?? [] : []) if (c.component_id) get(String(c.component_id), c.sku, c.label).usedIn++;
   }
+  // Where-used edges: only the retained BOM of each parent (default, or the single active one) — alternatives never add up.
+  const edges: [string, string, number][] = [];
+  let ambiguousParents = 0;
   for (const [k, list] of byVariant) {
     const v = get(k, list[0].sku, list[0].variant_label);
     v.bomCount = list.filter((b) => b.active !== false).length;
     const b = pickBom(list);
     v.bom = b ? { id: String(b.id), label: b.label, components: (b.components ?? []).length } : null;
+    if (!b && v.bomCount > 1) ambiguousParents++;
+    for (const c of b?.components ?? []) if (c.component_id != null) edges.push([k, String(c.component_id), n(c.quantity) ?? 0]);
   }
-  return { variants: [...map.values()], syncedStock, syncedBom };
+  // BOM list is complete only if the last run that read BOMs (full or "bom" mode) finished — it then deleted stale rows.
+  const { data: runs } = await admin.from("erplain_sync_runs").select("status,finished_at,cursor").in("status", ["completed", "failed", "running"])
+    .order("started_at", { ascending: false }).limit(50);
+  const bomRun = (runs ?? []).find((r: any) => !r.cursor?.quick && (!r.cursor?.mode || r.cursor?.mode === "bom")) ?? null;
+  const bomStatus = { complete: bomRun?.status === "completed", runStatus: bomRun?.status ?? null, finishedAt: bomRun?.finished_at ?? null, ambiguousParents };
+  return { variants: [...map.values()], syncedStock, syncedBom, edges, bomStatus, readAt: new Date().toISOString() };
 }
 
 // Live read of one variant: Erplain costs + BOM; sub-assemblies counted once at their own CUMP.
@@ -176,5 +186,6 @@ export async function costflowVariant(gql: Gql, id: string) {
       children: (sub?.components ?? []).map((sc: any) => ({ id: String(sc.component?.id), sku: sc.component?.sku, label: sc.component?.label, quantity: n(sc.quantity), ...costs(sc.component) })) };
   });
   return { variant: { id: String(v.id), sku: v.sku, label: v.label, type: v.type, product: v.product?.label ?? null, ...costs(v) },
-    bom: b ? { id: String(b.id), label: b.label } : null, lines, warnings, totals: { componentsCump: total, missing } };
+    bom: b ? { id: String(b.id), label: b.label } : null, lines, warnings, totals: { componentsCump: missing ? null : total, partialCump: total, missing },
+    readAt: new Date().toISOString(), live: true, depth };
 }

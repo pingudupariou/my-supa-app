@@ -24,6 +24,7 @@ import { Loader2 } from 'lucide-react';
 import { ErplainComparison } from '@/components/costflow/ErplainComparison';
 import { ErplainProducts } from '@/components/costflow/erplain/ErplainProducts';
 import { ErplainStock } from '@/components/costflow/erplain/ErplainStock';
+import { ErplainWhereUsed } from '@/components/costflow/erplain/ErplainWhereUsed';
 import { useErplainCatalog } from '@/components/costflow/erplain/useErplainCatalog';
 import { Button } from '@/components/ui/button';
 import { RefreshCw } from 'lucide-react';
@@ -80,12 +81,13 @@ export function CostFlowPage() {
         <div className="flex items-center justify-between gap-3 flex-wrap">
           <TabsList>
             <TabsTrigger value="erp-products">Produits & coûts</TabsTrigger>
+            <TabsTrigger value="erp-usage">Cas d'emploi</TabsTrigger>
             <TabsTrigger value="erp-stock">Stock</TabsTrigger>
             <TabsTrigger value="legacy" className="text-muted-foreground">Ancien (manuel)</TabsTrigger>
           </TabsList>
           {section !== 'legacy' && (
             <div className="flex items-center gap-2 text-xs text-muted-foreground" data-readonly-allow="true">
-              <span>Synchro Erplain : stock {erp.synced.stock ? new Date(erp.synced.stock).toLocaleString('fr-FR') : '—'} · nomenclatures {erp.synced.bom ? new Date(erp.synced.bom).toLocaleString('fr-FR') : '—'}</span>
+              <span>Synchro Erplain : stock {erp.synced.stock ? new Date(erp.synced.stock).toLocaleString('fr-FR') : '—'} · nomenclatures {erp.synced.bom ? new Date(erp.synced.bom).toLocaleString('fr-FR') : '—'}{erp.bomStatus && !erp.bomStatus.complete ? ' (incomplètes)' : ''}</span>
               <Button variant="outline" size="sm" onClick={erp.reload} disabled={erp.loading}><RefreshCw className={`h-3 w-3 mr-1 ${erp.loading ? 'animate-spin' : ''}`} />Recharger</Button>
             </div>
           )}
@@ -93,6 +95,9 @@ export function CostFlowPage() {
         {erp.error && section !== 'legacy' && <p className="text-sm text-destructive">{erp.error}</p>}
         <TabsContent value="erp-products">
           {erp.loading && !erp.variants.length ? <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /> : <ErplainProducts variants={erp.variants} />}
+        </TabsContent>
+        <TabsContent value="erp-usage">
+          {erp.loading && !erp.variants.length ? <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /> : <ErplainWhereUsed variants={erp.variants} edges={erp.edges} bomStatus={erp.bomStatus} />}
         </TabsContent>
         <TabsContent value="erp-stock">
           {erp.loading && !erp.variants.length ? <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /> : <ErplainStock variants={erp.variants} />}
