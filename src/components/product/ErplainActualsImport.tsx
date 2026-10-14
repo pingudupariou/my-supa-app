@@ -176,6 +176,11 @@ export function ErplainActualsImport({ products, years, onApply, onSave }: Props
   });
   const editorRows = [...availableRows].sort((a, b) => Number(editor?.keys.has(b.key)) - Number(editor?.keys.has(a.key)))
     .filter(r => r.label.toLowerCase().includes(memberSearch.toLowerCase()));
+  const editorSelectable = editorRows.filter(row => {
+    const owner = owners.get(row.key);
+    return !owner || owner.id === editor?.id;
+  });
+  const selectedVisible = editorSelectable.filter(row => editor?.keys.has(row.key)).length;
 
   return (
     <SectionCard title="Réalisé Erplain · catégories du plan">
@@ -261,6 +266,15 @@ export function ErplainActualsImport({ products, years, onApply, onSave }: Props
           <DialogHeader><DialogTitle>{editor?.id ? 'Modifier la catégorie' : 'Nouvelle catégorie'}</DialogTitle><DialogDescription>{editor?.keys.size ?? 0} produit(s) sélectionné(s)</DialogDescription></DialogHeader>
           <label className="text-sm font-medium space-y-2">Nom de la catégorie<Input aria-label="Nom de la catégorie" placeholder="Ex. Galets céramique" value={groupName} onChange={e => { setGroupName(e.target.value); setFormError(''); }} /></label>
           <Input aria-label="Rechercher dans les catégories" placeholder="Rechercher un produit…" value={memberSearch} onChange={e => setMemberSearch(e.target.value)} />
+          <label className="flex items-center gap-3 text-sm py-2">
+            <Checkbox aria-label="Tout sélectionner dans les résultats" disabled={!editorSelectable.length} checked={selectedVisible === 0 ? false : selectedVisible === editorSelectable.length ? true : 'indeterminate'} onCheckedChange={checked => setEditor(previous => {
+              if (!previous) return previous;
+              const keys = new Set(previous.keys);
+              editorSelectable.forEach(row => { checked === true ? keys.add(row.key) : keys.delete(row.key); });
+              return { ...previous, keys };
+            })} />
+            <span>Tout sélectionner <span className="text-muted-foreground">· {editorSelectable.length} produit(s) disponible(s)</span></span>
+          </label>
           <div className="max-h-[360px] overflow-y-auto divide-y border rounded-md">
             {editorRows.map(row => {
               const owner = owners.get(row.key); const locked = !!owner && owner.id !== editor?.id;

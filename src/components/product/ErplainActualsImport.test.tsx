@@ -17,6 +17,32 @@ const product = (id: string, name = id, members?: string[]): Product => ({ id, n
   priceHT_B2B: 80, priceHT_OEM: 70, vatRate: .2, coef_shop: 1.5, coef_dist: 1.3, coef_oem: 1.2, volumesByYear: { [year]: 10 } });
 
 describe('Plan category uniqueness', () => {
+  it('selects only filtered available members and preserves selections outside the filter', () => {
+    const onApply = vi.fn();
+    render(<ErplainActualsImport products={[
+      product('erplain-a', 'Galets rouges'), product('erplain-b', 'Galets noirs'),
+      product('erplain-c', 'Pédale'),
+      { ...product('erplain-cat', 'Déjà groupé', ['d']), erplainMemberProducts: [product('erplain-d', 'Galets bleus')] },
+    ]} years={[year]} onApply={onApply} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Créer une catégorie' }));
+    fireEvent.change(screen.getByRole('textbox', { name: 'Nom de la catégorie' }), { target: { value: 'Nouvelle' } });
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Inclure Pédale' }));
+    fireEvent.change(screen.getByRole('textbox', { name: 'Rechercher dans les catégories' }), { target: { value: 'Galets' } });
+    const all = screen.getByRole('checkbox', { name: 'Tout sélectionner dans les résultats' });
+    fireEvent.click(all);
+    expect(screen.getByRole('checkbox', { name: 'Inclure Galets rouges' })).toBeChecked();
+    expect(screen.getByRole('checkbox', { name: 'Inclure Galets noirs' })).toBeChecked();
+    expect(screen.getByRole('checkbox', { name: 'Inclure Galets bleus' })).toBeDisabled();
+    expect(screen.getByRole('checkbox', { name: 'Inclure Galets bleus' })).not.toBeChecked();
+    fireEvent.click(all);
+    expect(screen.getByRole('checkbox', { name: 'Inclure Galets rouges' })).not.toBeChecked();
+    fireEvent.click(all);
+    fireEvent.change(screen.getByRole('textbox', { name: 'Rechercher dans les catégories' }), { target: { value: 'Inexistant' } });
+    expect(all).toBeDisabled();
+    fireEvent.click(screen.getByRole('button', { name: 'Créer la catégorie' }));
+    const category = onApply.mock.calls[0][0].find((p: Product) => p.name === 'Nouvelle');
+    expect(category.erplainMembers.sort()).toEqual(['a', 'b', 'c']);
+  });
   it('replaces individual rows and removes duplicate members', () => {
     const result = replacePlanCategory([product('erplain-a'), product('manual')], product('cat', 'Galets', ['a', 'a']));
     expect(result.map(p => p.id)).toEqual(['manual', 'cat']);
