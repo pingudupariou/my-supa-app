@@ -80,7 +80,7 @@ export function ErplainProducts({ variants, onCostRead }: { variants: ErplainVar
           </Card>); })()}
         <div className="text-xs text-muted-foreground rounded border p-3 space-y-1">
           <p>Coûts lus en direct dans Erplain le {new Date(detail.readAt).toLocaleString('fr-FR')} (variante #{v.id}{v.sku ? '' : ', sans SKU'}).</p>
-          <p><b>Champs :</b> CUMP = <code>unit_cost</code> · dernier prix d'achat = <code>last_purchased_price</code> · coût de fabrication = <code>unit_manufacturing_cost</code> (gamme, affiché à part, jamais ajouté).</p>
+          <p><b>Champs :</b> CUMP = <code>unit_cost</code> · dernier prix d'achat = <code>last_purchased_price</code> · coût de fabrication = <code>unit_manufacturing_cost</code> (ajouté au coût complet seulement s’il est distinct des composants, voir ci-dessus).</p>
           <p><b>Coût composants :</b> Σ (quantité × <code>unit_cost</code>) des composants directs de la nomenclature retenue. Un sous-ensemble compte une fois à son propre CUMP ; ses composants sont informatifs. Un coût absent reste « — » : le total est alors marqué incomplet, jamais complété par zéro.</p>
         </div>
         {(detail.warnings.length > 0 || detail.totals.missing > 0) && (
