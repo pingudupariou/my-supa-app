@@ -161,12 +161,17 @@ export async function costflowCatalog(admin: any) {
   const { data: runs } = await admin.from("erplain_sync_runs").select("status,finished_at,cursor").in("status", ["completed", "failed", "running"])
     .order("started_at", { ascending: false }).limit(50);
   const bomRun = (runs ?? []).find((r: any) => !r.cursor?.quick && (!r.cursor?.mode || r.cursor?.mode === "bom")) ?? null;
-  const bomStatus = { complete: bomRun?.status === "completed", runStatus: bomRun?.status ?? null, finishedAt: bomRun?.finished_at ?? null, ambiguousParents };
+  const parents = new Set(byVariant.keys());
+  let compRefs = 0, missingRef = 0; const subs = new Set<string>();
+  compRefs = edges.length;
+  for (const [, c] of edges) { const v = map.get(c); if (!v?.sku && !v?.label) missingRef++; if (parents.has(c)) subs.add(c); }
+  const refStats = { componentLinks: compRefs, distinctComponents: new Set(edges.map((e) => e[1])).size, missingRef, subAssemblies: subs.size };
+  const bomStatus = { refStats, complete: bomRun?.status === "completed", runStatus: bomRun?.status ?? null, finishedAt: bomRun?.finished_at ?? null, ambiguousParents };
   return { variants: [...map.values()], syncedStock, syncedBom, edges, bomStatus, readAt: new Date().toISOString() };
 }
 
 // Live read of one variant: Erplain costs + BOM; sub-assemblies counted once at their own CUMP.
-export async function costflowVariant(gql: Gql, id: string) {
+export async function costflowVariant(gql: Gql, id: string, admin?: any) {
   if (!id) throw new Error("Variante manquante.");
   const { v, depth } = await variantDetail(gql, String(id));
   if (!v) throw new Error("Variante introuvable dans Erplain.");
@@ -186,35 +191,25 @@ export async function costflowVariant(gql: Gql, id: string) {
       children: (sub?.components ?? []).map((sc: any) => ({ id: String(sc.component?.id), sku: sc.component?.sku, label: sc.component?.label, quantity: n(sc.quantity), ...costs(sc.component) })) };
   });
   const vc = costs(v);
-  const analysis = analyzeCosts(missing ? null : total, vc.unit_cost, vc.unit_manufacturing_cost);
+  const { data: m } = admin ? await admin.from("costflow_cost_methods").select("method,source,set_by,updated_at").eq("variant_id", String(v.id)).maybeSingle() : { data: null };
+  const comp = missing ? null : total;
+  const analysis = { method: m ?? null, cost: costByMethod(m?.method ?? null, comp, vc.unit_cost, vc.unit_manufacturing_cost),
+    gapCump: vc.unit_cost !== null && comp !== null ? vc.unit_cost - comp : null };
   return { variant: { id: String(v.id), sku: v.sku, label: v.label, type: v.type, product: v.product?.label ?? null, ...vc },
     bom: b ? { id: String(b.id), label: b.label } : null, lines, warnings, totals: { componentsCump: missing ? null : total, partialCump: total, missing }, analysis,
     readAt: new Date().toISOString(), live: true, depth };
 }
 
-/** Empirical check (Erplain documents no field semantics): which combination does the finished product's CUMP match?
- *  tolerance 2 % (min 0.05 €). Full cost is defined only from verified pieces, never summing a cost twice. */
-export function analyzeCosts(comp: number | null, cump: number | null, mfg: number | null) {
-  const close = (a: number, b: number) => Math.abs(a - b) <= Math.max(0.05, Math.abs(b) * 0.02);
-  const m = mfg ?? 0;
-  let mfgMeaning: "zero" | "labor_only" | "includes_components" | "unknown" = "unknown";
-  if (mfg === null || mfg === 0) mfgMeaning = "zero";
-  else if (comp !== null && (close(mfg, comp) || mfg > comp)) mfgMeaning = "includes_components";
-  else if (comp !== null) mfgMeaning = "labor_only";
-  let cumpMatch: "components" | "components_plus_mfg" | "mfg" | "none" | "unknown" = "unknown";
-  if (cump !== null && comp !== null) {
-    if (mfg && mfgMeaning === "labor_only" && close(cump, comp + m)) cumpMatch = "components_plus_mfg";
-    else if (close(cump, comp)) cumpMatch = "components";
-    else if (mfg && close(cump, mfg)) cumpMatch = "mfg";
-    else cumpMatch = "none";
+export const COST_METHODS = ["cump_finished", "components_plus_mfg", "confirmed_full"] as const;
+/** Cost per the explicitly chosen, documented method. No inference from amounts; empty field = missing, never zero. */
+export function costByMethod(method: string | null, comp: number | null, cump: number | null, mfg: number | null) {
+  if (!method) return { value: null, status: "unconfirmed", formula: "Coût complet non confirmé : aucune méthode documentée choisie." };
+  if (method === "cump_finished") return cump === null ? { value: null, status: "missing", formula: "CUMP produit fini (unit_cost) — champ vide dans Erplain." } : { value: cump, status: "ok", formula: "CUMP produit fini (unit_cost)" };
+  if (method === "components_plus_mfg") {
+    if (comp === null) return { value: null, status: "missing", formula: "Coût composants + unit_manufacturing_cost — coût composants incomplet." };
+    if (mfg === null) return { value: null, status: "missing", formula: "Coût composants + unit_manufacturing_cost — unit_manufacturing_cost vide (≠ 0)." };
+    return { value: comp + mfg, status: "ok", formula: "Coût composants + unit_manufacturing_cost (confirmé : frais de fabrication seuls)" };
   }
-  // Full cost: components + manufacturing only if manufacturing is a separate (labor) cost; otherwise the manufacturing figure alone.
-  let full: number | null = null; let fullFormula = "";
-  if (comp !== null) {
-    if (mfgMeaning === "zero") { full = comp; fullFormula = "Coût composants (aucun coût de fabrication renseigné)"; }
-    else if (mfgMeaning === "labor_only") { full = comp + m; fullFormula = "Coût composants + coût de fabrication (main d'œuvre/gamme, distinct des composants)"; }
-    else if (mfgMeaning === "includes_components") { full = m; fullFormula = "Coût de fabrication seul (il contient déjà les composants : pas d'addition)"; }
-  }
-  return { mfgMeaning, cumpMatch, full, fullFormula, gapCump: cump !== null && comp !== null ? cump - comp : null,
-    gapCumpFull: cump !== null && full !== null ? cump - full : null };
+  if (method === "confirmed_full") return mfg === null ? { value: null, status: "missing", formula: "unit_manufacturing_cost confirmé comme coût complet — champ vide." } : { value: mfg, status: "ok", formula: "unit_manufacturing_cost (confirmé : coût complet, composants inclus — rien n'est ajouté)" };
+  return { value: null, status: "unconfirmed", formula: "Méthode inconnue." };
 }

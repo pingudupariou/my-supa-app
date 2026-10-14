@@ -416,7 +416,7 @@ Deno.serve(async (req) => {
     if (peekAction === "access") {
       return json({ role: role?.role ?? null, approved: !!role?.approved, permission: role?.approved || role?.role === "admin" ? permission : "hidden" });
     }
-    if (peekAction === "costflow_preview" || peekAction === "costflow_catalog" || peekAction === "costflow_variant" || peekAction === "costflow_refresh_bom") {
+    if (peekAction === "costflow_preview" || peekAction === "costflow_catalog" || peekAction === "costflow_variant" || peekAction === "costflow_refresh_bom" || peekAction === "costflow_set_method") {
       // Read-only comparison for CostFlow: needs read access on the costflow tab (admins always).
       let cf = role?.role === "admin" ? "write" : "hidden";
       if (role?.role !== "admin" && role?.role && role?.approved) {
@@ -432,6 +432,16 @@ Deno.serve(async (req) => {
         if (!tk) return json({ status: "config_error", message: "Secret ERPLAIN_API_TOKEN absent côté serveur." });
         return await handleData("sync", { mode: "bom", restart: b.restart === true }, admin, tk, claims.claims.sub);
       }
+      if (peekAction === "costflow_set_method") {
+        if (cf !== "write") return json({ error: "Forbidden" }, 403);
+        const vid = String(b.variantId ?? "").slice(0, 40); const method = b.method; const source = String(b.source ?? "").trim().slice(0, 500);
+        if (!/^[0-9A-Za-z_-]+$/.test(vid)) return json({ status: "api_error", message: "Variante invalide." }, 400);
+        if (method === null) { await admin.from("costflow_cost_methods").delete().eq("variant_id", vid); return json({ status: "success" }); }
+        if (!["cump_finished", "components_plus_mfg", "confirmed_full"].includes(method)) return json({ status: "api_error", message: "Méthode inconnue." }, 400);
+        if (source.length < 3) return json({ status: "api_error", message: "Indiquez la source qui documente cette méthode." }, 400);
+        const { error } = await admin.from("costflow_cost_methods").upsert({ variant_id: vid, method, source, set_by: claims.claims.sub });
+        return json(error ? { status: "api_error", message: error.message } : { status: "success" });
+      }
       if (peekAction === "costflow_catalog") {
         try { return json({ status: "success", ...(await costflowCatalog(admin)) }); }
         catch (e) { return json({ status: "api_error", message: String((e as Error).message).slice(0, 400) }); }
@@ -442,7 +452,7 @@ Deno.serve(async (req) => {
       const steps: any[] = [];
       const gql = makeGql(tok, rootRow?.data?.endpoint ?? DEFAULT_ENDPOINT, Date.now() + 100000, (st) => steps.push(st));
       try {
-        if (peekAction === "costflow_variant") return json({ status: "success", ...(await costflowVariant(gql, String(b.variantId ?? "")) ), steps });
+        if (peekAction === "costflow_variant") return json({ status: "success", ...(await costflowVariant(gql, String(b.variantId ?? ""), admin) ), steps });
         const products = await costflowPreview(gql, anon, b);
         return json({ status: "success", products, steps });
       } catch (e) {
