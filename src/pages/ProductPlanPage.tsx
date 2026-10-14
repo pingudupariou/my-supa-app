@@ -160,6 +160,19 @@ export function ProductPlanPage() {
           </div>
         </div>
         <div className="flex items-center gap-2">
+          <label className="flex items-center gap-2 text-sm text-muted-foreground">
+            Année de début
+            <select
+              aria-label="Année de début du plan"
+              className="h-9 rounded-md border bg-background px-2 text-sm text-foreground"
+              value={settings.startYear}
+              onChange={(e) => updateScenarioSettings({ startYear: Number(e.target.value) })}
+            >
+              {Array.from({ length: 7 }, (_, i) => new Date().getFullYear() - 3 + i).map(year => (
+                <option key={year} value={year}>{year}</option>
+              ))}
+            </select>
+          </label>
           <Badge variant={state.revenueMode === 'by-product' ? 'default' : state.revenueMode === 'by-channel-global' ? 'secondary' : 'outline'}>
             {state.revenueMode === 'by-product' ? 'Détail produits' : state.revenueMode === 'by-channel-global' ? 'Global canaux' : 'Par client'}
           </Badge>
