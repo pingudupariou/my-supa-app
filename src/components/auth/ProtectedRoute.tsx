@@ -1,8 +1,11 @@
-import { ReactNode } from 'react';
+import { ReactNode, createContext, useContext } from 'react';
+
+const ReadOnlyTabContext = createContext<string | null>(null);
+/** Tab key whose read-only mode applies to the page content (not the navigation). */
+export function useReadOnlyTabKey() { return useContext(ReadOnlyTabContext); }
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { Loader2 } from 'lucide-react';
-import { ReadOnlyWrapper } from './ReadOnlyWrapper';
 
 interface ProtectedRouteProps {
   children: ReactNode;
@@ -35,7 +38,7 @@ export function ProtectedRoute({ children, tabKey }: ProtectedRouteProps) {
     }
     // Plan atelier manages read/write itself from the server answer (buttons are disabled in read mode).
     if (permission === 'read' && tabKey !== 'plan-atelier') {
-      return <ReadOnlyWrapper tabKey={tabKey}>{children}</ReadOnlyWrapper>;
+      return <ReadOnlyTabContext.Provider value={tabKey}>{children}</ReadOnlyTabContext.Provider>;
     }
   }
 

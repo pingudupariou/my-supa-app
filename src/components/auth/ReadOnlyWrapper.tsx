@@ -65,19 +65,21 @@ export function ReadOnlyWrapper({ children, tabKey }: ReadOnlyWrapperProps) {
     };
 
     root.addEventListener('click', blockWrites, true);
-    root.addEventListener('keydown', (e) => {
+    const blockKeys = (e: KeyboardEvent) => {
       const t = e.target as HTMLElement | null;
       if (t && t.matches('input,textarea,[contenteditable="true"]') && !['Tab','Escape','ArrowLeft','ArrowRight','ArrowUp','ArrowDown','Home','End','PageUp','PageDown'].includes(e.key)) {
         e.preventDefault();
         e.stopPropagation();
       }
-    }, true);
+    };
+    root.addEventListener('keydown', blockKeys, true);
     root.addEventListener('paste', blockChange, true);
     root.addEventListener('submit', blockChange, true);
     root.addEventListener('drop', blockChange, true);
 
     return () => {
       root.removeEventListener('click', blockWrites, true);
+      root.removeEventListener('keydown', blockKeys, true);
       root.removeEventListener('paste', blockChange, true);
       root.removeEventListener('submit', blockChange, true);
       root.removeEventListener('drop', blockChange, true);
