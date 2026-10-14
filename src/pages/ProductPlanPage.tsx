@@ -99,6 +99,19 @@ export function ProductPlanPage() {
     updateProducts(updatedProducts);
   };
 
+  const handleBulkChannelVolumes = (changes: { productId: string; year: number; channel: 'B2C' | 'B2B' | 'OEM'; volume: number }[]) => {
+    const updatedProducts = state.products.map(p => {
+      const mine = changes.filter(c => c.productId === p.id);
+      if (!mine.length) return p;
+      const ch = structuredClone(p.volumesByChannel || { B2C: {}, B2B: {}, OEM: {} });
+      const vby = { ...p.volumesByYear };
+      mine.forEach(c => { ch[c.channel][c.year] = c.volume; });
+      new Set(mine.map(c => c.year)).forEach(y => { vby[y] = (ch.B2C[y] || 0) + (ch.B2B[y] || 0) + (ch.OEM[y] || 0); });
+      return { ...p, volumesByChannel: ch, volumesByYear: vby };
+    });
+    updateProducts(updatedProducts);
+  };
+
   // KPIs
   const totalDevCost = computed.totalDevCost;
   const lastYear = YEARS[YEARS.length - 1];
@@ -326,6 +339,7 @@ export function ProductPlanPage() {
               products={state.products.filter(p => p.productStatus === 'validated')}
               years={YEARS}
               onChannelVolumeChange={handleChannelVolumeChange}
+              onBulkChannelVolumes={handleBulkChannelVolumes}
             />
           </div>
         </TabsContent>

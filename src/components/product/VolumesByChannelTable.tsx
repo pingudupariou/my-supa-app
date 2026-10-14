@@ -14,11 +14,12 @@ interface Props {
   products: Product[];
   years: number[];
   onChannelVolumeChange: (productId: string, year: number, channel: 'B2C' | 'B2B' | 'OEM', volume: number) => void;
+  onBulkChannelVolumes?: (changes: { productId: string; year: number; channel: 'B2C' | 'B2B' | 'OEM'; volume: number }[]) => void;
 }
 
 const CHANNELS = ['B2C', 'B2B', 'OEM'] as const;
 
-export function VolumesByChannelTable({ products, years, onChannelVolumeChange }: Props) {
+export function VolumesByChannelTable({ products, years, onChannelVolumeChange, onBulkChannelVolumes }: Props) {
   const { state } = useFinancial();
   const config = state.scenarioConfigs[state.activeScenarioId];
   const volAdj = 1 + config.volumeAdjustment;
@@ -56,6 +57,7 @@ export function VolumesByChannelTable({ products, years, onChannelVolumeChange }
     return m + years.filter(y => y > last && !v[y]).length;
   }, 0), 0);
   const extrapolateEmptyYears = () => {
+    const changes: { productId: string; year: number; channel: 'B2C' | 'B2B' | 'OEM'; volume: number }[] = [];
     products.forEach(p => CHANNELS.forEach(ch => {
       const v = p.volumesByChannel?.[ch] || {};
       const filled = years.filter(y => (v[y] || 0) > 0);
@@ -64,9 +66,11 @@ export function VolumesByChannelTable({ products, years, onChannelVolumeChange }
       const base = v[last];
       const rate = growthRates[ch] / 100;
       years.filter(y => y > last && !v[y]).forEach(y => {
-        onChannelVolumeChange(p.id, y, ch, Math.round(base * Math.pow(1 + rate, y - last)));
+        changes.push({ productId: p.id, year: y, channel: ch, volume: Math.round(base * Math.pow(1 + rate, y - last)) });
       });
     }));
+    if (onBulkChannelVolumes) onBulkChannelVolumes(changes);
+    else changes.forEach(c => onChannelVolumeChange(c.productId, c.year, c.channel, c.volume));
   };
 
   // Compute totals per year per channel (with scenario adjustments)
