@@ -12,6 +12,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { AlertTriangle, CheckCircle2, Loader2, RefreshCw } from 'lucide-react';
 import { Bar, BarChart, CartesianGrid, ComposedChart, Legend, Line, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { toast } from 'sonner';
+import { SalesBreakdown } from '@/components/sales/SalesBreakdown';
 
 type Row = { key: string; label?: string; channel?: string; ca_ht: number; qty: number; default_share?: number; prod_ht?: number; cogs?: number; cov_ht?: number; est_ht?: number; unit_cost?: number | null };
 type Stats = {
@@ -384,7 +385,7 @@ export function SalesStatsPage() {
           <TabsContent value="cc">{table(stats?.by_commercial_country ?? [], 'cc')}</TabsContent>
           <TabsContent value="dc">{table(stats?.by_delivery_country ?? [], 'country')}</TabsContent>
           <TabsContent value="channels">{table((stats?.by_channel ?? []).map((r) => ({ ...r, label: CH_LABEL[r.key] ?? r.key })), 'country')}</TabsContent>
-          <TabsContent value="breakdown"><Breakdown from={range0} to={range1} search={search} /></TabsContent>
+          <TabsContent value="breakdown"><SalesBreakdown from={range0} to={range1} search={search} /></TabsContent>
         </CardContent></Card>
       </Tabs>
     </div>
