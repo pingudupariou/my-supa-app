@@ -23,6 +23,28 @@ export function SalesBreakdown({ from, to, search }: { from: string; to: string;
   const [err, setErr] = useState<string | null>(null);
   const [ch, setCh] = useState('all');
   const [cc, setCc] = useState('all');
+  const [sortKey, setSortKey] = useState('ca_ht');
+  const [sortDir, setSortDir] = useState<1 | -1>(-1);
+  const toggleSort = (k: string) => { if (sortKey === k) setSortDir((d) => (d === 1 ? -1 : 1)); else { setSortKey(k); setSortDir(-1); } };
+  const sortVal = (r: Agg, extra?: { spend: number; after: number | null }) => {
+    const x = marginOf(r);
+    switch (sortKey) {
+      case 'label': return r.label.toLowerCase();
+      case 'qty': return r.qty; case 'cogs': return r.cogs;
+      case 'm': return x.m ?? -Infinity; case 'pct': return x.pct ?? -Infinity; case 'cov': return x.cov ?? -Infinity;
+      case 'spend': return extra?.spend ?? -Infinity; case 'after': return extra?.after ?? -Infinity;
+      default: return r.ca_ht;
+    }
+  };
+  const cmpRows = <T extends { r: Agg; spend?: number; after?: number | null }>(a: T, b: T) => {
+    const va = sortVal(a.r, a as any), vb = sortVal(b.r, b as any);
+    const c = typeof va === 'string' ? va.localeCompare(vb as string, 'fr') : (va as number) - (vb as number);
+    return c * sortDir;
+  };
+  const Th = ({ k, label, right = true }: { k: string; label: string; right?: boolean }) => (
+    <TableHead className={`cursor-pointer select-none ${right ? 'text-right' : ''}`} onClick={() => toggleSort(k)}>
+      {label}{sortKey === k ? (sortDir === -1 ? ' ▼' : ' ▲') : ''}
+    </TableHead>);
   useEffect(() => {
     let live = true; setLoading(true); setErr(null);
     supabase.rpc('sales_breakdown' as any, { _from: from, _to: to }).then(({ data, error }) => {
@@ -96,8 +118,8 @@ export function SalesBreakdown({ from, to, search }: { from: string; to: string;
         const withAds = prods.map((r) => { const a: any = byK.get(r.key); const spend = a ? (a.direct ?? 0) + (a.alloc ?? 0) : 0; const x = marginOf(r); const after = x.m == null ? null : x.m - spend; return { r, x, spend, after, direct: a?.direct ?? 0 }; });
         return (<>
           <p className="text-xs text-muted-foreground">3. Produits B2C · tous pays — {prods.length} produits, hors livraison. Colonne « Ads » = dépenses directement attribuées au produit annoncé + part estimée au prorata du CA ; elle ne concerne que le B2C.</p>
-          <Table><TableHeader><TableRow><TableHead>Produit</TableHead><TableHead className="text-right">CA HT</TableHead><TableHead className="text-right">Qté</TableHead><TableHead className="text-right">Coût vendu</TableHead><TableHead className="text-right">Marge</TableHead><TableHead className="text-right">Ads</TableHead><TableHead className="text-right">Marge après Ads</TableHead><TableHead className="text-right">Marge %</TableHead><TableHead className="text-right">Couverture</TableHead></TableRow></TableHeader>
-            <TableBody>{withAds.slice(0, 300).map(({ r, x, spend, after, direct }) => (
+          <Table><TableHeader><TableRow><Th k="label" label="Produit" right={false} /><Th k="ca_ht" label="CA HT" /><Th k="qty" label="Qté" /><Th k="cogs" label="Coût vendu" /><Th k="m" label="Marge" /><Th k="spend" label="Ads" /><Th k="after" label="Marge après Ads" /><Th k="pct" label="Marge %" /><Th k="cov" label="Couverture" /></TableRow></TableHeader>
+            <TableBody>{withAds.slice().sort(cmpRows).slice(0, 300).map(({ r, x, spend, after, direct }) => (
               <TableRow key={r.key}><TableCell className="max-w-[320px] truncate">{r.label}</TableCell><TableCell className="text-right tabular-nums">{eur(r.ca_ht)}</TableCell><TableCell className="text-right tabular-nums">{nb(r.qty)}</TableCell>
                 <TableCell className="text-right tabular-nums">{eur(r.cogs)}</TableCell><TableCell className="text-right tabular-nums">{eur(x.m)}{x.est && <span className="text-muted-foreground"> est.</span>}</TableCell>
                 <TableCell className="text-right tabular-nums" title={direct > 0 ? `dont ${eur(direct)} attribués directement` : 'Part estimée au prorata du CA'}>{ads ? eur(spend) : '…'}</TableCell>
@@ -107,8 +129,8 @@ export function SalesBreakdown({ from, to, search }: { from: string; to: string;
       })()}
       {(ch !== 'B2C' || cc !== 'all') && (<>
         <p className="text-xs text-muted-foreground">3. Produits {ch === 'all' ? 'tous canaux' : CH_LABEL[ch] ?? ch} · {cc === 'all' ? 'tous pays' : cc} — {prods.length} produits, hors livraison. Pays = pays de livraison Erplain.{ch === 'B2C' && cc !== 'all' ? ' Le détail Ads par produit n\'est disponible que tous pays confondus.' : ''}</p>
-        <Table><TableHeader><TableRow><TableHead>Produit</TableHead><TableHead className="text-right">CA HT</TableHead><TableHead className="text-right">Qté</TableHead><TableHead className="text-right">Coût vendu</TableHead><TableHead className="text-right">Marge</TableHead><TableHead className="text-right">Marge %</TableHead><TableHead className="text-right">Couverture</TableHead></TableRow></TableHeader>
-          <TableBody>{prods.slice(0, 300).map((r) => { const x = marginOf(r); return (
+        <Table><TableHeader><TableRow><Th k="label" label="Produit" right={false} /><Th k="ca_ht" label="CA HT" /><Th k="qty" label="Qté" /><Th k="cogs" label="Coût vendu" /><Th k="m" label="Marge" /><Th k="pct" label="Marge %" /><Th k="cov" label="Couverture" /></TableRow></TableHeader>
+          <TableBody>{prods.map((r) => ({ r })).sort(cmpRows).slice(0, 300).map(({ r }) => { const x = marginOf(r); return (
             <TableRow key={r.key}><TableCell className="max-w-[320px] truncate">{r.label}</TableCell><TableCell className="text-right tabular-nums">{eur(r.ca_ht)}</TableCell><TableCell className="text-right tabular-nums">{nb(r.qty)}</TableCell>
               <TableCell className="text-right tabular-nums">{eur(r.cogs)}</TableCell><TableCell className="text-right tabular-nums">{eur(x.m)}{x.est && <span className="text-muted-foreground"> est.</span>}</TableCell>
               <TableCell className="text-right tabular-nums">{pctf(x.pct)}</TableCell><TableCell className={`text-right tabular-nums ${x.inc ? 'text-destructive' : ''}`}>{pctf(x.cov)}{x.inc ? ' · incomplet' : ''}</TableCell></TableRow>); })}</TableBody></Table>
