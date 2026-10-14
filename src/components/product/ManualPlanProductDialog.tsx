@@ -2,7 +2,7 @@ import { useState } from 'react';
 import type { Product } from '@/engine/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Plus } from 'lucide-react';
 
 export function ManualPlanProductDialog({ years, onAdd }: { years: number[]; onAdd: (product: Product) => void }) {
@@ -15,7 +15,7 @@ export function ManualPlanProductDialog({ years, onAdd }: { years: number[]; onA
     <Button size="sm" variant="outline" onClick={() => setOpen(true)}><Plus className="mr-2 h-4 w-4" />Nouveau produit manuel</Button>
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogContent className="max-w-lg">
-        <DialogHeader><DialogTitle>Nouveau produit manuel</DialogTitle></DialogHeader>
+        <DialogHeader><DialogTitle>Nouveau produit manuel</DialogTitle><DialogDescription>Prix hors taxes · prévisions du Plan produit</DialogDescription></DialogHeader>
         <label className="text-sm space-y-2">Nom du produit<Input aria-label="Nom du nouveau produit" value={name} onChange={e => setName(e.target.value)} /></label>
         <div className="grid grid-cols-2 gap-4">
           {([['b2c', 'Prix B2C HT'], ['b2b', 'Prix B2B HT'], ['oem', 'Prix OEM HT'], ['cost', 'Coût unitaire']] as const).map(([key, label]) => <label key={key} className="text-sm space-y-2">{label}<Input aria-label={label} type="number" min="0" step="0.01" value={values[key]} onChange={e => setValues(v => ({ ...v, [key]: e.target.value }))} /></label>)}
