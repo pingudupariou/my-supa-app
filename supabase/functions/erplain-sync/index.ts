@@ -4,7 +4,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { DATASETS, FILTER_TYPES, makeGql, pageQuery, whereColumns, ordersWithCustomer } from "./erplain.ts";
 import { computePlan, moPayload } from "./plan.ts";
-import { costflowPreview, costflowCatalog, costflowVariant } from "./costflow.ts";
+import { costflowPreview, costflowCatalog, costflowVariant, costByMethod } from "./costflow.ts";
 import { salesSync } from "./sales.ts";
 
 const DEFAULT_ENDPOINT = "https://api.erplain.app/graphql";

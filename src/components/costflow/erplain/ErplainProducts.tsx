@@ -39,17 +39,21 @@ export function ErplainProducts({ variants, onCostRead }: { variants: ErplainVar
     stopRef.current = false; setError(null);
     const st = { total: scopeIds.length, done: 0, ok: 0, missing: 0, skipped: 0, errors: 0, running: true };
     setBulk({ ...st });
-    let rest = [...scopeIds];
-    try {
-      while (rest.length && !stopRef.current) {
-        const { data, error } = await supabase.functions.invoke('erplain-sync', { body: { action: 'costflow_bulk_method', ids: rest.slice(0, 200), method: bulkMethod, source: bulkSource, keepExisting } });
-        if (error || data?.status !== 'success') throw new Error(data?.message || error?.message || 'Application impossible');
-        const done = new Set<string>(data.done ?? []); if (!done.size) throw new Error('Aucune variante traitée.');
-        rest = rest.filter(id => !done.has(id));
-        st.done += done.size; st.ok += data.ok; st.missing += data.missing; st.skipped += data.skipped; st.errors += data.errors;
-        setBulk({ ...st });
+    let rest = [...scopeIds]; let fails = 0;
+    while (rest.length && !stopRef.current) {
+      const { data, error } = await supabase.functions.invoke('erplain-sync', { body: { action: 'costflow_bulk_method', ids: rest.slice(0, 200), method: bulkMethod, source: bulkSource, keepExisting } });
+      const done = new Set<string>(data?.status === 'success' ? data.done ?? [] : []);
+      if (error || data?.status !== 'success' || !done.size) {
+        // Transient failure (network, Erplain rate limit): wait and resume where it stopped, up to 5 times in a row.
+        if (++fails > 5) { setError(`Arrêt après plusieurs échecs : ${data?.message || data?.lastError || error?.message || 'Erplain ne répond pas'}. Relancez pour reprendre.`); break; }
+        await new Promise(r => setTimeout(r, 5000 * fails)); continue;
       }
-    } catch (e) { setError((e as Error).message); }
+      fails = 0;
+      rest = rest.filter(id => !done.has(id));
+      st.done += done.size; st.ok += data.ok; st.missing += data.missing; st.skipped += data.skipped; st.errors += data.errors;
+      if (data.lastError) setError(`Dernière erreur de lecture : ${data.lastError}`);
+      setBulk({ ...st });
+    }
     setBulk({ ...st, running: false });
   };
 
