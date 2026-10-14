@@ -3,3 +3,9 @@
 - Ad catalogue groups merchant_offers client-side by Shopify variant (else offer_id) and checks eligibility per selected country from merchant_offer_countries; manual matches live in merchant_manual_matches, never written back by sync — keeps feed/country offers distinct without guessed matches.
 - Campaign builder drafts live in google_ads_campaign_drafts and are never sent to Google; conflicts are computed client-side (builder/conflicts.ts) against the latest structure snapshot and Catalogue selections — keeps drafts write-free until publishing is explicitly enabled.
 - Pilot decision charts share one lazy, paginated read of imported daily performance and retained structure snapshots; compare equal UTC windows with same-type peers, preserve missing observations and label parameter history as sampled — supports decisions without extra AI or Google API calls.
+
+- GA4 data is stored per dimension set (day×channel×country×device cube, source/medium table, daily users) and each sync chunk replaces its days — GA4 metrics are not additive across dimension sets and reruns must never duplicate.
+- Cockpit shipping uses the existing aggregate RPC payload; mark the ex-shipping decomposition as estimated until shipping taxes and refunds are available, preserving the total-HT MER numerator to avoid false precision.
+- Compute optional daily moving averages client-side from seven consecutive complete actual values, leaving gaps for missing dates or undefined ratios, to preserve real curves without additional requests.
+- AI marketing analyses receive only the cockpit's compact aggregate summary and are cached by its SHA-256 in marketing_ai_analyses (limit per user per 24 h) — avoids paying twice for identical analyses and never sends raw rows.
+- Marketing task dedupe uses a normalized key (régie|pays|campagne|title keywords) unique among open tasks; a returning AI recommendation bumps recurrence_count and logs an event instead of creating a duplicate.

@@ -7,11 +7,6 @@
 - Order selection column visibility is persisted on the current device, independently of calculations — hiding a column must never change selected lines or quantities.
 - Customer names are synced with orders using only scalar name fields verified in the cached Customer definition — avoids guessed Erplain API fields.
 - Refresh the authenticated user's role, approval and tab permissions together on focus and periodically; discard stale responses — role changes must not leave workshop controls locked to an old role.
-- GA4 data is stored per dimension set (day×channel×country×device cube, source/medium table, daily users) and each sync chunk replaces its days — GA4 metrics are not additive across dimension sets and reruns must never duplicate.
-- Cockpit shipping uses the existing aggregate RPC payload; mark the ex-shipping decomposition as estimated until shipping taxes and refunds are available, preserving the total-HT MER numerator to avoid false precision.
-- Compute optional daily moving averages client-side from seven consecutive complete actual values, leaving gaps for missing dates or undefined ratios, to preserve real curves without additional requests.
-- AI marketing analyses receive only the cockpit's compact aggregate summary and are cached by its SHA-256 in marketing_ai_analyses (limit per user per 24 h) — avoids paying twice for identical analyses and never sends raw rows.
-- Marketing task dedupe uses a normalized key (régie|pays|campagne|title keywords) unique among open tasks; a returning AI recommendation bumps recurrence_count and logs an event instead of creating a duplicate.
 
 - Google Ads structure is stored as one JSON snapshot per read (google_ads_structure_snapshots, 30 kept) by google-ads-structure; sections fail independently — keeps the audit cheap and never mixes partial reads into metrics tables.
 - Strategy copilot (marketing-strategy) builds its compact summary server-side from marketing_strategy_summary RPC + latest Google Ads structure snapshot, cached by SHA-256 in marketing_ai_analyses kind 'strategy' — the client can't alter the numbers and identical data never pays twice.
