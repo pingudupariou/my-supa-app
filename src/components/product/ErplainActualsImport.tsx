@@ -12,6 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Badge } from '@/components/ui/badge';
 import { memberOwners, replacePlanCategory } from './planMembership';
 import { toast } from 'sonner';
+import { ManualPlanProductDialog } from './ManualPlanProductDialog';
 
 type Ch = 'B2C' | 'B2B' | 'OEM';
 const CHS: Ch[] = ['B2C', 'B2B', 'OEM'];
@@ -36,6 +37,27 @@ export function ErplainActualsImport({ products, years, onApply, onSave }: Props
   const [project, setProject] = useState(true);
   const [growth, setGrowth] = useState(0);
   const [search, setSearch] = useState('');
+  const [removeId, setRemoveId] = useState<string | null>(null);
+
+  const fromProduct = (p: Product): Agg => {
+    const key = p.id.startsWith('erplain-') ? p.id.slice(8) : `manual:${p.id}`;
+    const byYear: Agg['byYear'] = {};
+    for (const y of years) {
+      byYear[y] = { B2C: { qty: 0, ca: 0 }, B2B: { qty: 0, ca: 0 }, OEM: { qty: 0, ca: 0 } };
+      for (const c of CHS) {
+        const qty = p.volumesByChannel?.[c]?.[y] ?? (c === p.category ? p.volumesByYear[y] ?? 0 : 0);
+        byYear[y][c] = { qty, ca: qty * (c === 'B2C' ? p.priceHT : c === 'B2B' ? p.priceHT_B2B : p.priceHT_OEM) };
+      }
+    }
+    const qty = Object.values(byYear).reduce((n, v) => n + CHS.reduce((s, c) => s + v[c].qty, 0), 0);
+    return { key, label: p.name, byYear, cogs: qty * p.unitCost, cogsQty: qty };
+  };
+  const savedMembers = products.flatMap(p => p.erplainMemberProducts ?? []);
+  const candidates = new Map<string, Agg>();
+  [...savedMembers, ...products.filter(p => !p.erplainMembers?.length)].forEach(p => { const a = fromProduct(p); candidates.set(a.key, a); });
+  (rows ?? []).forEach(a => candidates.set(a.key, a));
+  const availableRows = [...candidates.values()];
+  const memberName = (key: string) => candidates.get(key)?.label ?? 'Nom indisponible — actualiser les ventes';
 
   const load = async () => {
     setLoading(true);
@@ -71,12 +93,21 @@ export function ErplainActualsImport({ products, years, onApply, onSave }: Props
   };
 
   const apply = (group?: string, keys: string[] = [...sel], categoryId?: string) => {
-    if (!rows) return;
     keys = [...new Set(keys)];
     const owners = memberOwners(products.filter(p => p.id !== categoryId));
     if (keys.some(key => owners.has(key))) { setFormError('Un produit appartient déjà à une catégorie.'); return; }
-    let chosen = rows.filter(r => keys.includes(r.key));
+    let chosen = availableRows.filter(r => keys.includes(r.key));
     if (!keys.length || chosen.length !== keys.length) { setFormError('Certaines ventes sont indisponibles. Actualisez les ventes avant de modifier cette catégorie.'); return; }
+    const memberProducts = chosen.map(a => {
+      const previous = [...products, ...savedMembers].find(p => (a.key.startsWith('manual:') ? p.id === a.key.slice(7) : p.id === `erplain-${a.key}`));
+      if (previous) return { ...previous, name: a.label };
+      const volumesByChannel: NonNullable<Product['volumesByChannel']> = { B2C: {}, B2B: {}, OEM: {} };
+      for (const y of years) for (const c of CHS) {
+        const last = lastYearOf(a);
+        volumesByChannel[c][y] = Math.round(a.byYear[y]?.[c].qty ?? (project && y > last ? (a.byYear[last]?.[c].qty ?? 0) * Math.pow(1 + growth / 100, y - last) : 0));
+      }
+      return { id: `erplain-${a.key}`, name: a.label, category: 'B2C', launchYear: Math.min(...Object.keys(a.byYear).map(Number)), devCost: 0, unitCost: a.cogsQty > 0 ? round(a.cogs / a.cogsQty) : 0, priceHT: round(avgPrice(a, 'B2C')), priceTTC_B2C: round(avgPrice(a, 'B2C') * 1.2), priceHT_B2B: round(avgPrice(a, 'B2B')), priceHT_OEM: round(avgPrice(a, 'OEM')), vatRate: .2, coef_shop: 1.5, coef_dist: 1.3, coef_oem: 1.2, productStatus: 'validated', volumesByChannel, volumesByYear: Object.fromEntries(years.map(y => [y, CHS.reduce((s, c) => s + (volumesByChannel[c][y] ?? 0), 0)])) } as Product;
+    });
     if (group) {
       // Merge selected products: summed volumes/CA → weighted average price and cost for the category.
       const g: Agg = { key: categoryId?.replace(/^erplain-/, '') ?? `cat-${crypto.randomUUID()}`, label: group, byYear: {}, cogs: 0, cogsQty: 0 };
@@ -113,8 +144,12 @@ export function ErplainActualsImport({ products, years, onApply, onSave }: Props
         priceHT_B2B: round(b2b || b2c), priceHT_OEM: round(oem || b2b || b2c),
         unitCost: a.cogsQty > 0 ? round(a.cogs / a.cogsQty) : existing?.unitCost ?? 0,
         volumesByChannel: vbc, volumesByYear: vby, productStatus: 'validated',
-        ...(group ? { erplainMembers: keys, productComment: `Catégorie Erplain : ${keys.length} produit(s)` } : {}),
+        ...(group ? { erplainMembers: keys, erplainMemberProducts: memberProducts, productComment: `Catégorie du plan : ${keys.length} produit(s)` } : {}),
       };
+      if (group) {
+        for (const y of years) for (const c of CHS) vbc[c][y] = memberProducts.reduce((s, m) => s + (m.volumesByChannel?.[c]?.[y] ?? (m.category === c ? m.volumesByYear[y] ?? 0 : 0)), 0);
+        years.forEach(y => { vby[y] = CHS.reduce((s, c) => s + (vbc[c][y] ?? 0), 0); });
+      }
       next = existing ? next.map(x => x.id === id ? p : x) : [...next, p];
     }
     if (group) {
@@ -139,7 +174,7 @@ export function ErplainActualsImport({ products, years, onApply, onSave }: Props
   const toggleExpanded = (id: string) => setExpanded(previous => {
     const next = new Set(previous); next.has(id) ? next.delete(id) : next.add(id); return next;
   });
-  const editorRows = [...(rows ?? [])].sort((a, b) => Number(editor?.keys.has(b.key)) - Number(editor?.keys.has(a.key)))
+  const editorRows = [...availableRows].sort((a, b) => Number(editor?.keys.has(b.key)) - Number(editor?.keys.has(a.key)))
     .filter(r => r.label.toLowerCase().includes(memberSearch.toLowerCase()));
 
   return (
@@ -149,12 +184,12 @@ export function ErplainActualsImport({ products, years, onApply, onSave }: Props
           {loading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Download className="h-4 w-4 mr-2" />}
           {rows ? 'Actualiser les ventes' : 'Charger les ventes'}
         </Button>
-        {onSave && <Button size="sm" variant="outline" onClick={onSave}><Save className="h-4 w-4 mr-2" />Sauvegarder le plan</Button>}
+        <div className="flex flex-wrap gap-2"><ManualPlanProductDialog years={years} onAdd={p => onApply([...products, p])} />{onSave && <Button size="sm" variant="outline" onClick={onSave}><Save className="h-4 w-4 mr-2" />Sauvegarder le plan</Button>}</div>
       </div>
 
       <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
         <h3 className="font-semibold flex items-center gap-2"><FolderOpen className="h-4 w-4 text-primary" />Mes catégories <Badge variant="secondary">{cats.length}</Badge></h3>
-        <Button size="sm" onClick={() => openEditor()} disabled={!rows || loading}><Plus className="h-4 w-4 mr-2" />Créer une catégorie</Button>
+        <Button size="sm" onClick={() => openEditor()} disabled={!availableRows.length || loading}><Plus className="h-4 w-4 mr-2" />Créer une catégorie</Button>
       </div>
       {!cats.length && <div className="py-6 border-y text-sm text-muted-foreground">Aucune catégorie dans le plan.</div>}
       <div className="grid gap-3 md:grid-cols-2 mb-5">
@@ -162,7 +197,7 @@ export function ErplainActualsImport({ products, years, onApply, onSave }: Props
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0"><h4 className="font-semibold break-words">{c.name}</h4><div className="text-xs text-muted-foreground mt-1">{new Set(c.erplainMembers).size} produits</div></div>
             <div className="flex shrink-0 gap-1">
-              <Button size="icon" variant="ghost" className="h-8 w-8" disabled={!rows || loading} title={`Modifier ${c.name}`} aria-label={`Modifier ${c.name}`} onClick={() => openEditor(c)}><Pencil className="h-4 w-4" /></Button>
+              <Button size="icon" variant="ghost" className="h-8 w-8" disabled={loading} title={`Modifier ${c.name}`} aria-label={`Modifier ${c.name}`} onClick={() => openEditor(c)}><Pencil className="h-4 w-4" /></Button>
               <Button size="icon" variant="ghost" className="h-8 w-8 text-destructive" title={`Supprimer ${c.name}`} aria-label={`Supprimer ${c.name}`} onClick={() => setDeleteId(c.id)}><Trash2 className="h-4 w-4" /></Button>
             </div>
           </div>
@@ -171,8 +206,15 @@ export function ErplainActualsImport({ products, years, onApply, onSave }: Props
           </div>
           <div className="flex justify-between gap-2 text-xs border-t mt-3 pt-3"><span className="text-muted-foreground">Volume {viewYear}</span><span className="font-medium">{c.volumesByYear[viewYear] ?? 0}</span></div>
           <Button size="sm" variant="ghost" className="mt-2 w-full justify-between" onClick={() => toggleExpanded(c.id)} aria-expanded={expanded.has(c.id)}>Produits de la catégorie{expanded.has(c.id) ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}</Button>
-          {expanded.has(c.id) && <ul className="mt-2 space-y-2 border-t pt-3 text-xs">{[...new Set(c.erplainMembers ?? [])].map(key => <li key={key} className="break-words">{rows?.find(r => r.key === key)?.label ?? products.find(p => p.id === `erplain-${key}`)?.name ?? key}</li>)}</ul>}
+          <Button size="sm" variant="outline" className="mt-2 w-full" onClick={() => openEditor(c)}><Plus className="h-4 w-4 mr-2" />Ajouter des produits</Button>
+          {expanded.has(c.id) && <ul className="mt-2 space-y-2 border-t pt-3 text-xs">{[...new Set(c.erplainMembers ?? [])].map(key => <li key={key} className="break-words">{memberName(key)}</li>)}</ul>}
         </div>)}
+      </div>
+
+      <h3 className="font-semibold mb-3">Produits individuels du plan</h3>
+      <div className="divide-y border-y mb-5">
+        {products.filter(p => !p.erplainMembers?.length).map(p => <div key={p.id} className="flex items-center justify-between gap-3 py-3 text-sm"><span className="font-medium break-words">{p.name}</span><Button size="icon" variant="ghost" className="h-8 w-8 shrink-0 text-destructive" title={`Retirer ${p.name} du plan`} aria-label={`Retirer ${p.name} du plan`} onClick={() => setRemoveId(p.id)}><Trash2 className="h-4 w-4" /></Button></div>)}
+        {!products.some(p => !p.erplainMembers?.length) && <p className="py-4 text-sm text-muted-foreground">Aucun produit individuel.</p>}
       </div>
 
       {rows && <>
@@ -229,10 +271,13 @@ export function ErplainActualsImport({ products, years, onApply, onSave }: Props
             })}
             {!editorRows.length && <div className="p-6 text-center text-sm text-muted-foreground">Aucun produit trouvé.</div>}
           </div>
-          {editor && [...editor.keys].some(key => !rows?.some(row => row.key === key)) && <p className="text-sm text-destructive">Certains produits de cette catégorie sont absents des ventes chargées. La modification est bloquée pour conserver leurs volumes.</p>}
+          {editor && [...editor.keys].some(key => !candidates.has(key)) && <p className="text-sm text-destructive">Actualisez les ventes pour retrouver les produits de cette ancienne catégorie.</p>}
           {formError && <p role="alert" className="text-sm text-destructive">{formError}</p>}
           <div className="flex justify-end gap-2"><Button variant="outline" onClick={() => setEditor(null)}>Annuler</Button><Button disabled={!groupName.trim() || !editor?.keys.size} onClick={() => { if (editor) apply(groupName.trim(), [...editor.keys], editor.id); }}>{editor?.id ? 'Enregistrer les modifications' : 'Créer la catégorie'}</Button></div>
         </DialogContent>
+      </Dialog>
+      <Dialog open={!!removeId} onOpenChange={open => { if (!open) setRemoveId(null); }}>
+        <DialogContent className="max-w-md"><DialogHeader><DialogTitle>Retirer {products.find(p => p.id === removeId)?.name} du plan ?</DialogTitle><DialogDescription>Ses volumes et prévisions seront retirés du plan uniquement. Les ventes Erplain ne seront pas modifiées.</DialogDescription></DialogHeader><div className="flex justify-end gap-2"><Button variant="outline" onClick={() => setRemoveId(null)}>Annuler</Button><Button variant="destructive" onClick={() => { onApply(products.filter(p => p.id !== removeId)); setRemoveId(null); }}>Retirer du plan</Button></div></DialogContent>
       </Dialog>
       <Dialog open={!!deleteId} onOpenChange={open => { if (!open) setDeleteId(null); }}>
         <DialogContent className="max-w-md"><DialogHeader><DialogTitle>Supprimer cette catégorie ?</DialogTitle><DialogDescription>La ligne et ses volumes seront retirés du plan. Les produits Erplain resteront disponibles ; les ventes d’origine seront conservées.</DialogDescription></DialogHeader><div className="flex justify-end gap-2"><Button variant="outline" onClick={() => setDeleteId(null)}>Annuler</Button><Button variant="destructive" onClick={() => { onApply(products.filter(p => p.id !== deleteId)); setDeleteId(null); }}>Supprimer la catégorie</Button></div></DialogContent>

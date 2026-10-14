@@ -10,6 +10,7 @@ import { formatCurrency } from '@/data/financialConfig';
 import { Plus, Trash2, ChevronDown, ChevronRight, MessageSquare, CheckCircle2, Clock } from 'lucide-react';
 import { useMemo } from 'react';
 import { cn } from '@/lib/utils';
+import { ManualPlanProductDialog } from './ManualPlanProductDialog';
 
 interface SimplifiedPricingTableProps {
   products: Product[];
@@ -75,7 +76,7 @@ export function SimplifiedPricingTable({ products, categories, onUpdateProduct, 
     const uncategorized: Product[] = [];
     products.forEach(p => {
       if (p.productCategoryId && catMap.has(p.productCategoryId)) {
-        catMap.get(p.productCategoryId)!.products.push(p);
+        catMap.get(p.productCategoryId)?.products.push(p);
       } else {
         uncategorized.push(p);
       }
@@ -264,7 +265,7 @@ export function SimplifiedPricingTable({ products, categories, onUpdateProduct, 
           </TableCell>
           {/* Actions */}
           <TableCell className="py-1.5">
-            <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-destructive opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => onRemoveProduct(product.id)}>
+            <Button size="sm" variant="ghost" title={`Retirer ${product.name} du plan`} aria-label={`Retirer ${product.name} du plan`} className="h-7 w-7 p-0 text-destructive" onClick={() => { if (window.confirm(`Retirer ${product.name} et ses volumes du plan ?`)) onRemoveProduct(product.id); }}>
               <Trash2 className="h-3.5 w-3.5" />
             </Button>
           </TableCell>
@@ -352,9 +353,7 @@ export function SimplifiedPricingTable({ products, categories, onUpdateProduct, 
           </TableBody>
         </Table>
       </div>
-      <Button variant="outline" size="sm" className="mt-4" onClick={handleAdd}>
-        <Plus className="h-4 w-4 mr-1" /> Ajouter Produit
-      </Button>
+      <div className="mt-4"><ManualPlanProductDialog years={Array.from({ length: 20 }, (_, i) => new Date().getFullYear() + i)} onAdd={onAddProduct} /></div>
     </SectionCard>
   );
 }
