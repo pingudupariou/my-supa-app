@@ -23,6 +23,28 @@ export function SalesBreakdown({ from, to, search }: { from: string; to: string;
   const [err, setErr] = useState<string | null>(null);
   const [ch, setCh] = useState('all');
   const [cc, setCc] = useState('all');
+  const [sortKey, setSortKey] = useState('ca_ht');
+  const [sortDir, setSortDir] = useState<1 | -1>(-1);
+  const toggleSort = (k: string) => { if (sortKey === k) setSortDir((d) => (d === 1 ? -1 : 1)); else { setSortKey(k); setSortDir(-1); } };
+  const sortVal = (r: Agg, extra?: { spend: number; after: number | null }) => {
+    const x = marginOf(r);
+    switch (sortKey) {
+      case 'label': return r.label.toLowerCase();
+      case 'qty': return r.qty; case 'cogs': return r.cogs;
+      case 'm': return x.m ?? -Infinity; case 'pct': return x.pct ?? -Infinity; case 'cov': return x.cov ?? -Infinity;
+      case 'spend': return extra?.spend ?? -Infinity; case 'after': return extra?.after ?? -Infinity;
+      default: return r.ca_ht;
+    }
+  };
+  const cmpRows = <T extends { r: Agg; spend?: number; after?: number | null }>(a: T, b: T) => {
+    const va = sortVal(a.r, a as any), vb = sortVal(b.r, b as any);
+    const c = typeof va === 'string' ? va.localeCompare(vb as string, 'fr') : (va as number) - (vb as number);
+    return c * sortDir;
+  };
+  const Th = ({ k, label, right = true }: { k: string; label: string; right?: boolean }) => (
+    <TableHead className={`cursor-pointer select-none ${right ? 'text-right' : ''}`} onClick={() => toggleSort(k)}>
+      {label}{sortKey === k ? (sortDir === -1 ? ' ▼' : ' ▲') : ''}
+    </TableHead>);
   useEffect(() => {
     let live = true; setLoading(true); setErr(null);
     supabase.rpc('sales_breakdown' as any, { _from: from, _to: to }).then(({ data, error }) => {
