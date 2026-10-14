@@ -7,7 +7,10 @@ import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
 import { formatCurrency } from '@/data/financialConfig';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Download, Loader2, Save, X } from 'lucide-react';
+import { Download, Loader2, Save, Plus, Pencil, Trash2, ChevronDown, ChevronUp, FolderOpen, Search } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import { Badge } from '@/components/ui/badge';
+import { memberOwners, replacePlanCategory } from './planMembership';
 import { toast } from 'sonner';
 
 type Ch = 'B2C' | 'B2B' | 'OEM';
@@ -24,6 +27,12 @@ export function ErplainActualsImport({ products, years, onApply, onSave }: Props
   const [rows, setRows] = useState<Agg[] | null>(null);
   const [sel, setSel] = useState<Set<string>>(new Set());
   const [groupName, setGroupName] = useState('');
+  const [editor, setEditor] = useState<{ id?: string; keys: Set<string> } | null>(null);
+  const [memberSearch, setMemberSearch] = useState('');
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [viewYear, setViewYear] = useState(pastYears[pastYears.length - 1]);
+  const [formError, setFormError] = useState('');
   const [project, setProject] = useState(true);
   const [growth, setGrowth] = useState(0);
   const [search, setSearch] = useState('');
@@ -61,12 +70,16 @@ export function ErplainActualsImport({ products, years, onApply, onSave }: Props
     return 0;
   };
 
-  const apply = (group?: string, keys: string[] = [...sel]) => {
+  const apply = (group?: string, keys: string[] = [...sel], categoryId?: string) => {
     if (!rows) return;
+    keys = [...new Set(keys)];
+    const owners = memberOwners(products.filter(p => p.id !== categoryId));
+    if (keys.some(key => owners.has(key))) { setFormError('Un produit appartient déjà à une catégorie.'); return; }
     let chosen = rows.filter(r => keys.includes(r.key));
+    if (!keys.length || chosen.length !== keys.length) { setFormError('Certaines ventes sont indisponibles. Actualisez les ventes avant de modifier cette catégorie.'); return; }
     if (group) {
       // Merge selected products: summed volumes/CA → weighted average price and cost for the category.
-      const g: Agg = { key: `cat-${group.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`, label: group, byYear: {}, cogs: 0, cogsQty: 0 };
+      const g: Agg = { key: categoryId?.replace(/^erplain-/, '') ?? `cat-${crypto.randomUUID()}`, label: group, byYear: {}, cogs: 0, cogsQty: 0 };
       for (const a of chosen) {
         g.cogs += a.cogs; g.cogsQty += a.cogsQty;
         for (const [y, v] of Object.entries(a.byYear)) {
@@ -104,80 +117,126 @@ export function ErplainActualsImport({ products, years, onApply, onSave }: Props
       };
       next = existing ? next.map(x => x.id === id ? p : x) : [...next, p];
     }
+    if (group) {
+      const category = next.find(p => p.id === (categoryId ?? `erplain-${chosen[0].key}`));
+      if (!category) return;
+      try { next = replacePlanCategory(products, category); }
+      catch (error) { setFormError(error instanceof Error ? error.message : 'Catégorie impossible à enregistrer.'); return; }
+    }
     onApply(next);
+    setSel(new Set()); setEditor(null); setFormError('');
     toast.success(`${chosen.length} produit(s) appliqué(s) au plan`);
   };
 
   const cats = products.filter(p => p.erplainMembers?.length);
-  const shown = (rows ?? []).filter(r => (r.label ?? '').toLowerCase().includes(search.toLowerCase()));
+  const owners = memberOwners(products);
+  const shown = (rows ?? []).filter(r => r.label.toLowerCase().includes(search.toLowerCase()));
+  const selectable = shown.filter(r => !owners.has(r.key));
+  const openEditor = (category?: Product) => {
+    setEditor({ id: category?.id, keys: new Set(category?.erplainMembers ?? [...sel].filter(key => !owners.has(key))) });
+    setGroupName(category?.name ?? ''); setMemberSearch(''); setFormError('');
+  };
+  const toggleExpanded = (id: string) => setExpanded(previous => {
+    const next = new Set(previous); next.has(id) ? next.delete(id) : next.add(id); return next;
+  });
+  const editorRows = [...(rows ?? [])].sort((a, b) => Number(editor?.keys.has(b.key)) - Number(editor?.keys.has(a.key)))
+    .filter(r => r.label.toLowerCase().includes(memberSearch.toLowerCase()));
 
   return (
-    <SectionCard title="Réalisé Erplain (années passées et en cours)">
-      <div className="flex flex-wrap items-center gap-3 mb-3">
+    <SectionCard title="Réalisé Erplain · catégories du plan">
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
         <Button size="sm" onClick={load} disabled={loading || !pastYears.length}>
-          {loading ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Download className="h-4 w-4 mr-1" />}
-          Charger les ventes {pastYears[0]}–{pastYears[pastYears.length - 1]}
+          {loading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Download className="h-4 w-4 mr-2" />}
+          {rows ? 'Actualiser les ventes' : 'Charger les ventes'}
         </Button>
-        {onSave && <Button size="sm" variant="outline" onClick={onSave}><Save className="h-4 w-4 mr-1" />Sauvegarder le plan</Button>}
-        <span className="text-xs text-muted-foreground">Mêmes ventes et canaux que Statistiques commerciales (factures − avoirs, HT hors livraison).</span>
+        {onSave && <Button size="sm" variant="outline" onClick={onSave}><Save className="h-4 w-4 mr-2" />Sauvegarder le plan</Button>}
       </div>
-      {rows && cats.length > 0 && (
-        <div className="mb-3 space-y-2">
-          {cats.map(c => (
-            <div key={c.id} className="p-2 rounded-lg border text-xs flex flex-wrap items-center gap-1">
-              <span className="font-semibold mr-2">{c.name}</span>
-              {c.erplainMembers!.map(k => (
-                <span key={k} className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-muted">
-                  {rows.find(r => r.key === k)?.label ?? k}
-                  <button title="Retirer de la catégorie" disabled={c.erplainMembers!.length < 2} onClick={() => apply(c.name, c.erplainMembers!.filter(x => x !== k))}><X className="h-3 w-3" /></button>
-                </span>
-              ))}
-              <Button size="sm" variant="ghost" className="h-6 text-xs" disabled={!sel.size} onClick={() => apply(c.name, [...new Set([...c.erplainMembers!, ...sel])])}>+ Ajouter la sélection ({sel.size})</Button>
+
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
+        <h3 className="font-semibold flex items-center gap-2"><FolderOpen className="h-4 w-4 text-primary" />Mes catégories <Badge variant="secondary">{cats.length}</Badge></h3>
+        <Button size="sm" onClick={() => openEditor()} disabled={!rows || loading}><Plus className="h-4 w-4 mr-2" />Créer une catégorie</Button>
+      </div>
+      {!cats.length && <div className="py-6 border-y text-sm text-muted-foreground">Aucune catégorie dans le plan.</div>}
+      <div className="grid gap-3 md:grid-cols-2 mb-5">
+        {cats.map(c => <div key={c.id} className="rounded-lg border bg-card p-4 min-w-0">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0"><h4 className="font-semibold break-words">{c.name}</h4><div className="text-xs text-muted-foreground mt-1">{new Set(c.erplainMembers).size} produits</div></div>
+            <div className="flex shrink-0 gap-1">
+              <Button size="icon" variant="ghost" className="h-8 w-8" disabled={!rows || loading} title={`Modifier ${c.name}`} aria-label={`Modifier ${c.name}`} onClick={() => openEditor(c)}><Pencil className="h-4 w-4" /></Button>
+              <Button size="icon" variant="ghost" className="h-8 w-8 text-destructive" title={`Supprimer ${c.name}`} aria-label={`Supprimer ${c.name}`} onClick={() => setDeleteId(c.id)}><Trash2 className="h-4 w-4" /></Button>
             </div>
-          ))}
+          </div>
+          <div className="grid grid-cols-3 gap-2 mt-4 text-sm">
+            {CHS.map(ch => <div key={ch}><div className="text-xs text-muted-foreground">{ch} · prix HT</div><div className="font-medium mt-1">{formatCurrency(ch === 'B2C' ? c.priceHT : ch === 'B2B' ? c.priceHT_B2B : c.priceHT_OEM)}</div></div>)}
+          </div>
+          <div className="flex justify-between gap-2 text-xs border-t mt-3 pt-3"><span className="text-muted-foreground">Volume {viewYear}</span><span className="font-medium">{c.volumesByYear[viewYear] ?? 0}</span></div>
+          <Button size="sm" variant="ghost" className="mt-2 w-full justify-between" onClick={() => toggleExpanded(c.id)} aria-expanded={expanded.has(c.id)}>Produits de la catégorie{expanded.has(c.id) ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}</Button>
+          {expanded.has(c.id) && <ul className="mt-2 space-y-2 border-t pt-3 text-xs">{[...new Set(c.erplainMembers ?? [])].map(key => <li key={key} className="break-words">{rows?.find(r => r.key === key)?.label ?? products.find(p => p.id === `erplain-${key}`)?.name ?? key}</li>)}</ul>}
+        </div>)}
+      </div>
+
+      {rows && <>
+        <div className="border-y py-3 mb-4 flex flex-wrap items-center gap-4 text-sm">
+          <label className="flex items-center gap-2"><Checkbox checked={project} onCheckedChange={v => setProject(v === true)} />Reporter les volumes sur les années suivantes</label>
+          {project && <label className="flex items-center gap-2">Croissance / an<Input aria-label="Croissance annuelle" type="number" value={growth} onChange={e => setGrowth(Number(e.target.value))} className="h-8 w-20 text-center" step={5} />%</label>}
         </div>
-      )}
-      {rows && (
-        <>
-          <div className="flex flex-wrap items-center gap-4 mb-3 p-3 bg-muted/30 rounded-lg border text-sm">
-            <Input placeholder="Rechercher…" value={search} onChange={e => setSearch(e.target.value)} className="h-8 w-48" />
-            <label className="flex items-center gap-2"><Checkbox checked={project} onCheckedChange={v => setProject(!!v)} />Dupliquer sur les années suivantes</label>
-            {project && <span className="flex items-center gap-1">croissance <Input type="number" value={growth} onChange={e => setGrowth(Number(e.target.value))} className="h-7 w-16 text-center" step={5} /> %/an</span>}
-            <Button size="sm" variant="secondary" onClick={() => setSel(new Set(sel.size ? [] : shown.map(r => r.key)))}>{sel.size ? 'Tout décocher' : 'Tout cocher'}</Button>
-            <Button size="sm" onClick={() => apply()} disabled={!sel.size}>Appliquer au plan ({sel.size})</Button>
-            <span className="flex items-center gap-1 border-l pl-3">
-              <Input placeholder="Nom de catégorie…" value={groupName} onChange={e => setGroupName(e.target.value)} className="h-8 w-44" />
-              <Button size="sm" variant="outline" disabled={sel.size < 2 || !groupName.trim()} onClick={() => apply(groupName.trim())}>Regrouper en 1 ligne ({sel.size})</Button>
-            </span>
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
+          <h3 className="font-semibold">Produits Erplain <span className="text-muted-foreground font-normal text-sm">({rows.length})</span></h3>
+          <div className="flex flex-wrap gap-2 items-center">
+            <div className="relative"><Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" /><Input aria-label="Rechercher un produit" placeholder="Rechercher un produit…" value={search} onChange={e => setSearch(e.target.value)} className="pl-9 h-9 w-60 max-w-full" /></div>
+            <div className="flex gap-1" aria-label="Année des ventes">{pastYears.map(y => <Button key={y} variant={viewYear === y ? 'secondary' : 'ghost'} size="sm" onClick={() => setViewYear(y)}>{y}</Button>)}</div>
           </div>
-          <div className="overflow-x-auto max-h-[480px]">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead />
-                  <TableHead>Produit</TableHead>
-                  {pastYears.map(y => CHS.map(c => <TableHead key={`${y}${c}`} className="text-center text-xs">{y} {c}<br />qté · prix moy. HT</TableHead>))}
-                  <TableHead className="text-right">Coût unit. Erplain</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {shown.map(a => (
-                  <TableRow key={a.key}>
-                    <TableCell><Checkbox checked={sel.has(a.key)} onCheckedChange={v => { const s = new Set(sel); v ? s.add(a.key) : s.delete(a.key); setSel(s); }} /></TableCell>
-                    <TableCell className="text-xs max-w-[240px]">{a.label}{products.some(p => p.id === `erplain-${a.key}`) && <span className="ml-1 text-primary">· déjà au plan</span>}</TableCell>
-                    {pastYears.map(y => CHS.map(c => { const v = a.byYear[y]?.[c]; return (
-                      <TableCell key={`${y}${c}`} className="text-center text-xs font-mono-numbers">
-                        {v?.qty ? <>{Math.round(v.qty)}<div className="text-muted-foreground">{formatCurrency(v.ca / v.qty)}</div></> : '–'}
-                      </TableCell>); }))}
-                    <TableCell className="text-right text-xs">{a.cogsQty > 0 ? formatCurrency(a.cogs / a.cogsQty) : <span className="text-muted-foreground">non validé</span>}</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+        </div>
+        <div className="flex flex-wrap items-center gap-2 mb-3">
+          <Badge variant="secondary">{sel.size} sélectionné(s)</Badge>
+          <Button size="sm" variant="ghost" onClick={() => setSel(new Set(selectable.every(r => sel.has(r.key)) ? [] : selectable.map(r => r.key)))} disabled={!selectable.length}>{selectable.length > 0 && selectable.every(r => sel.has(r.key)) ? 'Tout décocher' : 'Sélectionner les disponibles'}</Button>
+          <Button size="sm" variant="outline" onClick={() => openEditor()} disabled={!sel.size}><FolderOpen className="h-4 w-4 mr-2" />Créer une catégorie</Button>
+          <Button size="sm" variant="outline" onClick={() => apply()} disabled={!sel.size}>Ajouter individuellement</Button>
+        </div>
+        <div className="overflow-auto max-h-[420px] border rounded-md">
+          <Table>
+            <TableHeader className="sticky top-0 bg-card z-10"><TableRow>
+              <TableHead className="w-10" /><TableHead className="min-w-[200px]">Produit</TableHead><TableHead>Dans le plan</TableHead>
+              {CHS.map(ch => <TableHead key={ch} className="text-right">{ch}<div className="text-xs font-normal">Volume · prix HT</div></TableHead>)}
+              <TableHead className="text-right">Coût unitaire</TableHead>
+            </TableRow></TableHeader>
+            <TableBody>{shown.map(a => {
+              const owner = owners.get(a.key);
+              return <TableRow key={a.key}>
+                <TableCell><Checkbox aria-label={`Sélectionner ${a.label}`} disabled={!!owner} checked={!owner && sel.has(a.key)} onCheckedChange={v => setSel(previous => { const next = new Set(previous); v === true ? next.add(a.key) : next.delete(a.key); return next; })} /></TableCell>
+                <TableCell className="text-sm font-medium max-w-[300px] break-words">{a.label}</TableCell>
+                <TableCell><Badge variant={owner ? 'secondary' : 'outline'} className="max-w-48 whitespace-normal">{owner?.name ?? (products.some(p => p.id === `erplain-${a.key}`) ? 'Individuel' : 'Disponible')}</Badge></TableCell>
+                {CHS.map(ch => { const v = a.byYear[viewYear]?.[ch]; return <TableCell key={ch} className="text-right text-sm tabular-nums">{v?.qty ? <>{Math.round(v.qty)}<div className="text-xs text-muted-foreground">{formatCurrency(v.ca / v.qty)}</div></> : '—'}</TableCell>; })}
+                <TableCell className="text-right text-sm">{a.cogsQty > 0 ? formatCurrency(a.cogs / a.cogsQty) : <span className="text-muted-foreground">Non validé</span>}</TableCell>
+              </TableRow>;
+            })}{!shown.length && <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground py-8">Aucun produit trouvé.</TableCell></TableRow>}</TableBody>
+          </Table>
+        </div>
+      </>}
+
+      <Dialog open={!!editor} onOpenChange={open => { if (!open) setEditor(null); }}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader><DialogTitle>{editor?.id ? 'Modifier la catégorie' : 'Nouvelle catégorie'}</DialogTitle><DialogDescription>{editor?.keys.size ?? 0} produit(s) sélectionné(s)</DialogDescription></DialogHeader>
+          <label className="text-sm font-medium space-y-2">Nom de la catégorie<Input aria-label="Nom de la catégorie" placeholder="Ex. Galets céramique" value={groupName} onChange={e => { setGroupName(e.target.value); setFormError(''); }} /></label>
+          <Input aria-label="Rechercher dans les catégories" placeholder="Rechercher un produit…" value={memberSearch} onChange={e => setMemberSearch(e.target.value)} />
+          <div className="max-h-[360px] overflow-y-auto divide-y border rounded-md">
+            {editorRows.map(row => {
+              const owner = owners.get(row.key); const locked = !!owner && owner.id !== editor?.id;
+              return <label key={row.key} className={`flex items-center gap-3 p-3 text-sm ${locked ? 'opacity-60' : 'cursor-pointer hover:bg-muted/40'}`}>
+                <Checkbox aria-label={`Inclure ${row.label}`} disabled={locked} checked={editor?.keys.has(row.key) ?? false} onCheckedChange={checked => setEditor(previous => { if (!previous) return previous; const keys = new Set(previous.keys); checked === true ? keys.add(row.key) : keys.delete(row.key); return { ...previous, keys }; })} />
+                <span className="flex-1 min-w-0 break-words">{row.label}</span>{locked && <Badge variant="secondary" className="max-w-40 whitespace-normal shrink-0">{owner?.name}</Badge>}
+              </label>;
+            })}
+            {!editorRows.length && <div className="p-6 text-center text-sm text-muted-foreground">Aucun produit trouvé.</div>}
           </div>
-          <p className="text-xs text-muted-foreground mt-2">Le prix appliqué par canal est le prix moyen HT de la dernière année vendue sur ce canal ; modifiable ensuite dans Pricing. Les volumes passés sont remplacés par le réalisé ; les nouveaux produits manuels restent inchangés.</p>
-        </>
-      )}
+          {editor && [...editor.keys].some(key => !rows?.some(row => row.key === key)) && <p className="text-sm text-destructive">Certains produits de cette catégorie sont absents des ventes chargées. La modification est bloquée pour conserver leurs volumes.</p>}
+          {formError && <p role="alert" className="text-sm text-destructive">{formError}</p>}
+          <div className="flex justify-end gap-2"><Button variant="outline" onClick={() => setEditor(null)}>Annuler</Button><Button disabled={!groupName.trim() || !editor?.keys.size} onClick={() => { if (editor) apply(groupName.trim(), [...editor.keys], editor.id); }}>{editor?.id ? 'Enregistrer les modifications' : 'Créer la catégorie'}</Button></div>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={!!deleteId} onOpenChange={open => { if (!open) setDeleteId(null); }}>
+        <DialogContent className="max-w-md"><DialogHeader><DialogTitle>Supprimer cette catégorie ?</DialogTitle><DialogDescription>La ligne et ses volumes seront retirés du plan. Les produits Erplain resteront disponibles ; les ventes d’origine seront conservées.</DialogDescription></DialogHeader><div className="flex justify-end gap-2"><Button variant="outline" onClick={() => setDeleteId(null)}>Annuler</Button><Button variant="destructive" onClick={() => { onApply(products.filter(p => p.id !== deleteId)); setDeleteId(null); }}>Supprimer la catégorie</Button></div></DialogContent>
+      </Dialog>
     </SectionCard>
   );
 }
