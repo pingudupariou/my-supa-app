@@ -56,6 +56,7 @@ export function ProductPlanPage() {
     removeProduct, 
     saveAll,
     setRevenueMode,
+    updateScenarioSettings,
     updateGlobalRevenueConfig,
     updateClientRevenueConfig,
     updateRoadmapBlocks,

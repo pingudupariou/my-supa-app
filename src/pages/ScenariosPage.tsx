@@ -218,7 +218,7 @@ export function ScenariosPage() {
               <Label>Année de début</Label>
             </div>
             <div className="flex gap-2">
-              {[2024, 2025, 2026, 2027].map(year => (
+              {Array.from({ length: 7 }, (_, i) => new Date().getFullYear() - 3 + i).map(year => (
                 <Button
                   key={year}
                   size="sm"
