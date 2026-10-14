@@ -4,6 +4,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { DATASETS, FILTER_TYPES, makeGql, pageQuery, whereColumns, ordersWithCustomer } from "./erplain.ts";
 import { computePlan, moPayload } from "./plan.ts";
+import { costflowPreview } from "./costflow.ts";
 
 const DEFAULT_ENDPOINT = "https://api.erplain.app/graphql";
 
@@ -414,6 +415,27 @@ Deno.serve(async (req) => {
     // Server-side source of truth for the page: which role and permission the caller actually has.
     if (peekAction === "access") {
       return json({ role: role?.role ?? null, approved: !!role?.approved, permission: role?.approved || role?.role === "admin" ? permission : "hidden" });
+    }
+    if (peekAction === "costflow_preview") {
+      // Read-only comparison for CostFlow: needs read access on the costflow tab (admins always).
+      let cf = role?.role === "admin" ? "write" : "hidden";
+      if (role?.role !== "admin" && role?.role && role?.approved) {
+        const { data: perm } = await admin.from("tab_permissions").select("permission").eq("role", role.role).eq("tab_key", "costflow").maybeSingle();
+        cf = perm?.permission ?? "hidden";
+      }
+      if (cf !== "read" && cf !== "write") return json({ error: "Forbidden" }, 403);
+      const tok = Deno.env.get("ERPLAIN_API_TOKEN");
+      if (!tok) return json({ status: "config_error", message: "Secret ERPLAIN_API_TOKEN absent côté serveur." });
+      const b = await req.json().catch(() => ({}));
+      const { data: rootRow } = await admin.from("erplain_schema_cache").select("data").eq("type_name", "__root").maybeSingle();
+      const steps: any[] = [];
+      const gql = makeGql(tok, rootRow?.data?.endpoint ?? DEFAULT_ENDPOINT, Date.now() + 100000, (st) => steps.push(st));
+      try {
+        const products = await costflowPreview(gql, anon, b);
+        return json({ status: "success", products, steps });
+      } catch (e) {
+        return json({ status: "api_error", message: String((e as Error).message).slice(0, 400), steps });
+      }
     }
     if (role?.role !== "admin") {
       // Non-admins need an approved account and explicit write permission on the plan-atelier tab (read allows only viewing the plan).
