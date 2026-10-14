@@ -8,6 +8,7 @@ import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Loader2, AlertTriangle } from 'lucide-react';
+import { Bar, CartesianGrid, ComposedChart, Line, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 
 const eur = (n: number | null | undefined) => n == null ? '—' : n.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 });
 const pct = (a: number, b: number) => (b ? `${((a / b) * 100).toFixed(1)} %` : '—');
@@ -95,6 +96,8 @@ export function B2CAdMargin() {
         </div>
       )}
 
+      {t && <MarginChart months={months} countries={countryInfo.withSales} products={products} margin={margin} />}
+
       {t && (
         <Tabs defaultValue="period">
           <TabsList><TabsTrigger value="period">Périodes</TabsTrigger><TabsTrigger value="country">Pays</TabsTrigger><TabsTrigger value="product">Produits</TabsTrigger><TabsTrigger value="rules">Méthode et données manquantes</TabsTrigger></TabsList>
@@ -147,6 +150,50 @@ export function B2CAdMargin() {
         </Tabs>
       )}
     </div>
+  );
+}
+
+const C = { ca: 'hsl(var(--muted-foreground))', before: 'hsl(var(--chart-2, 160 60% 40%))', ads: 'hsl(var(--destructive))', after: 'hsl(var(--primary))' };
+function MarginChart({ months, countries, products, margin }: { months: Row[]; countries: Row[]; products: any[]; margin: (r: Row) => number }) {
+  const [dim, setDim] = useState<'month' | 'country' | 'product'>('month');
+  const [show, setShow] = useState({ ca: true, before: true, ads: true, after: true });
+  const rows = useMemo(() => {
+    if (dim === 'product') return products.slice(0, 12).map((p) => { const b = p.cov_ht - p.cogs, a = (p.direct ?? 0) + (p.alloc ?? 0); return { k: String(p.label ?? p.k).slice(0, 22), ca: p.ca, before: b, ads: a, after: b - a }; });
+    const src = dim === 'month' ? months : [...countries].sort((a, b) => b.prod_ht - a.prod_ht).slice(0, 12);
+    return src.map((r) => { const b = margin(r), a = r.google + r.meta; return { k: r.k, ca: r.prod_ht, before: b, ads: a, after: b - a }; });
+  }, [dim, months, countries, products, margin]);
+  const labels = { ca: 'CA produits HT', before: 'Marge avant Ads', ads: 'Dépenses Ads', after: 'Marge après Ads' } as const;
+  const fmt = (v: number) => `${Math.round(v / 1000)} k€`;
+  return (
+    <Card>
+      <CardHeader className="pb-2"><CardTitle className="text-base">Vue d'ensemble</CardTitle></CardHeader>
+      <CardContent className="space-y-3">
+        <div className="flex flex-wrap items-center gap-2">
+          {([['month', 'Par mois'], ['country', 'Par pays (top 12)'], ['product', 'Par produit (top 12)']] as const).map(([v, l]) => (
+            <Button key={v} size="sm" variant={dim === v ? 'default' : 'outline'} onClick={() => setDim(v)}>{l}</Button>))}
+          <span className="mx-2 h-5 w-px bg-border" />
+          {(Object.keys(labels) as (keyof typeof labels)[]).map((k) => (
+            <button key={k} onClick={() => setShow((s) => ({ ...s, [k]: !s[k] }))} className={`flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs ${show[k] ? '' : 'opacity-40'}`}>
+              <span className="h-2.5 w-2.5 rounded-full" style={{ background: C[k] }} />{labels[k]}</button>))}
+        </div>
+        <div className="h-80">
+          <ResponsiveContainer width="100%" height="100%">
+            <ComposedChart data={rows} margin={{ left: 8, right: 8, bottom: dim === 'month' ? 0 : 40 }}>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} />
+              <XAxis dataKey="k" tick={{ fontSize: 11 }} interval={0} angle={dim === 'month' ? 0 : -30} textAnchor={dim === 'month' ? 'middle' : 'end'} />
+              <YAxis tickFormatter={fmt} tick={{ fontSize: 11 }} />
+              <Tooltip formatter={(v: number, n: string) => [eur(v), labels[n as keyof typeof labels] ?? n]} />
+              <ReferenceLine y={0} stroke="hsl(var(--border))" />
+              {show.ca && <Bar dataKey="ca" fill={C.ca} fillOpacity={0.35} radius={[3, 3, 0, 0]} />}
+              {show.before && <Bar dataKey="before" fill={C.before} radius={[3, 3, 0, 0]} />}
+              {show.ads && <Bar dataKey="ads" fill={C.ads} fillOpacity={0.8} radius={[3, 3, 0, 0]} />}
+              {show.after && <Line dataKey="after" stroke={C.after} strokeWidth={3} dot={{ r: 3 }} type="monotone" />}
+            </ComposedChart>
+          </ResponsiveContainer>
+        </div>
+        <p className="text-xs text-muted-foreground">Barres : CA, marge avant Ads et dépenses Ads. Ligne : ce qui reste après publicité. Sous zéro = la publicité coûte plus que la marge.</p>
+      </CardContent>
+    </Card>
   );
 }
 
