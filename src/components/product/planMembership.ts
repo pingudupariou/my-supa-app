@@ -21,7 +21,7 @@ export function replacePlanCategory(products: Product[], category: Product): Pro
   if (products.some(p => p.id !== category.id && p.erplainMembers?.length && categoryNameKey(p.name) === categoryNameKey(category.name))) {
     throw new Error('Une catégorie porte déjà ce nom.');
   }
-  const individualIds = new Set(keys.map(key => `erplain-${key}`));
+  const individualIds = new Set(keys.map(key => key.startsWith('manual:') ? key.slice(7) : `erplain-${key}`));
   const next = products.filter(p => p.id !== category.id && !individualIds.has(p.id));
   const index = products.findIndex(p => p.id === category.id);
   next.splice(index < 0 ? next.length : Math.min(index, next.length), 0, { ...category, erplainMembers: keys });
