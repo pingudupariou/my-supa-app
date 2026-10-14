@@ -473,28 +473,43 @@ export type Database = {
       }
       costflow_cost_methods: {
         Row: {
+          cost_formula: string | null
+          cost_read_at: string | null
+          cost_status: string | null
           created_at: string
           method: string
           set_by: string | null
           source: string
+          unit_cost: number | null
           updated_at: string
           variant_id: string
+          variant_label: string | null
         }
         Insert: {
+          cost_formula?: string | null
+          cost_read_at?: string | null
+          cost_status?: string | null
           created_at?: string
           method: string
           set_by?: string | null
           source: string
+          unit_cost?: number | null
           updated_at?: string
           variant_id: string
+          variant_label?: string | null
         }
         Update: {
+          cost_formula?: string | null
+          cost_read_at?: string | null
+          cost_status?: string | null
           created_at?: string
           method?: string
           set_by?: string | null
           source?: string
+          unit_cost?: number | null
           updated_at?: string
           variant_id?: string
+          variant_label?: string | null
         }
         Relationships: []
       }
@@ -4011,6 +4026,7 @@ export type Database = {
           _channels?: string[]
           _from: string
           _include_shipping: boolean
+          _ship_cost_per_doc?: number
           _to: string
         }
         Returns: Json
