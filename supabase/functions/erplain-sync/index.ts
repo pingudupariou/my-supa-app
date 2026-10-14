@@ -441,7 +441,7 @@ Deno.serve(async (req) => {
         return json({ status: "api_error", message: msg, steps: steps.slice(-5) });
       }
     }
-    if (peekAction === "costflow_preview" || peekAction === "costflow_catalog" || peekAction === "costflow_variant" || peekAction === "costflow_refresh_bom" || peekAction === "costflow_set_method") {
+    if (peekAction === "costflow_preview" || peekAction === "costflow_catalog" || peekAction === "costflow_variant" || peekAction === "costflow_refresh_bom" || peekAction === "costflow_set_method" || peekAction === "costflow_bulk_method") {
       // Read-only comparison for CostFlow: needs read access on the costflow tab (admins always).
       let cf = role?.role === "admin" ? "write" : "hidden";
       if (role?.role !== "admin" && role?.role && role?.approved) {
@@ -456,6 +456,35 @@ Deno.serve(async (req) => {
         const tk = Deno.env.get("ERPLAIN_API_TOKEN");
         if (!tk) return json({ status: "config_error", message: "Secret ERPLAIN_API_TOKEN absent côté serveur." });
         return await handleData("sync", { mode: "bom", restart: b.restart === true }, admin, tk, claims.claims.sub);
+      }
+      if (peekAction === "costflow_bulk_method") {
+        // Applies one documented method to many variants; each cost is snapshotted from a live Erplain read (Erplain never written). Chunked by deadline.
+        if (cf !== "write") return json({ error: "Forbidden" }, 403);
+        const method = b.method; const source = String(b.source ?? "").trim().slice(0, 500);
+        if (!["cump_finished", "components_plus_mfg", "confirmed_full"].includes(method)) return json({ status: "api_error", message: "Méthode inconnue." }, 400);
+        if (source.length < 3) return json({ status: "api_error", message: "Indiquez la source qui documente cette méthode." }, 400);
+        const ids = (Array.isArray(b.ids) ? b.ids : []).map((x: any) => String(x).slice(0, 40)).filter((x: string) => /^[0-9A-Za-z_-]+$/.test(x)).slice(0, 200);
+        const tk3 = Deno.env.get("ERPLAIN_API_TOKEN");
+        if (!tk3) return json({ status: "config_error", message: "Secret ERPLAIN_API_TOKEN absent côté serveur." });
+        const { data: rr } = await admin.from("erplain_schema_cache").select("data").eq("type_name", "__root").maybeSingle();
+        const end = Date.now() + 45000;
+        const g = makeGql(tk3, rr?.data?.endpoint ?? DEFAULT_ENDPOINT, Date.now() + 100000, () => {});
+        let existing = new Set<string>();
+        if (b.keepExisting) { const { data: ex } = await admin.from("costflow_cost_methods").select("variant_id").in("variant_id", ids); existing = new Set((ex ?? []).map((x: any) => x.variant_id)); }
+        const done: string[] = []; const res = { ok: 0, missing: 0, skipped: 0, errors: 0 };
+        for (const vid of ids) {
+          if (Date.now() > end) break;
+          done.push(vid);
+          if (existing.has(vid)) { res.skipped++; continue; }
+          try {
+            await admin.from("costflow_cost_methods").upsert({ variant_id: vid, method, source, set_by: claims.claims.sub });
+            const snap = await costflowVariant(g, vid, admin); const c = snap.analysis.cost;
+            await admin.from("costflow_cost_methods").update({ unit_cost: c.value, cost_status: c.status, cost_formula: c.formula, cost_read_at: snap.readAt,
+              variant_label: [snap.variant.sku, snap.variant.label].filter(Boolean).join(" ").slice(0, 200) }).eq("variant_id", vid);
+            if (c.status === "ok") res.ok++; else res.missing++;
+          } catch { res.errors++; await admin.from("costflow_cost_methods").update({ unit_cost: null, cost_status: "error", cost_formula: "Lecture Erplain impossible" }).eq("variant_id", vid); }
+        }
+        return json({ status: "success", done, ...res });
       }
       if (peekAction === "costflow_set_method") {
         if (cf !== "write") return json({ error: "Forbidden" }, 403);

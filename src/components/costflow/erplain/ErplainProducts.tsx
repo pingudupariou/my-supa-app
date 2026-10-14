@@ -1,4 +1,4 @@
-import { Fragment, useMemo, useState } from 'react';
+import { Fragment, useMemo, useRef, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -22,6 +22,36 @@ export function ErplainProducts({ variants, onCostRead }: { variants: ErplainVar
   const [detail, setDetail] = useState<any | null>(null);
   const [loadingId, setLoadingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  const [bulkOpen, setBulkOpen] = useState(false);
+  const [bulkMethod, setBulkMethod] = useState('cump_finished');
+  const [bulkSource, setBulkSource] = useState('');
+  const [bulkScope, setBulkScope] = useState<'bom' | 'all' | 'filtered'>('all');
+  const [keepExisting, setKeepExisting] = useState(true);
+  const [bulk, setBulk] = useState<{ total: number; done: number; ok: number; missing: number; skipped: number; errors: number; running: boolean } | null>(null);
+  const stopRef = useRef(false);
+  const scopeIds = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return variants.filter(v => bulkScope === 'all' || ((v.bom || v.bomCount > 0) || (bulkScope === 'filtered' && !onlyBom)))
+      .filter(v => bulkScope !== 'filtered' || !q || `${v.sku ?? ''} ${v.label ?? ''}`.toLowerCase().includes(q)).map(v => v.id);
+  }, [variants, bulkScope, search, onlyBom]);
+  const runBulk = async () => {
+    stopRef.current = false; setError(null);
+    const st = { total: scopeIds.length, done: 0, ok: 0, missing: 0, skipped: 0, errors: 0, running: true };
+    setBulk({ ...st });
+    let rest = [...scopeIds];
+    try {
+      while (rest.length && !stopRef.current) {
+        const { data, error } = await supabase.functions.invoke('erplain-sync', { body: { action: 'costflow_bulk_method', ids: rest.slice(0, 200), method: bulkMethod, source: bulkSource, keepExisting } });
+        if (error || data?.status !== 'success') throw new Error(data?.message || error?.message || 'Application impossible');
+        const done = new Set<string>(data.done ?? []); if (!done.size) throw new Error('Aucune variante traitée.');
+        rest = rest.filter(id => !done.has(id));
+        st.done += done.size; st.ok += data.ok; st.missing += data.missing; st.skipped += data.skipped; st.errors += data.errors;
+        setBulk({ ...st });
+      }
+    } catch (e) { setError((e as Error).message); }
+    setBulk({ ...st, running: false });
+  };
 
   const rows = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -113,7 +143,37 @@ export function ErplainProducts({ variants, onCostRead }: { variants: ErplainVar
           {onlyBom ? 'Produits fabriqués' : 'Toutes les variantes'}
         </Button>
         <span className="text-xs text-muted-foreground">{rows.length} affichés (max 300)</span>
+        <Button size="sm" variant="outline" className="ml-auto" onClick={() => setBulkOpen(!bulkOpen)}>Méthode de coût en masse</Button>
       </div>
+      {bulkOpen && (
+        <Card><CardHeader className="pb-2"><CardTitle className="text-base">Appliquer une méthode documentée à plusieurs produits</CardTitle></CardHeader>
+          <CardContent className="space-y-3 text-sm">
+            <div className="grid gap-2 md:grid-cols-3">
+              {METHODS.map(m => (
+                <button key={m.key} type="button" onClick={() => setBulkMethod(m.key)}
+                  className={`text-left rounded-lg border p-3 transition-colors ${bulkMethod === m.key ? 'border-primary bg-primary/10' : 'hover:bg-muted/50'}`}>
+                  <p className="font-medium">{m.label}</p><p className="text-xs text-muted-foreground">{m.help}</p>
+                </button>))}
+            </div>
+            {bulkMethod !== 'cump_finished' && <p className="text-xs text-destructive">Pour un composant acheté (sans nomenclature), le coût composants vaut 0 : préférez « CUMP produit fini » pour les composants.</p>}
+            <div className="flex flex-wrap gap-2">
+              {([['all', 'Tous les produits et composants'], ['bom', 'Produits fabriqués seulement'], ['filtered', 'Liste filtrée actuelle']] as const).map(([k, l]) => (
+                <Button key={k} size="sm" variant={bulkScope === k ? 'default' : 'outline'} onClick={() => setBulkScope(k)}>{l}</Button>))}
+              <span className="self-center text-xs text-muted-foreground">{scopeIds.length} variante(s)</span>
+            </div>
+            <Input placeholder="Source documentée (ex. : note Erplain du 14/10/2026, validée par …)" value={bulkSource} onChange={e => setBulkSource(e.target.value)} />
+            <label className="flex items-center gap-2 text-xs"><input type="checkbox" checked={keepExisting} onChange={e => setKeepExisting(e.target.checked)} />Ne pas remplacer les méthodes déjà choisies produit par produit</label>
+            <div className="flex items-center gap-2">
+              <Button size="sm" disabled={bulkSource.trim().length < 3 || !scopeIds.length || bulk?.running} onClick={runBulk}>
+                {bulk?.running ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : null}Appliquer à {scopeIds.length} variante(s)</Button>
+              {bulk?.running && <Button size="sm" variant="outline" onClick={() => { stopRef.current = true; }}>Arrêter</Button>}
+            </div>
+            {bulk && <div className="space-y-1">
+              <div className="h-2 rounded bg-muted overflow-hidden"><div className="h-full bg-primary transition-all" style={{ width: `${bulk.total ? (bulk.done / bulk.total) * 100 : 0}%` }} /></div>
+              <p className="text-xs text-muted-foreground">{bulk.done}/{bulk.total} traitées · {bulk.ok} coût(s) validé(s) · {bulk.missing} coût(s) manquant(s) (jamais mis à 0) · {bulk.skipped} conservée(s) · {bulk.errors} erreur(s) de lecture. Chaque coût est lu en direct dans Erplain, avec sa date.</p>
+            </div>}
+          </CardContent></Card>
+      )}
       {error && <p className="text-sm text-destructive">{error}</p>}
       <div className="border rounded overflow-auto">
         <Table>
