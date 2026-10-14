@@ -429,7 +429,7 @@ export function FinancialProvider({ children }: { children: ReactNode }) {
         const { hasUnsavedChanges: _, ...stateForCloud } = toSave;
         await supabase
           .from('financial_scenarios')
-          .upsert({ user_id: user.id, state_data: stateForCloud as any }, { onConflict: 'user_id' });
+          .upsert({ user_id: user.id, state_data: stateForCloud as any, updated_at: new Date().toISOString() }, { onConflict: 'user_id' });
       }
 
       toast({ title: 'Données sauvegardées', description: user ? 'Sauvegardé en local et dans le cloud.' : 'Sauvegardé en local.' });
