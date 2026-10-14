@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { Fragment, useMemo, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -64,8 +64,8 @@ export function ErplainProducts({ variants }: { variants: ErplainVariantRow[] })
             <TableBody>
               {detail.lines.length === 0 && <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground py-6">Aucune nomenclature retenue.</TableCell></TableRow>}
               {detail.lines.map((l: any) => (
-                <>
-                  <TableRow key={l.id}>
+                <Fragment key={l.id}>
+                  <TableRow>
                     <TableCell className="font-medium">{l.label} {l.isSubAssembly && <Badge variant="secondary" className="ml-1">Sous-ensemble</Badge>}</TableCell>
                     <TableCell className="font-mono text-xs">{l.sku}</TableCell>
                     <TableCell className="text-right font-mono-numbers">{l.quantity}</TableCell>
@@ -80,7 +80,7 @@ export function ErplainProducts({ variants }: { variants: ErplainVariantRow[] })
                       <TableCell colSpan={2} className="text-right italic">info, non additionné</TableCell>
                     </TableRow>
                   ))}
-                </>
+                </Fragment>
               ))}
             </TableBody>
           </Table>
