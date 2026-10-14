@@ -50,6 +50,7 @@ export interface Product {
   productComment?: string;    // Commentaire libre sur le produit
   productStatus?: 'standby' | 'validated'; // Statut du produit
   erplainMembers?: string[];  // Variantes Erplain regroupées dans cette catégorie
+  erplainMemberProducts?: Product[]; // Copies des membres pour leurs noms et calculs après sauvegarde
 }
 
 // ==================
