@@ -24,7 +24,7 @@ describe('decision charts', () => {
     fireEvent.click(screen.getByRole('button', { name: '60 j' }));
     expect(screen.getByText('1/60')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'ROAS attribué' }));
-    expect(screen.getByRole('cell', { name: '6', exact: true })).toBeInTheDocument();
+    expect(screen.getByRole('cell', { name: /^6$/ })).toBeInTheDocument();
   });
   it('shows errors and allows retry without any approval controls', () => {
     const onLoad = vi.fn();
