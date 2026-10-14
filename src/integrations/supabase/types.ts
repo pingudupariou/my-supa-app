@@ -1818,6 +1818,209 @@ export type Database = {
         }
         Relationships: []
       }
+      erplain_sales_customers: {
+        Row: {
+          channel: string
+          commercial_country: string | null
+          created_at: string
+          customer_id: string
+          customer_name: string | null
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          channel?: string
+          commercial_country?: string | null
+          created_at?: string
+          customer_id: string
+          customer_name?: string | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          channel?: string
+          commercial_country?: string | null
+          created_at?: string
+          customer_id?: string
+          customer_name?: string | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
+      erplain_sales_documents: {
+        Row: {
+          billing_country: string | null
+          counted: boolean
+          currency: string | null
+          customer_id: string | null
+          customer_name: string | null
+          dated_at: string | null
+          doc_type: string
+          erplain_id: number
+          excluded_reason: string | null
+          id: string
+          is_shopify: boolean
+          label: string | null
+          lines_raw: number | null
+          order_id: string | null
+          run_id: string | null
+          shipping_country: string | null
+          shipping_ht: number | null
+          shopify_reason: string | null
+          source: string | null
+          status: string | null
+          synced_at: string
+          total_ht: number | null
+          total_tax: number | null
+          total_ttc: number | null
+        }
+        Insert: {
+          billing_country?: string | null
+          counted?: boolean
+          currency?: string | null
+          customer_id?: string | null
+          customer_name?: string | null
+          dated_at?: string | null
+          doc_type: string
+          erplain_id: number
+          excluded_reason?: string | null
+          id: string
+          is_shopify?: boolean
+          label?: string | null
+          lines_raw?: number | null
+          order_id?: string | null
+          run_id?: string | null
+          shipping_country?: string | null
+          shipping_ht?: number | null
+          shopify_reason?: string | null
+          source?: string | null
+          status?: string | null
+          synced_at?: string
+          total_ht?: number | null
+          total_tax?: number | null
+          total_ttc?: number | null
+        }
+        Update: {
+          billing_country?: string | null
+          counted?: boolean
+          currency?: string | null
+          customer_id?: string | null
+          customer_name?: string | null
+          dated_at?: string | null
+          doc_type?: string
+          erplain_id?: number
+          excluded_reason?: string | null
+          id?: string
+          is_shopify?: boolean
+          label?: string | null
+          lines_raw?: number | null
+          order_id?: string | null
+          run_id?: string | null
+          shipping_country?: string | null
+          shipping_ht?: number | null
+          shopify_reason?: string | null
+          source?: string | null
+          status?: string | null
+          synced_at?: string
+          total_ht?: number | null
+          total_tax?: number | null
+          total_ttc?: number | null
+        }
+        Relationships: []
+      }
+      erplain_sales_lines: {
+        Row: {
+          amount_ht: number | null
+          document_id: string
+          id: string
+          is_shipping: boolean
+          label: string | null
+          line_type: string | null
+          quantity: number | null
+          raw_total: number | null
+          sku: string | null
+          variant_id: string | null
+        }
+        Insert: {
+          amount_ht?: number | null
+          document_id: string
+          id: string
+          is_shipping?: boolean
+          label?: string | null
+          line_type?: string | null
+          quantity?: number | null
+          raw_total?: number | null
+          sku?: string | null
+          variant_id?: string | null
+        }
+        Update: {
+          amount_ht?: number | null
+          document_id?: string
+          id?: string
+          is_shipping?: boolean
+          label?: string | null
+          line_type?: string | null
+          quantity?: number | null
+          raw_total?: number | null
+          sku?: string | null
+          variant_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "erplain_sales_lines_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "erplain_sales_documents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      erplain_sales_sync_runs: {
+        Row: {
+          errors: Json
+          finished_at: string | null
+          id: string
+          message: string | null
+          page: number
+          phase: string
+          schema: Json | null
+          started_at: string
+          started_by: string | null
+          status: string
+          totals: Json
+          updated_at: string
+        }
+        Insert: {
+          errors?: Json
+          finished_at?: string | null
+          id?: string
+          message?: string | null
+          page?: number
+          phase?: string
+          schema?: Json | null
+          started_at?: string
+          started_by?: string | null
+          status?: string
+          totals?: Json
+          updated_at?: string
+        }
+        Update: {
+          errors?: Json
+          finished_at?: string | null
+          id?: string
+          message?: string | null
+          page?: number
+          phase?: string
+          schema?: Json | null
+          started_at?: string
+          started_by?: string | null
+          status?: string
+          totals?: Json
+          updated_at?: string
+        }
+        Relationships: []
+      }
       erplain_schema_cache: {
         Row: {
           data: Json
@@ -3758,6 +3961,7 @@ export type Database = {
       bump_erplain_mo_reference: { Args: { _min: number }; Returns: undefined }
       current_user_can_write_plan_atelier: { Args: never; Returns: boolean }
       current_user_marketing_access: { Args: never; Returns: string }
+      current_user_tab_access: { Args: { _tab: string }; Returns: string }
       ga4_dashboard: {
         Args: {
           _channel?: string
@@ -3801,6 +4005,15 @@ export type Database = {
           num: number
           reference: string
         }[]
+      }
+      sales_stats: {
+        Args: {
+          _channels?: string[]
+          _from: string
+          _include_shipping: boolean
+          _to: string
+        }
+        Returns: Json
       }
       shopify_dashboard: { Args: { _from: string; _to: string }; Returns: Json }
     }
