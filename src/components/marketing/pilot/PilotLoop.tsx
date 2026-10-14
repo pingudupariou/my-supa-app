@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -8,6 +8,8 @@ import { Loader2, Download, Check, X, ListPlus, ShieldCheck, Play, Hammer } from
 import { toast } from 'sonner';
 import { createFromRecommendation } from '@/components/marketing/tasks/taskApi';
 import { notifyTasksChanged } from '@/components/marketing/tasks/MarketingTasks';
+import { PilotDecisionCharts, DecisionData } from './PilotDecisionCharts';
+import { Daily, shiftDay } from './decisionData';
 
 const sb = supabase as any;
 const eur = (n: number | null | undefined) => (n == null || !isFinite(n) ? '—' : `${Math.round(n).toLocaleString('fr-FR')} €`);
@@ -72,6 +74,41 @@ export function PilotLoop({ canWrite }: { canWrite: boolean }) {
   const [busy, setBusy] = useState<string | null>(null);
   const [confirm, setConfirm] = useState<Record<string, string>>({});
   const [filter, setFilter] = useState<'open' | 'done' | 'all'>('open');
+  const [decisionData, setDecisionData] = useState<DecisionData | null>(null);
+  const [decisionLoading, setDecisionLoading] = useState(false);
+  const [decisionError, setDecisionError] = useState<string | null>(null);
+  const decisionRequest = useRef(false);
+  const loadDecisionData = async () => {
+    if (decisionData || decisionRequest.current) return;
+    decisionRequest.current = true;
+    setDecisionLoading(true); setDecisionError(null);
+    try {
+      const end = new Date(Date.now() - 864e5).toISOString().slice(0, 10);
+      const [daily, campaigns, snapshots] = await Promise.all([
+        (async () => {
+          const rows: Daily[] = [];
+          for (let page = 0; ; page++) {
+            const { data, error } = await sb.from('google_ads_campaign_daily')
+              .select('campaign_id,day,cost,conversions,conversions_value,clicks,synced_at')
+              .gte('day', shiftDay(end, -179)).lte('day', end)
+              .order('day').order('campaign_id').order('customer_id').range(page * 1000, page * 1000 + 999);
+            if (error) throw error;
+            rows.push(...(data ?? []));
+            if (!data || data.length < 1000) return rows;
+          }
+        })(),
+        sb.from('google_ads_campaigns').select('id,name,channel_type').order('id'),
+        sb.from('google_ads_structure_snapshots').select('taken_at,data').in('status', ['success', 'partial']).order('taken_at', { ascending: false }).limit(30),
+      ]);
+      if (campaigns.error) throw campaigns.error;
+      if (snapshots.error) throw snapshots.error;
+      const history = (snapshots.data ?? []).map((s: any) => ({ taken_at: s.taken_at, campaigns: Array.isArray(s.data?.campaigns) ? s.data.campaigns : null }));
+      const known = new Map((campaigns.data ?? []).map((c: any) => [String(c.id), { id: c.id, name: c.name ?? String(c.id), type: c.channel_type }]));
+      for (const s of [...history].reverse()) for (const c of s.campaigns ?? []) known.set(String(c.id), c);
+      setDecisionData({ rows: daily, campaigns: [...known.values()] as DecisionData['campaigns'], snapshots: history });
+    } catch { setDecisionError('Impossible de charger les données de décision.'); }
+    finally { decisionRequest.current = false; setDecisionLoading(false); }
+  };
 
   const load = useCallback(async () => {
     const [{ data: p }, { data: an }, { data: snap }] = await Promise.all([
@@ -105,10 +142,11 @@ export function PilotLoop({ canWrite }: { canWrite: boolean }) {
 
   const doImport = () => run('import', async () => {
     const { data: u } = await supabase.auth.getUser();
+    if (!u.user) throw new Error('Veuillez vous reconnecter.');
     const ins = importable.map(({ x, camp, key }) => ({
       analysis_id: analysis.id, kind: x.kind, campaign_id: camp?.id ?? null, campaign_name: camp?.name ?? x.campaign, title: x.title,
       current_value: x.current, proposed_value: x.proposed, proposed_daily_budget: x.proposed_daily_budget_eur, proposed_target_roas: x.proposed_target_roas_pct,
-      estimated_impact: x.estimated_impact, evidence: x.evidence, risks: x.risks, confidence: x.confidence, dedupe_key: key, created_by: u.user!.id,
+       estimated_impact: x.estimated_impact, evidence: x.evidence, risks: x.risks, confidence: x.confidence, dedupe_key: key, created_by: u.user.id,
     }));
     if (!ins.length) return;
     const { error } = await sb.from('google_ads_pilot_actions').insert(ins);
@@ -158,6 +196,7 @@ export function PilotLoop({ canWrite }: { canWrite: boolean }) {
               <p><span className="text-muted-foreground">Impact estimé : </span>{a.estimated_impact}</p>
               <p><span className="text-muted-foreground">Chiffres : </span>{a.evidence}</p>
               <p className="text-xs"><span className="text-muted-foreground">Risques : </span>{a.risks}</p>
+              <PilotDecisionCharts action={a} data={decisionData} loading={decisionLoading} error={decisionError} onLoad={loadDecisionData} />
               {pa && <div className="rounded border p-2 text-xs"><b>Modification préparée :</b> {pa.summary} · {pa.status}{pa.preflight?.errors?.length ? ` · Google : ${pa.preflight.errors.join(' | ')}` : ''}{pa.error ? ` · ${pa.error}` : ''}</div>}
               {['executee', 'appliquee_manuel'].includes(a.status) && <Followup a={a} />}
               {canWrite && <div className="flex flex-wrap items-center gap-2">
