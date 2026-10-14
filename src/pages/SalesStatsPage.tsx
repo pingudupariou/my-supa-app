@@ -83,15 +83,13 @@ function Explorer({ stats }: { stats: Stats }) {
   const vertical = dim !== 'month' && data.length > 8;
   const toggle = (m: string) => setMets((ms) => ms.includes(m) ? (ms.length > 1 ? ms.filter((x) => x !== m) : ms) : [...ms, m]);
   return (
-    <Card>
-      <CardHeader className="pb-2"><CardTitle className="text-base">Explorateur</CardTitle></CardHeader>
-      <CardContent className="space-y-3">
+    <div className="space-y-3">
         <div className="flex flex-wrap items-center gap-2">
-          <span className="text-xs text-muted-foreground">Afficher par</span>
+          <span className="w-24 text-xs font-medium text-muted-foreground">Afficher par</span>
           {DIMS.map(([k, l]) => <Button key={k} size="sm" variant={dim === k ? 'default' : 'outline'} onClick={() => setDim(k)}>{l}</Button>)}
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <span className="text-xs text-muted-foreground">Indicateurs</span>
+          <span className="w-24 text-xs font-medium text-muted-foreground">Indicateurs</span>
           {METRICS.map(([k, l, c]) => (
             <button key={k} type="button" onClick={() => toggle(k)}
               className={`flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs transition-colors ${mets.includes(k) ? 'border-primary bg-primary/10' : 'text-muted-foreground hover:bg-muted/50'}`}>
@@ -126,8 +124,7 @@ function Explorer({ stats }: { stats: Stats }) {
           </ResponsiveContainer>
         </div>
         <p className="text-xs text-muted-foreground">Marge calculée uniquement sur les ventes ayant un coût validé ; l'infobulle signale les couvertures incomplètes et les marges estimées. Quantités et euros partagent le même axe : affichez-les séparément pour mieux lire.</p>
-      </CardContent>
-    </Card>
+    </div>
   );
 }
 
@@ -279,29 +276,76 @@ export function SalesStatsPage() {
         </p>
       )}
 
-      <Card><CardContent className="pt-6 flex flex-wrap items-end gap-4">
-        <div className="space-y-1"><span className="text-xs text-muted-foreground">Période</span>
+      <Card className="sticky top-0 z-20 border-primary/20 bg-background/95 backdrop-blur"><CardContent className="py-4 flex flex-wrap items-end gap-x-6 gap-y-3">
+        <div className="space-y-1"><span className="text-xs font-medium text-muted-foreground">1. Période</span>
           <Select value={period} onValueChange={setPeriod}>
-            <SelectTrigger className="w-44"><SelectValue /></SelectTrigger>
+            <SelectTrigger className="w-48"><SelectValue /></SelectTrigger>
             <SelectContent><SelectItem value="d7">7 derniers jours</SelectItem><SelectItem value="d30">30 derniers jours</SelectItem><SelectItem value="d90">90 derniers jours</SelectItem><SelectItem value="3">3 derniers mois</SelectItem><SelectItem value="12">12 derniers mois</SelectItem><SelectItem value="24">24 derniers mois</SelectItem><SelectItem value="ytd">Année en cours</SelectItem><SelectItem value="all">Tout l'historique</SelectItem><SelectItem value="custom">Personnalisée</SelectItem></SelectContent>
           </Select></div>
         {period === 'custom' && <>
           <div className="space-y-1"><span className="text-xs text-muted-foreground">Du</span><Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="w-40" /></div>
           <div className="space-y-1"><span className="text-xs text-muted-foreground">Au</span><Input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="w-40" /></div>
         </>}
-        <div className="flex gap-1">{CHANNELS.map((c) => (
-          <Button key={c} size="sm" variant={channels.includes(c) ? 'default' : 'outline'}
-            onClick={() => setChannels((cs) => cs.includes(c) ? (cs.length > 1 ? cs.filter((x) => x !== c) : cs) : [...cs, c])}>{CH_LABEL[c]}</Button>))}</div>
-        <label className="flex items-center gap-2 text-sm"><Switch checked={shipping} onCheckedChange={setShipping} />Livraison facturée incluse</label>
+        <div className="space-y-1"><span className="text-xs font-medium text-muted-foreground">2. Canaux</span>
+          <div className="flex gap-1">{CHANNELS.map((c) => (
+            <Button key={c} size="sm" variant={channels.includes(c) ? 'default' : 'outline'}
+              onClick={() => setChannels((cs) => cs.includes(c) ? (cs.length > 1 ? cs.filter((x) => x !== c) : cs) : [...cs, c])}>{CH_LABEL[c]}</Button>))}</div></div>
+        <div className="space-y-1"><span className="text-xs font-medium text-muted-foreground">3. Livraison</span>
+          <label className="flex h-9 items-center gap-2 text-sm"><Switch checked={shipping} onCheckedChange={setShipping} />{shipping ? 'Incluse' : 'Exclue'}</label></div>
+        <span className="ml-auto text-xs text-muted-foreground tabular-nums">{range0 || '…'} → {range1 || '…'}</span>
         {loading && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
       </CardContent></Card>
 
-      <div className="grid gap-4 md:grid-cols-4">
-        {[['CA HT net', eur(stats?.totals.ca_ht)], ['Quantités', nb(stats?.totals.qty ?? 0)], ['Livraison facturée HT', shipping ? eur(stats?.totals.shipping_ht) : 'exclue'], ['Documents', nb(stats?.totals.docs ?? 0)]].map(([l, v]) => (
-          <Card key={l}><CardContent className="pt-6"><p className="text-xs text-muted-foreground">{l}</p><p className="text-2xl font-semibold tabular-nums">{v}</p></CardContent></Card>
+      <div className="grid gap-4 grid-cols-2 lg:grid-cols-6">
+        {[['CA HT net', eur(stats?.totals.ca_ht)], ['Marge produits', stats ? `${eur(margin(stats.totals).m)} · ${pctf(margin(stats.totals).pct)}` : '—'], ['Couverture coûts', stats ? pctf(margin(stats.totals).coverage) : '—'], ['Quantités', nb(stats?.totals.qty ?? 0)], ['Livraison facturée HT', shipping ? eur(stats?.totals.shipping_ht) : 'exclue'], ['Documents', nb(stats?.totals.docs ?? 0)]].map(([l, v]) => (
+          <Card key={l}><CardContent className="pt-6"><p className="text-xs text-muted-foreground">{l}</p><p className="text-xl font-semibold tabular-nums">{v}</p></CardContent></Card>
         ))}
       </div>
 
+      <Card>
+        <Tabs defaultValue="explorer">
+          <CardHeader className="pb-2 flex flex-row flex-wrap items-center justify-between gap-2 space-y-0">
+            <CardTitle className="text-base">Graphiques</CardTitle>
+            <TabsList><TabsTrigger value="explorer">Explorateur</TabsTrigger><TabsTrigger value="monthly">CA par mois et canal</TabsTrigger></TabsList>
+          </CardHeader>
+          <CardContent>
+            <TabsContent value="explorer" className="mt-0">{stats ? <Explorer stats={stats} /> : <p className="text-sm text-muted-foreground">Chargement…</p>}</TabsContent>
+            <TabsContent value="monthly" className="mt-0 h-80">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={monthly}><CartesianGrid strokeDasharray="3 3" className="stroke-muted" /><XAxis dataKey="month" fontSize={11} /><YAxis fontSize={11} tickFormatter={(v) => `${Math.round(v / 1000)} k`} />
+                  <Tooltip formatter={(v: number) => eur(v)} /><Legend />
+                  {CHANNELS.filter((c) => channels.includes(c)).map((c) => <Bar key={c} dataKey={c} name={CH_LABEL[c]} stackId="a" fill={CH_COLOR[c]} />)}
+                </BarChart>
+              </ResponsiveContainer>
+            </TabsContent>
+          </CardContent>
+        </Tabs>
+      </Card>
+
+      <div className="space-y-2"><h2 className="text-base font-semibold">Détail</h2>
+      <Tabs defaultValue="breakdown">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <TabsList className="h-auto flex-wrap">
+            <TabsTrigger value="breakdown">Canal › pays › produit</TabsTrigger><TabsTrigger value="months">Périodes</TabsTrigger><TabsTrigger value="customers">Clients</TabsTrigger><TabsTrigger value="products">Produits</TabsTrigger>
+            <TabsTrigger value="cc">Pays commercial</TabsTrigger><TabsTrigger value="dc">Pays de livraison</TabsTrigger><TabsTrigger value="channels">Canaux</TabsTrigger>
+          </TabsList>
+          <Input placeholder="Rechercher…" value={search} onChange={(e) => setSearch(e.target.value)} className="w-56" />
+        </div>
+        <Card className="mt-2"><CardContent className="pt-4">
+          <TabsContent value="months">{table(Object.values((stats?.by_month ?? []).reduce((m: Record<string, Row>, r) => {
+            const o = m[r.month] ?? (m[r.month] = { key: r.month, ca_ht: 0, qty: 0, prod_ht: 0, cogs: 0, cov_ht: 0, est_ht: 0 });
+            o.ca_ht += r.ca_ht; o.qty += r.qty; o.prod_ht! += r.prod_ht; o.cogs! += r.cogs; o.cov_ht! += r.cov_ht; o.est_ht! += r.est_ht; return m; }, {})).sort((a, b) => b.key.localeCompare(a.key)), 'country')}</TabsContent>
+          <TabsContent value="customers">{table(stats?.by_customer ?? [], 'customer')}</TabsContent>
+          <TabsContent value="products">{table(stats?.by_product ?? [], 'product')}</TabsContent>
+          <TabsContent value="cc">{table(stats?.by_commercial_country ?? [], 'cc')}</TabsContent>
+          <TabsContent value="dc">{table(stats?.by_delivery_country ?? [], 'country')}</TabsContent>
+          <TabsContent value="channels">{table((stats?.by_channel ?? []).map((r) => ({ ...r, label: CH_LABEL[r.key] ?? r.key })), 'country')}</TabsContent>
+          <TabsContent value="breakdown"><SalesBreakdown from={range0} to={range1} search={search} /></TabsContent>
+        </CardContent></Card>
+      </Tabs></div>
+      <details className="group rounded-lg border bg-card">
+        <summary className="cursor-pointer select-none px-4 py-3 text-sm font-medium flex items-center gap-2">{warnings.length ? <AlertTriangle className="h-4 w-4 text-destructive" /> : <CheckCircle2 className="h-4 w-4 text-primary" />}Contrôles : détail de la marge, transport et rapprochement Erplain{warnings.length ? ` (${warnings.length} alerte(s))` : ''}</summary>
+        <div className="space-y-4 p-4 pt-0">
       {stats && (() => {
         const t = margin(stats.totals); const sh = stats.shipping; const co = stats.costs;
         const sumCh = (stats.by_channel ?? []).reduce((a, r) => ({ cogs: a.cogs + (r.cogs ?? 0), cov: a.cov + (r.cov_ht ?? 0) }), { cogs: 0, cov: 0 });
@@ -354,40 +398,8 @@ export function SalesStatsPage() {
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader><CardTitle className="text-base">CA HT net par mois et canal</CardTitle></CardHeader>
-        <CardContent className="h-72">
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={monthly}><CartesianGrid strokeDasharray="3 3" className="stroke-muted" /><XAxis dataKey="month" fontSize={11} /><YAxis fontSize={11} tickFormatter={(v) => `${Math.round(v / 1000)} k`} />
-              <Tooltip formatter={(v: number) => eur(v)} /><Legend />
-              {CHANNELS.filter((c) => channels.includes(c)).map((c) => <Bar key={c} dataKey={c} name={CH_LABEL[c]} stackId="a" fill={CH_COLOR[c]} />)}
-            </BarChart>
-          </ResponsiveContainer>
-        </CardContent>
-      </Card>
-
-      {stats && <Explorer stats={stats} />}
-
-      <Tabs defaultValue="customers">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <TabsList>
-            <TabsTrigger value="months">Périodes</TabsTrigger><TabsTrigger value="customers">Clients</TabsTrigger><TabsTrigger value="products">Produits</TabsTrigger>
-            <TabsTrigger value="cc">Pays commercial</TabsTrigger><TabsTrigger value="dc">Pays de livraison</TabsTrigger><TabsTrigger value="channels">Canaux</TabsTrigger><TabsTrigger value="breakdown">Canal › pays › produit</TabsTrigger>
-          </TabsList>
-          <Input placeholder="Rechercher…" value={search} onChange={(e) => setSearch(e.target.value)} className="w-56" />
         </div>
-        <Card className="mt-2"><CardContent className="pt-4">
-          <TabsContent value="months">{table(Object.values((stats?.by_month ?? []).reduce((m: Record<string, Row>, r) => {
-            const o = m[r.month] ?? (m[r.month] = { key: r.month, ca_ht: 0, qty: 0, prod_ht: 0, cogs: 0, cov_ht: 0, est_ht: 0 });
-            o.ca_ht += r.ca_ht; o.qty += r.qty; o.prod_ht! += r.prod_ht; o.cogs! += r.cogs; o.cov_ht! += r.cov_ht; o.est_ht! += r.est_ht; return m; }, {})).sort((a, b) => b.key.localeCompare(a.key)), 'country')}</TabsContent>
-          <TabsContent value="customers">{table(stats?.by_customer ?? [], 'customer')}</TabsContent>
-          <TabsContent value="products">{table(stats?.by_product ?? [], 'product')}</TabsContent>
-          <TabsContent value="cc">{table(stats?.by_commercial_country ?? [], 'cc')}</TabsContent>
-          <TabsContent value="dc">{table(stats?.by_delivery_country ?? [], 'country')}</TabsContent>
-          <TabsContent value="channels">{table((stats?.by_channel ?? []).map((r) => ({ ...r, label: CH_LABEL[r.key] ?? r.key })), 'country')}</TabsContent>
-          <TabsContent value="breakdown"><SalesBreakdown from={range0} to={range1} search={search} /></TabsContent>
-        </CardContent></Card>
-      </Tabs>
+      </details>
     </div>
   );
 }
