@@ -7,16 +7,16 @@ import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
 import { formatCurrency } from '@/data/financialConfig';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Download, Loader2 } from 'lucide-react';
+import { Download, Loader2, Save, X } from 'lucide-react';
 import { toast } from 'sonner';
 
 type Ch = 'B2C' | 'B2B' | 'OEM';
 const CHS: Ch[] = ['B2C', 'B2B', 'OEM'];
 interface Agg { key: string; label: string; byYear: Record<number, Record<Ch, { qty: number; ca: number }>>; cogs: number; cogsQty: number }
 
-interface Props { products: Product[]; years: number[]; onApply: (products: Product[]) => void }
+interface Props { products: Product[]; years: number[]; onApply: (products: Product[]) => void; onSave?: () => void }
 
-export function ErplainActualsImport({ products, years, onApply }: Props) {
+export function ErplainActualsImport({ products, years, onApply, onSave }: Props) {
   const thisYear = new Date().getFullYear();
   const pastYears = years.filter(y => y <= thisYear);
   const futureYears = years.filter(y => y > thisYear);
@@ -61,9 +61,9 @@ export function ErplainActualsImport({ products, years, onApply }: Props) {
     return 0;
   };
 
-  const apply = (group?: string) => {
+  const apply = (group?: string, keys: string[] = [...sel]) => {
     if (!rows) return;
-    let chosen = rows.filter(r => sel.has(r.key));
+    let chosen = rows.filter(r => keys.includes(r.key));
     if (group) {
       // Merge selected products: summed volumes/CA → weighted average price and cost for the category.
       const g: Agg = { key: `cat-${group.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`, label: group, byYear: {}, cogs: 0, cogsQty: 0 };
@@ -100,6 +100,7 @@ export function ErplainActualsImport({ products, years, onApply }: Props) {
         priceHT_B2B: round(b2b || b2c), priceHT_OEM: round(oem || b2b || b2c),
         unitCost: a.cogsQty > 0 ? round(a.cogs / a.cogsQty) : existing?.unitCost ?? 0,
         volumesByChannel: vbc, volumesByYear: vby, productStatus: 'validated',
+        ...(group ? { erplainMembers: keys, productComment: `Catégorie Erplain : ${keys.length} produit(s)` } : {}),
       };
       next = existing ? next.map(x => x.id === id ? p : x) : [...next, p];
     }
@@ -107,6 +108,7 @@ export function ErplainActualsImport({ products, years, onApply }: Props) {
     toast.success(`${chosen.length} produit(s) appliqué(s) au plan`);
   };
 
+  const cats = products.filter(p => p.erplainMembers?.length);
   const shown = (rows ?? []).filter(r => (r.label ?? '').toLowerCase().includes(search.toLowerCase()));
 
   return (
@@ -116,8 +118,25 @@ export function ErplainActualsImport({ products, years, onApply }: Props) {
           {loading ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Download className="h-4 w-4 mr-1" />}
           Charger les ventes {pastYears[0]}–{pastYears[pastYears.length - 1]}
         </Button>
+        {onSave && <Button size="sm" variant="outline" onClick={onSave}><Save className="h-4 w-4 mr-1" />Sauvegarder le plan</Button>}
         <span className="text-xs text-muted-foreground">Mêmes ventes et canaux que Statistiques commerciales (factures − avoirs, HT hors livraison).</span>
       </div>
+      {rows && cats.length > 0 && (
+        <div className="mb-3 space-y-2">
+          {cats.map(c => (
+            <div key={c.id} className="p-2 rounded-lg border text-xs flex flex-wrap items-center gap-1">
+              <span className="font-semibold mr-2">{c.name}</span>
+              {c.erplainMembers!.map(k => (
+                <span key={k} className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-muted">
+                  {rows.find(r => r.key === k)?.label ?? k}
+                  <button title="Retirer de la catégorie" disabled={c.erplainMembers!.length < 2} onClick={() => apply(c.name, c.erplainMembers!.filter(x => x !== k))}><X className="h-3 w-3" /></button>
+                </span>
+              ))}
+              <Button size="sm" variant="ghost" className="h-6 text-xs" disabled={!sel.size} onClick={() => apply(c.name, [...new Set([...c.erplainMembers!, ...sel])])}>+ Ajouter la sélection ({sel.size})</Button>
+            </div>
+          ))}
+        </div>
+      )}
       {rows && (
         <>
           <div className="flex flex-wrap items-center gap-4 mb-3 p-3 bg-muted/30 rounded-lg border text-sm">
