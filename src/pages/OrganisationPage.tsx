@@ -157,7 +157,7 @@ export function OrganisationPage() {
             <KPICard label={`Masse Salariale ${startYear}`} value={formatCurrency(computed.currentPayroll, true)} subValue={`${computed.totalHeadcount} personnes`} />
             <KPICard label="Recrutements Prévus" value={futureHires.length.toString()} subValue={`${startYear + 1}-${lastYear}`} />
             <KPICard label="Coût Moyen / ETP" value={formatCurrency(computed.currentPayroll / (computed.totalHeadcount || 1), true)} subValue="Chargé" />
-            <KPICard label="Masse Salariale 2030" value={formatCurrency(computed.payrollByYear.find(p => p.year === 2030)?.payroll || 0, true)} subValue="Projection" trend="up" />
+            <KPICard label={`Masse Salariale ${lastYear}`} value={formatCurrency(computed.payrollByYear.find(p => p.year === lastYear)?.payroll || 0, true)} subValue="Projection" trend="up" />
           </div>
 
           {/* Payroll Projection */}
