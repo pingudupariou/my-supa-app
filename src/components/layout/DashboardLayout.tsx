@@ -1,6 +1,8 @@
 import { ReactNode, useState, useEffect } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
+import { useReadOnlyTabKey } from '@/components/auth/ProtectedRoute';
+import { ReadOnlyWrapper } from '@/components/auth/ReadOnlyWrapper';
 import { NovarideLogo } from '@/components/ui/NovarideLogo';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -75,6 +77,7 @@ export function DashboardLayout({
     getTabPermission
   } = useAuth();
   const navigate = useNavigate();
+  const readOnlyTabKey = useReadOnlyTabKey();
   const tasksData = useTasksData();
   const { members } = useTeamMembers();
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -184,7 +187,7 @@ export function DashboardLayout({
 
       {/* Main content */}
       <main className="flex-1 lg:ml-56 p-6">
-        {children}
+        {readOnlyTabKey ? <ReadOnlyWrapper tabKey={readOnlyTabKey}>{children}</ReadOnlyWrapper> : children}
       </main>
 
       {/* Floating chat widget — only when user has write access to chat tab */}
