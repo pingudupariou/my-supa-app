@@ -1,5 +1,5 @@
 
-- Keep workshop presentation in a scoped theme and progressively disclosed controls; the compact and detailed views share selection and server calculations to prevent divergent results.
+- Workshop views share selection and server calculations, with a scoped theme and progressive controls — avoids divergent results.
 - Erplain writes (CreateManufacturingOrder only) are gated by server secret ERPLAIN_ALLOW_WRITE=true plus explicit admin confirm; otherwise dry run — prevents accidental real MOs.
 - Workshop plan is computed server-side in supabase/functions/erplain-sync/plan.ts from erplain_* tables — create_mo re-validates with the same code.
 - Workshop plan selection: explicit allocations (line reservations, MOs linked to lines) stay with their own lines; only free stock/unlinked MO output covers selected lines — avoids double counting.
@@ -20,3 +20,4 @@
 - Product-plan aggregate membership is validated through planMembership; retain aggregate IDs, persist member product snapshots for names and volumes after reload, and remove individual rows (Erplain or manual) when grouped to avoid double counting without changing Erplain or sales statistics.
 - The summary product revenue deck uses channelPrices/channelVolumes with per-channel scenario rounding, renders plan rows without expanding aggregate members, and shows annual sales rather than cash receipts to match the product plan.
 - Store active tab save identities in FinancialContext; tab saves update only their scoped data, while global snapshots capture live financial state and accessible tab versions together so restored names and contents remain aligned.
+- Volume entry shows one product, channel rows and year columns; reuse volume callbacks and batch growth to preserve calculations and saves.
