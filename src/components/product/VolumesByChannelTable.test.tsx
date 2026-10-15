@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { VolumesByChannelTable } from './VolumesByChannelTable';
 import type { Product } from '@/engine/types';
 vi.mock('@/context/FinancialContext', () => ({ useFinancial: () => ({ state: { activeScenarioId: 'base', scenarioConfigs: { base: { volumeAdjustment: 0, priceAdjustment: 0 } } } }) }));
-const product = { id: 'galets', name: 'Galets', launchYear: 2026, priceHT: 100, priceHT_B2B: 50, priceHT_OEM: 30, unitCost: 20, volumesByChannel: { B2C: { 2026: 100 }, B2B: { 2026: 20 }, OEM: { 2026: 10 } } } as Product;
+const product: Product = { id: 'galets', name: 'Galets', category: 'B2C', devCost: 0, priceTTC_B2C: 120, vatRate: .2, coef_shop: 1, coef_dist: 1, coef_oem: 1, volumesByYear: { 2026: 130 }, launchYear: 2026, priceHT: 100, priceHT_B2B: 50, priceHT_OEM: 30, unitCost: 20, volumesByChannel: { B2C: { 2026: 100 }, B2B: { 2026: 20 }, OEM: { 2026: 10 } } };
 const years = [2025, 2026, 2027, 2028];
 afterEach(cleanup);
 describe('visual volume entry', () => {
