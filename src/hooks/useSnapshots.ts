@@ -3,6 +3,8 @@ import { toast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/context/AuthContext';
 import { collectSnapshotData, restoreSnapshotData, type SnapshotType } from './useSnapshotData';
+import { useFinancial } from '@/context/FinancialContext';
+import { pickTabData, type SavedTabKey } from '@/lib/tabSaveData';
 
 const STATE_KEY = 'novaride_financial_state_v5';
 const ACTIVE_SYSTEM_KEY = 'novaride_active_snapshot_system';
@@ -19,6 +21,7 @@ export interface Snapshot {
 }
 
 export function useSnapshots() {
+  const { state, applyTabData, persistLocal } = useFinancial();
   const { user, isAdmin, getTabPermission } = useAuth();
   const [snapshots, setSnapshots] = useState<Snapshot[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -67,14 +70,31 @@ export function useSnapshots() {
 
     setIsSaving(true);
     try {
-      const currentState = localStorage.getItem(STATE_KEY);
-      const financialState = currentState ? JSON.parse(currentState) : {};
+      const financialState = structuredClone(state);
       const supabaseData = await collectSnapshotData(user.id, type);
+      // Capture every accessible tab version, without PostgREST's 1,000-row truncation.
+      const tabVersions: Record<string, any>[] = [];
+      for (let offset = 0; ; offset += 500) {
+        const { data: versions, error: versionsError } = await supabase.from('tab_saves' as any)
+          .select('*').order('id').range(offset, offset + 499);
+        if (versionsError) throw versionsError;
+        tabVersions.push(...(versions ?? []));
+        if (!versions || versions.length < 500) break;
+      }
+      // The active versions must contain today's work, even if the tab was not saved first.
+      for (const [key, active] of Object.entries(financialState.activeTabSaves)) {
+        if (!active) continue;
+        const version = tabVersions.find(row => row.id === active.id && row.tab_key === key);
+        if (!version) throw new Error(`La sauvegarde « ${active.name} » est introuvable. Ouvrez ou enregistrez une version de cet onglet avant la sauvegarde globale.`);
+        version.data = pickTabData(financialState, key as SavedTabKey);
+        version.name = active.name;
+      }
 
       const fullStateData = {
         financialState,
         supabaseData,
-        snapshotVersion: 3,
+        tabVersions,
+        snapshotVersion: 4,
         snapshotType: type,
       };
 
@@ -106,18 +126,19 @@ export function useSnapshots() {
       const setActive = type === 'system' ? setActiveSystemName : setActiveScenarioName;
       setActive(d.name);
       localStorage.setItem(activeKey, d.name);
+      persistLocal();
       
       const typeLabel = type === 'system' ? 'système' : 'scénario';
       toast({ title: 'Sauvegarde créée', description: `"${name}" (${typeLabel}) — données capturées.` });
       return true;
     } catch (e) {
       console.error('Failed to create snapshot:', e);
-      toast({ title: 'Erreur', description: 'Impossible de créer la sauvegarde.', variant: 'destructive' });
+      toast({ title: 'Erreur', description: e instanceof Error ? e.message : 'Impossible de créer la sauvegarde.', variant: 'destructive' });
       return false;
     } finally {
       setIsSaving(false);
     }
-  }, [user, isAdmin]);
+  }, [user, isAdmin, state, persistLocal]);
 
   const restoreSnapshot = useCallback(async (id: string) => {
     if (!user) return false;
@@ -135,14 +156,37 @@ export function useSnapshots() {
       const version = stateData.snapshotVersion || 1;
       const type = stateData.snapshotType || snapshot.snapshotType || 'scenario';
 
+      if (version >= 4) {
+        for (const saved of stateData.tabVersions ?? []) {
+          if (getTabPermission(saved.tab_key) !== 'write') continue;
+          const { data: existing, error: readError } = await supabase.from('tab_saves' as any)
+            .select('id').eq('id', saved.id).maybeSingle();
+          if (readError) throw readError;
+          const result = existing
+            ? await supabase.from('tab_saves' as any).update({ name: saved.name, data: saved.data } as any).eq('id', saved.id).select('id').single()
+            : await supabase.from('tab_saves' as any).insert({ ...saved, user_id: user.id, creator_email: user.email } as any).select('id').single();
+          if (result.error || !result.data) throw result.error ?? new Error('Restauration d’une version impossible.');
+        }
+      }
+
       if (version >= 2 && stateData.supabaseData) {
         if (stateData.financialState) {
           localStorage.setItem(STATE_KEY, JSON.stringify(stateData.financialState));
         }
-        const { success, errors } = await restoreSnapshotData(user.id, stateData.supabaseData, type);
+        // Use the captured live plan, not the older financial_scenarios rows collected alongside it.
+        const restoredDatabase = { ...stateData.supabaseData };
+        if (version >= 4) delete restoredDatabase.financial_scenarios;
+        const { success, errors } = await restoreSnapshotData(user.id, restoredDatabase, type);
         if (!success) {
           console.warn('Snapshot restore had errors:', errors);
           toast({ title: 'Restauration partielle', description: `${errors.length} erreur(s).`, variant: 'destructive' });
+        }
+        if (stateData.financialState) {
+          const restoredState = { ...stateData.financialState, activeTabSaves: stateData.financialState.activeTabSaves ?? {} };
+          const { error } = await supabase.from('financial_scenarios').upsert({ user_id: user.id, state_data: restoredState, updated_at: new Date().toISOString() }, { onConflict: 'user_id' });
+          if (error) throw error;
+          localStorage.setItem(`${STATE_KEY}:work:${user.id}`, JSON.stringify(restoredState));
+          applyTabData(restoredState);
         }
       } else {
         localStorage.setItem(STATE_KEY, snapshot.stateData);
@@ -163,7 +207,7 @@ export function useSnapshots() {
     } finally {
       setIsSaving(false);
     }
-  }, [user, isAdmin, snapshots]);
+  }, [user, isAdmin, snapshots, getTabPermission, applyTabData]);
 
   const duplicateSnapshot = useCallback(async (id: string) => {
     if (!user) return false;

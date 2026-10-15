@@ -20,11 +20,13 @@ import {
 } from '@/components/ui/select';
 import { Save, Download, Trash2, Plus, Loader2, Database, Copy, Shield, FileText, FileDown } from 'lucide-react';
 import type { SnapshotType } from '@/hooks/useSnapshotData';
+import { useFinancial } from '@/context/FinancialContext';
 
 const SCENARIO_MODULES = ['Plan Produit', 'Organisation', 'Charges', 'Scénarios', 'Prévisionnel', 'Financement', 'Valorisation'];
 const SYSTEM_MODULES = ['CRM', 'Plan Produit', 'Organisation', 'Charges', 'Scénarios', 'Prévisionnel', 'Financement', 'Valorisation', 'Pricing', 'Production & BE', 'Planning Dev', 'Suivi d\'activité'];
 
 export function SnapshotsPage() {
+  const { state } = useFinancial();
   const {
     snapshots, isLoading, isSaving, activeSystemName, activeScenarioName,
     createSnapshot, restoreSnapshot, deleteSnapshot, duplicateSnapshot, downloadSnapshot, formatDate,
@@ -164,14 +166,23 @@ export function SnapshotsPage() {
           height="sm"
         />
 
+        <section className="space-y-2" aria-label="Onglets inclus dans la sauvegarde globale">
+          <h2 className="font-semibold">Sauvegardes ouvertes des onglets</h2>
+          <div className="flex flex-wrap gap-x-6 gap-y-2 text-sm">
+            {([['product-plan', 'Plan produit'], ['charges', 'Charges'], ['organisation', 'Organisation']] as const).map(([key, label]) => (
+              <p key={key}><span className="text-muted-foreground">{label} : </span><strong className="break-words">{state.activeTabSaves[key]?.name ?? 'Non enregistrée'}</strong></p>
+            ))}
+          </div>
+        </section>
+
         {canWrite && (
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2"><Plus className="h-5 w-5" />Nouvelle sauvegarde</CardTitle>
               <CardDescription>
                 {isAdmin
-                  ? 'Créez une sauvegarde système (complète) ou scénario (données de prévision).'
-                  : 'Créez une sauvegarde scénario pour figer vos données de prévision.'}
+                  ? 'Le scénario conserve tous les onglets du prévisionnel, leurs données actuelles, leurs versions et leurs noms ouverts. Le système inclut aussi les autres modules accessibles.'
+                  : 'La sauvegarde globale conserve tous les onglets du prévisionnel, leurs données actuelles, leurs versions et leurs noms ouverts.'}
               </CardDescription>
             </CardHeader>
             <CardContent>

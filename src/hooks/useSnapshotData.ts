@@ -107,6 +107,7 @@ export async function restoreSnapshotData(
 
   // 1. Supprimer
   for (const table of deletionOrder) {
+    if (!(table in snapshotData)) continue;
     try {
       const { error } = await supabase.from(table as any).delete().eq('user_id', userId);
       if (error) {

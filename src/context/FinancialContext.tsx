@@ -12,6 +12,7 @@ import { DilutionConfig, defaultDilutionConfig } from '@/components/valuation/Di
 import { toast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/context/AuthContext';
+import type { ActiveTabSaves, ActiveTabSave, SavedTabKey } from '@/lib/tabSaveData';
 
 export type RevenueMode = 'by-product' | 'by-channel-global' | 'by-client';
 
@@ -156,6 +157,7 @@ export const defaultHiringSimulation: HiringSimulationConfig = {
 };
 
 interface FinancialState {
+  activeTabSaves: ActiveTabSaves;
   products: Product[];
   productCategories: ProductPlanCategory[];
   roles: Role[];
@@ -222,6 +224,8 @@ interface FinancialContextType {
   updateFundingPlan: (config: Partial<FundingPlanConfig>) => void;
   updateProductCategories: (categories: ProductPlanCategory[]) => void;
   applyTabData: (partial: Partial<FinancialState>) => void;
+  setActiveTabSave: (tabKey: SavedTabKey, save: ActiveTabSave | null) => void;
+  persistLocal: () => void;
   saveAll: () => void;
 }
 
@@ -289,6 +293,7 @@ function loadState(): FinancialState {
 
 function getDefaultState(): FinancialState {
   return {
+    activeTabSaves: {},
     products: defaultProducts,
     productCategories: [],
     roles: defaultRoles,
@@ -341,8 +346,10 @@ export function FinancialProvider({ children }: { children: ReactNode }) {
           .order('updated_at', { ascending: false })
           .limit(1)
           .maybeSingle();
-        if (data?.state_data) {
-          const cloudState = data.state_data as unknown as FinancialState;
+        const workspace = localStorage.getItem(`${STATE_KEY}:work:${user.id}`);
+        const loadedState = workspace ? JSON.parse(workspace) : data?.state_data;
+        if (loadedState) {
+          const cloudState = loadedState as FinancialState;
           if (!cloudState.valuationConfig) cloudState.valuationConfig = { ...defaultValuationConfig };
           // Ensure excludeFundingFromTreasury defaults for old saved states
           if (cloudState.excludeFundingFromTreasury === undefined) cloudState.excludeFundingFromTreasury = false;
@@ -387,6 +394,13 @@ export function FinancialProvider({ children }: { children: ReactNode }) {
     })();
   }, [user, cloudLoaded]);
 
+  // Local drafts retain opened tab identities across reloads without changing the shared global save.
+  useEffect(() => {
+    if (!cloudLoaded || !user) return;
+    localStorage.setItem(`${STATE_KEY}:work:${user.id}`, JSON.stringify(state));
+    localStorage.setItem(STATE_KEY, JSON.stringify(state));
+  }, [state, cloudLoaded, user]);
+
   const markChanged = useCallback(() => {
     setState(prev => ({ ...prev, hasUnsavedChanges: true }));
   }, []);
@@ -421,6 +435,21 @@ export function FinancialProvider({ children }: { children: ReactNode }) {
   const updateProductCategories = useCallback((productCategories: ProductPlanCategory[]) => { setState(prev => ({ ...prev, productCategories, hasUnsavedChanges: true })); }, []);
 
   const applyTabData = useCallback((partial: Partial<FinancialState>) => { setState(prev => ({ ...prev, ...partial, ...(partial.products ? { products: syncProductVolumes(partial.products) } : {}), hasUnsavedChanges: true })); }, []);
+
+  const setActiveTabSave = useCallback((tabKey: SavedTabKey, save: ActiveTabSave | null) => {
+    setState(prev => {
+      const activeTabSaves = { ...prev.activeTabSaves };
+      if (save) activeTabSaves[tabKey] = save;
+      else delete activeTabSaves[tabKey];
+      const next = { ...prev, activeTabSaves, hasUnsavedChanges: true };
+      localStorage.setItem(STATE_KEY, JSON.stringify(next));
+      return next;
+    });
+  }, []);
+
+  const persistLocal = useCallback(() => {
+    localStorage.setItem(STATE_KEY, JSON.stringify(state));
+  }, [state]);
 
   const saveAll = useCallback(async () => {
     try {
@@ -624,6 +653,8 @@ export function FinancialProvider({ children }: { children: ReactNode }) {
       updateFundingPlan,
       updateProductCategories,
       applyTabData,
+      setActiveTabSave,
+      persistLocal,
       saveAll,
     }}>
       {children}

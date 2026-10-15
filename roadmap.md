@@ -14,6 +14,8 @@
 - [x] Ajouter « Tout cocher » dans la vue classique des commandes à fabriquer (case à trois états : tout cocher, partiel, tout décocher) — 9 tests réussis, build OK.
 
 ## Phase 2 IA
+- [x] Afficher la sauvegarde active par onglet, sauvegarder sur place et inclure données et noms courants dans les sauvegardes globales (8 tests ciblés et 7 tests de non-régression).
+- [ ] Vérifier sauvegarde, ouverture et restauration globale avec un compte réel : Supabase externe sans session de test disponible.
 - [x] Plan produit : noms sauvegardés dans les catégories, ajout aux catégories existantes, création manuelle et retrait visibles ; 4 tests réussis et contrôle visuel sur données de test.
 - [x] Simplifier la gestion visuelle des catégories du Plan produit et empêcher les nouveaux doublons (3 tests réussis et contrôle visuel sur ventes de test).
 - [ ] Vérifier la gestion des catégories sur un plan réel sauvegardé : session Supabase externe indisponible.

@@ -57,7 +57,6 @@ export function ProductPlanPage() {
     updateProducts, 
     addProduct, 
     removeProduct, 
-    saveAll,
     setRevenueMode,
     updateScenarioSettings,
     updateGlobalRevenueConfig,
@@ -336,7 +335,7 @@ export function ProductPlanPage() {
         {/* Volumes by Year */}
         <TabsContent value="volumes">
           <div className="mb-4">
-            <ErplainActualsImport products={state.products} years={YEARS} onApply={updateProducts} onSave={saveAll} />
+            <ErplainActualsImport products={state.products} years={YEARS} onApply={updateProducts} onSave={saveWithVersion} />
           </div>
           <div className="mb-4">
             <CurrentYearProjection products={state.products} years={YEARS} onApply={updateProducts} />
