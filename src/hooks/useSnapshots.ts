@@ -185,6 +185,7 @@ export function useSnapshots() {
           const restoredState = { ...stateData.financialState, activeTabSaves: stateData.financialState.activeTabSaves ?? {} };
           const { error } = await supabase.from('financial_scenarios').upsert({ user_id: user.id, state_data: restoredState, updated_at: new Date().toISOString() }, { onConflict: 'user_id' });
           if (error) throw error;
+          localStorage.setItem(`${STATE_KEY}:work:${user.id}`, JSON.stringify(restoredState));
           applyTabData(restoredState);
         }
       } else {
