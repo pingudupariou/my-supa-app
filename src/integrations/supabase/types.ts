@@ -3719,6 +3719,36 @@ export type Database = {
         }
         Relationships: []
       }
+      tab_saves: {
+        Row: {
+          created_at: string
+          creator_email: string | null
+          data: Json
+          id: string
+          name: string
+          tab_key: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          creator_email?: string | null
+          data: Json
+          id?: string
+          name: string
+          tab_key: string
+          user_id?: string
+        }
+        Update: {
+          created_at?: string
+          creator_email?: string | null
+          data?: Json
+          id?: string
+          name?: string
+          tab_key?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       task_history: {
         Row: {
           action: string
