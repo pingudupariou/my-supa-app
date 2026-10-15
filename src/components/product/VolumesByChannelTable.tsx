@@ -30,17 +30,21 @@ export function VolumesByChannelTable({ products, years, onChannelVolumeChange, 
   const [growthRates, setGrowthRates] = useState<Record<string, number>>({
     B2C: 0, B2B: 0, OEM: 0,
   });
+  // Per-product year from which the growth % starts applying (earlier years keep their values)
+  const [growthStartYear, setGrowthStartYear] = useState<Record<string, number>>({});
 
   const applyGrowth = (productId: string, channel: 'B2C' | 'B2B' | 'OEM') => {
     const product = products.find(p => p.id === productId);
     if (!product) return;
     const channels = product.volumesByChannel || { B2C: {}, B2B: {}, OEM: {} };
     const rate = growthRates[channel] / 100;
+    const startYear = Math.max(growthStartYear[productId] ?? product.launchYear, product.launchYear);
 
     const changes: { productId: string; year: number; channel: 'B2C' | 'B2B' | 'OEM'; volume: number }[] = [];
     years.forEach((year, i) => {
       if (year < product.launchYear) return;
       if (i === 0 || years[i - 1] < product.launchYear) return;
+      if (year < startYear) return; // years before the chosen start keep their values
       const prevVol = channels[channel][years[i - 1]] || 0;
       const newVol = Math.round(prevVol * (1 + rate));
       if (newVol !== (channels[channel][year] || 0)) {
@@ -181,6 +185,18 @@ export function VolumesByChannelTable({ products, years, onChannelVolumeChange, 
                         Coût : {formatCurrency(product.unitCost)}
                       </div>
                     </button>
+                    <div className="flex items-center gap-1 mt-1">
+                      <span className="text-[10px] text-muted-foreground">Croissance à partir de</span>
+                      <select
+                        className="h-6 text-[11px] border rounded px-1 bg-background"
+                        value={Math.max(growthStartYear[product.id] ?? product.launchYear, product.launchYear)}
+                        onChange={e => setGrowthStartYear(prev => ({ ...prev, [product.id]: Number(e.target.value) }))}
+                      >
+                        {years.filter(y => y >= product.launchYear).map(y => (
+                          <option key={y} value={y}>{y}</option>
+                        ))}
+                      </select>
+                    </div>
                   </TableCell>
                   {years.map(year => (
                     CHANNELS.map(ch => (
