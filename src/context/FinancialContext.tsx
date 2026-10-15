@@ -280,6 +280,7 @@ function loadState(): FinancialState {
       if (!parsed.productCategories) {
         parsed.productCategories = [];
       }
+      parsed.products = syncProductVolumes(parsed.products);
       return parsed;
     }
   } catch {}

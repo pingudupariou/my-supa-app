@@ -86,6 +86,7 @@ function calculateRevenueForYear(
   let cogs = 0;
 
   products.forEach(product => {
+    if (year < product.launchYear) return;
     const volumesByChannel = product.volumesByChannel;
 
     if (volumesByChannel) {

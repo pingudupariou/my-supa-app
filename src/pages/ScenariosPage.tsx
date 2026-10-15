@@ -64,6 +64,7 @@ export function ScenariosPage() {
     
     let revenue = 0;
     state.products.forEach(product => {
+      if (year < product.launchYear) return;
       const volumesByChannel = product.volumesByChannel;
       if (volumesByChannel) {
         const priceHT_B2C = product.priceHT || (product.priceTTC_B2C / (1 + (product.vatRate || 0.20)));
