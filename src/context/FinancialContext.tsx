@@ -346,8 +346,10 @@ export function FinancialProvider({ children }: { children: ReactNode }) {
           .order('updated_at', { ascending: false })
           .limit(1)
           .maybeSingle();
-        if (data?.state_data) {
-          const cloudState = data.state_data as unknown as FinancialState;
+        const workspace = localStorage.getItem(`${STATE_KEY}:work:${user.id}`);
+        const loadedState = workspace ? JSON.parse(workspace) : data?.state_data;
+        if (loadedState) {
+          const cloudState = loadedState as FinancialState;
           if (!cloudState.valuationConfig) cloudState.valuationConfig = { ...defaultValuationConfig };
           // Ensure excludeFundingFromTreasury defaults for old saved states
           if (cloudState.excludeFundingFromTreasury === undefined) cloudState.excludeFundingFromTreasury = false;
@@ -391,6 +393,13 @@ export function FinancialProvider({ children }: { children: ReactNode }) {
       }
     })();
   }, [user, cloudLoaded]);
+
+  // Local drafts retain opened tab identities across reloads without changing the shared global save.
+  useEffect(() => {
+    if (!cloudLoaded || !user) return;
+    localStorage.setItem(`${STATE_KEY}:work:${user.id}`, JSON.stringify(state));
+    localStorage.setItem(STATE_KEY, JSON.stringify(state));
+  }, [state, cloudLoaded, user]);
 
   const markChanged = useCallback(() => {
     setState(prev => ({ ...prev, hasUnsavedChanges: true }));
