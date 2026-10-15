@@ -4,6 +4,7 @@ import { Role, Department } from '@/engine/types';
 import { SectionCard, KPICard } from '@/components/ui/KPICard';
 import { HeroBanner } from '@/components/ui/HeroBanner';
 import { SaveButton } from '@/components/ui/SaveButton';
+import { TabSaveAs } from '@/components/ui/TabSaveAs';
 import { OrgChart } from '@/components/organisation/OrgChart';
 import { HiringSimulator } from '@/components/organisation/HiringSimulator';
 import { PageExportPDF, ExportableSection } from '@/components/export/PageExportPDF';
@@ -128,6 +129,7 @@ export function OrganisationPage() {
               <Plus className="h-4 w-4 mr-1" />
               Ajouter Poste
             </Button>
+            <TabSaveAs tabKey="organisation" label="Organisation" />
             <SaveButton
               onSave={saveAll}
               hasUnsavedChanges={state.hasUnsavedChanges}
