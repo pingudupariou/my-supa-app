@@ -1,3 +1,4 @@
+import { Fragment } from 'react';
 import { Button } from '@/components/ui/button';
 import { useState } from 'react';
 import { Product, VolumesByChannel } from '@/engine/types';
@@ -142,7 +143,7 @@ export function VolumesByChannelTable({ products, years, onChannelVolumeChange, 
               {years.map(year => (
                 <TableHead key={year} colSpan={3} className="text-center border-l">{year}</TableHead>
               ))}
-              <TableHead rowSpan={2} className="text-right border-l">CA Total</TableHead>
+              <TableHead rowSpan={2} className="text-right border-l">CA cumulé<div className="text-[10px] font-normal">{years[0]}–{years[years.length - 1]}</div></TableHead>
             </TableRow>
             <TableRow>
               {years.map(year => (
@@ -164,7 +165,8 @@ export function VolumesByChannelTable({ products, years, onChannelVolumeChange, 
               }, 0);
 
               return (
-                <TableRow key={product.id}>
+                <Fragment key={product.id}>
+                <TableRow>
                   <TableCell>
                     <button
                       className="text-left hover:underline cursor-pointer"
@@ -173,7 +175,10 @@ export function VolumesByChannelTable({ products, years, onChannelVolumeChange, 
                     >
                       <div className="font-medium">{product.name}</div>
                       <div className="text-xs text-muted-foreground">
-                        Coût: {formatCurrency(product.unitCost)}
+                        Prix HT : B2C {formatCurrency(product.priceHT)} · B2B {formatCurrency(product.priceHT_B2B || product.priceHT)} · OEM {formatCurrency(product.priceHT_OEM || product.priceHT)}
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        Coût : {formatCurrency(product.unitCost)}
                       </div>
                     </button>
                   </TableCell>
@@ -194,9 +199,20 @@ export function VolumesByChannelTable({ products, years, onChannelVolumeChange, 
                     ))
                   ))}
                   <TableCell className="text-right font-mono-numbers font-medium border-l">
-                    {formatCurrency(totalRevenue, true)}
+                    {formatCurrency(totalRevenue)}
                   </TableCell>
                 </TableRow>
+                <TableRow className="bg-muted/10">
+                  <TableCell className="text-[10px] text-muted-foreground py-1">CA de l'année</TableCell>
+                  {years.map(year => {
+                    if (year < product.launchYear) return <TableCell key={`ca-${product.id}-${year}`} colSpan={3} className="border-l py-1" />;
+                    const v = (ch: 'B2C' | 'B2B' | 'OEM') => Math.round((channels[ch][year] || 0) * volAdj);
+                    const ca = (v('B2C') * product.priceHT + v('B2B') * (product.priceHT_B2B || product.priceHT) + v('OEM') * (product.priceHT_OEM || product.priceHT)) * priceAdj;
+                    return <TableCell key={`ca-${product.id}-${year}`} colSpan={3} className="text-center text-[11px] font-mono-numbers border-l py-1">{formatCurrency(ca)}</TableCell>;
+                  })}
+                  <TableCell className="border-l py-1" />
+                </TableRow>
+                </Fragment>
               );
             })}
 
@@ -218,14 +234,14 @@ export function VolumesByChannelTable({ products, years, onChannelVolumeChange, 
               <TableCell>CA par Année</TableCell>
               {yearTotals.map(t => (
                 <TableCell key={`total-ca-${t.year}`} colSpan={3} className="text-center border-l text-xs">
-                  {formatCurrency(t.caTotal, true)}
+                  {formatCurrency(t.caTotal)}
                   <div className="text-[10px] font-normal text-muted-foreground">
                     B2C: {formatCurrency(t.caB2C, true)} | B2B: {formatCurrency(t.caB2B, true)} | OEM: {formatCurrency(t.caOEM, true)}
                   </div>
                 </TableCell>
               ))}
               <TableCell className="text-right font-mono-numbers border-l">
-                {formatCurrency(grandTotal, true)}
+                {formatCurrency(grandTotal)}
               </TableCell>
             </TableRow>
           </TableBody>
