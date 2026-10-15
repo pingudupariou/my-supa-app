@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { formatCurrency, formatPercent } from '@/data/financialConfig';
 import { cn } from '@/lib/utils';
 import { ExportPDFDialog } from '@/components/summary/ExportPDFDialog';
+import { ProductRevenueDeck } from '@/components/summary/ProductRevenueDeck';
 import { ProductRoadmap } from '@/components/product/ProductRoadmap';
 import { aggregateByYear } from '@/engine/monthlyTreasuryEngine';
 import {
@@ -66,7 +67,7 @@ const defaultSections: Record<SectionKey, boolean> = {
 
 const sectionLabels: Record<SectionKey, string> = {
   cash: 'Approche Cash',
-  clientDeck: 'Deck CA Clients',
+  clientDeck: 'Deck Chiffre d’Affaires',
   evolution: 'Graphiques d\'Évolution',
   fundingPlan: 'Plan de Financement',
   needs: 'Justification des Besoins',
@@ -513,7 +514,14 @@ export function InvestmentSummaryPage() {
       {/* =============== SECTION: DECK CA CLIENTS =============== */}
       {visibleSections.clientDeck && (
         <SectionCard title="Deck — Chiffre d'Affaires" id="client-deck">
-          {state.revenueMode === 'by-client' && clientDeckData ? (
+          {state.revenueMode === 'by-product' ? (
+            <ProductRevenueDeck
+              products={state.products}
+              years={years}
+              volumeAdjustment={state.scenarioConfigs[state.activeScenarioId].volumeAdjustment}
+              priceAdjustment={state.scenarioConfigs[state.activeScenarioId].priceAdjustment}
+            />
+          ) : state.revenueMode === 'by-client' && clientDeckData ? (
             <div className="space-y-6">
               {/* Channel summary cards */}
               <div className="grid md:grid-cols-3 gap-4">
