@@ -196,7 +196,9 @@ export function ProductPlanPage() {
             sections={EXPORT_SECTIONS}
             fileName="Plan_Produit"
           />
-          
+          <TabSaveAs tabKey="product-plan" label="Plan produit" />
+          <SaveButton
+            onSave={saveWithVersion}
             hasUnsavedChanges={state.hasUnsavedChanges}
             lastSaved={state.lastSaved ? new Date(state.lastSaved) : null}
           />

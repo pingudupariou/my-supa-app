@@ -130,7 +130,9 @@ export function OrganisationPage() {
               <Plus className="h-4 w-4 mr-1" />
               Ajouter Poste
             </Button>
-            
+            <TabSaveAs tabKey="organisation" label="Organisation" />
+            <SaveButton
+              onSave={saveWithVersion}
               hasUnsavedChanges={state.hasUnsavedChanges}
               lastSaved={state.lastSaved ? new Date(state.lastSaved) : null}
             />

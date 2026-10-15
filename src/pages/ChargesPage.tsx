@@ -170,7 +170,9 @@ export function ChargesPage() {
               Ajouter Charge
             </Button>
           )}
-          
+          <TabSaveAs tabKey="charges" label="Charges" />
+          <SaveButton
+            onSave={saveWithVersion}
             hasUnsavedChanges={state.hasUnsavedChanges}
             lastSaved={state.lastSaved ? new Date(state.lastSaved) : null}
           />
