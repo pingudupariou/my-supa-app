@@ -185,6 +185,18 @@ export function VolumesByChannelTable({ products, years, onChannelVolumeChange, 
                         Coût : {formatCurrency(product.unitCost)}
                       </div>
                     </button>
+                    <div className="flex items-center gap-1 mt-1">
+                      <span className="text-[10px] text-muted-foreground">Croissance à partir de</span>
+                      <select
+                        className="h-6 text-[11px] border rounded px-1 bg-background"
+                        value={Math.max(growthStartYear[product.id] ?? product.launchYear, product.launchYear)}
+                        onChange={e => setGrowthStartYear(prev => ({ ...prev, [product.id]: Number(e.target.value) }))}
+                      >
+                        {years.filter(y => y >= product.launchYear).map(y => (
+                          <option key={y} value={y}>{y}</option>
+                        ))}
+                      </select>
+                    </div>
                   </TableCell>
                   {years.map(year => (
                     CHANNELS.map(ch => (
