@@ -7,18 +7,14 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Bookmark, RotateCcw, Trash2 } from 'lucide-react';
+import { TAB_FIELDS, pickTabData, type SavedTabKey } from '@/lib/tabSaveData';
 
-/** Champs de l'état financier propres à chaque onglet (sauvegarde locale à l'onglet). */
-const TAB_FIELDS: Record<string, string[]> = {
-  'product-plan': ['products', 'productCategories', 'revenueMode', 'globalRevenueConfig', 'clientRevenueConfig', 'roadmapBlocks'],
-  charges: ['expenses', 'opexMode', 'simpleOpexConfig'],
-  organisation: ['roles', 'hiringSimulation'],
-};
 
 interface TabSave { id: string; name: string; created_at: string; creator_email: string | null; data: Record<string, unknown> }
 
 export function TabSaveAs({ tabKey, label }: { tabKey: keyof typeof TAB_FIELDS; label: string }) {
-  const { state, applyTabData } = useFinancial();
+  const { state, applyTabData, setActiveTabSave } = useFinancial();
+  const active = state.activeTabSaves[tabKey];
   const { user, getTabPermission } = useAuth() as any;
   const canWrite = getTabPermission ? getTabPermission(tabKey) === 'write' : true;
   const [open, setOpen] = useState(false);
@@ -27,20 +23,25 @@ export function TabSaveAs({ tabKey, label }: { tabKey: keyof typeof TAB_FIELDS; 
   const [busy, setBusy] = useState(false);
 
   const load = useCallback(async () => {
-    const { data } = await supabase.from('tab_saves' as any).select('*').eq('tab_key', tabKey).order('created_at', { ascending: false });
+    const { data, error } = await supabase.from('tab_saves' as any).select('*').eq('tab_key', tabKey).order('created_at', { ascending: false });
+    if (error) { toast({ title: 'Chargement impossible', description: error.message, variant: 'destructive' }); return; }
     setSaves((data as any) ?? []);
   }, [tabKey]);
 
   useEffect(() => { if (open) load(); }, [open, load]);
+  useEffect(() => {
+    const requestOpen = () => setOpen(true);
+    window.addEventListener(`tab-save-as:${tabKey}`, requestOpen);
+    return () => window.removeEventListener(`tab-save-as:${tabKey}`, requestOpen);
+  }, [tabKey]);
 
   const save = async () => {
-    if (!name.trim() || !user) return;
+    if (!name.trim() || !user || !canWrite || busy) return;
     setBusy(true);
-    const data: Record<string, unknown> = {};
-    for (const f of TAB_FIELDS[tabKey]) data[f] = (state as any)[f];
-    const { error } = await supabase.from('tab_saves' as any).insert({ tab_key: tabKey, name: name.trim(), data, user_id: user.id, creator_email: user.email } as any);
+    const { data: saved, error } = await supabase.from('tab_saves' as any).insert({ tab_key: tabKey, name: name.trim(), data: pickTabData(state, tabKey), user_id: user.id, creator_email: user.email } as any).select('id,name').single();
     setBusy(false);
-    if (error) { toast({ title: 'Erreur', description: "Sauvegarde de l'onglet impossible.", variant: 'destructive' }); return; }
+    if (error || !saved) { toast({ title: 'Erreur', description: "Sauvegarde de l'onglet impossible.", variant: 'destructive' }); return; }
+    setActiveTabSave(tabKey, saved as unknown as { id: string; name: string });
     setName('');
     toast({ title: 'Version enregistrée', description: `« ${name.trim()} » (${label}) — la sauvegarde globale n'a pas changé.` });
     load();
@@ -50,18 +51,25 @@ export function TabSaveAs({ tabKey, label }: { tabKey: keyof typeof TAB_FIELDS; 
     const partial: Record<string, unknown> = {};
     for (const f of TAB_FIELDS[tabKey]) if (s.data[f] !== undefined) partial[f] = s.data[f];
     applyTabData(partial as any);
+    setActiveTabSave(tabKey, { id: s.id, name: s.name });
     setOpen(false);
-    toast({ title: 'Version restaurée', description: `« ${s.name} » appliquée à ${label} uniquement. Cliquez « Sauvegarder » pour la garder dans le plan.` });
+    toast({ title: 'Sauvegarde ouverte', description: `« ${s.name} » — ${label}.` });
   };
 
   const remove = async (s: TabSave) => {
-    const { error } = await supabase.from('tab_saves' as any).delete().eq('id', s.id);
-    if (error) { toast({ title: 'Erreur', description: 'Suppression impossible.', variant: 'destructive' }); return; }
+    if (!canWrite || !window.confirm(`Supprimer « ${s.name} » ?`)) return;
+    const { data, error } = await supabase.from('tab_saves' as any).delete().eq('id', s.id).select('id');
+    if (error || !data?.length) { toast({ title: 'Erreur', description: 'Suppression impossible.', variant: 'destructive' }); return; }
+    if (active?.id === s.id) setActiveTabSave(tabKey, null);
     setSaves(prev => prev.filter(x => x.id !== s.id));
   };
 
   return (
     <>
+      <div className="text-sm min-w-0 max-w-full" aria-label={`Sauvegarde ouverte — ${label}`}>
+        <span className="text-muted-foreground">Sauvegarde ouverte : </span>
+        <strong className="break-words">{active?.name ?? 'Non enregistrée'}</strong>
+      </div>
       <Button variant="outline" size="sm" onClick={() => setOpen(true)}>
         <Bookmark className="h-4 w-4 mr-1" /> Versions de l'onglet
       </Button>
@@ -89,7 +97,7 @@ export function TabSaveAs({ tabKey, label }: { tabKey: keyof typeof TAB_FIELDS; 
                     {new Date(s.created_at).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' })}{s.creator_email ? ` · ${s.creator_email}` : ''}
                   </div>
                 </div>
-                {canWrite && <Button size="sm" variant="secondary" onClick={() => restore(s)}><RotateCcw className="h-4 w-4 mr-1" />Revenir</Button>}
+                {canWrite && <Button size="sm" variant="secondary" onClick={() => restore(s)}><RotateCcw className="h-4 w-4 mr-1" />{active?.id === s.id ? 'Ouverte' : 'Ouvrir'}</Button>}
                 {canWrite && <Button size="icon" variant="ghost" className="text-destructive" onClick={() => remove(s)} aria-label="Supprimer"><Trash2 className="h-4 w-4" /></Button>}
               </div>
             ))}
@@ -100,17 +108,24 @@ export function TabSaveAs({ tabKey, label }: { tabKey: keyof typeof TAB_FIELDS; 
   );
 }
 
-/** « Sauvegarder » d'un onglet : sauvegarde globale + copie automatique dans les versions de l'onglet. */
-export function useSaveWithTabVersion(tabKey: keyof typeof TAB_FIELDS) {
-  const { state, saveAll } = useFinancial() as any;
-  const { user, getTabPermission } = useAuth() as any;
+/** Met à jour uniquement la sauvegarde ouverte ; aucun nouvel exemplaire implicite. */
+export function useSaveWithTabVersion(tabKey: SavedTabKey) {
+  const { state, persistLocal } = useFinancial();
+  const { user, getTabPermission } = useAuth();
+  const [busy, setBusy] = useState(false);
   return useCallback(async () => {
-    await saveAll();
-    if (!user || (getTabPermission && getTabPermission(tabKey) !== 'write')) return;
-    const data: Record<string, unknown> = {};
-    for (const f of TAB_FIELDS[tabKey]) data[f] = (state as any)[f];
-    const name = `Sauvegarde du ${new Date().toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' })}`;
-    const { error } = await supabase.from('tab_saves' as any).insert({ tab_key: tabKey, name, data, user_id: user.id, creator_email: user.email } as any);
-    if (error) toast({ title: 'Version non créée', description: "Le plan est sauvegardé, mais la copie dans les versions de l'onglet a échoué.", variant: 'destructive' });
-  }, [saveAll, state, user, getTabPermission, tabKey]);
+    if (!user || getTabPermission(tabKey) !== 'write' || busy) return;
+    const active = state.activeTabSaves[tabKey];
+    if (!active) { window.dispatchEvent(new Event(`tab-save-as:${tabKey}`)); return; }
+    setBusy(true);
+    try {
+      const { data, error } = await supabase.from('tab_saves' as any)
+        .update({ data: pickTabData(state, tabKey) } as any).eq('id', active.id).eq('tab_key', tabKey).select('id').single();
+      if (error || !data) throw new Error(error?.message ?? 'La sauvegarde n’existe plus ou vous ne pouvez pas la modifier.');
+      persistLocal();
+      toast({ title: 'Onglet sauvegardé', description: `« ${active.name} » mis à jour. La sauvegarde globale n’a pas changé.` });
+    } catch (error) {
+      toast({ title: 'Sauvegarde impossible', description: error instanceof Error ? error.message : 'Veuillez réessayer.', variant: 'destructive' });
+    } finally { setBusy(false); }
+  }, [persistLocal, state, user, getTabPermission, tabKey, busy]);
 }
