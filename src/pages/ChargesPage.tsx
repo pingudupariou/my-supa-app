@@ -4,6 +4,7 @@ import { Expense, ExpenseCategory, EvolutionType } from '@/engine/types';
 import { SectionCard, KPICard } from '@/components/ui/KPICard';
 import { HeroBanner } from '@/components/ui/HeroBanner';
 import { SaveButton } from '@/components/ui/SaveButton';
+import { TabSaveAs } from '@/components/ui/TabSaveAs';
 import { PageExportPDF, ExportableSection } from '@/components/export/PageExportPDF';
 import { ReadOnlyWrapper } from '@/components/auth/ReadOnlyWrapper';
 import { Button } from '@/components/ui/button';
@@ -168,6 +169,7 @@ export function ChargesPage() {
               Ajouter Charge
             </Button>
           )}
+          <TabSaveAs tabKey="charges" label="Charges" />
           <SaveButton
             onSave={saveAll}
             hasUnsavedChanges={state.hasUnsavedChanges}
