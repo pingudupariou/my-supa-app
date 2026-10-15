@@ -4,7 +4,7 @@ import { Product } from '@/engine/types';
 import { SectionCard, KPICard } from '@/components/ui/KPICard';
 import { HeroBanner } from '@/components/ui/HeroBanner';
 import { SaveButton } from '@/components/ui/SaveButton';
-import { TabSaveAs } from '@/components/ui/TabSaveAs';
+import { TabSaveAs, useSaveWithTabVersion } from '@/components/ui/TabSaveAs';
 import { SimplifiedPricingTable } from '@/components/product/SimplifiedPricingTable';
 import { ProductPlanCategoryManager } from '@/components/product/ProductPlanCategoryManager';
 import { RevenueVisualization } from '@/components/product/RevenueVisualization';
@@ -195,9 +195,7 @@ export function ProductPlanPage() {
             sections={EXPORT_SECTIONS}
             fileName="Plan_Produit"
           />
-          <TabSaveAs tabKey="product-plan" label="Plan produit" />
-          <SaveButton
-            onSave={saveAll}
+          
             hasUnsavedChanges={state.hasUnsavedChanges}
             lastSaved={state.lastSaved ? new Date(state.lastSaved) : null}
           />

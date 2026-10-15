@@ -99,3 +99,18 @@ export function TabSaveAs({ tabKey, label }: { tabKey: keyof typeof TAB_FIELDS; 
     </>
   );
 }
+
+/** « Sauvegarder » d'un onglet : sauvegarde globale + copie automatique dans les versions de l'onglet. */
+export function useSaveWithTabVersion(tabKey: keyof typeof TAB_FIELDS) {
+  const { state, saveAll } = useFinancial() as any;
+  const { user, getTabPermission } = useAuth() as any;
+  return useCallback(async () => {
+    await saveAll();
+    if (!user || (getTabPermission && getTabPermission(tabKey) !== 'write')) return;
+    const data: Record<string, unknown> = {};
+    for (const f of TAB_FIELDS[tabKey]) data[f] = (state as any)[f];
+    const name = `Sauvegarde du ${new Date().toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' })}`;
+    const { error } = await supabase.from('tab_saves' as any).insert({ tab_key: tabKey, name, data, user_id: user.id, creator_email: user.email } as any);
+    if (error) toast({ title: 'Version non créée', description: "Le plan est sauvegardé, mais la copie dans les versions de l'onglet a échoué.", variant: 'destructive' });
+  }, [saveAll, state, user, getTabPermission, tabKey]);
+}
