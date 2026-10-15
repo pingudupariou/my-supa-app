@@ -36,16 +36,19 @@ export function VolumesByChannelTable({ products, years, onChannelVolumeChange, 
     const channels = product.volumesByChannel || { B2C: {}, B2B: {}, OEM: {} };
     const rate = growthRates[channel] / 100;
 
+    const changes: { productId: string; year: number; channel: 'B2C' | 'B2B' | 'OEM'; volume: number }[] = [];
     years.forEach((year, i) => {
       if (year < product.launchYear) return;
       if (i === 0 || years[i - 1] < product.launchYear) return;
       const prevVol = channels[channel][years[i - 1]] || 0;
       const newVol = Math.round(prevVol * (1 + rate));
       if (newVol !== (channels[channel][year] || 0)) {
-        onChannelVolumeChange(productId, year, channel, newVol);
+        changes.push({ productId, year, channel, volume: newVol });
         channels[channel][year] = newVol;
       }
     });
+    if (onBulkChannelVolumes) onBulkChannelVolumes(changes);
+    else changes.forEach(c => onChannelVolumeChange(c.productId, c.year, c.channel, c.volume));
   };
 
   // Fill only empty years after the last filled year, per product and channel, from that last value
