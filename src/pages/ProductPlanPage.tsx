@@ -13,6 +13,7 @@ import { ProductRoadmap } from '@/components/product/ProductRoadmap';
 import { GlobalRevenueEditor, calculateGlobalRevenue } from '@/components/product/GlobalRevenueEditor';
 import { ClientRevenueEditor } from '@/components/product/ClientRevenueEditor';
 import { ErplainActualsImport } from '@/components/product/ErplainActualsImport';
+import { CurrentYearProjection } from '@/components/product/CurrentYearProjection';
 import { PageExportPDF, ExportableSection } from '@/components/export/PageExportPDF';
 import { ReadOnlyWrapper } from '@/components/auth/ReadOnlyWrapper';
 import { Button } from '@/components/ui/button';
@@ -336,6 +337,9 @@ export function ProductPlanPage() {
         <TabsContent value="volumes">
           <div className="mb-4">
             <ErplainActualsImport products={state.products} years={YEARS} onApply={updateProducts} onSave={saveAll} />
+          </div>
+          <div className="mb-4">
+            <CurrentYearProjection products={state.products} years={YEARS} onApply={updateProducts} />
           </div>
           <div id="product-volumes">
             <VolumesByChannelTable
