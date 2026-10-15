@@ -67,6 +67,7 @@ const EXPORT_SECTIONS: ExportableSection[] = [
 ];
 
 export function ChargesPage() {
+  const saveWithVersion = useSaveWithTabVersion('charges');
   const { 
     state, 
     computed, 

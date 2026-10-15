@@ -39,6 +39,7 @@ const EXPORT_SECTIONS: ExportableSection[] = [
 ];
 
 export function OrganisationPage() {
+  const saveWithVersion = useSaveWithTabVersion('organisation');
   const { state, computed, updateRoles, addRole, removeRole, saveAll } = useFinancial();
   const [viewMode, setViewMode] = useState<'orgchart' | 'table'>('orgchart');
   const [editingRole, setEditingRole] = useState<Role | null>(null);

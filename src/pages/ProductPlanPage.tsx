@@ -49,6 +49,7 @@ const EXPORT_SECTIONS: ExportableSection[] = [
 ];
 
 export function ProductPlanPage() {
+  const saveWithVersion = useSaveWithTabVersion('product-plan');
   const { 
     state, 
     computed, 
