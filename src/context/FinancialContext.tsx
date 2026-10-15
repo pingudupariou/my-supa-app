@@ -485,6 +485,7 @@ export function FinancialProvider({ children }: { children: ReactNode }) {
       }
       let revenue = 0, cogs = 0;
       products.forEach(p => {
+        if (year < p.launchYear) return;
         if (p.volumesByChannel) {
           const volB2C = Math.round((p.volumesByChannel.B2C[year] || 0) * (1 + config.volumeAdjustment));
           const volB2B = Math.round((p.volumesByChannel.B2B[year] || 0) * (1 + config.volumeAdjustment));
