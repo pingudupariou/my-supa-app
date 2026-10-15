@@ -26,7 +26,7 @@ describe('Product revenue deck', () => {
       { ...product, id: 'manual', name: 'Nouveau produit', volumesByChannel: undefined, volumesByYear: { 2026: 2 } }]}
       years={[2025, 2026, 2027]} volumeAdjustment={0} priceAdjustment={0} />);
     const row = screen.getByRole('row', { name: /Galets/ });
-    expect(within(row).getByText(formatCurrency(610))).toBeInTheDocument();
+    expect(within(row).getAllByText(formatCurrency(610))).toHaveLength(2);
     expect(within(row).getAllByText(formatCurrency(0))).toHaveLength(2);
     expect(screen.queryByText('Membre')).not.toBeInTheDocument();
     expect(screen.getByText('Nouveau produit')).toBeInTheDocument();
