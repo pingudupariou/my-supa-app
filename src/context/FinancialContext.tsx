@@ -221,6 +221,7 @@ interface FinancialContextType {
   updateHiringSimulation: (config: Partial<HiringSimulationConfig>) => void;
   updateFundingPlan: (config: Partial<FundingPlanConfig>) => void;
   updateProductCategories: (categories: ProductPlanCategory[]) => void;
+  applyTabData: (partial: Partial<FinancialState>) => void;
   saveAll: () => void;
 }
 
@@ -417,6 +418,8 @@ export function FinancialProvider({ children }: { children: ReactNode }) {
   const updateHiringSimulation = useCallback((config: Partial<HiringSimulationConfig>) => { setState(prev => ({ ...prev, hiringSimulation: { ...prev.hiringSimulation, ...config }, hasUnsavedChanges: true })); }, []);
   const updateFundingPlan = useCallback((config: Partial<FundingPlanConfig>) => { setState(prev => ({ ...prev, fundingPlan: { ...prev.fundingPlan, ...config }, hasUnsavedChanges: true })); }, []);
   const updateProductCategories = useCallback((productCategories: ProductPlanCategory[]) => { setState(prev => ({ ...prev, productCategories, hasUnsavedChanges: true })); }, []);
+
+  const applyTabData = useCallback((partial: Partial<FinancialState>) => { setState(prev => ({ ...prev, ...partial, hasUnsavedChanges: true })); }, []);
 
   const saveAll = useCallback(async () => {
     try {
@@ -618,6 +621,7 @@ export function FinancialProvider({ children }: { children: ReactNode }) {
       updateHiringSimulation,
       updateFundingPlan,
       updateProductCategories,
+      applyTabData,
       saveAll,
     }}>
       {children}
