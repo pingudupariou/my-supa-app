@@ -3,10 +3,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useSnapshots } from './useSnapshots';
 
 const mocks = vi.hoisted(() => ({
+  user: { id: 'user', email: 'test@example.test' },
   state: { products: [{ name: 'Modifié sans sauvegarder', volume: 123 }], activeTabSaves: { 'product-plan': { id: 'tab-id', name: 'Base 2026' } } },
   insert: vi.fn(), range: vi.fn(), collect: vi.fn(), persistLocal: vi.fn(),
 }));
-vi.mock('@/context/AuthContext', () => ({ useAuth: () => ({ user: { id: 'user', email: 'test@example.test' }, isAdmin: true, getTabPermission: () => 'write' }) }));
+vi.mock('@/context/AuthContext', () => ({ useAuth: () => ({ user: mocks.user, isAdmin: true, getTabPermission: () => 'write' }) }));
 vi.mock('@/context/FinancialContext', () => ({ useFinancial: () => ({ state: mocks.state, applyTabData: vi.fn(), persistLocal: mocks.persistLocal }) }));
 vi.mock('@/hooks/use-toast', () => ({ toast: vi.fn() }));
 vi.mock('./useSnapshotData', () => ({ collectSnapshotData: mocks.collect, restoreSnapshotData: vi.fn() }));
