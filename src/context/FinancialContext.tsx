@@ -1,7 +1,7 @@
 import { createContext, useContext, useState, useMemo, ReactNode, useCallback, useEffect, useRef } from 'react';
 import { Product, Role, Expense, FundingRound, ProductPlanCategory } from '@/engine/types';
 import { defaultProducts, defaultRoles, defaultExpenses, defaultFundingRounds } from '@/engine/defaults';
-import { calculateTotalRevenue, calculateCOGS, calculatePayroll, calculateHeadcount, calculateTotalOpex, calculateTotalVolumes, calculateDepreciation } from '@/engine/calculations';
+import { syncProductVolumes, calculateTotalRevenue, calculateCOGS, calculatePayroll, calculateHeadcount, calculateTotalOpex, calculateTotalVolumes, calculateDepreciation } from '@/engine/calculations';
 import { calculateTreasuryProjection, TreasuryProjection } from '@/engine/treasuryEngine';
 import { calculateMonthlyTreasuryProjection, MonthlyTreasuryProjection, getDefaultMonthlyTreasuryConfig, MonthlyTreasuryConfig } from '@/engine/monthlyTreasuryEngine';
 import { calculateCapexByYear } from '@/engine/fundingNeedsCalculator';
@@ -375,7 +375,7 @@ export function FinancialProvider({ children }: { children: ReactNode }) {
             cloudState.scenarioSettings = { ...d.scenarioSettings, ...cloudState.scenarioSettings };
             cloudState.scenarioConfigs = { ...d.scenarioConfigs, ...cloudState.scenarioConfigs };
           }
-          setState({ ...cloudState, hasUnsavedChanges: false });
+          setState({ ...cloudState, products: syncProductVolumes(cloudState.products), hasUnsavedChanges: false });
           localStorage.setItem(STATE_KEY, JSON.stringify(cloudState));
         }
       } catch (e) {
@@ -390,8 +390,8 @@ export function FinancialProvider({ children }: { children: ReactNode }) {
     setState(prev => ({ ...prev, hasUnsavedChanges: true }));
   }, []);
 
-  const updateProducts = useCallback((products: Product[]) => { setState(prev => ({ ...prev, products, hasUnsavedChanges: true })); }, []);
-  const addProduct = useCallback((product: Product) => { setState(prev => ({ ...prev, products: [...prev.products, product], hasUnsavedChanges: true })); }, []);
+  const updateProducts = useCallback((products: Product[]) => { setState(prev => ({ ...prev, products: syncProductVolumes(products), hasUnsavedChanges: true })); }, []);
+  const addProduct = useCallback((product: Product) => { setState(prev => ({ ...prev, products: syncProductVolumes([...prev.products, product]), hasUnsavedChanges: true })); }, []);
   const removeProduct = useCallback((id: string) => { setState(prev => ({ ...prev, products: prev.products.filter(p => p.id !== id), hasUnsavedChanges: true })); }, []);
   const updateRoles = useCallback((roles: Role[]) => { setState(prev => ({ ...prev, roles, hasUnsavedChanges: true })); }, []);
   const addRole = useCallback((role: Role) => { setState(prev => ({ ...prev, roles: [...prev.roles, role], hasUnsavedChanges: true })); }, []);
@@ -419,7 +419,7 @@ export function FinancialProvider({ children }: { children: ReactNode }) {
   const updateFundingPlan = useCallback((config: Partial<FundingPlanConfig>) => { setState(prev => ({ ...prev, fundingPlan: { ...prev.fundingPlan, ...config }, hasUnsavedChanges: true })); }, []);
   const updateProductCategories = useCallback((productCategories: ProductPlanCategory[]) => { setState(prev => ({ ...prev, productCategories, hasUnsavedChanges: true })); }, []);
 
-  const applyTabData = useCallback((partial: Partial<FinancialState>) => { setState(prev => ({ ...prev, ...partial, hasUnsavedChanges: true })); }, []);
+  const applyTabData = useCallback((partial: Partial<FinancialState>) => { setState(prev => ({ ...prev, ...partial, ...(partial.products ? { products: syncProductVolumes(partial.products) } : {}), hasUnsavedChanges: true })); }, []);
 
   const saveAll = useCallback(async () => {
     try {

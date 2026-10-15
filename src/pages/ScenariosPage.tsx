@@ -70,8 +70,9 @@ export function ScenariosPage() {
         const coef_shop = product.coef_shop || 1.6;
         const coef_dist = product.coef_dist || 1.3;
         const coef_oem = product.coef_oem || 1.4;
-        const priceMarqueB2B_HT = priceHT_B2C / coef_shop / coef_dist;
-        const priceOEM_HT = product.unitCost * coef_oem;
+        void coef_shop; void coef_dist; void coef_oem;
+        const priceMarqueB2B_HT = product.priceHT_B2B || priceHT_B2C;
+        const priceOEM_HT = product.priceHT_OEM || priceHT_B2C;
 
         const volB2C = Math.round((volumesByChannel.B2C[year] || 0) * (1 + config.volumeAdjustment));
         const volB2B = Math.round((volumesByChannel.B2B[year] || 0) * (1 + config.volumeAdjustment));

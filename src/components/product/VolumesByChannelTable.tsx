@@ -80,6 +80,7 @@ export function VolumesByChannelTable({ products, years, onChannelVolumeChange, 
   const yearTotals = years.map(year => {
     let b2c = 0, b2b = 0, oem = 0, caB2C = 0, caB2B = 0, caOEM = 0;
     products.forEach(p => {
+      if (year < p.launchYear) return;
       const ch = p.volumesByChannel || { B2C: {}, B2B: {}, OEM: {} };
       const vB2C = Math.round((ch.B2C[year] || 0) * volAdj);
       const vB2B = Math.round((ch.B2B[year] || 0) * volAdj);
@@ -155,6 +156,7 @@ export function VolumesByChannelTable({ products, years, onChannelVolumeChange, 
             {products.map((product) => {
               const channels = product.volumesByChannel || { B2C: {}, B2B: {}, OEM: {} };
               const totalRevenue = years.reduce((sum, year) => {
+                if (year < product.launchYear) return sum;
                 const vB2C = Math.round((channels.B2C[year] || 0) * volAdj);
                 const vB2B = Math.round((channels.B2B[year] || 0) * volAdj);
                 const vOEM = Math.round((channels.OEM[year] || 0) * volAdj);

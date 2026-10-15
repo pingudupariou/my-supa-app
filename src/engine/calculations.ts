@@ -25,14 +25,41 @@ import {
 /**
  * Calcule le CA pour un produit donné sur une année
  */
+/** Prix HT par canal : prix B2B/OEM saisis, sinon prix B2C (même règle partout). */
+export function channelPrices(p: Product): { B2C: number; B2B: number; OEM: number } {
+  const b2c = p.priceHT || 0;
+  return { B2C: b2c, B2B: p.priceHT_B2B || b2c, OEM: p.priceHT_OEM || b2c };
+}
+
+/** Volumes par canal d'une année (0 avant le lancement). Sans détail canal : tout en B2C. */
+export function channelVolumes(p: Product, year: number): { B2C: number; B2B: number; OEM: number } {
+  if (year < p.launchYear) return { B2C: 0, B2B: 0, OEM: 0 };
+  const ch = p.volumesByChannel;
+  if (!ch) return { B2C: p.volumesByYear?.[year] || 0, B2B: 0, OEM: 0 };
+  return { B2C: ch.B2C?.[year] || 0, B2B: ch.B2B?.[year] || 0, OEM: ch.OEM?.[year] || 0 };
+}
+
+/** Recalcule volumesByYear = somme des canaux, pour que tous les calculs voient les mêmes volumes. */
+export function syncProductVolumes(products: Product[]): Product[] {
+  return (products || []).map(p => {
+    const ch = p.volumesByChannel;
+    if (!ch) return p;
+    const years = new Set<number>([...Object.keys(ch.B2C || {}), ...Object.keys(ch.B2B || {}), ...Object.keys(ch.OEM || {})].map(Number));
+    const vby: Record<number, number> = {};
+    years.forEach(y => { vby[y] = (ch.B2C?.[y] || 0) + (ch.B2B?.[y] || 0) + (ch.OEM?.[y] || 0); });
+    return { ...p, volumesByYear: vby };
+  });
+}
+
 export function calculateProductRevenue(
   product: Product,
   year: number,
   volumeMultiplier: number = 1,
   priceMultiplier: number = 1
 ): number {
-  const volumes = product.volumesByYear[year] || 0;
-  return volumes * volumeMultiplier * product.priceHT * priceMultiplier;
+  const v = channelVolumes(product, year);
+  const pr = channelPrices(product);
+  return (v.B2C * pr.B2C + v.B2B * pr.B2B + v.OEM * pr.OEM) * volumeMultiplier * priceMultiplier;
 }
 
 /**
