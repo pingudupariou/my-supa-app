@@ -26,16 +26,16 @@ describe('Product revenue deck', () => {
       { ...product, id: 'manual', name: 'Nouveau produit', volumesByChannel: undefined, volumesByYear: { 2026: 2 } }]}
       years={[2025, 2026, 2027]} volumeAdjustment={0} priceAdjustment={0} />);
     const row = screen.getByRole('row', { name: /Galets/ });
-    expect(within(row).getAllByText(formatCurrency(610))).toHaveLength(2);
-    expect(within(row).getAllByText(formatCurrency(0))).toHaveLength(2);
+    expect(within(row).getAllByText(formatCurrency(610).replace(/\s/g, ' '))).toHaveLength(2);
+    expect(within(row).getAllByText(formatCurrency(0).replace(/\s/g, ' '))).toHaveLength(2);
     expect(screen.queryByText('Membre')).not.toBeInTheDocument();
     expect(screen.getByText('Nouveau produit')).toBeInTheDocument();
     const total = screen.getByRole('row', { name: /Total CA HT/ });
-    expect(within(total).getAllByText(formatCurrency(810))).toHaveLength(2);
+    expect(within(total).getAllByText(formatCurrency(810).replace(/\s/g, ' '))).toHaveLength(2);
   });
   it('matches scenario rounding separately for each channel and applies the price adjustment', () => {
     render(<ProductRevenueDeck products={[product]} years={[2026]} volumeAdjustment={.1} priceAdjustment={.05} />);
     // round(3*1.1)*100 + round(5*1.1)*50 + round(2*1.1)*30, then +5%.
-    expect(within(screen.getByRole('row', { name: /Galets/ })).getAllByText(formatCurrency(693))).toHaveLength(2);
+    expect(within(screen.getByRole('row', { name: /Galets/ })).getAllByText(formatCurrency(693).replace(/\s/g, ' '))).toHaveLength(2);
   });
 });
