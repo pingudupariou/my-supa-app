@@ -88,7 +88,8 @@ export function ErplainActualsImport({ products, years, onApply, onSave }: Props
   };
 
   const total = (a: Agg) => Object.values(a.byYear).reduce((s, y) => s + CHS.reduce((t, c) => t + y[c].ca, 0), 0);
-  const lastYearOf = (a: Agg) => Math.max(...Object.keys(a.byYear).map(Number));
+  const lastYearOf = (a: Agg) => { const ys = Object.keys(a.byYear).map(Number); return ys.length ? Math.max(...ys) : years[0] ?? thisYear; };
+  const firstYearOf = (a: Agg) => { const ys = Object.keys(a.byYear).map(Number); return ys.length ? Math.min(...ys) : years[0] ?? thisYear; };
   // Average HT price per channel for the chosen reference year only (0 = no sale that year).
   const avgPrice = (a: Agg, ch: Ch, year = priceYear) => {
     const v = a.byYear[year]?.[ch];
@@ -134,6 +135,10 @@ export function ErplainActualsImport({ products, years, onApply, onSave }: Props
   };
 
   const apply = (group?: string, keys: string[] = [...sel], categoryId?: string) => {
+    try { applyUnsafe(group, keys, categoryId); }
+    catch (e) { const m = e instanceof Error ? e.message : 'Erreur inconnue'; setFormError(`Catégorie impossible à enregistrer : ${m}`); toast.error(`Catégorie impossible à enregistrer : ${m}`); }
+  };
+  const applyUnsafe = (group?: string, keys: string[] = [...sel], categoryId?: string) => {
     keys = [...new Set(keys)];
     const owners = memberOwners(products.filter(p => p.id !== categoryId));
     if (keys.some(key => owners.has(key))) { setFormError('Un produit appartient déjà à une catégorie.'); return; }
@@ -147,11 +152,11 @@ export function ErplainActualsImport({ products, years, onApply, onSave }: Props
         const last = lastYearOf(a);
         volumesByChannel[c][y] = Math.round(a.byYear[y]?.[c].qty ?? (project && y > last ? (a.byYear[last]?.[c].qty ?? 0) * Math.pow(1 + growth / 100, y - last) : 0));
       }
-      return { id: `erplain-${a.key}`, name: a.label, category: 'B2C', launchYear: Math.min(...Object.keys(a.byYear).map(Number)), devCost: 0, unitCost: unitCostOf(a), priceHT: round(avgPrice(a, 'B2C')), priceTTC_B2C: round(avgPrice(a, 'B2C') * 1.2), priceHT_B2B: round(avgPrice(a, 'B2B')), priceHT_OEM: round(avgPrice(a, 'OEM')), vatRate: .2, coef_shop: 1.5, coef_dist: 1.3, coef_oem: 1.2, productStatus: 'validated', volumesByChannel, volumesByYear: Object.fromEntries(years.map(y => [y, CHS.reduce((s, c) => s + (volumesByChannel[c][y] ?? 0), 0)])) } as Product;
+      return { id: `erplain-${a.key}`, name: a.label, category: 'B2C', launchYear: firstYearOf(a), devCost: 0, unitCost: unitCostOf(a), priceHT: round(avgPrice(a, 'B2C')), priceTTC_B2C: round(avgPrice(a, 'B2C') * 1.2), priceHT_B2B: round(avgPrice(a, 'B2B')), priceHT_OEM: round(avgPrice(a, 'OEM')), vatRate: .2, coef_shop: 1.5, coef_dist: 1.3, coef_oem: 1.2, productStatus: 'validated', volumesByChannel, volumesByYear: Object.fromEntries(years.map(y => [y, CHS.reduce((s, c) => s + (volumesByChannel[c][y] ?? 0), 0)])) } as Product;
     });
     if (group) {
       // Merge selected products: summed volumes/CA → weighted average price and cost for the category.
-      const g: Agg = { key: categoryId?.replace(/^erplain-/, '') ?? `cat-${crypto.randomUUID()}`, label: group, byYear: {}, cogs: 0, cogsQty: 0 };
+      const g: Agg = { key: categoryId?.replace(/^erplain-/, '') ?? `cat-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`, label: group, byYear: {}, cogs: 0, cogsQty: 0 };
       for (const a of chosen) {
         g.cogs += a.cogs; g.cogsQty += a.cogsQty;
         for (const [y, c] of Object.entries(a.cy ?? {})) { const t = (g.cy ??= {})[+y] ??= { cogs: 0, qty: 0 }; t.cogs += c.cogs; t.qty += c.qty; }
@@ -175,7 +180,7 @@ export function ErplainActualsImport({ products, years, onApply, onSave }: Props
       const vby: Record<number, number> = {};
       years.forEach(y => { vby[y] = CHS.reduce((s, c) => s + (vbc[c][y] || 0), 0); });
       const b2c = avgPrice(a, 'B2C'), b2b = avgPrice(a, 'B2B'), oem = avgPrice(a, 'OEM');
-      const firstYear = Math.min(...Object.keys(a.byYear).map(Number));
+      const firstYear = firstYearOf(a);
       const p: Product = {
         ...(existing ?? {
           id, category: 'B2C', devCost: 0, vatRate: 0.2, coef_shop: 1.5, coef_dist: 1.3, coef_oem: 1.2, productStatus: 'validated',
@@ -196,7 +201,7 @@ export function ErplainActualsImport({ products, years, onApply, onSave }: Props
     }
     if (group) {
       const category = next.find(p => p.id === (categoryId ?? `erplain-${chosen[0].key}`));
-      if (!category) return;
+      if (!category) throw new Error('catégorie introuvable après calcul.');
       try { next = replacePlanCategory(products, category); }
       catch (error) { setFormError(error instanceof Error ? error.message : 'Catégorie impossible à enregistrer.'); return; }
     }
@@ -245,6 +250,19 @@ export function ErplainActualsImport({ products, years, onApply, onSave }: Props
         <h3 className="font-semibold flex items-center gap-2"><FolderOpen className="h-4 w-4 text-primary" />Mes catégories <Badge variant="secondary">{cats.length}</Badge></h3>
         <Button size="sm" onClick={() => openEditor()} disabled={!availableRows.length || loading}><Plus className="h-4 w-4 mr-2" />Créer une catégorie</Button>
       </div>
+      {rows && (() => {
+        const yearCa = (a?: Agg) => a ? CHS.reduce((t, c) => t + (a.byYear[viewYear]?.[c].ca ?? 0), 0) : 0;
+        const totalCa = rows.reduce((s, r) => s + yearCa(r), 0);
+        const byKey = new Map(rows.map(r => [r.key, r]));
+        const allocated = [...new Set(cats.flatMap(c => c.erplainMembers ?? []))].reduce((s, k) => s + yearCa(byKey.get(k)), 0);
+        const individual = products.filter(p => !p.erplainMembers?.length && p.id.startsWith('erplain-')).reduce((s, p) => s + yearCa(byKey.get(p.id.slice(8))), 0);
+        const pct = totalCa > 0 ? allocated / totalCa * 100 : 0;
+        return <div className="rounded-lg border bg-muted/30 p-3 mb-4 text-sm">
+          <div className="flex flex-wrap justify-between gap-2"><span className="font-medium">CA Erplain {viewYear} réparti dans les catégories</span><span className="tabular-nums"><b>{formatCurrency(allocated)}</b> / {formatCurrency(totalCa)} HT facturé · <b>{pct.toFixed(1)} %</b></span></div>
+          <div className="h-2 rounded-full bg-muted mt-2 overflow-hidden"><div className="h-full bg-primary" style={{ width: `${Math.min(100, pct)}%` }} /></div>
+          <div className="text-xs text-muted-foreground mt-2">Produits individuels du plan : {formatCurrency(individual)} · Non repris dans le plan : {formatCurrency(Math.max(0, totalCa - allocated - individual))} (factures − avoirs, HT hors livraison). Changez l'année avec les boutons d'année des ventes.</div>
+        </div>;
+      })()}
       {!cats.length && <div className="py-6 border-y text-sm text-muted-foreground">Aucune catégorie dans le plan.</div>}
       <div className="grid gap-3 md:grid-cols-2 mb-5">
         {cats.map(c => <div key={c.id} className="rounded-lg border bg-card p-4 min-w-0">
