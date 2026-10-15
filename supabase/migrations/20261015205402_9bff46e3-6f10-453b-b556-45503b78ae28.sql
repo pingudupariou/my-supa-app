@@ -1,0 +1,2 @@
+GRANT UPDATE ON public.tab_saves TO authenticated;
+CREATE POLICY "Tab writers update tab saves" ON public.tab_saves FOR UPDATE TO authenticated USING (public.current_user_tab_access(tab_key) = 'write') WITH CHECK (public.current_user_tab_access(tab_key) = 'write');
