@@ -13,6 +13,7 @@ import { cn } from '@/lib/utils';
 import { ExportPDFDialog } from '@/components/summary/ExportPDFDialog';
 import { ProductRevenueDeck } from '@/components/summary/ProductRevenueDeck';
 import { ProductRoadmap } from '@/components/product/ProductRoadmap';
+import { IncomeStatementSection } from '@/components/financial/IncomeStatementSection';
 import { aggregateByYear } from '@/engine/monthlyTreasuryEngine';
 import {
   ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
