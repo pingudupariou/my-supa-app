@@ -68,6 +68,7 @@ import { DetailedTreasuryBreakdown } from '@/components/treasury/DetailedTreasur
 import { SeasonalityEditor } from '@/components/treasury/SeasonalityEditor';
 import { PaymentTermsEditor } from '@/components/treasury/PaymentTermsEditor';
 import { aggregateByYear } from '@/engine/monthlyTreasuryEngine';
+import { IncomeStatementSection } from '@/components/financial/IncomeStatementSection';
 
 // Définition des indicateurs SIG disponibles
 interface SIGIndicator {
