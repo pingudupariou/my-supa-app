@@ -2,6 +2,8 @@ import { useMemo } from 'react';
 import { useFinancial } from '@/context/FinancialContext';
 import { SectionCard, KPICard } from '@/components/ui/KPICard';
 import { HeroBanner } from '@/components/ui/HeroBanner';
+import { SaveButton } from '@/components/ui/SaveButton';
+import { TabSaveAs, useSaveWithTabVersion } from '@/components/ui/TabSaveAs';
 import { Badge } from '@/components/ui/badge';
 import { Slider } from '@/components/ui/slider';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -27,6 +29,7 @@ import { AlertTriangle, Calendar } from 'lucide-react';
 
 export function FundingPage() {
   const { state, computed, updateFundingRounds, updateScenarioSettings } = useFinancial();
+  const saveWithVersion = useSaveWithTabVersion('funding');
 
   // Générer les années depuis les paramètres de scénario
   const { startYear, durationYears, initialCash } = state.scenarioSettings;
@@ -118,6 +121,15 @@ export function FundingPage() {
         subtitle="Calculé automatiquement • Autosave activé"
         height="sm"
       />
+
+      <div className="flex justify-end items-center gap-2">
+        <TabSaveAs tabKey="funding" label="Financement" />
+        <SaveButton
+          onSave={saveWithVersion}
+          hasUnsavedChanges={state.hasUnsavedChanges}
+          lastSaved={state.lastSaved ? new Date(state.lastSaved) : null}
+        />
+      </div>
 
       {hasNegativeTreasury && (
         <div className="p-3 bg-destructive/10 border border-destructive/30 rounded-lg flex items-center gap-3">

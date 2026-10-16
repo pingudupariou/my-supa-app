@@ -3,6 +3,7 @@ import { useFinancial } from '@/context/FinancialContext';
 import { SectionCard, KPICard } from '@/components/ui/KPICard';
 import { HeroBanner } from '@/components/ui/HeroBanner';
 import { SaveButton } from '@/components/ui/SaveButton';
+import { TabSaveAs, useSaveWithTabVersion } from '@/components/ui/TabSaveAs';
 import { PageExportPDF, ExportableSection } from '@/components/export/PageExportPDF';
 import { ReadOnlyWrapper } from '@/components/auth/ReadOnlyWrapper';
 import { Badge } from '@/components/ui/badge';
@@ -271,7 +272,9 @@ const CATEGORY_LABELS = {
 };
 
 export function PrevisionnelPage() {
-  const { state, computed, saveAll, updateMonthlyTreasuryConfig, updateIncomeStatementConfig } = useFinancial();
+  const { state, computed, updateMonthlyTreasuryConfig, updateIncomeStatementConfig } = useFinancial();
+  const saveWithVersion = useSaveWithTabVersion('previsionnel');
+  
   
   // État pour les indicateurs visibles (personnalisation)
   const [visibleIndicators, setVisibleIndicators] = useState<Set<string>>(() => {
@@ -446,8 +449,9 @@ export function PrevisionnelPage() {
               sections={activeView === 'monthly' ? MONTHLY_EXPORT_SECTIONS : ANNUAL_EXPORT_SECTIONS}
               fileName={activeView === 'monthly' ? 'Plan_Tresorerie_Mensuel' : 'Previsionnel_Financier'}
             />
+            <TabSaveAs tabKey="previsionnel" label="Prévisionnel" />
             <SaveButton
-              onSave={saveAll}
+              onSave={saveWithVersion}
               hasUnsavedChanges={state.hasUnsavedChanges}
               lastSaved={state.lastSaved ? new Date(state.lastSaved) : null}
             />

@@ -2,6 +2,9 @@ export const TAB_FIELDS = {
   'product-plan': ['products', 'productCategories', 'revenueMode', 'globalRevenueConfig', 'clientRevenueConfig', 'roadmapBlocks'],
   charges: ['expenses', 'opexMode', 'simpleOpexConfig'],
   organisation: ['roles', 'hiringSimulation'],
+  previsionnel: ['monthlyTreasuryConfig', 'incomeStatementConfig'],
+  funding: ['fundingRounds'],
+  scenarios: ['scenarioSettings', 'scenarioConfigs', 'activeScenarioId', 'excludeFundingFromTreasury', 'fundingPlan'],
 } as const;
 
 export type SavedTabKey = keyof typeof TAB_FIELDS;

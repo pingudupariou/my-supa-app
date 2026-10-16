@@ -169,7 +169,7 @@ export function SnapshotsPage() {
         <section className="space-y-2" aria-label="Onglets inclus dans la sauvegarde globale">
           <h2 className="font-semibold">Sauvegardes ouvertes des onglets</h2>
           <div className="flex flex-wrap gap-x-6 gap-y-2 text-sm">
-            {([['product-plan', 'Plan produit'], ['charges', 'Charges'], ['organisation', 'Organisation']] as const).map(([key, label]) => (
+            {([['product-plan', 'Plan produit'], ['charges', 'Charges'], ['organisation', 'Organisation'], ['previsionnel', 'Prévisionnel'], ['funding', 'Financement'], ['scenarios', 'Scénarios']] as const).map(([key, label]) => (
               <p key={key}><span className="text-muted-foreground">{label} : </span><strong className="break-words">{state.activeTabSaves[key]?.name ?? 'Non enregistrée'}</strong></p>
             ))}
           </div>

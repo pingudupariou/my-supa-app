@@ -3,6 +3,7 @@ import { useFinancial, FundingPlanEntry } from '@/context/FinancialContext';
 import { SectionCard, KPICard } from '@/components/ui/KPICard';
 import { HeroBanner } from '@/components/ui/HeroBanner';
 import { SaveButton } from '@/components/ui/SaveButton';
+import { TabSaveAs, useSaveWithTabVersion } from '@/components/ui/TabSaveAs';
 import { PageExportPDF, ExportableSection } from '@/components/export/PageExportPDF';
 import { ReadOnlyWrapper } from '@/components/auth/ReadOnlyWrapper';
 import { Badge } from '@/components/ui/badge';
@@ -42,7 +43,8 @@ const EXPORT_SECTIONS: ExportableSection[] = [
 ];
 
 export function ScenariosPage() {
-  const { state, computed, setActiveScenario, updateScenarioConfig, updateScenarioSettings, updateFundingRounds, setExcludeFundingFromTreasury, updateFundingPlan, saveAll } = useFinancial();
+  const { state, computed, setActiveScenario, updateScenarioConfig, updateScenarioSettings, updateFundingRounds, setExcludeFundingFromTreasury, updateFundingPlan } = useFinancial();
+  const saveWithVersion = useSaveWithTabVersion('scenarios');
 
   const activeConfig = state.scenarioConfigs[state.activeScenarioId];
   const { startYear, durationYears, initialCash } = state.scenarioSettings;
@@ -203,8 +205,9 @@ export function ScenariosPage() {
             sections={EXPORT_SECTIONS}
             fileName="Scenarios"
           />
+          <TabSaveAs tabKey="scenarios" label="Scénarios" />
           <SaveButton
-            onSave={saveAll}
+            onSave={saveWithVersion}
             hasUnsavedChanges={state.hasUnsavedChanges}
             lastSaved={state.lastSaved ? new Date(state.lastSaved) : null}
           />
