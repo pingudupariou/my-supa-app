@@ -270,7 +270,7 @@ const CATEGORY_LABELS = {
 };
 
 export function PrevisionnelPage() {
-  const { state, computed, saveAll, updateMonthlyTreasuryConfig } = useFinancial();
+  const { state, computed, saveAll, updateMonthlyTreasuryConfig, updateIncomeStatementConfig } = useFinancial();
   
   // État pour les indicateurs visibles (personnalisation)
   const [visibleIndicators, setVisibleIndicators] = useState<Set<string>>(() => {
