@@ -867,6 +867,22 @@ export function PrevisionnelPage() {
           </div>
         </SectionCard>
 
+        {/* Compte de Résultat complet — dotations aux amortissements saisies manuellement */}
+        <IncomeStatementSection
+          years={years}
+          yearlyData={yearlyData.map(d => ({
+            year: d.year,
+            revenue: d.revenue,
+            cogs: d.cogs,
+            grossMargin: d.grossMargin,
+            payroll: d.payroll,
+            opex: d.opex,
+            ebitda: d.ebitda,
+          }))}
+          config={state.incomeStatementConfig}
+          onConfigChange={updateIncomeStatementConfig}
+        />
+
         {/* Tableau Flux de Trésorerie */}
         <SectionCard title="Tableau des Flux de Trésorerie">
           <div className="overflow-x-auto">
