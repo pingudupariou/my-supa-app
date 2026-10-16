@@ -3,6 +3,7 @@ import { useFinancial, FundingPlanEntry } from '@/context/FinancialContext';
 import { SectionCard, KPICard } from '@/components/ui/KPICard';
 import { HeroBanner } from '@/components/ui/HeroBanner';
 import { SaveButton } from '@/components/ui/SaveButton';
+import { TabSaveAs, useSaveWithTabVersion } from '@/components/ui/TabSaveAs';
 import { PageExportPDF, ExportableSection } from '@/components/export/PageExportPDF';
 import { ReadOnlyWrapper } from '@/components/auth/ReadOnlyWrapper';
 import { Badge } from '@/components/ui/badge';

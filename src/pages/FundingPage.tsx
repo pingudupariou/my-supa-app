@@ -29,6 +29,7 @@ import { AlertTriangle, Calendar } from 'lucide-react';
 
 export function FundingPage() {
   const { state, computed, updateFundingRounds, updateScenarioSettings } = useFinancial();
+  const saveWithVersion = useSaveWithTabVersion('funding');
 
   // Générer les années depuis les paramètres de scénario
   const { startYear, durationYears, initialCash } = state.scenarioSettings;
