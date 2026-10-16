@@ -2,6 +2,8 @@ import { useMemo } from 'react';
 import { useFinancial } from '@/context/FinancialContext';
 import { SectionCard, KPICard } from '@/components/ui/KPICard';
 import { HeroBanner } from '@/components/ui/HeroBanner';
+import { SaveButton } from '@/components/ui/SaveButton';
+import { TabSaveAs, useSaveWithTabVersion } from '@/components/ui/TabSaveAs';
 import { Badge } from '@/components/ui/badge';
 import { Slider } from '@/components/ui/slider';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
