@@ -122,6 +122,15 @@ export function FundingPage() {
         height="sm"
       />
 
+      <div className="flex justify-end items-center gap-2">
+        <TabSaveAs tabKey="funding" label="Financement" />
+        <SaveButton
+          onSave={saveWithVersion}
+          hasUnsavedChanges={state.hasUnsavedChanges}
+          lastSaved={state.lastSaved ? new Date(state.lastSaved) : null}
+        />
+      </div>
+
       {hasNegativeTreasury && (
         <div className="p-3 bg-destructive/10 border border-destructive/30 rounded-lg flex items-center gap-3">
           <AlertTriangle className="h-5 w-5 text-destructive" />
