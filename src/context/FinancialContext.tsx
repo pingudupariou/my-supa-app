@@ -181,6 +181,7 @@ interface FinancialState {
   roadmapBlocks: Record<string, { startQ: number; durationQ: number }>;
   hiringSimulation: HiringSimulationConfig;
   fundingPlan: FundingPlanConfig;
+  incomeStatementConfig: IncomeStatementConfig;
 }
 
 interface ComputedValues {
@@ -223,6 +224,7 @@ interface FinancialContextType {
   updateRoadmapBlocks: (blocks: Record<string, { startQ: number; durationQ: number }>) => void;
   updateHiringSimulation: (config: Partial<HiringSimulationConfig>) => void;
   updateFundingPlan: (config: Partial<FundingPlanConfig>) => void;
+  updateIncomeStatementConfig: (config: Partial<IncomeStatementConfig>) => void;
   updateProductCategories: (categories: ProductPlanCategory[]) => void;
   applyTabData: (partial: Partial<FinancialState>) => void;
   setActiveTabSave: (tabKey: SavedTabKey, save: ActiveTabSave | null) => void;
@@ -284,6 +286,9 @@ function loadState(): FinancialState {
       }
       if (!parsed.productCategories) {
         parsed.productCategories = [];
+      }
+      if (!parsed.incomeStatementConfig) {
+        parsed.incomeStatementConfig = getDefaultIncomeStatementConfig();
       }
       parsed.products = syncProductVolumes(parsed.products);
       return parsed;
@@ -376,6 +381,7 @@ export function FinancialProvider({ children }: { children: ReactNode }) {
            if (!cloudState.hiringSimulation) cloudState.hiringSimulation = { ...defaultHiringSimulation };
            if (!cloudState.fundingPlan) cloudState.fundingPlan = { enabled: false, entries: [] };
            if (!cloudState.productCategories) cloudState.productCategories = [];
+           if (!cloudState.incomeStatementConfig) cloudState.incomeStatementConfig = getDefaultIncomeStatementConfig();
           {
             const d = getDefaultState();
             for (const k of Object.keys(d) as (keyof FinancialState)[]) {
