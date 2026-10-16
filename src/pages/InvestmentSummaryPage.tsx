@@ -13,6 +13,7 @@ import { cn } from '@/lib/utils';
 import { ExportPDFDialog } from '@/components/summary/ExportPDFDialog';
 import { ProductRevenueDeck } from '@/components/summary/ProductRevenueDeck';
 import { ProductRoadmap } from '@/components/product/ProductRoadmap';
+import { IncomeStatementSection } from '@/components/financial/IncomeStatementSection';
 import { aggregateByYear } from '@/engine/monthlyTreasuryEngine';
 import {
   ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
@@ -51,13 +52,14 @@ const revenueModeLabels: Record<RevenueMode, string> = {
   'by-client': 'Par Client',
 };
 
-type SectionKey = 'cash' | 'needs' | 'projection' | 'valuation' | 'clientDeck' | 'payroll' | 'evolution' | 'roadmap' | 'fundingPlan';
+type SectionKey = 'cash' | 'needs' | 'projection' | 'incomeStatement' | 'valuation' | 'clientDeck' | 'payroll' | 'evolution' | 'roadmap' | 'fundingPlan';
 
 const defaultSections: Record<SectionKey, boolean> = {
   cash: true,
   clientDeck: true,
   evolution: true,
   fundingPlan: true,
+  incomeStatement: true,
   needs: true,
   payroll: true,
   projection: true,
@@ -70,6 +72,7 @@ const sectionLabels: Record<SectionKey, string> = {
   clientDeck: 'Deck Chiffre d’Affaires',
   evolution: 'Graphiques d\'Évolution',
   fundingPlan: 'Plan de Financement',
+  incomeStatement: 'Compte de Résultat',
   needs: 'Justification des Besoins',
   payroll: 'Masse Salariale',
   projection: 'Projection Détaillée',
@@ -1077,6 +1080,24 @@ export function InvestmentSummaryPage() {
             </table>
           </div>
         </SectionCard>
+      )}
+
+      {/* =============== SECTION: COMPTE DE RÉSULTAT =============== */}
+      {visibleSections.incomeStatement && (
+        <IncomeStatementSection
+          years={years}
+          yearlyData={yearlyData.map(d => ({
+            year: d.year,
+            revenue: d.revenue,
+            cogs: d.cogs,
+            grossMargin: d.grossMargin,
+            payroll: d.payroll,
+            opex: d.opex,
+            ebitda: d.ebitda,
+          }))}
+          config={state.incomeStatementConfig}
+          readOnly
+        />
       )}
 
       {/* =============== SECTION: ROADMAP PRODUIT =============== */}

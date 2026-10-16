@@ -9,6 +9,7 @@ import { GlobalRevenueConfig, defaultGlobalRevenueConfig, calculateGlobalRevenue
 import { HistoricalYearData } from '@/components/valuation/EditableHistoricalFinancials';
 import { ValuationMethod } from '@/engine/valuationMethods';
 import { DilutionConfig, defaultDilutionConfig } from '@/components/valuation/DilutionSimulator';
+import { IncomeStatementConfig, getDefaultIncomeStatementConfig } from '@/engine/incomeStatementConfig';
 import { toast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/context/AuthContext';
@@ -180,6 +181,7 @@ interface FinancialState {
   roadmapBlocks: Record<string, { startQ: number; durationQ: number }>;
   hiringSimulation: HiringSimulationConfig;
   fundingPlan: FundingPlanConfig;
+  incomeStatementConfig: IncomeStatementConfig;
 }
 
 interface ComputedValues {
@@ -222,6 +224,7 @@ interface FinancialContextType {
   updateRoadmapBlocks: (blocks: Record<string, { startQ: number; durationQ: number }>) => void;
   updateHiringSimulation: (config: Partial<HiringSimulationConfig>) => void;
   updateFundingPlan: (config: Partial<FundingPlanConfig>) => void;
+  updateIncomeStatementConfig: (config: Partial<IncomeStatementConfig>) => void;
   updateProductCategories: (categories: ProductPlanCategory[]) => void;
   applyTabData: (partial: Partial<FinancialState>) => void;
   setActiveTabSave: (tabKey: SavedTabKey, save: ActiveTabSave | null) => void;
@@ -284,6 +287,9 @@ function loadState(): FinancialState {
       if (!parsed.productCategories) {
         parsed.productCategories = [];
       }
+      if (!parsed.incomeStatementConfig) {
+        parsed.incomeStatementConfig = getDefaultIncomeStatementConfig();
+      }
       parsed.products = syncProductVolumes(parsed.products);
       return parsed;
     }
@@ -323,6 +329,7 @@ function getDefaultState(): FinancialState {
     roadmapBlocks: {},
     hiringSimulation: { ...defaultHiringSimulation },
     fundingPlan: { enabled: false, entries: [] },
+    incomeStatementConfig: getDefaultIncomeStatementConfig(),
   };
 }
 
@@ -375,6 +382,7 @@ export function FinancialProvider({ children }: { children: ReactNode }) {
            if (!cloudState.hiringSimulation) cloudState.hiringSimulation = { ...defaultHiringSimulation };
            if (!cloudState.fundingPlan) cloudState.fundingPlan = { enabled: false, entries: [] };
            if (!cloudState.productCategories) cloudState.productCategories = [];
+           if (!cloudState.incomeStatementConfig) cloudState.incomeStatementConfig = getDefaultIncomeStatementConfig();
           {
             const d = getDefaultState();
             for (const k of Object.keys(d) as (keyof FinancialState)[]) {
@@ -432,6 +440,7 @@ export function FinancialProvider({ children }: { children: ReactNode }) {
   const updateRoadmapBlocks = useCallback((roadmapBlocks: Record<string, { startQ: number; durationQ: number }>) => { setState(prev => ({ ...prev, roadmapBlocks, hasUnsavedChanges: true })); }, []);
   const updateHiringSimulation = useCallback((config: Partial<HiringSimulationConfig>) => { setState(prev => ({ ...prev, hiringSimulation: { ...prev.hiringSimulation, ...config }, hasUnsavedChanges: true })); }, []);
   const updateFundingPlan = useCallback((config: Partial<FundingPlanConfig>) => { setState(prev => ({ ...prev, fundingPlan: { ...prev.fundingPlan, ...config }, hasUnsavedChanges: true })); }, []);
+  const updateIncomeStatementConfig = useCallback((config: Partial<IncomeStatementConfig>) => { setState(prev => ({ ...prev, incomeStatementConfig: { ...prev.incomeStatementConfig, ...config }, hasUnsavedChanges: true })); }, []);
   const updateProductCategories = useCallback((productCategories: ProductPlanCategory[]) => { setState(prev => ({ ...prev, productCategories, hasUnsavedChanges: true })); }, []);
 
   const applyTabData = useCallback((partial: Partial<FinancialState>) => { setState(prev => ({ ...prev, ...partial, ...(partial.products ? { products: syncProductVolumes(partial.products) } : {}), hasUnsavedChanges: true })); }, []);
@@ -651,6 +660,7 @@ export function FinancialProvider({ children }: { children: ReactNode }) {
       updateRoadmapBlocks,
       updateHiringSimulation,
       updateFundingPlan,
+      updateIncomeStatementConfig,
       updateProductCategories,
       applyTabData,
       setActiveTabSave,

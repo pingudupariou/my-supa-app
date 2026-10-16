@@ -68,6 +68,7 @@ import { DetailedTreasuryBreakdown } from '@/components/treasury/DetailedTreasur
 import { SeasonalityEditor } from '@/components/treasury/SeasonalityEditor';
 import { PaymentTermsEditor } from '@/components/treasury/PaymentTermsEditor';
 import { aggregateByYear } from '@/engine/monthlyTreasuryEngine';
+import { IncomeStatementSection } from '@/components/financial/IncomeStatementSection';
 
 // Définition des indicateurs SIG disponibles
 interface SIGIndicator {
@@ -270,7 +271,7 @@ const CATEGORY_LABELS = {
 };
 
 export function PrevisionnelPage() {
-  const { state, computed, saveAll, updateMonthlyTreasuryConfig } = useFinancial();
+  const { state, computed, saveAll, updateMonthlyTreasuryConfig, updateIncomeStatementConfig } = useFinancial();
   
   // État pour les indicateurs visibles (personnalisation)
   const [visibleIndicators, setVisibleIndicators] = useState<Set<string>>(() => {
@@ -865,6 +866,22 @@ export function PrevisionnelPage() {
             </Table>
           </div>
         </SectionCard>
+
+        {/* Compte de Résultat complet — dotations aux amortissements saisies manuellement */}
+        <IncomeStatementSection
+          years={years}
+          yearlyData={yearlyData.map(d => ({
+            year: d.year,
+            revenue: d.revenue,
+            cogs: d.cogs,
+            grossMargin: d.grossMargin,
+            payroll: d.payroll,
+            opex: d.opex,
+            ebitda: d.ebitda,
+          }))}
+          config={state.incomeStatementConfig}
+          onConfigChange={updateIncomeStatementConfig}
+        />
 
         {/* Tableau Flux de Trésorerie */}
         <SectionCard title="Tableau des Flux de Trésorerie">
