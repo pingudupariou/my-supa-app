@@ -51,13 +51,14 @@ const revenueModeLabels: Record<RevenueMode, string> = {
   'by-client': 'Par Client',
 };
 
-type SectionKey = 'cash' | 'needs' | 'projection' | 'valuation' | 'clientDeck' | 'payroll' | 'evolution' | 'roadmap' | 'fundingPlan';
+type SectionKey = 'cash' | 'needs' | 'projection' | 'incomeStatement' | 'valuation' | 'clientDeck' | 'payroll' | 'evolution' | 'roadmap' | 'fundingPlan';
 
 const defaultSections: Record<SectionKey, boolean> = {
   cash: true,
   clientDeck: true,
   evolution: true,
   fundingPlan: true,
+  incomeStatement: true,
   needs: true,
   payroll: true,
   projection: true,
@@ -70,6 +71,7 @@ const sectionLabels: Record<SectionKey, string> = {
   clientDeck: 'Deck Chiffre d’Affaires',
   evolution: 'Graphiques d\'Évolution',
   fundingPlan: 'Plan de Financement',
+  incomeStatement: 'Compte de Résultat',
   needs: 'Justification des Besoins',
   payroll: 'Masse Salariale',
   projection: 'Projection Détaillée',
