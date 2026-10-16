@@ -9,6 +9,7 @@ import { GlobalRevenueConfig, defaultGlobalRevenueConfig, calculateGlobalRevenue
 import { HistoricalYearData } from '@/components/valuation/EditableHistoricalFinancials';
 import { ValuationMethod } from '@/engine/valuationMethods';
 import { DilutionConfig, defaultDilutionConfig } from '@/components/valuation/DilutionSimulator';
+import { IncomeStatementConfig, getDefaultIncomeStatementConfig } from '@/engine/incomeStatementConfig';
 import { toast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/context/AuthContext';
