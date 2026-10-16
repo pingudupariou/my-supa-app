@@ -205,8 +205,9 @@ export function ScenariosPage() {
             sections={EXPORT_SECTIONS}
             fileName="Scenarios"
           />
+          <TabSaveAs tabKey="scenarios" label="Scénarios" />
           <SaveButton
-            onSave={saveAll}
+            onSave={saveWithVersion}
             hasUnsavedChanges={state.hasUnsavedChanges}
             lastSaved={state.lastSaved ? new Date(state.lastSaved) : null}
           />
