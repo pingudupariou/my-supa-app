@@ -1082,6 +1082,24 @@ export function InvestmentSummaryPage() {
         </SectionCard>
       )}
 
+      {/* =============== SECTION: COMPTE DE RÉSULTAT =============== */}
+      {visibleSections.incomeStatement && (
+        <IncomeStatementSection
+          years={years}
+          yearlyData={yearlyData.map(d => ({
+            year: d.year,
+            revenue: d.revenue,
+            cogs: d.cogs,
+            grossMargin: d.grossMargin,
+            payroll: d.payroll,
+            opex: d.opex,
+            ebitda: d.ebitda,
+          }))}
+          config={state.incomeStatementConfig}
+          readOnly
+        />
+      )}
+
       {/* =============== SECTION: ROADMAP PRODUIT =============== */}
       {visibleSections.roadmap && (
         <ProductRoadmap
