@@ -449,8 +449,9 @@ export function PrevisionnelPage() {
               sections={activeView === 'monthly' ? MONTHLY_EXPORT_SECTIONS : ANNUAL_EXPORT_SECTIONS}
               fileName={activeView === 'monthly' ? 'Plan_Tresorerie_Mensuel' : 'Previsionnel_Financier'}
             />
+            <TabSaveAs tabKey="previsionnel" label="Prévisionnel" />
             <SaveButton
-              onSave={saveAll}
+              onSave={saveWithVersion}
               hasUnsavedChanges={state.hasUnsavedChanges}
               lastSaved={state.lastSaved ? new Date(state.lastSaved) : null}
             />
