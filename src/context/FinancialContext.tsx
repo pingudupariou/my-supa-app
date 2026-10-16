@@ -329,6 +329,7 @@ function getDefaultState(): FinancialState {
     roadmapBlocks: {},
     hiringSimulation: { ...defaultHiringSimulation },
     fundingPlan: { enabled: false, entries: [] },
+    incomeStatementConfig: getDefaultIncomeStatementConfig(),
   };
 }
 
@@ -439,6 +440,7 @@ export function FinancialProvider({ children }: { children: ReactNode }) {
   const updateRoadmapBlocks = useCallback((roadmapBlocks: Record<string, { startQ: number; durationQ: number }>) => { setState(prev => ({ ...prev, roadmapBlocks, hasUnsavedChanges: true })); }, []);
   const updateHiringSimulation = useCallback((config: Partial<HiringSimulationConfig>) => { setState(prev => ({ ...prev, hiringSimulation: { ...prev.hiringSimulation, ...config }, hasUnsavedChanges: true })); }, []);
   const updateFundingPlan = useCallback((config: Partial<FundingPlanConfig>) => { setState(prev => ({ ...prev, fundingPlan: { ...prev.fundingPlan, ...config }, hasUnsavedChanges: true })); }, []);
+  const updateIncomeStatementConfig = useCallback((config: Partial<IncomeStatementConfig>) => { setState(prev => ({ ...prev, incomeStatementConfig: { ...prev.incomeStatementConfig, ...config }, hasUnsavedChanges: true })); }, []);
   const updateProductCategories = useCallback((productCategories: ProductPlanCategory[]) => { setState(prev => ({ ...prev, productCategories, hasUnsavedChanges: true })); }, []);
 
   const applyTabData = useCallback((partial: Partial<FinancialState>) => { setState(prev => ({ ...prev, ...partial, ...(partial.products ? { products: syncProductVolumes(partial.products) } : {}), hasUnsavedChanges: true })); }, []);
@@ -658,6 +660,7 @@ export function FinancialProvider({ children }: { children: ReactNode }) {
       updateRoadmapBlocks,
       updateHiringSimulation,
       updateFundingPlan,
+      updateIncomeStatementConfig,
       updateProductCategories,
       applyTabData,
       setActiveTabSave,
