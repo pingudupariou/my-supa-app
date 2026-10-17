@@ -321,7 +321,8 @@ export function ProductPlanPage() {
                 <Tooltip formatter={(value: number) => `${value.toFixed(0)}k€`} />
                 <Legend />
                 <Bar dataKey="revenue" name="CA" fill="hsl(var(--primary))" />
-                <Bar dataKey="margin" name="Marge" fill="hsl(150, 60%, 40%)" />
+                <Bar dataKey="margin" name={transportCfg?.enabled ? 'Marge après transport' : 'Marge'} fill="hsl(150, 60%, 40%)" />
+                {transportCfg?.enabled && <Bar dataKey="transport" name="Transport" fill="hsl(25, 80%, 50%)" />}
               </BarChart>
             </ResponsiveContainer>
           </div>
