@@ -51,19 +51,23 @@ const EXPORT_SECTIONS: ExportableSection[] = [
 
 export function ProductPlanPage() {
   const saveWithVersion = useSaveWithTabVersion('product-plan');
-  const { 
-    state, 
-    computed, 
-    updateProducts, 
-    addProduct, 
-    removeProduct, 
+  const {
+    state,
+    computed,
+    updateProducts,
+    addProduct,
+    removeProduct,
     setRevenueMode,
     updateScenarioSettings,
     updateGlobalRevenueConfig,
     updateClientRevenueConfig,
     updateRoadmapBlocks,
     updateProductCategories,
+    updateTransportConfig,
   } = useFinancial();
+
+  const transportCfg = state.transportConfig?.[state.revenueMode];
+  const transportFor = (year: number) => computed.transportByYear.find(t => t.year === year)?.transport || 0;
 
   const settings = state.scenarioSettings;
   const YEARS = Array.from(
