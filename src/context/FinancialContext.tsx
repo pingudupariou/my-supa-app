@@ -688,7 +688,7 @@ export function FinancialProvider({ children }: { children: ReactNode }) {
       excludeFundingFromTreasury
     );
 
-    return { totalDevCost, revenueByYear, payrollByYear, opexByYear, capexByYear, totalHeadcount, currentPayroll, treasuryProjection, monthlyTreasuryProjection };
+    return { totalDevCost, revenueByYear, transportByYear, payrollByYear, opexByYear, capexByYear, totalHeadcount, currentPayroll, treasuryProjection, monthlyTreasuryProjection };
   }, [state]);
 
   return (
@@ -709,6 +709,7 @@ export function FinancialProvider({ children }: { children: ReactNode }) {
       updateFundingPlan,
       updateIncomeStatementConfig,
       updateProductCategories,
+      updateTransportConfig,
       applyTabData,
       setActiveTabSave,
       persistLocal,
