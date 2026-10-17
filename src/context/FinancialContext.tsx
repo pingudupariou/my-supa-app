@@ -157,6 +157,27 @@ export const defaultHiringSimulation: HiringSimulationConfig = {
   },
 };
 
+// Transport & expédition par mode de calcul du CA
+export interface TransportModeConfig {
+  enabled: boolean;
+  type: 'percent' | 'fixed'; // % du CA ou montant fixe annuel
+  percent: number;           // ex: 0.05 = 5 % du CA HT
+  fixedAmount: number;       // montant annuel de référence (mode fixe)
+  indexedToRevenue: boolean; // mode fixe : indexé sur la croissance du CA
+}
+
+export type TransportConfig = Record<RevenueMode, TransportModeConfig>;
+
+export const defaultTransportModeConfig: TransportModeConfig = {
+  enabled: false, type: 'percent', percent: 0, fixedAmount: 0, indexedToRevenue: true,
+};
+
+export const defaultTransportConfig: TransportConfig = {
+  'by-product': { ...defaultTransportModeConfig },
+  'by-channel-global': { ...defaultTransportModeConfig },
+  'by-client': { ...defaultTransportModeConfig },
+};
+
 interface FinancialState {
   activeTabSaves: ActiveTabSaves;
   products: Product[];
@@ -170,6 +191,7 @@ interface FinancialState {
   revenueMode: RevenueMode;
   globalRevenueConfig: GlobalRevenueConfig;
   clientRevenueConfig: ClientRevenueConfig;
+  transportConfig: TransportConfig;
   opexMode: 'detailed' | 'simple';
   simpleOpexConfig: SimpleOpexConfig;
   hasUnsavedChanges: boolean;
@@ -187,6 +209,7 @@ interface FinancialState {
 interface ComputedValues {
   totalDevCost: number;
   revenueByYear: { year: number; revenue: number; cogs: number }[];
+  transportByYear: { year: number; transport: number }[];
   payrollByYear: { year: number; payroll: number; headcount: number }[];
   opexByYear: { year: number; opex: number; byCategory: Record<string, number> }[];
   capexByYear: { year: number; capex: number; depreciation: number }[];
@@ -226,6 +249,7 @@ interface FinancialContextType {
   updateFundingPlan: (config: Partial<FundingPlanConfig>) => void;
   updateIncomeStatementConfig: (config: Partial<IncomeStatementConfig>) => void;
   updateProductCategories: (categories: ProductPlanCategory[]) => void;
+  updateTransportConfig: (mode: RevenueMode, config: Partial<TransportModeConfig>) => void;
   applyTabData: (partial: Partial<FinancialState>) => void;
   setActiveTabSave: (tabKey: SavedTabKey, save: ActiveTabSave | null) => void;
   persistLocal: () => void;
@@ -315,6 +339,11 @@ function getDefaultState(): FinancialState {
     revenueMode: 'by-product',
     globalRevenueConfig: defaultGlobalRevenueConfig,
     clientRevenueConfig: { entries: [], growthRate: 0.15, marginRate: 0.5, marginB2C: 0.6, marginByCategory: {} },
+    transportConfig: {
+      'by-product': { ...defaultTransportModeConfig },
+      'by-channel-global': { ...defaultTransportModeConfig },
+      'by-client': { ...defaultTransportModeConfig },
+    },
     opexMode: 'detailed',
     simpleOpexConfig: { baseAmount: 200000, growthRate: 0.05, strategicOpex: [] },
     hasUnsavedChanges: false,
@@ -442,6 +471,13 @@ export function FinancialProvider({ children }: { children: ReactNode }) {
   const updateFundingPlan = useCallback((config: Partial<FundingPlanConfig>) => { setState(prev => ({ ...prev, fundingPlan: { ...prev.fundingPlan, ...config }, hasUnsavedChanges: true })); }, []);
   const updateIncomeStatementConfig = useCallback((config: Partial<IncomeStatementConfig>) => { setState(prev => ({ ...prev, incomeStatementConfig: { ...prev.incomeStatementConfig, ...config }, hasUnsavedChanges: true })); }, []);
   const updateProductCategories = useCallback((productCategories: ProductPlanCategory[]) => { setState(prev => ({ ...prev, productCategories, hasUnsavedChanges: true })); }, []);
+  const updateTransportConfig = useCallback((mode: RevenueMode, config: Partial<TransportModeConfig>) => {
+    setState(prev => ({
+      ...prev,
+      transportConfig: { ...prev.transportConfig, [mode]: { ...prev.transportConfig[mode], ...config } },
+      hasUnsavedChanges: true,
+    }));
+  }, []);
 
   const applyTabData = useCallback((partial: Partial<FinancialState>) => { setState(prev => ({ ...prev, ...partial, ...(partial.products ? { products: syncProductVolumes(partial.products) } : {}), hasUnsavedChanges: true })); }, []);
 
@@ -539,6 +575,17 @@ export function FinancialProvider({ children }: { children: ReactNode }) {
         }
       });
       return { year, revenue, cogs };
+    });
+
+    // Transport & expédition : % du CA ou fixe (optionnellement indexé sur la croissance du CA)
+    const tCfg = state.transportConfig?.[state.revenueMode] || defaultTransportModeConfig;
+    const baseYearRevenue = revenueByYear[0]?.revenue || 0;
+    const transportByYear = revenueByYear.map(({ year, revenue }) => {
+      if (!tCfg.enabled) return { year, transport: 0 };
+      if (tCfg.type === 'percent') return { year, transport: revenue * (tCfg.percent || 0) };
+      let amount = tCfg.fixedAmount || 0;
+      if (tCfg.indexedToRevenue && baseYearRevenue > 0) amount *= revenue / baseYearRevenue;
+      return { year, transport: amount };
     });
 
     const payrollByYear = years.map(year => {
@@ -641,7 +688,7 @@ export function FinancialProvider({ children }: { children: ReactNode }) {
       excludeFundingFromTreasury
     );
 
-    return { totalDevCost, revenueByYear, payrollByYear, opexByYear, capexByYear, totalHeadcount, currentPayroll, treasuryProjection, monthlyTreasuryProjection };
+    return { totalDevCost, revenueByYear, transportByYear, payrollByYear, opexByYear, capexByYear, totalHeadcount, currentPayroll, treasuryProjection, monthlyTreasuryProjection };
   }, [state]);
 
   return (
@@ -662,6 +709,7 @@ export function FinancialProvider({ children }: { children: ReactNode }) {
       updateFundingPlan,
       updateIncomeStatementConfig,
       updateProductCategories,
+      updateTransportConfig,
       applyTabData,
       setActiveTabSave,
       persistLocal,
