@@ -14,6 +14,7 @@
 - [x] Ajouter « Tout cocher » dans la vue classique des commandes à fabriquer (case à trois états : tout cocher, partiel, tout décocher) — 9 tests réussis, build OK.
 
 ## Phase 2 IA
+- [x] Croissance : taux par produit/canal et année de départ, application individuelle ou groupée (5 tests réussis, build OK ; vérification sur plan connecté indisponible avec Supabase externe).
 - [ ] Simplifier visuellement la saisie des volumes du Plan produit sans changer les calculs ni les sauvegardes.
 - [x] Afficher la sauvegarde active par onglet, sauvegarder sur place et inclure données et noms courants dans les sauvegardes globales (8 tests ciblés et 7 tests de non-régression).
 - [ ] Vérifier sauvegarde, ouverture et restauration globale avec un compte réel : Supabase externe sans session de test disponible.

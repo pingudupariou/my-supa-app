@@ -29,13 +29,43 @@ describe('visual volume entry', () => {
     const original = structuredClone(product);
     render(<VolumesByChannelTable products={[product]} years={years} onChannelVolumeChange={vi.fn()} onBulkChannelVolumes={bulk} />);
     fireEvent.click(screen.getByRole('button', { name: 'Croissance & projection' }));
-    fireEvent.change(screen.getByLabelText('B2C / an'), { target: { value: '10' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Appliquer à ce produit' }));
+    fireEvent.change(screen.getByLabelText('Galets B2C / an'), { target: { value: '10' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Appliquer à Galets' }));
     expect(bulk).toHaveBeenCalledOnce();
     expect(bulk.mock.calls[0][0]).toEqual(expect.arrayContaining([
       { productId: 'galets', channel: 'B2C', year: 2027, volume: 110 },
       { productId: 'galets', channel: 'B2C', year: 2028, volume: 121 },
     ]));
     expect(product).toEqual(original);
+  });
+  it('uses independent rates for every product and channel', () => {
+    const bulk = vi.fn();
+    render(<VolumesByChannelTable products={[product, { ...product, id: 'ecrou', name: 'Écrou' }]} years={years} onChannelVolumeChange={vi.fn()} onBulkChannelVolumes={bulk} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Croissance & projection' }));
+    fireEvent.change(screen.getByLabelText('Galets B2C / an'), { target: { value: '10' } });
+    fireEvent.change(screen.getByLabelText('Écrou B2B / an'), { target: { value: '50' } });
+    fireEvent.change(screen.getByLabelText('Écrou OEM / an'), { target: { value: '20' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Appliquer à tous les produits' }));
+    expect(bulk).toHaveBeenCalledOnce();
+    expect(bulk.mock.calls[0][0]).toEqual(expect.arrayContaining([
+      { productId: 'galets', channel: 'B2C', year: 2028, volume: 121 },
+      { productId: 'galets', channel: 'B2B', year: 2028, volume: 20 },
+      { productId: 'ecrou', channel: 'B2C', year: 2028, volume: 100 },
+      { productId: 'ecrou', channel: 'B2B', year: 2028, volume: 45 },
+      { productId: 'ecrou', channel: 'OEM', year: 2028, volume: 14 },
+    ]));
+  });
+  it('preserves earlier years and other products with a row-specific start year', async () => {
+    Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', { configurable: true, value: vi.fn() });
+    const bulk = vi.fn();
+    render(<VolumesByChannelTable products={[{ ...product, volumesByChannel: { ...product.volumesByChannel, B2C: { 2026: 100, 2027: 200 } } }, { ...product, id: 'ecrou', name: 'Écrou' }]} years={years} onChannelVolumeChange={vi.fn()} onBulkChannelVolumes={bulk} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Croissance & projection' }));
+    fireEvent.change(screen.getByLabelText('Galets B2C / an'), { target: { value: '10' } });
+    fireEvent.click(screen.getByLabelText('Galets année de départ'));
+    fireEvent.click(await screen.findByRole('option', { name: '2028' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Appliquer à Galets' }));
+    const changes = bulk.mock.calls[0][0];
+    expect(changes).toContainEqual({ productId: 'galets', channel: 'B2C', year: 2028, volume: 220 });
+    expect(changes.every((c: { year: number; productId: string }) => c.year === 2028 && c.productId === 'galets')).toBe(true);
   });
 });
