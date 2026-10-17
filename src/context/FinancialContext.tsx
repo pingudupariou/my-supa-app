@@ -577,6 +577,17 @@ export function FinancialProvider({ children }: { children: ReactNode }) {
       return { year, revenue, cogs };
     });
 
+    // Transport & expédition : % du CA ou fixe (optionnellement indexé sur la croissance du CA)
+    const tCfg = state.transportConfig?.[state.revenueMode] || defaultTransportModeConfig;
+    const baseYearRevenue = revenueByYear[0]?.revenue || 0;
+    const transportByYear = revenueByYear.map(({ year, revenue }) => {
+      if (!tCfg.enabled) return { year, transport: 0 };
+      if (tCfg.type === 'percent') return { year, transport: revenue * (tCfg.percent || 0) };
+      let amount = tCfg.fixedAmount || 0;
+      if (tCfg.indexedToRevenue && baseYearRevenue > 0) amount *= revenue / baseYearRevenue;
+      return { year, transport: amount };
+    });
+
     const payrollByYear = years.map(year => {
       const active = roles.filter(r => r.startYear <= year);
       return { year, payroll: active.reduce((s, r) => s + r.annualCostLoaded, 0), headcount: active.length };
