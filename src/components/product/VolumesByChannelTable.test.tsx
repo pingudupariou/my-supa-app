@@ -56,6 +56,7 @@ describe('visual volume entry', () => {
     ]));
   });
   it('preserves earlier years and other products with a row-specific start year', async () => {
+    Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', { configurable: true, value: vi.fn() });
     const bulk = vi.fn();
     render(<VolumesByChannelTable products={[{ ...product, volumesByChannel: { ...product.volumesByChannel, B2C: { 2026: 100, 2027: 200 } } }, { ...product, id: 'ecrou', name: 'Écrou' }]} years={years} onChannelVolumeChange={vi.fn()} onBulkChannelVolumes={bulk} />);
     fireEvent.click(screen.getByRole('button', { name: 'Croissance & projection' }));
