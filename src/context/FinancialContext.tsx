@@ -471,6 +471,13 @@ export function FinancialProvider({ children }: { children: ReactNode }) {
   const updateFundingPlan = useCallback((config: Partial<FundingPlanConfig>) => { setState(prev => ({ ...prev, fundingPlan: { ...prev.fundingPlan, ...config }, hasUnsavedChanges: true })); }, []);
   const updateIncomeStatementConfig = useCallback((config: Partial<IncomeStatementConfig>) => { setState(prev => ({ ...prev, incomeStatementConfig: { ...prev.incomeStatementConfig, ...config }, hasUnsavedChanges: true })); }, []);
   const updateProductCategories = useCallback((productCategories: ProductPlanCategory[]) => { setState(prev => ({ ...prev, productCategories, hasUnsavedChanges: true })); }, []);
+  const updateTransportConfig = useCallback((mode: RevenueMode, config: Partial<TransportModeConfig>) => {
+    setState(prev => ({
+      ...prev,
+      transportConfig: { ...prev.transportConfig, [mode]: { ...prev.transportConfig[mode], ...config } },
+      hasUnsavedChanges: true,
+    }));
+  }, []);
 
   const applyTabData = useCallback((partial: Partial<FinancialState>) => { setState(prev => ({ ...prev, ...partial, ...(partial.products ? { products: syncProductVolumes(partial.products) } : {}), hasUnsavedChanges: true })); }, []);
 
