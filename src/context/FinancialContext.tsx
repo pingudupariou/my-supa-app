@@ -249,6 +249,7 @@ interface FinancialContextType {
   updateFundingPlan: (config: Partial<FundingPlanConfig>) => void;
   updateIncomeStatementConfig: (config: Partial<IncomeStatementConfig>) => void;
   updateProductCategories: (categories: ProductPlanCategory[]) => void;
+  updateTransportConfig: (mode: RevenueMode, config: Partial<TransportModeConfig>) => void;
   applyTabData: (partial: Partial<FinancialState>) => void;
   setActiveTabSave: (tabKey: SavedTabKey, save: ActiveTabSave | null) => void;
   persistLocal: () => void;
@@ -338,6 +339,11 @@ function getDefaultState(): FinancialState {
     revenueMode: 'by-product',
     globalRevenueConfig: defaultGlobalRevenueConfig,
     clientRevenueConfig: { entries: [], growthRate: 0.15, marginRate: 0.5, marginB2C: 0.6, marginByCategory: {} },
+    transportConfig: {
+      'by-product': { ...defaultTransportModeConfig },
+      'by-channel-global': { ...defaultTransportModeConfig },
+      'by-client': { ...defaultTransportModeConfig },
+    },
     opexMode: 'detailed',
     simpleOpexConfig: { baseAmount: 200000, growthRate: 0.05, strategicOpex: [] },
     hasUnsavedChanges: false,
