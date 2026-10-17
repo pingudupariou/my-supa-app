@@ -157,6 +157,27 @@ export const defaultHiringSimulation: HiringSimulationConfig = {
   },
 };
 
+// Transport & expédition par mode de calcul du CA
+export interface TransportModeConfig {
+  enabled: boolean;
+  type: 'percent' | 'fixed'; // % du CA ou montant fixe annuel
+  percent: number;           // ex: 0.05 = 5 % du CA HT
+  fixedAmount: number;       // montant annuel de référence (mode fixe)
+  indexedToRevenue: boolean; // mode fixe : indexé sur la croissance du CA
+}
+
+export type TransportConfig = Record<RevenueMode, TransportModeConfig>;
+
+export const defaultTransportModeConfig: TransportModeConfig = {
+  enabled: false, type: 'percent', percent: 0, fixedAmount: 0, indexedToRevenue: true,
+};
+
+export const defaultTransportConfig: TransportConfig = {
+  'by-product': { ...defaultTransportModeConfig },
+  'by-channel-global': { ...defaultTransportModeConfig },
+  'by-client': { ...defaultTransportModeConfig },
+};
+
 interface FinancialState {
   activeTabSaves: ActiveTabSaves;
   products: Product[];
@@ -170,6 +191,7 @@ interface FinancialState {
   revenueMode: RevenueMode;
   globalRevenueConfig: GlobalRevenueConfig;
   clientRevenueConfig: ClientRevenueConfig;
+  transportConfig: TransportConfig;
   opexMode: 'detailed' | 'simple';
   simpleOpexConfig: SimpleOpexConfig;
   hasUnsavedChanges: boolean;
@@ -187,6 +209,7 @@ interface FinancialState {
 interface ComputedValues {
   totalDevCost: number;
   revenueByYear: { year: number; revenue: number; cogs: number }[];
+  transportByYear: { year: number; transport: number }[];
   payrollByYear: { year: number; payroll: number; headcount: number }[];
   opexByYear: { year: number; opex: number; byCategory: Record<string, number> }[];
   capexByYear: { year: number; capex: number; depreciation: number }[];
