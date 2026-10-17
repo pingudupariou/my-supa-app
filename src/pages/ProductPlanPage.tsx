@@ -212,6 +212,78 @@ export function ProductPlanPage() {
         </div>
       </div>
 
+      {/* Transport & expédition (par mode de CA) */}
+      {transportCfg && (
+        <SectionCard title="Transport & expédition">
+          <div className="flex flex-wrap items-center gap-4">
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={transportCfg.enabled}
+                onChange={(e) => updateTransportConfig(state.revenueMode, { enabled: e.target.checked })}
+              />
+              Activer pour ce mode de calcul
+            </label>
+            {transportCfg.enabled && (
+              <>
+                <label className="flex items-center gap-2 text-sm">
+                  Type
+                  <select
+                    aria-label="Type de coût de transport"
+                    className="h-9 rounded-md border bg-background px-2 text-sm text-foreground"
+                    value={transportCfg.type}
+                    onChange={(e) => updateTransportConfig(state.revenueMode, { type: e.target.value as 'percent' | 'fixed' })}
+                  >
+                    <option value="percent">% du CA</option>
+                    <option value="fixed">Montant fixe annuel</option>
+                  </select>
+                </label>
+                {transportCfg.type === 'percent' ? (
+                  <label className="flex items-center gap-2 text-sm">
+                    Taux
+                    <Input
+                      type="number"
+                      step="0.1"
+                      className="w-24"
+                      value={(transportCfg.percent * 100).toString()}
+                      onChange={(e) => updateTransportConfig(state.revenueMode, { percent: (Number(e.target.value) || 0) / 100 })}
+                    />
+                    % du CA HT
+                  </label>
+                ) : (
+                  <>
+                    <label className="flex items-center gap-2 text-sm">
+                      Montant annuel
+                      <Input
+                        type="number"
+                        className="w-28"
+                        value={transportCfg.fixedAmount.toString()}
+                        onChange={(e) => updateTransportConfig(state.revenueMode, { fixedAmount: Number(e.target.value) || 0 })}
+                      />
+                      €
+                    </label>
+                    <label className="flex items-center gap-2 text-sm">
+                      <input
+                        type="checkbox"
+                        checked={transportCfg.indexedToRevenue}
+                        onChange={(e) => updateTransportConfig(state.revenueMode, { indexedToRevenue: e.target.checked })}
+                      />
+                      Indexé sur la croissance du CA
+                    </label>
+                  </>
+                )}
+                <Badge variant="secondary">
+                  {lastYear} : {formatCurrency(totalTransportLast, true)} de transport imputé sur la marge
+                </Badge>
+              </>
+            )}
+          </div>
+          <p className="text-xs text-muted-foreground mt-2">
+            Le coût de transport est déduit de la marge brute affichée (KPIs et graphique) pour le mode de CA actif. Chaque mode a son propre réglage.
+          </p>
+        </SectionCard>
+      )}
+
       {/* KPIs */}
       <div id="product-kpis" className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <KPICard
@@ -226,9 +298,9 @@ export function ProductPlanPage() {
           trend="up"
         />
         <KPICard
-          label="Marge Brute Moy."
+          label={transportCfg?.enabled ? 'Marge Nette Moy.' : 'Marge Brute Moy.'}
           value={formatPercent(avgMargin)}
-          subValue="Sur la période"
+          subValue={transportCfg?.enabled ? 'Après transport' : 'Sur la période'}
         />
         <KPICard
           label="Produits Actifs"
