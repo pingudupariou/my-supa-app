@@ -123,17 +123,20 @@ export function ProductPlanPage() {
   const lastYear = YEARS[YEARS.length - 1];
   const totalRevenueLast = computed.revenueByYear.find(r => r.year === lastYear)?.revenue || 0;
   const avgMargin = computed.revenueByYear.length > 0
-    ? computed.revenueByYear.reduce((acc, r) => acc + (r.revenue > 0 ? (r.revenue - r.cogs) / r.revenue : 0), 0) / computed.revenueByYear.length
+    ? computed.revenueByYear.reduce((acc, r) => acc + (r.revenue > 0 ? (r.revenue - r.cogs - transportFor(r.year)) / r.revenue : 0), 0) / computed.revenueByYear.length
     : 0;
+  const totalTransportLast = transportFor(lastYear);
 
   // Chart data
   const chartData = YEARS.map(year => {
     const yearData = computed.revenueByYear.find(r => r.year === year);
+    const transport = transportFor(year);
     return {
       year,
       revenue: (yearData?.revenue || 0) / 1000,
       cogs: (yearData?.cogs || 0) / 1000,
-      margin: ((yearData?.revenue || 0) - (yearData?.cogs || 0)) / 1000,
+      margin: ((yearData?.revenue || 0) - (yearData?.cogs || 0) - transport) / 1000,
+      transport: transport / 1000,
     };
   });
 
