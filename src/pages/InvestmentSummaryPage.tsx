@@ -255,16 +255,24 @@ export function InvestmentSummaryPage() {
   );
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 summary-report">
+      <div className="print-only print-cover">
+        <div className="text-2xl font-bold">Synthèse Investisseur — Novaride</div>
+        <div className="text-sm text-muted-foreground">
+          Scénario {scenarioLabels[state.activeScenarioId]} · {startYear} → {lastYear} · édité le {new Date().toLocaleDateString('fr-FR')}
+        </div>
+      </div>
+      <div className="no-print">
       <HeroBanner
         image="ccd-evo"
         title="Synthèse Investisseur"
         subtitle="Vue consolidée du projet - Approche Cash"
         height="sm"
       />
+      </div>
 
       {/* Header */}
-      <div className="flex items-center justify-between flex-wrap gap-3">
+      <div className="no-print sticky top-0 z-20 -mx-2 px-2 py-2 bg-background/95 backdrop-blur border-b flex items-center justify-between flex-wrap gap-3">
         <div className="flex items-center gap-2 flex-wrap">
           <Badge variant="default">{scenarioLabels[state.activeScenarioId]}</Badge>
           <Select value={state.revenueMode} onValueChange={(v) => setRevenueMode(v as RevenueMode)}>
@@ -290,7 +298,7 @@ export function InvestmentSummaryPage() {
 
       {/* Section toggles */}
       {showSectionSettings && (
-        <div className="p-4 bg-muted/30 border rounded-lg">
+        <div className="no-print p-4 bg-muted/30 border rounded-lg">
           <h4 className="text-sm font-semibold mb-3">Afficher / Masquer les sections du rapport</h4>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             {(Object.keys(sectionLabels) as SectionKey[]).map(key => (

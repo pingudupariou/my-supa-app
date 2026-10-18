@@ -110,12 +110,12 @@ export function DashboardLayout({
 
   return <div className="flex min-h-screen">
       {/* Mobile toggle */}
-      <button data-readonly-allow="true" className="fixed top-4 left-4 z-50 lg:hidden p-2 bg-sidebar text-white rounded" onClick={() => setSidebarOpen(!sidebarOpen)}>
+      <button data-readonly-allow="true" className="no-print fixed top-4 left-4 z-50 lg:hidden p-2 bg-sidebar text-white rounded" onClick={() => setSidebarOpen(!sidebarOpen)}>
         {sidebarOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
       </button>
 
       {/* Sidebar */}
-      <aside data-readonly-allow="true" className={cn('fixed inset-y-0 left-0 z-40 w-56 bg-sidebar text-sidebar-foreground flex flex-col transition-transform lg:translate-x-0', sidebarOpen ? 'translate-x-0' : '-translate-x-full')}>
+      <aside data-readonly-allow="true" className={cn('no-print fixed inset-y-0 left-0 z-40 w-56 bg-sidebar text-sidebar-foreground flex flex-col transition-transform lg:translate-x-0', sidebarOpen ? 'translate-x-0' : '-translate-x-full')}>
         <div className="p-4 border-b border-sidebar-border">
           <div className="flex items-center justify-between">
             <NovarideLogo variant="compact" color="light" canEdit={isAdmin} />
@@ -186,11 +186,11 @@ export function DashboardLayout({
       {sidebarOpen && <div className="fixed inset-0 z-30 bg-black/50 lg:hidden" onClick={() => setSidebarOpen(false)} />}
 
       {/* Main content */}
-      <main className="flex-1 lg:ml-56 p-6">
+      <main className="flex-1 lg:ml-56 p-6 print-main">
         {readOnlyTabKey ? <ReadOnlyWrapper tabKey={readOnlyTabKey}>{children}</ReadOnlyWrapper> : children}
       </main>
 
       {/* Floating chat widget — only when user has write access to chat tab */}
-      {getTabPermission('chat') === 'write' && <FloatingChat />}
+      {getTabPermission('chat') === 'write' && <div className="no-print"><FloatingChat /></div>}
     </div>;
 }
