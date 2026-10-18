@@ -49,6 +49,20 @@ export function LoanManager({ loans, onChange, startYear, durationYears }: LoanM
   const [form, setForm] = useState<Omit<LoanConfig, 'id'>>(EMPTY_LOAN);
 
   const years = Array.from({ length: durationYears + 2 }, (_, i) => startYear + i);
+  // Date de fin : au-delà de l'horizon du plan (jusqu'à 30 ans après le début du prêt)
+  const endYearFrom = Math.min(startYear, form.startDate.year);
+  const endYearTo = Math.max(startYear + durationYears, form.startDate.year + 30);
+  const endYears = Array.from({ length: endYearTo - endYearFrom + 1 }, (_, i) => endYearFrom + i);
+
+  // Le début bouge : la fin ne peut pas précéder le début
+  const updateStartDate = (patch: { year?: number; month?: MonthIndex }) =>
+    setForm(f => {
+      const startDate = { ...f.startDate, ...patch };
+      const endDate = (f.endDate.year * 12 + f.endDate.month) < (startDate.year * 12 + startDate.month)
+        ? { ...startDate }
+        : f.endDate;
+      return { ...f, startDate, endDate };
+    });
 
   const openAdd = () => {
     setEditingId(null);
@@ -283,13 +297,13 @@ export function LoanManager({ loans, onChange, startYear, durationYears }: LoanM
               <div className="space-y-2">
                 <Label>Date de début</Label>
                 <div className="flex gap-2">
-                  <Select value={form.startDate.month.toString()} onValueChange={v => setForm(f => ({ ...f, startDate: { ...f.startDate, month: Number(v) as MonthIndex } }))}>
+                  <Select value={form.startDate.month.toString()} onValueChange={v => updateStartDate({ month: Number(v) as MonthIndex })}>
                     <SelectTrigger className="flex-1"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       {MONTHS.map((m, i) => <SelectItem key={i} value={i.toString()}>{m.slice(0, 3)}</SelectItem>)}
                     </SelectContent>
                   </Select>
-                  <Select value={form.startDate.year.toString()} onValueChange={v => setForm(f => ({ ...f, startDate: { ...f.startDate, year: Number(v) } }))}>
+                  <Select value={form.startDate.year.toString()} onValueChange={v => updateStartDate({ year: Number(v) })}>
                     <SelectTrigger className="w-24"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       {years.map(y => <SelectItem key={y} value={y.toString()}>{y}</SelectItem>)}
@@ -309,10 +323,13 @@ export function LoanManager({ loans, onChange, startYear, durationYears }: LoanM
                   <Select value={form.endDate.year.toString()} onValueChange={v => setForm(f => ({ ...f, endDate: { ...f.endDate, year: Number(v) } }))}>
                     <SelectTrigger className="w-24"><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      {years.map(y => <SelectItem key={y} value={y.toString()}>{y}</SelectItem>)}
+                      {endYears.map(y => <SelectItem key={y} value={y.toString()}>{y}</SelectItem>)}
                     </SelectContent>
                   </Select>
                 </div>
+                <p className="text-xs text-muted-foreground">
+                  La fin peut dépasser l'horizon du plan ({startYear + durationYears - 1}) ; les échéances au-delà ne sont pas comptées dans le plan.
+                </p>
               </div>
             </div>
 
@@ -330,6 +347,12 @@ export function LoanManager({ loans, onChange, startYear, durationYears }: LoanM
                   <span className="text-muted-foreground">Coût total :</span>
                   <span className="font-mono-numbers">
                     {formatCurrency(calcTotalCost({ id: '', ...form }), true)}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Durée :</span>
+                  <span>
+                    {Math.max(0, (form.endDate.year * 12 + form.endDate.month) - (form.startDate.year * 12 + form.startDate.month))} mois
                   </span>
                 </div>
               </div>
