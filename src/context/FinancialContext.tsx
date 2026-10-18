@@ -3,7 +3,7 @@ import { Product, Role, Expense, FundingRound, ProductPlanCategory } from '@/eng
 import { defaultProducts, defaultRoles, defaultExpenses, defaultFundingRounds } from '@/engine/defaults';
 import { syncProductVolumes, calculateTotalRevenue, calculateCOGS, calculatePayroll, calculateHeadcount, calculateTotalOpex, calculateTotalVolumes, calculateDepreciation } from '@/engine/calculations';
 import { calculateTreasuryProjection, TreasuryProjection } from '@/engine/treasuryEngine';
-import { calculateMonthlyTreasuryProjection, MonthlyTreasuryProjection, getDefaultMonthlyTreasuryConfig, MonthlyTreasuryConfig } from '@/engine/monthlyTreasuryEngine';
+import { calculateMonthlyTreasuryProjection, MonthlyTreasuryProjection, getDefaultMonthlyTreasuryConfig, MonthlyTreasuryConfig, LoanConfig } from '@/engine/monthlyTreasuryEngine';
 import { calculateCapexByYear } from '@/engine/fundingNeedsCalculator';
 import { GlobalRevenueConfig, defaultGlobalRevenueConfig, calculateGlobalRevenue, calculateGlobalCogs } from '@/components/product/GlobalRevenueEditor';
 import { HistoricalYearData } from '@/components/valuation/EditableHistoricalFinancials';
@@ -204,7 +204,11 @@ interface FinancialState {
   hiringSimulation: HiringSimulationConfig;
   fundingPlan: FundingPlanConfig;
   incomeStatementConfig: IncomeStatementConfig;
+  financingOptions: FinancingOptions;
+  bankLoans: LoanConfig[];
 }
+
+export interface FinancingOptions { equity: boolean; bankLoan: boolean }
 
 interface ComputedValues {
   totalDevCost: number;
@@ -248,6 +252,8 @@ interface FinancialContextType {
   updateHiringSimulation: (config: Partial<HiringSimulationConfig>) => void;
   updateFundingPlan: (config: Partial<FundingPlanConfig>) => void;
   updateIncomeStatementConfig: (config: Partial<IncomeStatementConfig>) => void;
+  updateFinancingOptions: (options: Partial<FinancingOptions>) => void;
+  updateBankLoans: (loans: LoanConfig[]) => void;
   updateProductCategories: (categories: ProductPlanCategory[]) => void;
   updateTransportConfig: (mode: RevenueMode, config: Partial<TransportModeConfig>) => void;
   applyTabData: (partial: Partial<FinancialState>) => void;
@@ -359,6 +365,8 @@ function getDefaultState(): FinancialState {
     hiringSimulation: { ...defaultHiringSimulation },
     fundingPlan: { enabled: false, entries: [] },
     incomeStatementConfig: getDefaultIncomeStatementConfig(),
+    financingOptions: { equity: true, bankLoan: false },
+    bankLoans: [],
   };
 }
 
@@ -469,6 +477,8 @@ export function FinancialProvider({ children }: { children: ReactNode }) {
   const updateRoadmapBlocks = useCallback((roadmapBlocks: Record<string, { startQ: number; durationQ: number }>) => { setState(prev => ({ ...prev, roadmapBlocks, hasUnsavedChanges: true })); }, []);
   const updateHiringSimulation = useCallback((config: Partial<HiringSimulationConfig>) => { setState(prev => ({ ...prev, hiringSimulation: { ...prev.hiringSimulation, ...config }, hasUnsavedChanges: true })); }, []);
   const updateFundingPlan = useCallback((config: Partial<FundingPlanConfig>) => { setState(prev => ({ ...prev, fundingPlan: { ...prev.fundingPlan, ...config }, hasUnsavedChanges: true })); }, []);
+  const updateFinancingOptions = useCallback((options: Partial<FinancingOptions>) => { setState(prev => ({ ...prev, financingOptions: { ...(prev.financingOptions ?? { equity: true, bankLoan: false }), ...options }, hasUnsavedChanges: true })); }, []);
+  const updateBankLoans = useCallback((bankLoans: LoanConfig[]) => { setState(prev => ({ ...prev, bankLoans, hasUnsavedChanges: true })); }, []);
   const updateIncomeStatementConfig = useCallback((config: Partial<IncomeStatementConfig>) => { setState(prev => ({ ...prev, incomeStatementConfig: { ...prev.incomeStatementConfig, ...config }, hasUnsavedChanges: true })); }, []);
   const updateProductCategories = useCallback((productCategories: ProductPlanCategory[]) => { setState(prev => ({ ...prev, productCategories, hasUnsavedChanges: true })); }, []);
   const updateTransportConfig = useCallback((mode: RevenueMode, config: Partial<TransportModeConfig>) => {
@@ -676,16 +686,22 @@ export function FinancialProvider({ children }: { children: ReactNode }) {
         });
       });
     }
-    const effectiveAllRounds = excludeFundingFromTreasury ? [] : allFundingRounds;
+    const financing = state.financingOptions ?? { equity: true, bankLoan: false };
+    const excludeEquity = excludeFundingFromTreasury || !financing.equity;
+    const effectiveAllRounds = excludeEquity ? [] : allFundingRounds;
+    const bankLoans = financing.bankLoan ? (state.bankLoans ?? []).map(l => ({ ...l, disbursedInPlan: true })) : [];
+    const effectiveTreasuryConfig = bankLoans.length
+      ? { ...monthlyTreasuryConfig, loans: [...(monthlyTreasuryConfig.loans ?? []), ...bankLoans] }
+      : monthlyTreasuryConfig;
 
     const monthlyTreasuryProjection = calculateMonthlyTreasuryProjection(
-      monthlyTreasuryConfig,
+      effectiveTreasuryConfig,
       { annualRevenue, annualCogs, annualPayroll, annualOpex },
       effectiveAllRounds,
       initialCash,
       startYear,
       durationYears,
-      excludeFundingFromTreasury
+      excludeEquity
     );
 
     return { totalDevCost, revenueByYear, transportByYear, payrollByYear, opexByYear, capexByYear, totalHeadcount, currentPayroll, treasuryProjection, monthlyTreasuryProjection };
@@ -708,6 +724,8 @@ export function FinancialProvider({ children }: { children: ReactNode }) {
       updateHiringSimulation,
       updateFundingPlan,
       updateIncomeStatementConfig,
+      updateFinancingOptions,
+      updateBankLoans,
       updateProductCategories,
       updateTransportConfig,
       applyTabData,

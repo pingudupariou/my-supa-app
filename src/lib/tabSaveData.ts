@@ -3,7 +3,7 @@ export const TAB_FIELDS = {
   charges: ['expenses', 'opexMode', 'simpleOpexConfig'],
   organisation: ['roles', 'hiringSimulation'],
   previsionnel: ['monthlyTreasuryConfig', 'incomeStatementConfig'],
-  funding: ['fundingRounds'],
+  funding: ['fundingRounds', 'financingOptions', 'bankLoans'],
   scenarios: ['scenarioSettings', 'scenarioConfigs', 'activeScenarioId', 'excludeFundingFromTreasury', 'fundingPlan'],
 } as const;
 
