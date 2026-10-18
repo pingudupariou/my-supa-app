@@ -97,6 +97,7 @@ interface YearData {
   treasuryStart: number;
   treasuryEnd: number;
   fundingInjection: number;
+  loanInterest: number;
 }
 
 // Liste des indicateurs SIG calculables
