@@ -349,6 +349,12 @@ export function LoanManager({ loans, onChange, startYear, durationYears }: LoanM
                     {formatCurrency(calcTotalCost({ id: '', ...form }), true)}
                   </span>
                 </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Durée :</span>
+                  <span>
+                    {Math.max(0, (form.endDate.year * 12 + form.endDate.month) - (form.startDate.year * 12 + form.startDate.month))} mois
+                  </span>
+                </div>
               </div>
             )}
           </div>
