@@ -5,6 +5,7 @@ import {
   BankYear, variation, formatDelta, formatPct,
   revenueComment, marginComment, treasuryComment, netResultComment,
 } from './bankReportModel';
+import { useBankReportSettings, pickComment } from './bankReportSettings';
 
 interface BankReportProps {
   rows: BankYear[];
@@ -26,12 +27,18 @@ function Page({ children, title, number }: { children: React.ReactNode; title?: 
       {title && (
         <header className="bank-page-header">
           <span>{number && <span className="bank-num">{number}</span>}{title}</span>
-          <NovarideLogo variant="compact" />
+          <ReportLogo compact />
         </header>
       )}
       {children}
     </section>
   );
+}
+
+function ReportLogo({ compact }: { compact?: boolean }) {
+  const { logoDataUrl } = useBankReportSettings();
+  if (logoDataUrl) return <img src={logoDataUrl} alt="Logo" style={{ height: compact ? 28 : 72, maxWidth: compact ? 140 : 320, objectFit: 'contain' }} />;
+  return <NovarideLogo variant={compact ? 'compact' : 'full'} />;
 }
 
 function Comment({ children }: { children: React.ReactNode }) {
@@ -53,6 +60,11 @@ const LOAN_METRICS: Metric[] = [
 ];
 
 export function BankReport({ rows, scenarioLabel, startYear, lastYear, minTreasury, fundingNeed, amountRaised }: BankReportProps) {
+  const settings = useBankReportSettings();
+  const c = settings.comments;
+  const revenueText = pickComment(c.revenue, `${revenueComment(rows)} ${marginComment(rows)}`);
+  const treasuryText = pickComment(c.treasury, treasuryComment(rows, minTreasury, fundingNeed, amountRaised));
+  const netText = pickComment(c.netResult, netResultComment(rows));
   const last = rows[rows.length - 1];
   const sum = (key: keyof BankYear) => rows.reduce((s, r) => s + ((r[key] as number) || 0), 0);
   const hasLoans = rows.some(r => (r.loanDisbursement || 0) > 0 || (r.loanPayments || 0) > 0);
@@ -81,10 +93,10 @@ export function BankReport({ rows, scenarioLabel, startYear, lastYear, minTreasu
     <div className="bank-report" aria-hidden="true">
       {/* Couverture */}
       <section className="bank-page bank-cover">
-        <NovarideLogo variant="full" />
+        <ReportLogo />
         <div>
           <p className="bank-cover-kicker">Dossier financier</p>
-          <h1>Novaride — Business plan</h1>
+          <h1>{settings.projectName?.trim() || 'Novaride — Business plan'}</h1>
           <p className="bank-cover-sub">Synthèse investisseur · Période {startYear} – {lastYear}</p>
         </div>
         <dl className="bank-cover-meta">
@@ -135,7 +147,7 @@ export function BankReport({ rows, scenarioLabel, startYear, lastYear, minTreasu
           <Bar yAxisId="eur" dataKey="ebitda" name="EBITDA" fill="hsl(var(--muted-foreground))" isAnimationActive={false} maxBarSize={56} />
           <Line yAxisId="pct" dataKey="grossMarginRate" name="Taux de marge brute (%)" stroke="hsl(var(--positive))" strokeWidth={2} isAnimationActive={false} />
         </ComposedChart>
-        <Comment>{revenueComment(rows)} {marginComment(rows)}</Comment>
+        <Comment>{revenueText}</Comment>
       </Page>
 
       <Page title="Trésorerie et financement" number="3">
@@ -149,7 +161,7 @@ export function BankReport({ rows, scenarioLabel, startYear, lastYear, minTreasu
             <LabelList dataKey="treasuryEnd" position="top" formatter={k} fontSize={11} fill="hsl(var(--foreground))" />
           </Line>
         </ComposedChart>
-        <Comment>{treasuryComment(rows, minTreasury, fundingNeed, amountRaised)}</Comment>
+        <Comment>{treasuryText}</Comment>
       </Page>
 
       <Page title="Compte de résultat synthétique" number="4">
@@ -170,7 +182,7 @@ export function BankReport({ rows, scenarioLabel, startYear, lastYear, minTreasu
             </tr>
           </tbody>
         </table>
-        <Comment>{netResultComment(rows)}</Comment>
+        <Comment>{netText}</Comment>
       </Page>
 
       <Page title="Variations annuelles" number="5">
