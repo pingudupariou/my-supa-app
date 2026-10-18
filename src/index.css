@@ -382,6 +382,7 @@
   body.print-bank .summary-report > [id], body.print-bank .summary-report > .rounded-lg { break-inside: auto; }
   body.print-bank .summary-report h3, body.print-bank .summary-report h4 { break-after: avoid; }
   body.print-bank .summary-report .lg\:grid-cols-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  body.print-bank .summary-report .h-72[data-export-graph] > .recharts-responsive-container { height: calc(100% - 36px) !important; }
   body.print-bank .bank-report { display: block !important; color: hsl(var(--foreground)); }
   .bank-page { page: bank; break-after: page; page-break-after: always; break-inside: avoid; min-height: 178mm; display: flex; flex-direction: column; gap: 14px; }
   .bank-report:last-child .bank-page:last-child { break-after: auto; }
