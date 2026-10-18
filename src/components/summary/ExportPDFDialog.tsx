@@ -9,7 +9,7 @@ import { Download, Settings2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { BANK_SECTIONS, STANDARD_SECTIONS, EXPORT_METRICS, defaultExportOptions, saveExportOptions, setActiveExport, useSummaryExport, type ExportMode, type ExportOptions } from './summaryExportSettings';
+import { BANK_SECTIONS, STANDARD_SECTIONS, STANDARD_GRAPHS, EXPORT_METRICS, defaultExportOptions, saveExportOptions, setActiveExport, useSummaryExport, type ExportMode, type ExportOptions } from './summaryExportSettings';
 import { BankCommentKey, BankReportSettings, saveBankReportSettings, useBankReportSettings } from './bankReportSettings';
 
 export function printWith(mode: ExportMode) {
@@ -106,6 +106,12 @@ export function ExportPDFDialog({ autoComments }: { autoComments?: Record<BankCo
                 ))}
               </div>
             </fieldset>
+            {mode === 'standard' && <fieldset className="space-y-3 border-b pb-4">
+              <legend className="font-semibold mb-2">Graphiques à exporter</legend>
+              <div className="grid grid-cols-2 gap-3">
+                {Object.entries(STANDARD_GRAPHS).map(([key, label]) => <label key={key} className="flex items-center gap-2 text-sm"><Checkbox checked={current.charts[key]} onCheckedChange={checked => update({ charts: { ...current.charts, [key]: checked === true } })} />{label}</label>)}
+              </div>
+            </fieldset>}
             <fieldset className="space-y-3 border-b pb-4">
               <legend className="font-semibold mb-2">Séries des graphiques{mode === 'bank' ? ' et lignes du tableau synthétique' : ''}</legend>
               <div className="grid grid-cols-2 gap-3">

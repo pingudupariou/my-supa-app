@@ -8,6 +8,7 @@ export const STANDARD_SECTIONS = {
   roadmap: 'Roadmap et investissements produits', valuation: 'Valorisation et tours',
 };
 export const BANK_SECTIONS = { cover: 'Couverture', toc: 'Sommaire', executive: 'Résumé exécutif', revenue: 'CA et rentabilité', treasury: 'Trésorerie et financement', income: 'Compte de résultat synthétique', variations: 'Variations annuelles' };
+export const STANDARD_GRAPHS = { cash: 'Flux et trésorerie annuels', revenue: 'CA, marge et EBITDA', costs: 'Coûts annuels', monthly: 'Trésorerie mensuelle', breakdown: 'Répartition des coûts', deck: 'CA par année / canal', payroll: 'Salaires et effectifs' };
 export const EXPORT_METRICS = {
   revenue: 'Chiffre d’affaires', grossMargin: 'Marge brute', ebitda: 'EBITDA', netResult: 'Résultat net',
   treasuryEnd: 'Trésorerie', netCashFlow: 'Flux de trésorerie', grossMarginRate: 'Taux de marge brute',
@@ -16,12 +17,13 @@ export const EXPORT_METRICS = {
 };
 export interface ExportOptions {
   sections: Record<string, boolean>;
+  charts: Record<string, boolean>;
   metrics: Record<string, boolean>;
   graphs: boolean; tables: boolean; kpis: boolean; comments: boolean; legend: boolean; labels: boolean;
 }
 const all = (items: Record<string, string>) => Object.fromEntries(Object.keys(items).map(key => [key, true]));
 export function defaultExportOptions(mode: ExportMode): ExportOptions {
-  return { sections: all(mode === 'bank' ? BANK_SECTIONS : STANDARD_SECTIONS), metrics: all(EXPORT_METRICS), graphs: true, tables: true, kpis: true, comments: true, legend: true, labels: true };
+  return { sections: all(mode === 'bank' ? BANK_SECTIONS : STANDARD_SECTIONS), charts: all(STANDARD_GRAPHS), metrics: all(EXPORT_METRICS), graphs: true, tables: true, kpis: true, comments: true, legend: true, labels: true };
 }
 const KEY = 'summary-export-options:v1';
 const listeners = new Set<() => void>();
@@ -33,7 +35,7 @@ function read() {
   try { saved = JSON.parse(localStorage.getItem(KEY) || '{}'); } catch { /* defaults */ }
   const merge = (mode: ExportMode) => {
     const defaults = defaultExportOptions(mode);
-    return { ...defaults, ...saved[mode], sections: { ...defaults.sections, ...saved[mode]?.sections }, metrics: { ...defaults.metrics, ...saved[mode]?.metrics } };
+    return { ...defaults, ...saved[mode], charts: { ...defaults.charts, ...saved[mode]?.charts }, sections: { ...defaults.sections, ...saved[mode]?.sections }, metrics: { ...defaults.metrics, ...saved[mode]?.metrics } };
   };
   cache = { standard: merge('standard'), bank: merge('bank') };
   return cache;

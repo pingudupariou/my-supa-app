@@ -383,7 +383,7 @@ export function InvestmentSummaryPage() {
 
           <div className="grid lg:grid-cols-2 gap-6">
             {/* Cash Flow & Treasury chart */}
-            <div className="h-72" data-export-graph>
+            <div className="h-72" data-export-graph data-export-chart-hidden={exporting && !exportOptions.charts.cash}>
               <h4 className="text-sm font-semibold mb-2 flex items-center gap-2">
                 <BarChart3 className="h-4 w-4" />
                 Cash Flow & Trésorerie
@@ -435,12 +435,12 @@ export function InvestmentSummaryPage() {
         <SectionCard title="Graphiques d'Évolution" id="evolution-charts">
           <div className="grid lg:grid-cols-2 gap-6">
             {/* Revenue & Margin evolution */}
-            <div data-export-graph>
+            <div data-export-graph data-export-chart-hidden={exporting && !exportOptions.charts.revenue}>
               <h4 className="text-sm font-semibold mb-3 flex items-center gap-2">
                 <LineChartIcon className="h-4 w-4" style={{ color: CHART_COLORS[0] }} />
                 Évolution CA, Marge & EBITDA
               </h4>
-              <div className="h-64">
+              <div className="h-64" data-export-graph data-export-chart-hidden={exporting && !exportOptions.charts.deck}>
                 <ResponsiveContainer width="100%" height="100%">
                   <AreaChart data={evolutionChartData}>
                     <defs>
@@ -467,12 +467,12 @@ export function InvestmentSummaryPage() {
             </div>
 
             {/* Costs stacked bar */}
-            <div data-export-graph>
+            <div data-export-graph data-export-chart-hidden={exporting && !exportOptions.charts.costs}>
               <h4 className="text-sm font-semibold mb-3 flex items-center gap-2">
                 <BarChart3 className="h-4 w-4" style={{ color: CHART_COLORS[1] }} />
                 Répartition des Coûts par Année
               </h4>
-              <div className="h-64">
+              <div className="h-64" data-export-graph data-export-chart-hidden={exporting && !exportOptions.charts.deck}>
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={evolutionChartData}>
                     <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
@@ -489,12 +489,12 @@ export function InvestmentSummaryPage() {
             </div>
 
             {/* Treasury monthly evolution */}
-            <div data-export-graph>
+            <div data-export-graph data-export-chart-hidden={exporting && !exportOptions.charts.monthly}>
               <h4 className="text-sm font-semibold mb-3 flex items-center gap-2">
                 <Wallet className="h-4 w-4" style={{ color: CHART_COLORS[5] }} />
                 Trésorerie Mensuelle
               </h4>
-              <div className="h-64">
+              <div className="h-64" data-export-graph data-export-chart-hidden={exporting && !exportOptions.charts.deck}>
                 <ResponsiveContainer width="100%" height="100%">
                   <AreaChart data={monthlyTreasuryProjection.months.map(m => ({
                     label: `${m.month}/${m.year}`,
@@ -517,7 +517,7 @@ export function InvestmentSummaryPage() {
             </div>
 
             {/* Cost breakdown pie */}
-            <div data-export-graph>
+            <div data-export-graph data-export-chart-hidden={exporting && !exportOptions.charts.breakdown}>
               <h4 className="text-sm font-semibold mb-3 flex items-center gap-2">
                 <Target className="h-4 w-4" />
                 Répartition des Coûts (Période)
@@ -598,7 +598,7 @@ export function InvestmentSummaryPage() {
               </div>
 
               {/* Stacked bar chart */}
-              <div className="h-64">
+              <div className="h-64" data-export-graph data-export-chart-hidden={exporting && !exportOptions.charts.deck}>
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={clientDeckData.stackedChartData}>
                     <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
@@ -682,7 +682,7 @@ export function InvestmentSummaryPage() {
 
       {/* =============== SECTION: PLAN DE FINANCEMENT =============== */}
       {/* =============== SECTION: PRÊT BANCAIRE =============== */}
-      {loanSchedule && (
+      {loanSchedule && (!exporting || exportOptions.sections.loans) && (
         <SectionCard title="Financement bancaire" id="bank-loan-summary">
           <div className="grid md:grid-cols-4 gap-4 mb-4">
             <BigKPI label="Prêts débloqués" value={formatCurrency(loanTotals.disbursed, true)} icon={Banknote} className="bg-muted/30" />
@@ -984,7 +984,7 @@ export function InvestmentSummaryPage() {
                   <BigKPI label="Coût Moyen / ETP" value={roles.length > 0 ? formatCurrency(totalPayroll / durationYears / (roles.length || 1), true) : '—'} sub="/an moyen" icon={Target} className="bg-muted/30" />
                 </div>
 
-                <div className="h-64">
+                <div className="h-64" data-export-graph data-export-chart-hidden={exporting && !exportOptions.charts.payroll}>
                   <ResponsiveContainer width="100%" height="100%">
                     <ComposedChart data={payrollChartData}>
                       <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
