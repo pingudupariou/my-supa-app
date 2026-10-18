@@ -1,3 +1,6 @@
+## Dossier bancaire basé sur la synthèse actuelle
+- [x] Réutiliser la présentation actuelle, conserver les explications générales et les commentaires modifiables ; PDF testé sur le plan de démonstration (données connectées indisponibles).
+
 ## Personnalisation PDF Synthèse
 - [x] Choisir séparément les sections, graphiques et indicateurs des exports actuel et bancaire, sans changer les calculs (9 tests réussis).
 - [ ] Vérifier sur le plan réel connecté : Supabase externe sans session disponible.

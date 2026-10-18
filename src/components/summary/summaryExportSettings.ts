@@ -7,7 +7,7 @@ export const STANDARD_SECTIONS = {
   payroll: 'Masse salariale', projection: 'Projection détaillée', incomeStatement: 'Compte de résultat',
   roadmap: 'Roadmap et investissements produits', valuation: 'Valorisation et tours',
 };
-export const BANK_SECTIONS = { cover: 'Couverture', toc: 'Sommaire', executive: 'Résumé exécutif', revenue: 'CA et rentabilité', treasury: 'Trésorerie et financement', income: 'Compte de résultat synthétique', variations: 'Variations annuelles' };
+export const BANK_SECTIONS = { cover: 'Couverture', toc: 'Sommaire', executive: 'Résumé exécutif', ...STANDARD_SECTIONS, variations: 'Variations annuelles' };
 export const STANDARD_GRAPHS = { cash: 'Flux et trésorerie annuels', revenue: 'CA, marge et EBITDA', costs: 'Coûts annuels', monthly: 'Trésorerie mensuelle', breakdown: 'Répartition des coûts', deck: 'CA par année / canal', payroll: 'Salaires et effectifs' };
 export const EXPORT_METRICS = {
   revenue: 'Chiffre d’affaires', grossMargin: 'Marge brute', ebitda: 'EBITDA', netResult: 'Résultat net',
@@ -58,6 +58,11 @@ export function useSummaryExport(mode: ExportMode) {
 export function selectedBankPages(options: ExportOptions) {
   return Object.entries(BANK_SECTIONS).filter(([key]) => options.sections[key] &&
     (key !== 'executive' || options.kpis || options.comments) &&
-    (!['revenue', 'treasury'].includes(key) || options.graphs || options.comments) &&
-    (!['income', 'variations'].includes(key) || options.tables));
+    (key !== 'variations' || options.tables));
+}
+/** Independent settings applied to the shared summary content. */
+export function useActiveSummaryExport() {
+  const settings = useSyncExternalStore(subscribe, read, read);
+  const active = useSyncExternalStore(subscribe, () => activeMode, () => null);
+  return { options: settings[active ?? 'standard'], exporting: active !== null, mode: active };
 }

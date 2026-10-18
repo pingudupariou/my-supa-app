@@ -6,7 +6,7 @@
 - Erplain MO references come from DB sequence erplain_mo_reference_seq + prefix in erplain_mo_settings, sent as label on real sends only — numbers never reused when prefix changes.
 - Order column visibility persists per device independently of calculations; hiding columns never changes selections or quantities — prevents data changes.
 - Order customer names use verified scalar fields only — avoids guessed Erplain fields.
-- Refresh the authenticated user's role, approval and tab permissions together on focus and periodically; discard stale responses — role changes must not leave workshop controls locked to an old role.
+- Refresh role, approval and tab permissions together on focus and periodically; discard stale responses — prevents stale workshop access.
 
 - Google Ads structure is stored as one JSON snapshot per read (google_ads_structure_snapshots, 30 kept) by google-ads-structure; sections fail independently — keeps the audit cheap and never mixes partial reads into metrics tables.
 - Strategy copilot (marketing-strategy) builds its compact summary server-side from marketing_strategy_summary RPC + latest Google Ads structure snapshot, cached by SHA-256 in marketing_ai_analyses kind 'strategy' — the client can't alter the numbers and identical data never pays twice.
@@ -22,4 +22,4 @@
 - Store active tab save identities in FinancialContext; tab saves update only their scoped data, while global snapshots capture live financial state and accessible tab versions together so restored names and contents remain aligned.
 - Growth uses per-product channel rates/start years and batch updates — aligns saves.
 
-- Summary export choices are per-format and print-only; selected bank pages drive contents/numbering — preserves data and screen visibility.
+- Summary exports share content with per-format print-only choices; BankReport adds intro/appendix and named-page footers — preserves calculations and explanations without duplicate layouts.
