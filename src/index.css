@@ -419,6 +419,7 @@
   [data-export-tables="false"] table,
   [data-export-kpis="false"] .export-kpi,
   [data-export-kpis="false"] .kpi-card,
+  [data-export-kpis="false"] div:has(> div > .kpi-label),
   [data-export-kpis="false"] .bank-kpis,
   [data-export-comments="false"] .bank-comment,
   [data-export-comments="false"] .bank-bullets,

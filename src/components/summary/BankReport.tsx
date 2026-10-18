@@ -136,7 +136,7 @@ export function BankReport({ rows, scenarioLabel, startYear, lastYear, minTreasu
         </ul>
       </Page>
 
-      <Page title="Chiffre d'affaires et rentabilité" number="2">
+      <Page title="CA et rentabilité" number="2">
         <ComposedChart width={CHART_W} height={CHART_H} data={chartData} margin={{ top: 24, right: 50, left: 20, bottom: 0 }}>
           <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
           <XAxis dataKey="year" tickLine={false} />
