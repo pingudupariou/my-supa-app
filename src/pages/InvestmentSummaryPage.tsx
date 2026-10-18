@@ -13,6 +13,7 @@ import { cn } from '@/lib/utils';
 import { ExportPDFDialog } from '@/components/summary/ExportPDFDialog';
 import { buildLoanSchedule } from '@/components/funding/loanSchedule';
 import { BankReport } from '@/components/summary/BankReport';
+import { revenueComment, marginComment, treasuryComment, netResultComment } from '@/components/summary/bankReportModel';
 import { computeIncomeStatement } from '@/engine/incomeStatementConfig';
 import { ProductRevenueDeck } from '@/components/summary/ProductRevenueDeck';
 import { ProductRoadmap } from '@/components/product/ProductRoadmap';
@@ -320,7 +321,11 @@ export function InvestmentSummaryPage() {
           <Button size="sm" variant="outline" onClick={() => setShowSectionSettings(!showSectionSettings)} className="gap-1">
             <Settings2 className="h-4 w-4" />Sections
           </Button>
-          <ExportPDFDialog />
+          <ExportPDFDialog autoComments={{
+            revenue: `${revenueComment(bankRows)} ${marginComment(bankRows)}`,
+            treasury: treasuryComment(bankRows, minTreasury, totalNeed, amountRaised),
+            netResult: netResultComment(bankRows),
+          }} />
         </div>
       </div>
 
