@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { defaultExportOptions, selectedBankPages } from './summaryExportSettings';
+import { defaultExportOptions, selectedBankPages, STANDARD_SECTIONS } from './summaryExportSettings';
 
 describe('export selections', () => {
   it('keeps formats independent', () => {
@@ -12,9 +12,10 @@ describe('export selections', () => {
   it('numbers only selected pages', () => {
     const options = defaultExportOptions('bank');
     options.sections.cover = false;
-    options.sections.treasury = false;
-    expect(selectedBankPages(options).map(([key], index) => [key, index + 1])).toEqual([
-      ['toc', 1], ['executive', 2], ['revenue', 3], ['income', 4], ['variations', 5],
+    options.sections.cash = false;
+    expect(selectedBankPages(options).map(([key]) => key)).toEqual([
+      'toc', 'executive', 'evolution', 'clientDeck', 'loans', 'fundingPlan', 'needs',
+      'payroll', 'projection', 'incomeStatement', 'roadmap', 'valuation', 'variations',
     ]);
   });
   it('omits pages without selected content', () => {
@@ -23,6 +24,7 @@ describe('export selections', () => {
     options.comments = false;
     options.tables = false;
     options.kpis = false;
-    expect(selectedBankPages(options).map(([key]) => key)).toEqual(['cover', 'toc']);
+    // General section explanations remain available even without graphs/tables/comments.
+    expect(selectedBankPages(options).map(([key]) => key)).toEqual(['cover', 'toc', ...Object.keys(STANDARD_SECTIONS)]);
   });
 });
