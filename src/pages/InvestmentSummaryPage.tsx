@@ -290,6 +290,10 @@ export function InvestmentSummaryPage() {
       </div>
       <BankReport
         part="intro"
+        unavailableSections={[
+          ...(!loanSchedule ? ['loans'] : []),
+          ...(!state.fundingPlan?.enabled || !state.fundingPlan.entries.length ? ['fundingPlan'] : []),
+        ]}
         rows={bankRows}
         scenarioLabel={scenarioLabels[state.activeScenarioId]}
         startYear={startYear}

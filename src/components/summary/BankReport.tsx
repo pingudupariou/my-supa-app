@@ -9,6 +9,7 @@ import { useSummaryExport, selectedBankPages } from './summaryExportSettings';
 
 interface BankReportProps {
   part: 'intro' | 'appendix';
+  unavailableSections?: string[];
   rows: BankYear[];
   scenarioLabel: string;
   startYear: number;
@@ -51,10 +52,10 @@ const METRICS: Metric[] = [
   { key: 'netResult', label: 'Résultat net' },
   { key: 'treasuryEnd', label: 'Trésorerie fin d’exercice' },
 ];
-export function BankReport({ rows, scenarioLabel, startYear, lastYear, minTreasury, fundingNeed, amountRaised, part }: BankReportProps) {
+export function BankReport({ rows, scenarioLabel, startYear, lastYear, minTreasury, fundingNeed, amountRaised, part, unavailableSections = [] }: BankReportProps) {
   const settings = useBankReportSettings();
   const { options } = useSummaryExport('bank');
-  const selectedPages = selectedBankPages(options);
+  const selectedPages = selectedBankPages(options).filter(([key]) => !unavailableSections.includes(key));
   const last = rows[rows.length - 1];
   const sum = (key: keyof BankYear) => rows.reduce((s, r) => s + ((r[key] as number) || 0), 0);
   const hasLoans = rows.some(r => (r.loanDisbursement || 0) > 0 || (r.loanPayments || 0) > 0);
