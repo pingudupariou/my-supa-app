@@ -348,3 +348,21 @@
   --mi-ga4: 32 92% 58%;
   --mi-mer: 350 70% 62%;
 }
+
+/* Print / PDF export */
+.print-only { display: none; }
+@media print {
+  @page { size: A4 landscape; margin: 10mm; }
+  html, body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .no-print, [data-sonner-toaster] { display: none !important; }
+  .print-only { display: block !important; }
+  .print-main { margin-left: 0 !important; padding: 0 !important; }
+  .print-cover { border-bottom: 2px solid hsl(var(--foreground)); padding-bottom: 8px; margin-bottom: 12px; }
+  .summary-report { font-size: 11px; }
+  .summary-report > * + * { margin-top: 12px !important; }
+  .summary-report table tr, .summary-report .h-72, .summary-report .h-64 { break-inside: avoid; page-break-inside: avoid; }
+  .summary-report > [id], .summary-report > .rounded-lg { break-inside: avoid-page; }
+  .summary-report .shadow-sm { box-shadow: none !important; }
+  .summary-report .overflow-x-auto { overflow: visible !important; }
+  .summary-report .min-w-\[600px\] { min-width: 0 !important; }
+}
