@@ -4,7 +4,7 @@
 - Workshop plan is computed server-side in supabase/functions/erplain-sync/plan.ts from erplain_* tables — create_mo re-validates with the same code.
 - Workshop plan selection: explicit allocations (line reservations, MOs linked to lines) stay with their own lines; only free stock/unlinked MO output covers selected lines — avoids double counting.
 - Erplain MO references come from DB sequence erplain_mo_reference_seq + prefix in erplain_mo_settings, sent as label on real sends only — numbers never reused when prefix changes.
-- Order selection column visibility is persisted on the current device, independently of calculations — hiding a column must never change selected lines or quantities.
+- Order column visibility persists per device independently of calculations; hiding columns never changes selections or quantities — prevents data changes.
 - Order customer names use verified scalar fields only — avoids guessed Erplain fields.
 - Refresh the authenticated user's role, approval and tab permissions together on focus and periodically; discard stale responses — role changes must not leave workshop controls locked to an old role.
 
@@ -22,4 +22,4 @@
 - Store active tab save identities in FinancialContext; tab saves update only their scoped data, while global snapshots capture live financial state and accessible tab versions together so restored names and contents remain aligned.
 - Growth uses per-product channel rates/start years and batch updates — keeps saves aligned.
 
-- Summary export choices are separate per format and print-only; selected bank pages drive contents and numbering — preserves financial data and screen visibility.
+- Summary export choices are per-format and print-only; selected bank pages drive contents/numbering — preserves data and screen visibility.
