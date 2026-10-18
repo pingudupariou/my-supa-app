@@ -297,13 +297,13 @@ export function LoanManager({ loans, onChange, startYear, durationYears }: LoanM
               <div className="space-y-2">
                 <Label>Date de début</Label>
                 <div className="flex gap-2">
-                  <Select value={form.startDate.month.toString()} onValueChange={v => setForm(f => ({ ...f, startDate: { ...f.startDate, month: Number(v) as MonthIndex } }))}>
+                  <Select value={form.startDate.month.toString()} onValueChange={v => updateStartDate({ month: Number(v) as MonthIndex })}>
                     <SelectTrigger className="flex-1"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       {MONTHS.map((m, i) => <SelectItem key={i} value={i.toString()}>{m.slice(0, 3)}</SelectItem>)}
                     </SelectContent>
                   </Select>
-                  <Select value={form.startDate.year.toString()} onValueChange={v => setForm(f => ({ ...f, startDate: { ...f.startDate, year: Number(v) } }))}>
+                  <Select value={form.startDate.year.toString()} onValueChange={v => updateStartDate({ year: Number(v) })}>
                     <SelectTrigger className="w-24"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       {years.map(y => <SelectItem key={y} value={y.toString()}>{y}</SelectItem>)}
@@ -323,10 +323,13 @@ export function LoanManager({ loans, onChange, startYear, durationYears }: LoanM
                   <Select value={form.endDate.year.toString()} onValueChange={v => setForm(f => ({ ...f, endDate: { ...f.endDate, year: Number(v) } }))}>
                     <SelectTrigger className="w-24"><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      {years.map(y => <SelectItem key={y} value={y.toString()}>{y}</SelectItem>)}
+                      {endYears.map(y => <SelectItem key={y} value={y.toString()}>{y}</SelectItem>)}
                     </SelectContent>
                   </Select>
                 </div>
+                <p className="text-xs text-muted-foreground">
+                  La fin peut dépasser l'horizon du plan ({startYear + durationYears - 1}) ; les échéances au-delà ne sont pas comptées dans le plan.
+                </p>
               </div>
             </div>
 
