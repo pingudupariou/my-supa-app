@@ -6,6 +6,7 @@ import {
   revenueComment, marginComment, treasuryComment, netResultComment,
 } from './bankReportModel';
 import { useBankReportSettings, pickComment } from './bankReportSettings';
+import { useSummaryExport, selectedBankPages } from './summaryExportSettings';
 
 interface BankReportProps {
   rows: BankYear[];
@@ -22,11 +23,15 @@ const CHART_H = 360;
 const k = (v: number) => `${Math.round(v / 1000).toLocaleString('fr-FR')} k€`;
 
 function Page({ children, title, number }: { children: React.ReactNode; title?: string; number?: string }) {
+  const { options } = useSummaryExport('bank');
+  const pages = selectedBankPages(options);
+  if (!pages.some(([, label]) => label === title)) return null;
+  const sectionNumber = pages.filter(([key]) => !['cover', 'toc'].includes(key)).findIndex(([, label]) => label === title) + 1;
   return (
     <section className="bank-page">
       {title && (
         <header className="bank-page-header">
-          <span>{number && <span className="bank-num">{number}</span>}{title}</span>
+          <span>{number && <span className="bank-num">{sectionNumber}</span>}{title}</span>
           <ReportLogo compact />
         </header>
       )}
@@ -42,6 +47,8 @@ function ReportLogo({ compact }: { compact?: boolean }) {
 }
 
 function Comment({ children }: { children: React.ReactNode }) {
+  const { options } = useSummaryExport('bank');
+  if (!options.comments) return null;
   return <p className="bank-comment"><strong>Lecture : </strong>{children}</p>;
 }
 
@@ -61,6 +68,8 @@ const LOAN_METRICS: Metric[] = [
 
 export function BankReport({ rows, scenarioLabel, startYear, lastYear, minTreasury, fundingNeed, amountRaised }: BankReportProps) {
   const settings = useBankReportSettings();
+  const { options } = useSummaryExport('bank');
+  const selectedPages = selectedBankPages(options);
   const c = settings.comments;
   const revenueText = pickComment(c.revenue, `${revenueComment(rows)} ${marginComment(rows)}`);
   const treasuryText = pickComment(c.treasury, treasuryComment(rows, minTreasury, fundingNeed, amountRaised));
@@ -68,17 +77,11 @@ export function BankReport({ rows, scenarioLabel, startYear, lastYear, minTreasu
   const last = rows[rows.length - 1];
   const sum = (key: keyof BankYear) => rows.reduce((s, r) => s + ((r[key] as number) || 0), 0);
   const hasLoans = rows.some(r => (r.loanDisbursement || 0) > 0 || (r.loanPayments || 0) > 0);
-  const tableMetrics = hasLoans ? [...METRICS, ...LOAN_METRICS] : METRICS;
+  const tableMetrics = (hasLoans ? [...METRICS, ...LOAN_METRICS] : METRICS).filter(m => options.metrics[m.key]);
   const today = new Date().toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' });
   const chartData = rows.map(r => ({ ...r, grossMarginRate: r.revenue ? (r.grossMargin / r.revenue) * 100 : 0 }));
 
-  const toc = [
-    ['1', 'Résumé exécutif', 3],
-    ['2', "Chiffre d'affaires et rentabilité", 4],
-    ['3', 'Trésorerie et financement', 5],
-    ['4', 'Compte de résultat synthétique', 6],
-    ['5', 'Variations annuelles', 7],
-  ] as const;
+  const toc = selectedPages.map(([key, label], index) => ({ key, label, page: index + 1 })).filter(page => !['cover', 'toc'].includes(page.key));
 
   const kpis = [
     { label: `CA ${last?.year}`, value: last?.revenue ?? 0, sub: `Cumul ${formatCurrency(sum('revenue'))}` },
@@ -90,9 +93,9 @@ export function BankReport({ rows, scenarioLabel, startYear, lastYear, minTreasu
   ];
 
   return (
-    <div className="bank-report" aria-hidden="true">
+    <div className="bank-report" aria-hidden="true" data-export-graphs={options.graphs} data-export-tables={options.tables} data-export-kpis={options.kpis} data-export-comments={options.comments} data-export-legend={options.legend} data-export-labels={options.labels}>
       {/* Couverture */}
-      <section className="bank-page bank-cover">
+      {options.sections.cover && <section className="bank-page bank-cover">
         <ReportLogo />
         <div>
           <p className="bank-cover-kicker">Dossier financier</p>
@@ -104,12 +107,12 @@ export function BankReport({ rows, scenarioLabel, startYear, lastYear, minTreasu
           <div><dt>Période</dt><dd>{startYear} – {lastYear}</dd></div>
           <div><dt>Date d'édition</dt><dd>{today}</dd></div>
         </dl>
-      </section>
+      </section>}
 
       <Page title="Sommaire">
         <ol className="bank-toc">
-          {toc.map(([n, label, page]) => (
-            <li key={n}><span>{n}. {label}</span><span className="bank-toc-dots" /><span>{page}</span></li>
+          {toc.map(({ key, label, page }, index) => (
+            <li key={key}><span>{index + 1}. {label}</span><span className="bank-toc-dots" /><span>{page}</span></li>
           ))}
         </ol>
         <p className="bank-note">Montants HT en euros, issus des calculs du business plan (scénario {scenarioLabel}). Aucun retraitement n'est appliqué dans ce document.</p>
@@ -140,12 +143,12 @@ export function BankReport({ rows, scenarioLabel, startYear, lastYear, minTreasu
           <YAxis yAxisId="eur" tickFormatter={k} width={80} tickLine={false} />
           <YAxis yAxisId="pct" orientation="right" tickFormatter={v => `${v} %`} tickLine={false} />
           <Legend />
-          <Bar yAxisId="eur" dataKey="revenue" name="CA HT" fill="hsl(var(--primary))" isAnimationActive={false} maxBarSize={56}>
+          <Bar yAxisId="eur" hide={!options.metrics.revenue} dataKey="revenue" name="CA HT" fill="hsl(var(--primary))" isAnimationActive={false} maxBarSize={56}>
             <LabelList dataKey="revenue" position="top" formatter={k} fontSize={11} fill="hsl(var(--foreground))" />
           </Bar>
-          <Bar yAxisId="eur" dataKey="grossMargin" name="Marge brute" fill="hsl(var(--accent))" isAnimationActive={false} maxBarSize={56} />
-          <Bar yAxisId="eur" dataKey="ebitda" name="EBITDA" fill="hsl(var(--muted-foreground))" isAnimationActive={false} maxBarSize={56} />
-          <Line yAxisId="pct" dataKey="grossMarginRate" name="Taux de marge brute (%)" stroke="hsl(var(--positive))" strokeWidth={2} isAnimationActive={false} />
+          <Bar yAxisId="eur" hide={!options.metrics.grossMargin} dataKey="grossMargin" name="Marge brute" fill="hsl(var(--accent))" isAnimationActive={false} maxBarSize={56} />
+          <Bar yAxisId="eur" hide={!options.metrics.ebitda} dataKey="ebitda" name="EBITDA" fill="hsl(var(--muted-foreground))" isAnimationActive={false} maxBarSize={56} />
+          <Line yAxisId="pct" hide={!options.metrics.grossMarginRate} dataKey="grossMarginRate" name="Taux de marge brute (%)" stroke="hsl(var(--positive))" strokeWidth={2} isAnimationActive={false} />
         </ComposedChart>
         <Comment>{revenueText}</Comment>
       </Page>
@@ -156,8 +159,8 @@ export function BankReport({ rows, scenarioLabel, startYear, lastYear, minTreasu
           <XAxis dataKey="year" tickLine={false} />
           <YAxis tickFormatter={k} width={80} tickLine={false} />
           <Legend />
-          <Bar dataKey="netCashFlow" name="Flux de trésorerie net" fill="hsl(var(--muted-foreground))" isAnimationActive={false} maxBarSize={56} />
-          <Line dataKey="treasuryEnd" name="Trésorerie fin d'exercice" stroke="hsl(var(--primary))" strokeWidth={3} isAnimationActive={false}>
+          <Bar hide={!options.metrics.netCashFlow} dataKey="netCashFlow" name="Flux de trésorerie net" fill="hsl(var(--muted-foreground))" isAnimationActive={false} maxBarSize={56} />
+          <Line hide={!options.metrics.treasuryEnd} dataKey="treasuryEnd" name="Trésorerie fin d'exercice" stroke="hsl(var(--primary))" strokeWidth={3} isAnimationActive={false}>
             <LabelList dataKey="treasuryEnd" position="top" formatter={k} fontSize={11} fill="hsl(var(--foreground))" />
           </Line>
         </ComposedChart>
@@ -175,11 +178,11 @@ export function BankReport({ rows, scenarioLabel, startYear, lastYear, minTreasu
                 <td>{m.key === 'treasuryEnd' ? '—' : formatCurrency(sum(m.key))}</td>
               </tr>
             ))}
-            <tr>
+            {options.metrics.grossMarginRate && <tr>
               <th>Taux de marge brute</th>
               {rows.map(r => <td key={r.year}>{r.revenue ? `${((r.grossMargin / r.revenue) * 100).toFixed(1).replace('.', ',')} %` : 'n.s.'}</td>)}
               <td>—</td>
-            </tr>
+            </tr>}
           </tbody>
         </table>
         <Comment>{netText}</Comment>
@@ -191,7 +194,7 @@ export function BankReport({ rows, scenarioLabel, startYear, lastYear, minTreasu
             <tr><th>Indicateur</th>{rows.slice(1).map(r => <th key={r.year}>{r.year - 1} → {r.year}</th>)}</tr>
           </thead>
           <tbody>
-            {METRICS.map(m => (
+            {METRICS.filter(m => options.metrics[m.key]).map(m => (
               <tr key={m.key}>
                 <th>{m.label}</th>
                 {rows.slice(1).map((r, i) => {
