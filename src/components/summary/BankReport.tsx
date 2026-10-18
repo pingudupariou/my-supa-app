@@ -60,7 +60,7 @@ export function BankReport({ rows, scenarioLabel, startYear, lastYear, minTreasu
   const hasLoans = rows.some(r => (r.loanDisbursement || 0) > 0 || (r.loanPayments || 0) > 0);
   const today = new Date().toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' });
 
-  const toc = selectedPages.map(([key, label], index) => ({ key, label: index + 1 })).filter(page => !['cover', 'toc'].includes(page.key));
+  const toc = selectedPages.map(([key, label]) => ({ key, label })).filter(page => !['cover', 'toc'].includes(page.key));
 
   const kpis = [
     { label: `CA ${last?.year}`, value: last?.revenue ?? 0, sub: `Cumul ${formatCurrency(sum('revenue'))}` },
