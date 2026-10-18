@@ -374,9 +374,25 @@ export function InvestmentSummaryPage() {
       {/* =============== SECTION: APPROCHE CASH =============== */}
       {sectionVisible('cash') && (
         <SectionCard title="Approche Cash" id="cash-approach">
+          <div className="flex items-center gap-2 flex-wrap mb-4">
+            <span className="text-sm text-muted-foreground flex items-center gap-1"><Banknote className="h-4 w-4" />Montage financier :</span>
+            {financingOptions.equity ? (
+              <Badge variant="outline" className={cn("text-xs", amountRaised > 0 && "border-blue-500/40 bg-blue-500/5 text-blue-600 dark:text-blue-400")}>
+                Levée de fonds · {formatCurrency(amountRaised, true)}
+              </Badge>
+            ) : null}
+            {financingOptions.bankLoan ? (
+              <Badge variant="outline" className={cn("text-xs", loanSchedule && "border-emerald-500/40 bg-emerald-500/5 text-emerald-600 dark:text-emerald-400")}>
+                Dette bancaire · {formatCurrency(loanTotals.disbursed, true)}
+              </Badge>
+            ) : null}
+            {!financingOptions.equity && !financingOptions.bankLoan && (
+              <Badge variant="outline" className="text-xs">Aucun financement externe (trésorerie initiale uniquement)</Badge>
+            )}
+          </div>
           <div className="grid md:grid-cols-5 gap-4 mb-6">
             <BigKPI label="Cash Initial (T0)" value={formatCurrency(initialCash, true)} icon={Wallet} className="bg-muted/30" />
-            <BigKPI label="Montant Levé" value={formatCurrency(amountRaised, true)} sub={`${state.fundingRounds.length} tour(s)`} icon={PiggyBank} accent={CHART_COLORS[1]} className="bg-blue-500/5 border-blue-500/20" />
+            <BigKPI label="Montant Levé" value={formatCurrency(amountRaised, true)} sub={financingOptions.equity ? `${state.fundingRounds.length} tour(s)` : 'Levée désactivée dans Financement'} icon={PiggyBank} accent={CHART_COLORS[1]} className="bg-blue-500/5 border-blue-500/20" />
             <BigKPI label="Tréso Départ" value={formatCurrency(startingCash, true)} icon={Target} accent={CHART_COLORS[2]} className="bg-emerald-500/5 border-emerald-500/20" />
             <BigKPI 
               label="Point Bas" 
