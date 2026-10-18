@@ -49,6 +49,20 @@ export function LoanManager({ loans, onChange, startYear, durationYears }: LoanM
   const [form, setForm] = useState<Omit<LoanConfig, 'id'>>(EMPTY_LOAN);
 
   const years = Array.from({ length: durationYears + 2 }, (_, i) => startYear + i);
+  // Date de fin : au-delà de l'horizon du plan (jusqu'à 30 ans après le début du prêt)
+  const endYearFrom = Math.min(startYear, form.startDate.year);
+  const endYearTo = Math.max(startYear + durationYears, form.startDate.year + 30);
+  const endYears = Array.from({ length: endYearTo - endYearFrom + 1 }, (_, i) => endYearFrom + i);
+
+  // Le début bouge : la fin ne peut pas précéder le début
+  const updateStartDate = (patch: { year?: number; month?: MonthIndex }) =>
+    setForm(f => {
+      const startDate = { ...f.startDate, ...patch };
+      const endDate = (f.endDate.year * 12 + f.endDate.month) < (startDate.year * 12 + startDate.month)
+        ? { ...startDate }
+        : f.endDate;
+      return { ...f, startDate, endDate };
+    });
 
   const openAdd = () => {
     setEditingId(null);
