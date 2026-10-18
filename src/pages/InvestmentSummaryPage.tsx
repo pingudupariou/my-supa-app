@@ -21,7 +21,7 @@ import { computeIncomeStatement } from '@/engine/incomeStatementConfig';
 import { ProductRevenueDeck } from '@/components/summary/ProductRevenueDeck';
 import { ProductRoadmap } from '@/components/product/ProductRoadmap';
 import { IncomeStatementSection } from '@/components/financial/IncomeStatementSection';
-import { aggregateByYear } from '@/engine/monthlyTreasuryEngine';
+import { aggregateByYear, MONTHS, type LoanConfig } from '@/engine/monthlyTreasuryEngine';
 import {
   ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
   BarChart, Area, AreaChart, PieChart, Pie, Cell,
@@ -176,6 +176,25 @@ export function InvestmentSummaryPage() {
   const loanTotals = (loanSchedule ?? []).reduce((t, r) => ({ disbursed: t.disbursed + r.disbursed, principal: t.principal + r.principal, interest: t.interest + r.interest }), { disbursed: 0, principal: 0, interest: 0 });
 
   const financingOptions = state.financingOptions ?? { equity: true, bankLoan: false };
+
+  // Échéance affichée par prêt (même formule que LoanManager)
+  const loanPayment = (loan: LoanConfig): number => {
+    if (loan.inputMode === 'fixed') return loan.fixedPaymentAmount || 0;
+    const n = (loan.endDate.year * 12 + loan.endDate.month) - (loan.startDate.year * 12 + loan.startDate.month);
+    if (n <= 0) return 0;
+    if (loan.frequency === 'annual') {
+      const num = Math.max(1, Math.round(n / 12));
+      const r = loan.interestRate;
+      return r === 0 ? loan.principalAmount / num : loan.principalAmount * r * Math.pow(1 + r, num) / (Math.pow(1 + r, num) - 1);
+    }
+    if (loan.frequency === 'quarterly') {
+      const num = Math.max(1, Math.round(n / 3));
+      const r = loan.interestRate / 4;
+      return r === 0 ? loan.principalAmount / num : loan.principalAmount * r * Math.pow(1 + r, num) / (Math.pow(1 + r, num) - 1);
+    }
+    const r = loan.interestRate / 12;
+    return r === 0 ? loan.principalAmount / n : loan.principalAmount * r * Math.pow(1 + r, n) / (Math.pow(1 + r, n) - 1);
+  };
 
   const latestRound = state.fundingRounds[state.fundingRounds.length - 1];
   const postMoney = latestRound ? latestRound.preMoneyValuation + latestRound.amount : 0;
@@ -390,6 +409,41 @@ export function InvestmentSummaryPage() {
               <Badge variant="outline" className="text-xs">Aucun financement externe (trésorerie initiale uniquement)</Badge>
             )}
           </div>
+          {financingOptions.bankLoan && (state.bankLoans ?? []).length > 0 && (
+            <div className="mb-6 rounded-lg border bg-muted/20 p-4 overflow-x-auto">
+              <h4 className="text-sm font-semibold mb-3 flex items-center gap-2"><Banknote className="h-4 w-4" />Dette bancaire engagée</h4>
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-left text-muted-foreground">
+                    <th className="px-2 py-1 font-medium">Prêt</th>
+                    <th className="px-2 py-1 font-medium text-right">Capital</th>
+                    <th className="px-2 py-1 font-medium text-right">Taux</th>
+                    <th className="px-2 py-1 font-medium">Déblocage</th>
+                    <th className="px-2 py-1 font-medium">Fin</th>
+                    <th className="px-2 py-1 font-medium">Fréquence</th>
+                    <th className="px-2 py-1 font-medium text-right">Échéance</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(state.bankLoans ?? []).map(loan => (
+                    <tr key={loan.id} className="border-t">
+                      <td className="px-2 py-1.5 font-medium">{loan.name || 'Prêt bancaire'}</td>
+                      <td className="px-2 py-1.5 text-right font-mono-numbers">{formatCurrency(loan.principalAmount, true)}</td>
+                      <td className="px-2 py-1.5 text-right font-mono-numbers">{loan.inputMode === 'calculated' ? `${(loan.interestRate * 100).toFixed(1)} %` : 'Échéance fixe'}</td>
+                      <td className="px-2 py-1.5">{MONTHS[loan.startDate.month]} {loan.startDate.year}</td>
+                      <td className="px-2 py-1.5">{MONTHS[loan.endDate.month]} {loan.endDate.year}</td>
+                      <td className="px-2 py-1.5">{loan.frequency === 'monthly' ? 'Mensuelle' : loan.frequency === 'quarterly' ? 'Trimestrielle' : 'Annuelle'}</td>
+                      <td className="px-2 py-1.5 text-right font-mono-numbers">{formatCurrency(loanPayment(loan), true)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <p className="text-xs text-muted-foreground mt-2">
+                Total débloqué {formatCurrency(loanTotals.disbursed, true)} · Capital remboursé {formatCurrency(loanTotals.principal, true)} · Intérêts sur la période {formatCurrency(loanTotals.interest, true)} · Restant dû fin {lastYear} {formatCurrency(loanSchedule?.[loanSchedule.length - 1]?.outstanding || 0, true)}
+                {loanSchedule && loanSchedule[loanSchedule.length - 1]?.outstanding > 0 ? ` — échéances au-delà de ${lastYear} hors plan` : ''}
+              </p>
+            </div>
+          )}
           <div className="grid md:grid-cols-5 gap-4 mb-6">
             <BigKPI label="Cash Initial (T0)" value={formatCurrency(initialCash, true)} icon={Wallet} className="bg-muted/30" />
             <BigKPI label="Montant Levé" value={formatCurrency(amountRaised, true)} sub={financingOptions.equity ? `${state.fundingRounds.length} tour(s)` : 'Levée désactivée dans Financement'} icon={PiggyBank} accent={CHART_COLORS[1]} className="bg-blue-500/5 border-blue-500/20" />
