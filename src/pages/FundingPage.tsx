@@ -11,6 +11,7 @@ import { formatCurrency, formatPercent } from '@/data/financialConfig';
 import { cn } from '@/lib/utils';
 import { Quarter } from '@/engine/types';
 import { QUARTERS } from '@/engine/treasuryEngine';
+import { BankLoanSection } from '@/components/funding/BankLoanSection';
 import { FundsAllocationDisplay } from '@/components/funding/FundsAllocationDisplay';
 import { ReadOnlyWrapper } from '@/components/auth/ReadOnlyWrapper';
 import { aggregateByYear } from '@/engine/monthlyTreasuryEngine';
@@ -53,7 +54,7 @@ export function FundingPage() {
     const aggregated = aggregateByYear(monthlyTreasuryProjection.months);
     return years.map(year => {
       const data = aggregated.get(year);
-      if (!data) return { year, revenue: 0, totalCosts: 0, cashFlow: 0, treasuryStart: 0, treasuryEnd: 0, fundingInjection: 0, minTreasuryInYear: 0 };
+      if (!data) return { year, revenue: 0, totalCosts: 0, cashFlow: 0, treasuryStart: 0, treasuryEnd: 0, fundingInjection: 0, loanNet: 0, minTreasuryInYear: 0 };
       return {
         year: data.year,
         revenue: data.revenue,
@@ -62,6 +63,7 @@ export function FundingPage() {
         treasuryStart: data.treasuryStart,
         treasuryEnd: data.treasuryEnd,
         fundingInjection: data.fundingInjection,
+        loanNet: data.loanDisbursement - data.loanPayments,
         minTreasuryInYear: data.treasuryEnd, // approximation
       };
     });
@@ -172,6 +174,8 @@ export function FundingPage() {
           subValue="Sur le round"
         />
       </div>
+
+      <BankLoanSection />
 
       {/* Calibrage */}
       <SectionCard title="Calibrage de la Levée">
@@ -357,6 +361,7 @@ export function FundingPage() {
                 <th className="text-right py-2 px-3">Coûts Totaux</th>
                 <th className="text-right py-2 px-3">Cash Flow</th>
                 <th className="text-right py-2 px-3">Levée</th>
+                <th className="text-right py-2 px-3">Prêts (déblocage − échéances)</th>
                 <th className="text-right py-2 px-3">Tréso Début</th>
                 <th className="text-right py-2 px-3">Tréso Fin</th>
               </tr>
@@ -382,6 +387,9 @@ export function FundingPage() {
                   </td>
                   <td className="py-2 px-3 text-right font-mono-numbers text-accent">
                     {yp.fundingInjection > 0 ? `+${formatCurrency(yp.fundingInjection, true)}` : '-'}
+                  </td>
+                  <td className="py-2 px-3 text-right font-mono-numbers">
+                    {yp.loanNet ? `${yp.loanNet > 0 ? '+' : ''}${formatCurrency(yp.loanNet, true)}` : '-'}
                   </td>
                   <td className="py-2 px-3 text-right font-mono-numbers">
                     {formatCurrency(yp.treasuryStart, true)}
