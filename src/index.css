@@ -366,3 +366,48 @@
   .summary-report .overflow-x-auto { overflow: visible !important; }
   .summary-report .min-w-\[600px\] { min-width: 0 !important; }
 }
+
+/* Dossier financier (bancaire) — print only */
+.bank-report { display: none; }
+@page bank {
+  size: A4 landscape;
+  margin: 12mm 14mm 14mm;
+  @bottom-right { content: "Page " counter(page) " / " counter(pages); font-size: 9px; color: hsl(var(--muted-foreground)); }
+  @bottom-left { content: "Novaride — Dossier financier · Confidentiel"; font-size: 9px; color: hsl(var(--muted-foreground)); }
+}
+@page bank:first { @bottom-right { content: none; } @bottom-left { content: none; } }
+@media print {
+  body.print-bank .summary-report > *:not(.bank-report) { display: none !important; }
+  body.print-bank .summary-report { font-size: 12px; }
+  body.print-bank .bank-report { display: block !important; color: hsl(var(--foreground)); }
+  .bank-page { page: bank; break-after: page; page-break-after: always; break-inside: avoid; min-height: 178mm; display: flex; flex-direction: column; gap: 14px; }
+  .bank-page:last-child { break-after: auto; }
+  .bank-page-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid hsl(var(--foreground)); padding-bottom: 6px; font-size: 18px; font-weight: 700; }
+  .bank-num { display: inline-block; min-width: 26px; color: hsl(var(--accent)); }
+  .bank-cover { justify-content: space-between; padding: 20mm 10mm; border-left: 6px solid hsl(var(--accent)); }
+  .bank-cover h1 { font-size: 40px; font-weight: 800; letter-spacing: -0.02em; margin-top: 8px; }
+  .bank-cover-kicker { text-transform: uppercase; letter-spacing: .2em; font-size: 12px; color: hsl(var(--accent)); font-weight: 600; }
+  .bank-cover-sub { font-size: 16px; color: hsl(var(--muted-foreground)); margin-top: 8px; }
+  .bank-cover-meta { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; border-top: 1px solid hsl(var(--border)); padding-top: 12px; }
+  .bank-cover-meta dt { font-size: 10px; text-transform: uppercase; color: hsl(var(--muted-foreground)); }
+  .bank-cover-meta dd { font-size: 15px; font-weight: 600; }
+  .bank-toc { list-style: none; padding: 0; margin-top: 20px; font-size: 15px; max-width: 160mm; }
+  .bank-toc li { display: flex; gap: 8px; padding: 9px 0; }
+  .bank-toc-dots { flex: 1; border-bottom: 1px dotted hsl(var(--muted-foreground)); margin-bottom: 4px; }
+  .bank-kpis { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+  .bank-kpi { border: 1px solid hsl(var(--border)); border-top: 3px solid hsl(var(--primary)); padding: 10px 12px; }
+  .bank-kpi-label { font-size: 10px; text-transform: uppercase; letter-spacing: .05em; color: hsl(var(--muted-foreground)); }
+  .bank-kpi-value { font-size: 22px; font-weight: 700; font-family: 'JetBrains Mono', monospace; }
+  .bank-kpi-sub { font-size: 10px; color: hsl(var(--muted-foreground)); }
+  .bank-bullets { list-style: disc; padding-left: 18px; display: grid; gap: 6px; font-size: 12px; line-height: 1.45; }
+  .bank-comment { font-size: 12px; line-height: 1.5; background: hsl(var(--muted)); border-left: 3px solid hsl(var(--accent)); padding: 8px 12px; }
+  .bank-note { font-size: 10px; color: hsl(var(--muted-foreground)); }
+  .bank-muted { font-size: 10px; color: hsl(var(--muted-foreground)); }
+  .bank-table { width: 100%; border-collapse: collapse; font-size: 11px; table-layout: fixed; }
+  .bank-table th, .bank-table td { border-bottom: 1px solid hsl(var(--border)); padding: 6px 8px; text-align: right; font-variant-numeric: tabular-nums; }
+  .bank-table thead th { background: hsl(var(--muted)); font-weight: 700; }
+  .bank-table th:first-child { text-align: left; width: 24%; }
+  .bank-table tbody th { font-weight: 500; }
+  .bank-strong { font-weight: 700; border-top: 2px solid hsl(var(--foreground)); }
+  .bank-table tr { break-inside: avoid; }
+}

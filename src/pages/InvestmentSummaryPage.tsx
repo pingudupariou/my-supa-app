@@ -11,6 +11,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { formatCurrency, formatPercent } from '@/data/financialConfig';
 import { cn } from '@/lib/utils';
 import { ExportPDFDialog } from '@/components/summary/ExportPDFDialog';
+import { BankReport } from '@/components/summary/BankReport';
+import { computeIncomeStatement } from '@/engine/incomeStatementConfig';
 import { ProductRevenueDeck } from '@/components/summary/ProductRevenueDeck';
 import { ProductRoadmap } from '@/components/product/ProductRoadmap';
 import { IncomeStatementSection } from '@/components/financial/IncomeStatementSection';
@@ -149,6 +151,17 @@ export function InvestmentSummaryPage() {
     'Trésorerie': d.treasuryEnd / 1000,
   }));
 
+  const bankRows = useMemo(() => {
+    const is = computeIncomeStatement(yearlyData.map(d => ({
+      year: d.year, revenue: d.revenue, cogs: d.cogs, grossMargin: d.grossMargin,
+      payroll: d.payroll, opex: d.opex, ebitda: d.ebitda,
+    })), state.incomeStatementConfig);
+    return yearlyData.map((d, i) => ({
+      year: d.year, revenue: d.revenue, grossMargin: d.grossMargin, ebitda: d.ebitda,
+      netResult: is[i].netResult, treasuryEnd: d.treasuryEnd, netCashFlow: d.netCashFlow,
+    }));
+  }, [yearlyData, state.incomeStatementConfig]);
+
   const latestRound = state.fundingRounds[state.fundingRounds.length - 1];
   const postMoney = latestRound ? latestRound.preMoneyValuation + latestRound.amount : 0;
   const dilution = latestRound ? latestRound.amount / postMoney : 0;
@@ -262,6 +275,15 @@ export function InvestmentSummaryPage() {
           Scénario {scenarioLabels[state.activeScenarioId]} · {startYear} → {lastYear} · édité le {new Date().toLocaleDateString('fr-FR')}
         </div>
       </div>
+      <BankReport
+        rows={bankRows}
+        scenarioLabel={scenarioLabels[state.activeScenarioId]}
+        startYear={startYear}
+        lastYear={lastYear}
+        minTreasury={minTreasury}
+        fundingNeed={totalNeed}
+        amountRaised={amountRaised}
+      />
       <div className="no-print">
       <HeroBanner
         image="ccd-evo"
