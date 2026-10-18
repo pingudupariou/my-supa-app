@@ -12,6 +12,9 @@ import { formatCurrency, formatPercent } from '@/data/financialConfig';
 import { cn } from '@/lib/utils';
 import { ExportPDFDialog } from '@/components/summary/ExportPDFDialog';
 import { buildLoanSchedule } from '@/components/funding/loanSchedule';
+import { useSummaryExport } from '@/components/summary/summaryExportSettings';
+import { useBankReportSettings } from '@/components/summary/bankReportSettings';
+import { NovarideLogo } from '@/components/ui/NovarideLogo';
 import { BankReport } from '@/components/summary/BankReport';
 import { revenueComment, marginComment, treasuryComment, netResultComment } from '@/components/summary/bankReportModel';
 import { computeIncomeStatement } from '@/engine/incomeStatementConfig';
@@ -89,6 +92,9 @@ export function InvestmentSummaryPage() {
   const b2b = useB2BClientsData();
   const [visibleSections, setVisibleSections] = useState(defaultSections);
   const [showSectionSettings, setShowSectionSettings] = useState(false);
+  const { options: exportOptions, exporting } = useSummaryExport('standard');
+  const reportSettings = useBankReportSettings();
+  const sectionVisible = (key: string) => exporting ? exportOptions.sections[key] : visibleSections[key as SectionKey];
 
   const toggleSection = (key: SectionKey) => {
     setVisibleSections(prev => ({ ...prev, [key]: !prev[key] }));
@@ -259,7 +265,7 @@ export function InvestmentSummaryPage() {
   const BigKPI = ({ label, value, sub, icon: Icon, accent, className }: {
     label: string; value: string; sub?: string; icon: any; accent?: string; className?: string;
   }) => (
-    <div className={cn("relative overflow-hidden p-5 rounded-xl border-2 transition-all hover:shadow-lg", className)}>
+    <div className={cn("export-kpi relative overflow-hidden p-5 rounded-xl border-2 transition-all hover:shadow-lg", className)}>
       <div className="absolute top-3 right-3 opacity-10">
         <Icon className="h-12 w-12" />
       </div>
@@ -275,9 +281,9 @@ export function InvestmentSummaryPage() {
   );
 
   return (
-    <div className="space-y-6 summary-report">
+    <div className="space-y-6 summary-report" data-export-graphs={!exporting || exportOptions.graphs} data-export-tables={!exporting || exportOptions.tables} data-export-kpis={!exporting || exportOptions.kpis} data-export-comments={!exporting || exportOptions.comments} data-export-legend={!exporting || exportOptions.legend} data-export-labels={!exporting || exportOptions.labels}>
       <div className="print-only print-cover">
-        <div className="text-2xl font-bold">Synthèse Investisseur — Novaride</div>
+        <div className="flex items-center justify-between gap-4"><div className="text-2xl font-bold">{reportSettings.projectName?.trim() || 'Synthèse Investisseur — Novaride'}</div>{reportSettings.logoDataUrl ? <img src={reportSettings.logoDataUrl} alt="Logo du dossier" className="h-12 max-w-[180px] object-contain" /> : <NovarideLogo variant="compact" />}</div>
         <div className="text-sm text-muted-foreground">
           Scénario {scenarioLabels[state.activeScenarioId]} · {startYear} → {lastYear} · édité le {new Date().toLocaleDateString('fr-FR')}
         </div>
@@ -359,7 +365,7 @@ export function InvestmentSummaryPage() {
       )}
 
       {/* =============== SECTION: APPROCHE CASH =============== */}
-      {visibleSections.cash && (
+      {sectionVisible('cash') && (
         <SectionCard title="Approche Cash" id="cash-approach">
           <div className="grid md:grid-cols-5 gap-4 mb-6">
             <BigKPI label="Cash Initial (T0)" value={formatCurrency(initialCash, true)} icon={Wallet} className="bg-muted/30" />
@@ -377,7 +383,7 @@ export function InvestmentSummaryPage() {
 
           <div className="grid lg:grid-cols-2 gap-6">
             {/* Cash Flow & Treasury chart */}
-            <div className="h-72">
+            <div className="h-72" data-export-graph data-export-chart-hidden={exporting && !exportOptions.charts.cash}>
               <h4 className="text-sm font-semibold mb-2 flex items-center gap-2">
                 <BarChart3 className="h-4 w-4" />
                 Cash Flow & Trésorerie
@@ -389,8 +395,8 @@ export function InvestmentSummaryPage() {
                   <YAxis tickFormatter={(v) => `${v}k€`} />
                   <Tooltip formatter={(value: number) => `${value.toFixed(0)}k€`} />
                   <Legend />
-                  <Bar dataKey="Cash Flow" fill={CHART_COLORS[3]} radius={[4, 4, 0, 0]} />
-                  <Line type="monotone" dataKey="Trésorerie" stroke={CHART_COLORS[1]} strokeWidth={3} dot={{ r: 5, fill: CHART_COLORS[1] }} />
+                  <Bar hide={exporting && !exportOptions.metrics.netCashFlow} isAnimationActive={!exporting} dataKey="Cash Flow" fill={CHART_COLORS[3]} radius={[4, 4, 0, 0]} />
+                  <Line type="monotone" hide={exporting && !exportOptions.metrics.treasuryEnd} isAnimationActive={!exporting} dataKey="Trésorerie" stroke={CHART_COLORS[1]} strokeWidth={3} dot={{ r: 5, fill: CHART_COLORS[1] }} />
                 </ComposedChart>
               </ResponsiveContainer>
             </div>
@@ -425,16 +431,16 @@ export function InvestmentSummaryPage() {
       )}
 
       {/* =============== SECTION: GRAPHIQUES D'ÉVOLUTION =============== */}
-      {visibleSections.evolution && (
+      {sectionVisible('evolution') && (
         <SectionCard title="Graphiques d'Évolution" id="evolution-charts">
           <div className="grid lg:grid-cols-2 gap-6">
             {/* Revenue & Margin evolution */}
-            <div>
+            <div data-export-graph data-export-chart-hidden={exporting && !exportOptions.charts.revenue}>
               <h4 className="text-sm font-semibold mb-3 flex items-center gap-2">
                 <LineChartIcon className="h-4 w-4" style={{ color: CHART_COLORS[0] }} />
                 Évolution CA, Marge & EBITDA
               </h4>
-              <div className="h-64">
+              <div className="h-64" data-export-graph data-export-chart-hidden={exporting && !exportOptions.charts.deck}>
                 <ResponsiveContainer width="100%" height="100%">
                   <AreaChart data={evolutionChartData}>
                     <defs>
@@ -452,21 +458,21 @@ export function InvestmentSummaryPage() {
                     <YAxis tickFormatter={(v) => `${v}k€`} />
                     <Tooltip formatter={(value: number) => `${value.toFixed(0)}k€`} />
                     <Legend />
-                    <Area type="monotone" dataKey="CA" stroke={CHART_COLORS[0]} fill="url(#gradCA)" strokeWidth={2.5} dot={{ r: 4 }} />
-                    <Area type="monotone" dataKey="Marge Brute" stroke={CHART_COLORS[2]} fill="url(#gradMargin)" strokeWidth={2.5} dot={{ r: 4 }} />
-                    <Line type="monotone" dataKey="EBITDA" stroke={CHART_COLORS[4]} strokeWidth={2.5} dot={{ r: 4 }} strokeDasharray="6 3" />
+                    <Area type="monotone" hide={exporting && !exportOptions.metrics.revenue} isAnimationActive={!exporting} dataKey="CA" stroke={CHART_COLORS[0]} fill="url(#gradCA)" strokeWidth={2.5} dot={{ r: 4 }} />
+                    <Area type="monotone" hide={exporting && !exportOptions.metrics.grossMargin} isAnimationActive={!exporting} dataKey="Marge Brute" stroke={CHART_COLORS[2]} fill="url(#gradMargin)" strokeWidth={2.5} dot={{ r: 4 }} />
+                    <Line type="monotone" hide={exporting && !exportOptions.metrics.ebitda} isAnimationActive={!exporting} dataKey="EBITDA" stroke={CHART_COLORS[4]} strokeWidth={2.5} dot={{ r: 4 }} strokeDasharray="6 3" />
                   </AreaChart>
                 </ResponsiveContainer>
               </div>
             </div>
 
             {/* Costs stacked bar */}
-            <div>
+            <div data-export-graph data-export-chart-hidden={exporting && !exportOptions.charts.costs}>
               <h4 className="text-sm font-semibold mb-3 flex items-center gap-2">
                 <BarChart3 className="h-4 w-4" style={{ color: CHART_COLORS[1] }} />
                 Répartition des Coûts par Année
               </h4>
-              <div className="h-64">
+              <div className="h-64" data-export-graph data-export-chart-hidden={exporting && !exportOptions.charts.deck}>
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={evolutionChartData}>
                     <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
@@ -474,21 +480,21 @@ export function InvestmentSummaryPage() {
                     <YAxis tickFormatter={(v) => `${v}k€`} />
                     <Tooltip formatter={(value: number) => `${value.toFixed(0)}k€`} />
                     <Legend />
-                    <Bar dataKey="COGS" stackId="costs" fill={CHART_COLORS[3]} radius={[0, 0, 0, 0]} />
-                    <Bar dataKey="Masse Sal." stackId="costs" fill={CHART_COLORS[1]} />
-                    <Bar dataKey="OPEX" stackId="costs" fill={CHART_COLORS[4]} radius={[4, 4, 0, 0]} />
+                    <Bar hide={exporting && !exportOptions.metrics.cogs} isAnimationActive={!exporting} dataKey="COGS" stackId="costs" fill={CHART_COLORS[3]} radius={[0, 0, 0, 0]} />
+                    <Bar hide={exporting && !exportOptions.metrics.payroll} isAnimationActive={!exporting} dataKey="Masse Sal." stackId="costs" fill={CHART_COLORS[1]} />
+                    <Bar hide={exporting && !exportOptions.metrics.opex} isAnimationActive={!exporting} dataKey="OPEX" stackId="costs" fill={CHART_COLORS[4]} radius={[4, 4, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
             </div>
 
             {/* Treasury monthly evolution */}
-            <div>
+            <div data-export-graph data-export-chart-hidden={exporting && !exportOptions.charts.monthly}>
               <h4 className="text-sm font-semibold mb-3 flex items-center gap-2">
                 <Wallet className="h-4 w-4" style={{ color: CHART_COLORS[5] }} />
                 Trésorerie Mensuelle
               </h4>
-              <div className="h-64">
+              <div className="h-64" data-export-graph data-export-chart-hidden={exporting && !exportOptions.charts.deck}>
                 <ResponsiveContainer width="100%" height="100%">
                   <AreaChart data={monthlyTreasuryProjection.months.map(m => ({
                     label: `${m.month}/${m.year}`,
@@ -504,14 +510,14 @@ export function InvestmentSummaryPage() {
                     <XAxis dataKey="label" tick={{ fontSize: 10 }} interval="preserveStartEnd" />
                     <YAxis tickFormatter={(v) => `${v}k€`} />
                     <Tooltip formatter={(value: number) => `${value.toFixed(0)}k€`} />
-                    <Area type="monotone" dataKey="Trésorerie" stroke={CHART_COLORS[5]} fill="url(#gradTreso)" strokeWidth={2} />
+                    <Area type="monotone" hide={exporting && !exportOptions.metrics.treasuryEnd} isAnimationActive={!exporting} dataKey="Trésorerie" stroke={CHART_COLORS[5]} fill="url(#gradTreso)" strokeWidth={2} />
                   </AreaChart>
                 </ResponsiveContainer>
               </div>
             </div>
 
             {/* Cost breakdown pie */}
-            <div>
+            <div data-export-graph data-export-chart-hidden={exporting && !exportOptions.charts.breakdown}>
               <h4 className="text-sm font-semibold mb-3 flex items-center gap-2">
                 <Target className="h-4 w-4" />
                 Répartition des Coûts (Période)
@@ -556,7 +562,7 @@ export function InvestmentSummaryPage() {
       )}
 
       {/* =============== SECTION: DECK CA CLIENTS =============== */}
-      {visibleSections.clientDeck && (
+      {sectionVisible('clientDeck') && (
         <SectionCard title="Deck — Chiffre d'Affaires" id="client-deck">
           {state.revenueMode === 'by-product' ? (
             <ProductRevenueDeck
@@ -592,7 +598,7 @@ export function InvestmentSummaryPage() {
               </div>
 
               {/* Stacked bar chart */}
-              <div className="h-64">
+              <div className="h-64" data-export-graph data-export-chart-hidden={exporting && !exportOptions.charts.deck}>
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={clientDeckData.stackedChartData}>
                     <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
@@ -676,7 +682,7 @@ export function InvestmentSummaryPage() {
 
       {/* =============== SECTION: PLAN DE FINANCEMENT =============== */}
       {/* =============== SECTION: PRÊT BANCAIRE =============== */}
-      {loanSchedule && (
+      {loanSchedule && (!exporting || exportOptions.sections.loans) && (
         <SectionCard title="Financement bancaire" id="bank-loan-summary">
           <div className="grid md:grid-cols-4 gap-4 mb-4">
             <BigKPI label="Prêts débloqués" value={formatCurrency(loanTotals.disbursed, true)} icon={Banknote} className="bg-muted/30" />
@@ -704,7 +710,7 @@ export function InvestmentSummaryPage() {
         </SectionCard>
       )}
 
-      {visibleSections.fundingPlan && state.fundingPlan?.enabled && state.fundingPlan.entries.length > 0 && (() => {
+      {sectionVisible('fundingPlan') && state.fundingPlan?.enabled && state.fundingPlan.entries.length > 0 && (() => {
         const fp = state.fundingPlan;
         const totalFP = fp.entries.reduce((s, e) => s + years.reduce((sy, y) => sy + (e.amountsByYear[y] || 0), 0), 0);
         return (
@@ -759,7 +765,7 @@ export function InvestmentSummaryPage() {
       })()}
 
       {/* =============== SECTION: JUSTIFICATION DES BESOINS =============== */}
-      {visibleSections.needs && (
+      {sectionVisible('needs') && (
         <SectionCard title="Justification des Besoins" id="needs-justification">
           <div className="grid lg:grid-cols-2 gap-6 mb-6">
             <div>
@@ -936,7 +942,7 @@ export function InvestmentSummaryPage() {
       )}
 
       {/* =============== SECTION: MASSE SALARIALE =============== */}
-      {visibleSections.payroll && (
+      {sectionVisible('payroll') && (
         <SectionCard title="Masse Salariale & Embauches" id="payroll-detail">
           {(() => {
             const roles = state.roles || [];
@@ -978,7 +984,7 @@ export function InvestmentSummaryPage() {
                   <BigKPI label="Coût Moyen / ETP" value={roles.length > 0 ? formatCurrency(totalPayroll / durationYears / (roles.length || 1), true) : '—'} sub="/an moyen" icon={Target} className="bg-muted/30" />
                 </div>
 
-                <div className="h-64">
+                <div className="h-64" data-export-graph data-export-chart-hidden={exporting && !exportOptions.charts.payroll}>
                   <ResponsiveContainer width="100%" height="100%">
                     <ComposedChart data={payrollChartData}>
                       <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
@@ -988,9 +994,9 @@ export function InvestmentSummaryPage() {
                       <Tooltip formatter={(value: number, name: string) => name === 'Effectif' ? value : `${value.toFixed(0)}k€`} />
                       <Legend />
                       {depts.map((dept, idx) => (
-                        <Bar key={dept} yAxisId="left" dataKey={dept} stackId="a" fill={deptColorMap[dept] || CHART_COLORS[idx % CHART_COLORS.length]} />
+                        <Bar hide={exporting && !exportOptions.metrics.payroll} isAnimationActive={!exporting} key={dept} yAxisId="left" dataKey={dept} stackId="a" fill={deptColorMap[dept] || CHART_COLORS[idx % CHART_COLORS.length]} />
                       ))}
-                      <Line yAxisId="right" type="monotone" dataKey="Effectif" stroke="hsl(var(--foreground))" strokeWidth={2} dot={{ r: 3 }} />
+                      <Line yAxisId="right" type="monotone" hide={exporting && !exportOptions.metrics.headcount} isAnimationActive={!exporting} dataKey="Effectif" stroke="hsl(var(--foreground))" strokeWidth={2} dot={{ r: 3 }} />
                     </ComposedChart>
                   </ResponsiveContainer>
                 </div>
@@ -1090,7 +1096,7 @@ export function InvestmentSummaryPage() {
       )}
 
       {/* =============== SECTION: TABLEAU DÉTAILLÉ =============== */}
-      {visibleSections.projection && (
+      {sectionVisible('projection') && (
         <SectionCard title="Projection Détaillée" id="detailed-projection">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
@@ -1153,7 +1159,7 @@ export function InvestmentSummaryPage() {
       )}
 
       {/* =============== SECTION: COMPTE DE RÉSULTAT =============== */}
-      {visibleSections.incomeStatement && (
+      {sectionVisible('incomeStatement') && (
         <IncomeStatementSection
           years={years}
           yearlyData={yearlyData.map(d => ({
@@ -1172,7 +1178,7 @@ export function InvestmentSummaryPage() {
       )}
 
       {/* =============== SECTION: ROADMAP PRODUIT =============== */}
-      {visibleSections.roadmap && (
+      {sectionVisible('roadmap') && (
         <ProductRoadmap
           products={state.products}
           years={years}
@@ -1182,7 +1188,7 @@ export function InvestmentSummaryPage() {
       )}
 
       {/* =============== SECTION: DÉTAIL CAPEX PRODUITS =============== */}
-      {visibleSections.roadmap && (() => {
+      {sectionVisible('roadmap') && (() => {
         const capexProducts = state.products.filter(p => p.devCost > 0);
         const capexPayments = state.monthlyTreasuryConfig?.capexPayments || [];
         const MONTH_LABELS = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Jun', 'Jul', 'Aoû', 'Sep', 'Oct', 'Nov', 'Déc'];
@@ -1353,7 +1359,7 @@ export function InvestmentSummaryPage() {
       })()}
 
       {/* =============== SECTION: VALORISATION =============== */}
-      {visibleSections.valuation && (
+      {sectionVisible('valuation') && (
         <SectionCard title="Valorisation & Tours" id="valuation">
           <div className="grid md:grid-cols-4 gap-4 mb-6">
             <BigKPI label="Pre-Money" value={formatCurrency(latestRound?.preMoneyValuation || 0, true)} sub={latestRound?.name || '-'} icon={Target} accent={CHART_COLORS[4]} className="bg-violet-500/5 border-violet-500/20" />

@@ -4,8 +4,8 @@
 - Workshop plan is computed server-side in supabase/functions/erplain-sync/plan.ts from erplain_* tables — create_mo re-validates with the same code.
 - Workshop plan selection: explicit allocations (line reservations, MOs linked to lines) stay with their own lines; only free stock/unlinked MO output covers selected lines — avoids double counting.
 - Erplain MO references come from DB sequence erplain_mo_reference_seq + prefix in erplain_mo_settings, sent as label on real sends only — numbers never reused when prefix changes.
-- Order selection column visibility is persisted on the current device, independently of calculations — hiding a column must never change selected lines or quantities.
-- Customer names are synced with orders using only scalar name fields verified in the cached Customer definition — avoids guessed Erplain API fields.
+- Order column visibility persists per device independently of calculations; hiding columns never changes selections or quantities — prevents data changes.
+- Order customer names use verified scalar fields only — avoids guessed Erplain fields.
 - Refresh the authenticated user's role, approval and tab permissions together on focus and periodically; discard stale responses — role changes must not leave workshop controls locked to an old role.
 
 - Google Ads structure is stored as one JSON snapshot per read (google_ads_structure_snapshots, 30 kept) by google-ads-structure; sections fail independently — keeps the audit cheap and never mixes partial reads into metrics tables.
@@ -20,4 +20,6 @@
 - Product-plan aggregate membership is validated through planMembership; retain aggregate IDs, persist member product snapshots for names and volumes after reload, and remove individual rows (Erplain or manual) when grouped to avoid double counting without changing Erplain or sales statistics.
 - The summary product revenue deck uses channelPrices/channelVolumes with per-channel scenario rounding, renders plan rows without expanding aggregate members, and shows annual sales rather than cash receipts to match the product plan.
 - Store active tab save identities in FinancialContext; tab saves update only their scoped data, while global snapshots capture live financial state and accessible tab versions together so restored names and contents remain aligned.
-- Growth uses product-specific channel rates and start years with batch volume callbacks — keeps calculations and saves aligned.
+- Growth uses per-product channel rates/start years and batch updates — aligns saves.
+
+- Summary export choices are per-format and print-only; selected bank pages drive contents/numbering — preserves data and screen visibility.

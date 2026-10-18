@@ -1,3 +1,7 @@
+## Personnalisation PDF Synthèse
+- [x] Choisir séparément les sections, graphiques et indicateurs des exports actuel et bancaire, sans changer les calculs (9 tests réussis).
+- [ ] Vérifier sur le plan réel connecté : Supabase externe sans session disponible.
+
 - [x] Simplifier le Plan atelier avec couleurs Erplain et détails dépliables, sans changer les calculs ou les protections d’envoi.
 - [x] Afficher CA total HT (base MER inchangée), livraison importée et ventes hors livraison estimées ; moyenne glissante quotidienne optionnelle et ratio Shopify / GA4 renommé ; 4 tests réussis.
 - [ ] Obtenir la ventilation HT exacte hors livraison : taxes et remboursements de livraison absents des données actuellement importées.

@@ -411,3 +411,20 @@
   .bank-strong { font-weight: 700; border-top: 2px solid hsl(var(--foreground)); }
   .bank-table tr { break-inside: avoid; }
 }
+
+@media print {
+  [data-export-graphs="false"] .recharts-wrapper,
+  [data-export-graphs="false"] [data-export-graph],
+  [data-export-chart-hidden="true"],
+  [data-export-tables="false"] table,
+  [data-export-kpis="false"] .export-kpi,
+  [data-export-kpis="false"] .kpi-card,
+  [data-export-kpis="false"] div:has(> div > .kpi-label),
+  [data-export-kpis="false"] .bank-kpis,
+  [data-export-comments="false"] .bank-comment,
+  [data-export-comments="false"] .bank-bullets,
+  [data-export-legend="false"] .recharts-legend-wrapper,
+  [data-export-labels="false"] .recharts-label-list { display: none !important; }
+  .bank-report .recharts-wrapper { width: 100% !important; height: auto !important; aspect-ratio: 1000 / 360; }
+  .bank-report .recharts-wrapper > .recharts-surface { width: 100% !important; height: 100% !important; }
+}

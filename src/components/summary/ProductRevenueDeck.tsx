@@ -3,6 +3,7 @@ import type { Product } from '@/engine/types';
 import { channelPrices, channelVolumes } from '@/engine/calculations';
 import { formatCurrency } from '@/data/financialConfig';
 import { Badge } from '@/components/ui/badge';
+import { useSummaryExport } from './summaryExportSettings';
 
 interface ProductRevenueDeckProps {
   products: Product[];
@@ -12,6 +13,7 @@ interface ProductRevenueDeckProps {
 }
 
 export function ProductRevenueDeck({ products, years, volumeAdjustment, priceAdjustment }: ProductRevenueDeckProps) {
+  const { options, exporting } = useSummaryExport('standard');
   // Match the plan's per-channel rounding and active scenario, not cash receipts.
   const rows = products.map(product => {
     const prices = channelPrices(product);
@@ -39,7 +41,7 @@ export function ProductRevenueDeck({ products, years, volumeAdjustment, priceAdj
           <p className="text-2xl font-semibold tabular-nums">{formatCurrency(total)}</p>
         </div>
       </div>
-      <div className="overflow-x-auto">
+      <div className="overflow-x-auto" data-export-graph data-export-chart-hidden={exporting && !options.charts.deck}>
         <div className="h-64 min-w-[600px]" role="img" aria-label="Chiffre d’affaires total par année">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={annualTotals} margin={{ top: 30, right: 30, left: 15, bottom: 5 }}>
@@ -47,7 +49,7 @@ export function ProductRevenueDeck({ products, years, volumeAdjustment, priceAdj
               <XAxis dataKey="year" tickLine={false} axisLine={false} />
               <YAxis tickFormatter={value => formatCurrency(value, true)} tickLine={false} axisLine={false} width={70} />
               <Tooltip formatter={(value: number) => [formatCurrency(value), 'CA HT']} />
-              <Bar dataKey="revenue" name="CA HT" fill="hsl(var(--primary))" maxBarSize={64} radius={[4, 4, 0, 0]}>
+              <Bar hide={exporting && !options.metrics.revenue} isAnimationActive={!exporting} dataKey="revenue" name="CA HT" fill="hsl(var(--primary))" maxBarSize={64} radius={[4, 4, 0, 0]}>
                 <LabelList dataKey="revenue" position="top" formatter={(value: number) => formatCurrency(value)} fill="hsl(var(--foreground))" fontSize={12} />
               </Bar>
             </BarChart>
