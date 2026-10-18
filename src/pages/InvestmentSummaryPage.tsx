@@ -175,6 +175,8 @@ export function InvestmentSummaryPage() {
   const loanSchedule = bankLoanIds.length ? buildLoanSchedule(monthlyTreasuryProjection.months, bankLoanIds, years) : null;
   const loanTotals = (loanSchedule ?? []).reduce((t, r) => ({ disbursed: t.disbursed + r.disbursed, principal: t.principal + r.principal, interest: t.interest + r.interest }), { disbursed: 0, principal: 0, interest: 0 });
 
+  const financingOptions = state.financingOptions ?? { equity: true, bankLoan: false };
+
   const latestRound = state.fundingRounds[state.fundingRounds.length - 1];
   const postMoney = latestRound ? latestRound.preMoneyValuation + latestRound.amount : 0;
   const dilution = latestRound ? latestRound.amount / postMoney : 0;
