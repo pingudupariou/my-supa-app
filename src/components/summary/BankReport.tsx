@@ -46,10 +46,17 @@ const METRICS: Metric[] = [
   { key: 'netResult', label: 'Résultat net' },
   { key: 'treasuryEnd', label: 'Trésorerie fin d’exercice' },
 ];
+const LOAN_METRICS: Metric[] = [
+  { key: 'loanDisbursement', label: 'Déblocage prêts bancaires' },
+  { key: 'loanPayments', label: 'Échéances de prêts' },
+  { key: 'loanInterest', label: "dont intérêts d'emprunt" },
+];
 
 export function BankReport({ rows, scenarioLabel, startYear, lastYear, minTreasury, fundingNeed, amountRaised }: BankReportProps) {
   const last = rows[rows.length - 1];
-  const sum = (key: keyof BankYear) => rows.reduce((s, r) => s + (r[key] as number), 0);
+  const sum = (key: keyof BankYear) => rows.reduce((s, r) => s + ((r[key] as number) || 0), 0);
+  const hasLoans = rows.some(r => (r.loanDisbursement || 0) > 0 || (r.loanPayments || 0) > 0);
+  const tableMetrics = hasLoans ? [...METRICS, ...LOAN_METRICS] : METRICS;
   const today = new Date().toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' });
   const chartData = rows.map(r => ({ ...r, grossMarginRate: r.revenue ? (r.grossMargin / r.revenue) * 100 : 0 }));
 
@@ -67,7 +74,7 @@ export function BankReport({ rows, scenarioLabel, startYear, lastYear, minTreasu
     { label: `EBITDA ${last?.year}`, value: last?.ebitda ?? 0, sub: `Cumul ${formatCurrency(sum('ebitda'))}` },
     { label: `Résultat net ${last?.year}`, value: last?.netResult ?? 0, sub: `Cumul ${formatCurrency(sum('netResult'))}` },
     { label: 'Trésorerie fin de période', value: last?.treasuryEnd ?? 0, sub: `Point bas ${formatCurrency(minTreasury)}` },
-    { label: 'Besoin de financement', value: fundingNeed, sub: `Fonds levés prévus ${formatCurrency(amountRaised)}` },
+    { label: 'Besoin de financement', value: fundingNeed, sub: `Fonds levés ${formatCurrency(amountRaised)}${hasLoans ? ` · Prêts ${formatCurrency(sum('loanDisbursement'))}` : ''}` },
   ];
 
   return (
@@ -149,10 +156,10 @@ export function BankReport({ rows, scenarioLabel, startYear, lastYear, minTreasu
         <table className="bank-table">
           <thead><tr><th>En euros HT</th>{rows.map(r => <th key={r.year}>{r.year}</th>)}<th>Cumul</th></tr></thead>
           <tbody>
-            {METRICS.map(m => (
+            {tableMetrics.map(m => (
               <tr key={m.key} className={m.key === 'netResult' ? 'bank-strong' : undefined}>
                 <th>{m.label}</th>
-                {rows.map(r => <td key={r.year}>{formatCurrency(r[m.key] as number)}</td>)}
+                {rows.map(r => <td key={r.year}>{formatCurrency((r[m.key] as number) || 0)}</td>)}
                 <td>{m.key === 'treasuryEnd' ? '—' : formatCurrency(sum(m.key))}</td>
               </tr>
             ))}

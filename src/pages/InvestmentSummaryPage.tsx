@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { formatCurrency, formatPercent } from '@/data/financialConfig';
 import { cn } from '@/lib/utils';
 import { ExportPDFDialog } from '@/components/summary/ExportPDFDialog';
+import { buildLoanSchedule } from '@/components/funding/loanSchedule';
 import { BankReport } from '@/components/summary/BankReport';
 import { computeIncomeStatement } from '@/engine/incomeStatementConfig';
 import { ProductRevenueDeck } from '@/components/summary/ProductRevenueDeck';
@@ -105,7 +106,7 @@ export function InvestmentSummaryPage() {
       const data = aggregated.get(year);
       if (!data) return {
         year, revenue: 0, cogs: 0, grossMargin: 0, payroll: 0, opex: 0,
-        variableCharges: 0, loanPayments: 0, fundingInjection: 0,
+        variableCharges: 0, loanPayments: 0, loanInterest: 0, loanPrincipal: 0, loanDisbursement: 0, fundingInjection: 0,
         netCashFlow: 0, treasuryStart: 0, treasuryEnd: 0, ebitda: 0, capex: 0,
       };
       const yearMonths = monthlyTreasuryProjection.months.filter(m => m.year === year);
@@ -154,13 +155,18 @@ export function InvestmentSummaryPage() {
   const bankRows = useMemo(() => {
     const is = computeIncomeStatement(yearlyData.map(d => ({
       year: d.year, revenue: d.revenue, cogs: d.cogs, grossMargin: d.grossMargin,
-      payroll: d.payroll, opex: d.opex, ebitda: d.ebitda,
+      payroll: d.payroll, opex: d.opex, ebitda: d.ebitda, loanInterest: d.loanInterest,
     })), state.incomeStatementConfig);
     return yearlyData.map((d, i) => ({
       year: d.year, revenue: d.revenue, grossMargin: d.grossMargin, ebitda: d.ebitda,
       netResult: is[i].netResult, treasuryEnd: d.treasuryEnd, netCashFlow: d.netCashFlow,
+      loanDisbursement: d.loanDisbursement, loanPayments: d.loanPayments, loanInterest: d.loanInterest,
     }));
   }, [yearlyData, state.incomeStatementConfig]);
+
+  const bankLoanIds = (state.financingOptions?.bankLoan ? state.bankLoans ?? [] : []).map(l => l.id);
+  const loanSchedule = bankLoanIds.length ? buildLoanSchedule(monthlyTreasuryProjection.months, bankLoanIds, years) : null;
+  const loanTotals = (loanSchedule ?? []).reduce((t, r) => ({ disbursed: t.disbursed + r.disbursed, principal: t.principal + r.principal, interest: t.interest + r.interest }), { disbursed: 0, principal: 0, interest: 0 });
 
   const latestRound = state.fundingRounds[state.fundingRounds.length - 1];
   const postMoney = latestRound ? latestRound.preMoneyValuation + latestRound.amount : 0;
@@ -664,6 +670,35 @@ export function InvestmentSummaryPage() {
       )}
 
       {/* =============== SECTION: PLAN DE FINANCEMENT =============== */}
+      {/* =============== SECTION: PRÊT BANCAIRE =============== */}
+      {loanSchedule && (
+        <SectionCard title="Financement bancaire" id="bank-loan-summary">
+          <div className="grid md:grid-cols-4 gap-4 mb-4">
+            <BigKPI label="Prêts débloqués" value={formatCurrency(loanTotals.disbursed, true)} icon={Banknote} className="bg-muted/30" />
+            <BigKPI label="Capital remboursé (période)" value={formatCurrency(loanTotals.principal, true)} icon={TrendingDown} className="bg-muted/30" />
+            <BigKPI label="Intérêts (période)" value={formatCurrency(loanTotals.interest, true)} icon={PiggyBank} className="bg-muted/30" />
+            <BigKPI label={`Capital restant dû ${lastYear}`} value={formatCurrency(loanSchedule[loanSchedule.length - 1]?.outstanding || 0, true)} icon={Wallet} className="bg-muted/30" />
+          </div>
+          <div className="overflow-x-auto rounded-lg border">
+            <table className="w-full text-sm">
+              <thead className="bg-muted/40"><tr className="border-b">
+                <th className="text-left px-3 py-2">En €</th>
+                {loanSchedule.map(r => <th key={r.year} className="text-right px-3 py-2">{r.year}</th>)}
+              </tr></thead>
+              <tbody>
+                {([['Déblocage', 'disbursed'], ['Capital remboursé', 'principal'], ['Intérêts', 'interest'], ['Capital restant dû', 'outstanding']] as const).map(([label, key]) => (
+                  <tr key={key} className="border-b last:border-0">
+                    <th className="text-left px-3 py-2 font-medium">{label}</th>
+                    {loanSchedule.map(r => <td key={r.year} className="text-right px-3 py-2 font-mono-numbers">{formatCurrency(r[key], true)}</td>)}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <p className="text-xs text-muted-foreground mt-2">Échéances incluses dans la trésorerie ; intérêts inclus dans les charges financières du compte de résultat.</p>
+        </SectionCard>
+      )}
+
       {visibleSections.fundingPlan && state.fundingPlan?.enabled && state.fundingPlan.entries.length > 0 && (() => {
         const fp = state.fundingPlan;
         const totalFP = fp.entries.reduce((s, e) => s + years.reduce((sy, y) => sy + (e.amountsByYear[y] || 0), 0), 0);
@@ -1124,6 +1159,7 @@ export function InvestmentSummaryPage() {
             payroll: d.payroll,
             opex: d.opex,
             ebitda: d.ebitda,
+            loanInterest: d.loanInterest,
           }))}
           config={state.incomeStatementConfig}
           readOnly

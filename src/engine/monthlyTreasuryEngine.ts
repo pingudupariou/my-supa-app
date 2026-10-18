@@ -50,6 +50,8 @@ export interface LoanConfig {
   frequency: 'monthly' | 'quarterly' | 'annual';
   // Échéances modifiées manuellement (optionnel)
   manualPayments?: Record<string, number>; // key = "YYYY-MM"
+  // Prêt bancaire de l'onglet Financement : le capital est encaissé au mois de début
+  disbursedInPlan?: boolean;
 }
 
 // Échéance de prêt calculée
@@ -130,6 +132,7 @@ export interface MonthlyData {
   revenue: number; // CA encaissé
   fundingInjection: number; // Levée de fonds
   otherInflows: number;
+  loanDisbursement: number; // Déblocage de prêts bancaires
   totalInflows: number;
   
   // Sorties
@@ -138,6 +141,8 @@ export interface MonthlyData {
   opex: number; // Charges fixes
   variableCharges: number; // Charges variables (% CA)
   loanPayments: number; // Échéances de prêts
+  loanInterest: number; // dont intérêts
+  loanPrincipal: number; // dont capital remboursé
   capexPayments: number; // CAPEX (investissements produits)
   otherOutflows: number;
   totalOutflows: number;
@@ -164,6 +169,8 @@ export interface MonthlyTreasuryProjection {
   totalVariableCharges: number;
   totalLoanPayments: number;
   totalCapexPayments: number;
+  totalLoanDisbursed: number;
+  totalLoanInterest: number;
 }
 
 // ==================
@@ -414,6 +421,8 @@ export function calculateMonthlyTreasuryProjection(
   let totalVariableCharges = 0;
   let totalLoanPayments = 0;
   let totalCapexPayments = 0;
+  let totalLoanDisbursed = 0;
+  let totalLoanInterest = 0;
 
   // Normaliser les saisonnalités
   const revenueCoefs = normalizeSeasonality(config.revenueSeasonality);
@@ -506,7 +515,11 @@ export function calculateMonthlyTreasuryProjection(
       const monthKey = `${year}-${monthIndex.toString().padStart(2, '0')}`;
       const otherInflow = config.otherInflows[monthKey]?.amount || 0;
       
-      const totalInflows = revenue + fundingInjection + otherInflow;
+      const loanDisbursement = config.loans.reduce((sum, loan) =>
+        loan.disbursedInPlan && loan.inputMode === 'calculated' && loan.startDate.year === year && loan.startDate.month === monthIndex
+          ? sum + (loan.principalAmount || 0) : sum, 0);
+      totalLoanDisbursed += loanDisbursement;
+      const totalInflows = revenue + fundingInjection + otherInflow + loanDisbursement;
 
       // === SORTIES ===
       
@@ -530,6 +543,8 @@ export function calculateMonthlyTreasuryProjection(
       );
       const loanPaymentsAmount = monthLoanPayments.reduce((sum, p) => sum + p.total, 0);
       totalLoanPayments += loanPaymentsAmount;
+      const loanInterestAmount = monthLoanPayments.reduce((sum, p) => sum + (p.interest || 0), 0);
+      totalLoanInterest += loanInterestAmount;
       
       // Paiements CAPEX
       const monthCapexPayments = allCapexPayments.filter(
@@ -574,12 +589,15 @@ export function calculateMonthlyTreasuryProjection(
         revenue,
         fundingInjection,
         otherInflows: otherInflow,
+        loanDisbursement,
         totalInflows,
         cogs,
         payroll: monthlyPayroll,
         opex: monthlyOpex,
         variableCharges: variableChargesAmount,
         loanPayments: loanPaymentsAmount,
+        loanInterest: loanInterestAmount,
+        loanPrincipal: loanPaymentsAmount - loanInterestAmount,
         capexPayments: capexPaymentsAmount,
         otherOutflows: otherOutflow,
         totalOutflows,
@@ -605,6 +623,8 @@ export function calculateMonthlyTreasuryProjection(
     totalVariableCharges,
     totalLoanPayments,
     totalCapexPayments,
+    totalLoanDisbursed,
+    totalLoanInterest,
   };
 }
 
@@ -641,6 +661,9 @@ export interface YearlyAggregatedData {
   opex: number;
   variableCharges: number;
   loanPayments: number;
+  loanInterest: number;
+  loanPrincipal: number;
+  loanDisbursement: number;
   fundingInjection: number;
   netCashFlow: number;
   treasuryStart: number;
@@ -664,6 +687,9 @@ export function aggregateByYear(months: MonthlyData[]): Map<number, YearlyAggreg
         opex: 0,
         variableCharges: 0,
         loanPayments: 0,
+        loanInterest: 0,
+        loanPrincipal: 0,
+        loanDisbursement: 0,
         fundingInjection: 0,
         netCashFlow: 0,
         treasuryStart: m.treasuryStart, // Premier mois de l'année
@@ -678,6 +704,9 @@ export function aggregateByYear(months: MonthlyData[]): Map<number, YearlyAggreg
     existing.opex += m.opex;
     existing.variableCharges += m.variableCharges;
     existing.loanPayments += m.loanPayments;
+    existing.loanInterest += m.loanInterest || 0;
+    existing.loanPrincipal += m.loanPrincipal || 0;
+    existing.loanDisbursement += m.loanDisbursement || 0;
     existing.fundingInjection += m.fundingInjection;
     existing.netCashFlow += m.netCashFlow;
     existing.treasuryEnd = m.treasuryEnd; // Prendre la dernière valeur

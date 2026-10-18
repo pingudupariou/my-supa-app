@@ -41,6 +41,8 @@ export interface IncomeStatementYearInput {
   payroll: number;
   opex: number;
   ebitda: number;
+  /** Intérêts d'emprunt calculés depuis l'échéancier des prêts (ajoutés aux charges financières). */
+  loanInterest?: number;
 }
 
 export interface IncomeStatementYearResult extends IncomeStatementYearInput {
@@ -48,6 +50,7 @@ export interface IncomeStatementYearResult extends IncomeStatementYearInput {
   operatingResult: number;
   financialIncome: number;
   financialExpense: number;
+  loanInterest: number;
   financialResult: number;
   currentResultBeforeTax: number;
   exceptionalIncome: number;
@@ -70,7 +73,8 @@ export function computeIncomeStatement(
     const operatingResult = d.ebitda - totalDepreciation;
 
     const financialIncome = config.financialIncome[d.year] || 0;
-    const financialExpense = config.financialExpense[d.year] || 0;
+    const loanInterest = d.loanInterest || 0;
+    const financialExpense = (config.financialExpense[d.year] || 0) + loanInterest;
     const financialResult = financialIncome - financialExpense;
 
     const currentResultBeforeTax = operatingResult + financialResult;
@@ -89,6 +93,7 @@ export function computeIncomeStatement(
       operatingResult,
       financialIncome,
       financialExpense,
+      loanInterest,
       financialResult,
       currentResultBeforeTax,
       exceptionalIncome,

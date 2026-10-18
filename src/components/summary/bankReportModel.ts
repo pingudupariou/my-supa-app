@@ -8,6 +8,9 @@ export interface BankYear {
   netResult: number;
   treasuryEnd: number;
   netCashFlow: number;
+  loanDisbursement?: number;
+  loanPayments?: number;
+  loanInterest?: number;
 }
 
 export interface Variation { delta: number | null; pct: number | null }
@@ -70,6 +73,12 @@ export function treasuryComment(rows: BankYear[], minTreasury: number, fundingNe
   text += fundingNeed > 0
     ? ` Le besoin de financement calculé est de ${eur(fundingNeed)}, pour ${eur(amountRaised)} de fonds levés prévus.`
     : ` Aucun besoin de financement complémentaire n'apparaît, avec ${eur(amountRaised)} de fonds levés prévus.`;
+  const loans = rows.reduce((s, r) => s + (r.loanDisbursement || 0), 0);
+  if (loans > 0) {
+    const paid = rows.reduce((s, r) => s + (r.loanPayments || 0), 0);
+    const interest = rows.reduce((s, r) => s + (r.loanInterest || 0), 0);
+    text += ` Les prêts bancaires apportent ${eur(loans)} ; ${eur(paid)} d'échéances sont remboursées sur la période, dont ${eur(interest)} d'intérêts.`;
+  }
   return text;
 }
 
