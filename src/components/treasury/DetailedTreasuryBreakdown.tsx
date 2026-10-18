@@ -76,6 +76,7 @@ export function DetailedTreasuryBreakdown({ projection, startYear, durationYears
               {renderRow('OPEX', months.map(m => m.opex), '', true)}
               {renderRow('Charges variables', months.map(m => m.variableCharges), '', true)}
               {renderRow('Échéances prêts', months.map(m => m.loanPayments), '', true)}
+              {renderRow('Déblocage prêts bancaires', months.map(m => m.loanDisbursement || 0), '')}
               {renderRow('CAPEX produits', months.map(m => m.capexPayments), '', true)}
               <TableRow className="border-t-2">
                 <TableCell className="sticky left-0 bg-background z-10 font-bold">Cash Flow Net</TableCell>
@@ -134,6 +135,8 @@ export function DetailedTreasuryBreakdown({ projection, startYear, durationYears
               return ym.reduce((s, m) => s + m.capexPayments, 0);
             }), '', true)}
             {renderRow('Levées de fonds', years.map(y => annualAgg.get(y)?.fundingInjection || 0), 'bg-green-50 dark:bg-green-950/20')}
+            {renderRow('Déblocage prêts bancaires', years.map(y => annualAgg.get(y)?.loanDisbursement || 0), 'bg-green-50 dark:bg-green-950/20')}
+            {renderRow('dont intérêts d\'emprunt', years.map(y => annualAgg.get(y)?.loanInterest || 0), '', true)}
             <TableRow className="border-t-2">
               <TableCell className="sticky left-0 bg-background z-10 font-bold">Cash Flow Net</TableCell>
               {years.map(y => {

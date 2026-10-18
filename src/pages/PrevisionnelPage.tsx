@@ -318,6 +318,7 @@ export function PrevisionnelPage() {
           treasuryStart: 0,
           treasuryEnd: 0,
           fundingInjection: 0,
+          loanInterest: 0,
         };
       }
       
@@ -341,6 +342,7 @@ export function PrevisionnelPage() {
         treasuryStart: data.treasuryStart,
         treasuryEnd: data.treasuryEnd,
         fundingInjection: data.fundingInjection,
+        loanInterest: data.loanInterest,
       };
     });
   }, [monthlyTreasuryProjection, computed.treasuryProjection, years]);
@@ -882,6 +884,7 @@ export function PrevisionnelPage() {
             payroll: d.payroll,
             opex: d.opex,
             ebitda: d.ebitda,
+            loanInterest: d.loanInterest,
           }))}
           config={state.incomeStatementConfig}
           onConfigChange={updateIncomeStatementConfig}

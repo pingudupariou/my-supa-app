@@ -249,7 +249,17 @@ export function IncomeStatementSection({
             </TableRow>
 
             {renderEditableRow('+ Produits Financiers', 'financialIncome')}
-            {renderEditableRow('- Charges Financières', 'financialExpense', true)}
+            {results.some(d => d.loanInterest > 0) && (
+              <TableRow>
+                <TableCell className={cn(stickyLabelClass, 'pl-6')}>- Intérêts d'emprunt (échéancier)</TableCell>
+                {results.map((d, i) => (
+                  <TableCell key={i} className={cn(cellClass, 'text-muted-foreground')}>
+                    {d.loanInterest > 0 ? `(${formatCurrency(d.loanInterest, true)})` : '-'}
+                  </TableCell>
+                ))}
+              </TableRow>
+            )}
+            {renderEditableRow('- Autres charges financières', 'financialExpense', true)}
             <TableRow className="border-t">
               <TableCell className={cn(stickyLabelClass, 'font-medium')}>= Résultat Financier</TableCell>
               {results.map((d, i) => (

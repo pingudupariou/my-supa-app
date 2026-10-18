@@ -105,7 +105,7 @@ export function InvestmentSummaryPage() {
       const data = aggregated.get(year);
       if (!data) return {
         year, revenue: 0, cogs: 0, grossMargin: 0, payroll: 0, opex: 0,
-        variableCharges: 0, loanPayments: 0, fundingInjection: 0,
+        variableCharges: 0, loanPayments: 0, loanInterest: 0, loanPrincipal: 0, loanDisbursement: 0, fundingInjection: 0,
         netCashFlow: 0, treasuryStart: 0, treasuryEnd: 0, ebitda: 0, capex: 0,
       };
       const yearMonths = monthlyTreasuryProjection.months.filter(m => m.year === year);
@@ -154,11 +154,12 @@ export function InvestmentSummaryPage() {
   const bankRows = useMemo(() => {
     const is = computeIncomeStatement(yearlyData.map(d => ({
       year: d.year, revenue: d.revenue, cogs: d.cogs, grossMargin: d.grossMargin,
-      payroll: d.payroll, opex: d.opex, ebitda: d.ebitda,
+      payroll: d.payroll, opex: d.opex, ebitda: d.ebitda, loanInterest: d.loanInterest,
     })), state.incomeStatementConfig);
     return yearlyData.map((d, i) => ({
       year: d.year, revenue: d.revenue, grossMargin: d.grossMargin, ebitda: d.ebitda,
       netResult: is[i].netResult, treasuryEnd: d.treasuryEnd, netCashFlow: d.netCashFlow,
+      loanDisbursement: d.loanDisbursement, loanPayments: d.loanPayments, loanInterest: d.loanInterest,
     }));
   }, [yearlyData, state.incomeStatementConfig]);
 
@@ -1124,6 +1125,7 @@ export function InvestmentSummaryPage() {
             payroll: d.payroll,
             opex: d.opex,
             ebitda: d.ebitda,
+            loanInterest: d.loanInterest,
           }))}
           config={state.incomeStatementConfig}
           readOnly
