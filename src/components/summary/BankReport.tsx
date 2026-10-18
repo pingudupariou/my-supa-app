@@ -20,7 +20,7 @@ interface BankReportProps {
 
 const CHART_W = 1000;
 const CHART_H = 360;
-const k = (v: number) => `${Math.round(v / 1000).toLocaleString('fr-FR')} k€`;
+const k = (v: number) => `${Math.round(v / 1000).toLocaleString('fr-FR')}\u00a0k€`;
 
 function Page({ children, title, number }: { children: React.ReactNode; title?: string; number?: string }) {
   const { options } = useSummaryExport('bank');

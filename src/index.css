@@ -426,5 +426,5 @@
   [data-export-legend="false"] .recharts-legend-wrapper,
   [data-export-labels="false"] .recharts-label-list { display: none !important; }
   .bank-report .recharts-wrapper { width: 100% !important; height: auto !important; aspect-ratio: 1000 / 360; }
-  .bank-report .recharts-surface { width: 100% !important; height: 100% !important; }
+  .bank-report .recharts-wrapper > .recharts-surface { width: 100% !important; height: 100% !important; }
 }
