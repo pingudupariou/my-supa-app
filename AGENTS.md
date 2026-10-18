@@ -22,4 +22,4 @@
 - Store active tab save identities in FinancialContext; tab saves update only their scoped data, while global snapshots capture live financial state and accessible tab versions together so restored names and contents remain aligned.
 - Growth uses per-product channel rates/start years and batch updates — aligns saves.
 
-- Summary export choices are per-format and print-only; selected bank pages drive contents/numbering — preserves data and screen visibility.
+- Summary exports share the current summary content with per-format print-only choices; BankReport provides intro/appendix and named-page footers — preserves calculations and general explanations without duplicate financial layouts.

@@ -106,16 +106,16 @@ export function ExportPDFDialog({ autoComments }: { autoComments?: Record<BankCo
                 ))}
               </div>
             </fieldset>
-            {mode === 'standard' && <fieldset className="space-y-3 border-b pb-4">
+            <fieldset className="space-y-3 border-b pb-4">
               <legend className="font-semibold mb-2">Graphiques à exporter</legend>
               <div className="grid grid-cols-2 gap-3">
                 {Object.entries(STANDARD_GRAPHS).map(([key, label]) => <label key={key} className="flex items-center gap-2 text-sm"><Checkbox checked={current.charts[key]} onCheckedChange={checked => update({ charts: { ...current.charts, [key]: checked === true } })} />{label}</label>)}
               </div>
-            </fieldset>}
+            </fieldset>
             <fieldset className="space-y-3 border-b pb-4">
-              <legend className="font-semibold mb-2">Séries des graphiques{mode === 'bank' ? ' et lignes du tableau synthétique' : ''}</legend>
+              <legend className="font-semibold mb-2">Séries des graphiques</legend>
               <div className="grid grid-cols-2 gap-3">
-                {Object.entries(EXPORT_METRICS).filter(([key]) => mode === 'standard' || !['cogs', 'payroll', 'opex', 'headcount'].includes(key)).map(([key, label]) => (
+                {Object.entries(EXPORT_METRICS).map(([key, label]) => (
                   <label key={key} className="flex items-center gap-2 text-sm"><Checkbox checked={current.metrics[key]} onCheckedChange={checked => update({ metrics: { ...current.metrics, [key]: checked === true } })} />{label}</label>
                 ))}
               </div>

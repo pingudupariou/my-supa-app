@@ -3,7 +3,7 @@ import type { Product } from '@/engine/types';
 import { channelPrices, channelVolumes } from '@/engine/calculations';
 import { formatCurrency } from '@/data/financialConfig';
 import { Badge } from '@/components/ui/badge';
-import { useSummaryExport } from './summaryExportSettings';
+import { useActiveSummaryExport } from './summaryExportSettings';
 
 interface ProductRevenueDeckProps {
   products: Product[];
@@ -13,7 +13,7 @@ interface ProductRevenueDeckProps {
 }
 
 export function ProductRevenueDeck({ products, years, volumeAdjustment, priceAdjustment }: ProductRevenueDeckProps) {
-  const { options, exporting } = useSummaryExport('standard');
+  const { options, exporting } = useActiveSummaryExport();
   // Match the plan's per-channel rounding and active scenario, not cash receipts.
   const rows = products.map(product => {
     const prices = channelPrices(product);

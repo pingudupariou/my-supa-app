@@ -12,8 +12,8 @@ import { formatCurrency, formatPercent } from '@/data/financialConfig';
 import { cn } from '@/lib/utils';
 import { ExportPDFDialog } from '@/components/summary/ExportPDFDialog';
 import { buildLoanSchedule } from '@/components/funding/loanSchedule';
-import { useSummaryExport } from '@/components/summary/summaryExportSettings';
-import { useBankReportSettings } from '@/components/summary/bankReportSettings';
+import { useActiveSummaryExport } from '@/components/summary/summaryExportSettings';
+import { useBankReportSettings, pickComment } from '@/components/summary/bankReportSettings';
 import { NovarideLogo } from '@/components/ui/NovarideLogo';
 import { BankReport } from '@/components/summary/BankReport';
 import { revenueComment, marginComment, treasuryComment, netResultComment } from '@/components/summary/bankReportModel';
@@ -92,7 +92,7 @@ export function InvestmentSummaryPage() {
   const b2b = useB2BClientsData();
   const [visibleSections, setVisibleSections] = useState(defaultSections);
   const [showSectionSettings, setShowSectionSettings] = useState(false);
-  const { options: exportOptions, exporting } = useSummaryExport('standard');
+  const { options: exportOptions, exporting, mode: exportMode } = useActiveSummaryExport();
   const reportSettings = useBankReportSettings();
   const sectionVisible = (key: string) => exporting ? exportOptions.sections[key] : visibleSections[key as SectionKey];
 
@@ -282,13 +282,14 @@ export function InvestmentSummaryPage() {
 
   return (
     <div className="space-y-6 summary-report" data-export-graphs={!exporting || exportOptions.graphs} data-export-tables={!exporting || exportOptions.tables} data-export-kpis={!exporting || exportOptions.kpis} data-export-comments={!exporting || exportOptions.comments} data-export-legend={!exporting || exportOptions.legend} data-export-labels={!exporting || exportOptions.labels}>
-      <div className="print-only print-cover">
+      <div className={cn('print-only print-cover', exportMode === 'bank' && 'no-print')}>
         <div className="flex items-center justify-between gap-4"><div className="text-2xl font-bold">{reportSettings.projectName?.trim() || 'Synthèse Investisseur — Novaride'}</div>{reportSettings.logoDataUrl ? <img src={reportSettings.logoDataUrl} alt="Logo du dossier" className="h-12 max-w-[180px] object-contain" /> : <NovarideLogo variant="compact" />}</div>
         <div className="text-sm text-muted-foreground">
           Scénario {scenarioLabels[state.activeScenarioId]} · {startYear} → {lastYear} · édité le {new Date().toLocaleDateString('fr-FR')}
         </div>
       </div>
       <BankReport
+        part="intro"
         rows={bankRows}
         scenarioLabel={scenarioLabels[state.activeScenarioId]}
         startYear={startYear}
@@ -427,6 +428,7 @@ export function InvestmentSummaryPage() {
               </div>
             </div>
           </div>
+          {exportMode === 'bank' && <p className="print-only bank-comment"><strong>Lecture : </strong>{pickComment(reportSettings.comments.treasury, treasuryComment(bankRows, minTreasury, totalNeed, amountRaised))}</p>}
         </SectionCard>
       )}
 
@@ -558,6 +560,7 @@ export function InvestmentSummaryPage() {
               </div>
             </div>
           </div>
+          {exportMode === 'bank' && <p className="print-only bank-comment"><strong>Lecture : </strong>{pickComment(reportSettings.comments.revenue, `${revenueComment(bankRows)} ${marginComment(bankRows)}`)}</p>}
         </SectionCard>
       )}
 
@@ -1160,6 +1163,7 @@ export function InvestmentSummaryPage() {
 
       {/* =============== SECTION: COMPTE DE RÉSULTAT =============== */}
       {sectionVisible('incomeStatement') && (
+        <div>
         <IncomeStatementSection
           years={years}
           yearlyData={yearlyData.map(d => ({
@@ -1175,6 +1179,8 @@ export function InvestmentSummaryPage() {
           config={state.incomeStatementConfig}
           readOnly
         />
+        {exportMode === 'bank' && <p className="print-only bank-comment"><strong>Lecture : </strong>{pickComment(reportSettings.comments.netResult, netResultComment(bankRows))}</p>}
+        </div>
       )}
 
       {/* =============== SECTION: ROADMAP PRODUIT =============== */}
@@ -1401,6 +1407,7 @@ export function InvestmentSummaryPage() {
           </div>
         </SectionCard>
       )}
+      <BankReport part="appendix" rows={bankRows} scenarioLabel={scenarioLabels[state.activeScenarioId]} startYear={startYear} lastYear={lastYear} minTreasury={minTreasury} fundingNeed={totalNeed} amountRaised={amountRaised} />
     </div>
   );
 }

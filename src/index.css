@@ -377,15 +377,16 @@
 }
 @page bank:first { @bottom-right { content: none; } @bottom-left { content: none; } }
 @media print {
-  body.print-bank .summary-report > *:not(.bank-report) { display: none !important; }
-  body.print-bank .summary-report { font-size: 12px; }
+  body.print-bank .summary-report { page: bank; font-size: 11px; }
+  body.print-bank .summary-report > [id], body.print-bank .summary-report > .rounded-lg { break-inside: auto; }
+  body.print-bank .summary-report h3, body.print-bank .summary-report h4 { break-after: avoid; }
   body.print-bank .bank-report { display: block !important; color: hsl(var(--foreground)); }
   .bank-page { page: bank; break-after: page; page-break-after: always; break-inside: avoid; min-height: 178mm; display: flex; flex-direction: column; gap: 14px; }
-  .bank-page:last-child { break-after: auto; }
+  .bank-report:last-child .bank-page:last-child { break-after: auto; }
   .bank-page-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid hsl(var(--foreground)); padding-bottom: 6px; font-size: 18px; font-weight: 700; }
   .bank-num { display: inline-block; min-width: 26px; color: hsl(var(--accent)); }
   .bank-cover { justify-content: space-between; padding: 20mm 10mm; border-left: 6px solid hsl(var(--accent)); }
-  .bank-cover h1 { font-size: 40px; font-weight: 800; letter-spacing: -0.02em; margin-top: 8px; }
+  .bank-cover h1 { font-size: 40px; font-weight: 800; letter-spacing: 0; margin-top: 8px; }
   .bank-cover-kicker { text-transform: uppercase; letter-spacing: .2em; font-size: 12px; color: hsl(var(--accent)); font-weight: 600; }
   .bank-cover-sub { font-size: 16px; color: hsl(var(--muted-foreground)); margin-top: 8px; }
   .bank-cover-meta { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; border-top: 1px solid hsl(var(--border)); padding-top: 12px; }
