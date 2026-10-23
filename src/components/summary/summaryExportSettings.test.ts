@@ -15,7 +15,7 @@ describe('export selections', () => {
     options.sections.cash = false;
     expect(selectedBankPages(options).map(([key]) => key)).toEqual([
       'toc', 'executive', 'evolution', 'clientDeck', 'loans', 'fundingPlan', 'needs',
-      'payroll', 'projection', 'incomeStatement', 'roadmap', 'valuation', 'variations',
+      'orgChart', 'payroll', 'projection', 'incomeStatement', 'roadmap', 'valuation', 'variations',
     ]);
   });
   it('omits pages without selected content', () => {
