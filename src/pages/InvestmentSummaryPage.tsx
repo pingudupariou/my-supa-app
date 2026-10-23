@@ -317,6 +317,7 @@ export function InvestmentSummaryPage() {
         unavailableSections={[
           ...(!loanSchedule ? ['loans'] : []),
           ...(!state.fundingPlan?.enabled || !state.fundingPlan.entries.length ? ['fundingPlan'] : []),
+          ...(!(state.roles || []).length ? ['orgChart'] : []),
         ]}
         rows={bankRows}
         scenarioLabel={scenarioLabels[state.activeScenarioId]}
