@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useFinancial } from '@/context/FinancialContext';
 import { Role, Department } from '@/engine/types';
 import { SectionCard, KPICard } from '@/components/ui/KPICard';
@@ -6,6 +6,7 @@ import { HeroBanner } from '@/components/ui/HeroBanner';
 import { SaveButton } from '@/components/ui/SaveButton';
 import { TabSaveAs, useSaveWithTabVersion } from '@/components/ui/TabSaveAs';
 import { OrgChart } from '@/components/organisation/OrgChart';
+import { RolePhoto, fileToAvatarDataUrl } from '@/components/organisation/RolePhoto';
 import { HiringSimulator } from '@/components/organisation/HiringSimulator';
 import { PageExportPDF, ExportableSection } from '@/components/export/PageExportPDF';
 import { ReadOnlyWrapper } from '@/components/auth/ReadOnlyWrapper';
@@ -13,7 +14,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Plus, Users, Grid3x3, List, FlaskConical } from 'lucide-react';
+import { Plus, Users, Grid3x3, List, FlaskConical, Camera, Loader2, X } from 'lucide-react';
+import { toast } from '@/hooks/use-toast';
 import { formatCurrency } from '@/data/financialConfig';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import {
@@ -66,6 +68,21 @@ export function OrganisationPage() {
     setEditingRole(role);
     setEditForm(role);
     setIsDialogOpen(true);
+  };
+
+  const handlePhotoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    setPhotoLoading(true);
+    try {
+      const photo = await fileToAvatarDataUrl(file);
+      setEditForm(prev => ({ ...prev, photo }));
+    } catch (err) {
+      toast({ title: 'Photo non ajoutée', description: err instanceof Error ? err.message : 'Image illisible.', variant: 'destructive' });
+    } finally {
+      setPhotoLoading(false);
+    }
   };
 
   const handleSaveRole = () => {
@@ -202,7 +219,7 @@ export function OrganisationPage() {
           <div id="org-team">
             {viewMode === 'orgchart' ? (
               <SectionCard title="Organigramme">
-                <OrgChart roles={state.roles} onEdit={handleEdit} onRemove={removeRole} onAddToTeam={handleAddRole} />
+                <OrgChart roles={state.roles} startYear={startYear} onEdit={handleEdit} onRemove={removeRole} onAddToTeam={handleAddRole} />
               </SectionCard>
             ) : (
               <SectionCard title="Équipe & Recrutements">
@@ -221,8 +238,16 @@ export function OrganisationPage() {
                       {state.roles.map((role) => (
                         <TableRow key={role.id} className={role.startYear > startYear ? 'bg-muted/20' : ''}>
                           <TableCell className="font-medium">
-                            {role.title}
-                            {role.startYear > startYear && <Badge variant="secondary" className="ml-2 text-xs">Prévu</Badge>}
+                            <div className="flex items-center gap-3">
+                              <RolePhoto photo={role.photo} name={role.personName || role.title} className="h-8 w-8" />
+                              <div>
+                                <div>
+                                  {role.title}
+                                  {role.startYear > startYear && <Badge variant="secondary" className="ml-2 text-xs">Prévu</Badge>}
+                                </div>
+                                {role.personName && <div className="text-xs text-muted-foreground font-normal">{role.personName}</div>}
+                              </div>
+                            </div>
                           </TableCell>
                           <TableCell><Badge variant="outline">{role.department}</Badge></TableCell>
                           <TableCell>{role.startYear}</TableCell>
@@ -256,6 +281,32 @@ export function OrganisationPage() {
             <DialogTitle>{editingRole ? 'Modifier le poste' : 'Nouveau poste'}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-4">
+            <div className="flex items-center gap-4">
+              <RolePhoto photo={editForm.photo} name={editForm.personName || editForm.title} className="h-20 w-20" />
+              <div className="space-y-2">
+                <input ref={photoInputRef} type="file" accept="image/*" className="hidden" onChange={handlePhotoChange} />
+                <div className="flex flex-wrap gap-2">
+                  <Button type="button" size="sm" variant="outline" onClick={() => photoInputRef.current?.click()} disabled={photoLoading}>
+                    {photoLoading ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Camera className="h-4 w-4 mr-1" />}
+                    {editForm.photo ? 'Changer la photo' : 'Ajouter une photo'}
+                  </Button>
+                  {editForm.photo && (
+                    <Button type="button" size="sm" variant="ghost" className="text-destructive" onClick={() => setEditForm({ ...editForm, photo: undefined })}>
+                      <X className="h-4 w-4 mr-1" />Retirer
+                    </Button>
+                  )}
+                </div>
+                <p className="text-xs text-muted-foreground">Recadrée automatiquement en carré. Pensez à sauvegarder l'onglet.</p>
+              </div>
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Nom de la personne <span className="text-muted-foreground font-normal">(facultatif)</span></label>
+              <Input
+                value={editForm.personName || ''}
+                onChange={(e) => setEditForm({ ...editForm, personName: e.target.value })}
+                placeholder="Ex: Marie Dupont — vide si poste à recruter"
+              />
+            </div>
             <div className="space-y-2">
               <label className="text-sm font-medium">Titre du poste</label>
               <Input
