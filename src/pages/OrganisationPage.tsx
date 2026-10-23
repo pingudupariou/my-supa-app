@@ -47,6 +47,8 @@ export function OrganisationPage() {
   const [editingRole, setEditingRole] = useState<Role | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editForm, setEditForm] = useState<Partial<Role>>({});
+  const [photoLoading, setPhotoLoading] = useState(false);
+  const photoInputRef = useRef<HTMLInputElement>(null);
   const { startYear, durationYears } = state.scenarioSettings;
   const YEARS = Array.from({ length: durationYears }, (_, i) => startYear + i);
   const lastYear = startYear + durationYears - 1;
