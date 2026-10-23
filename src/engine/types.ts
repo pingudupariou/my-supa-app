@@ -66,6 +66,8 @@ export interface Role {
   startYear: number;
   annualCostLoaded: number;
   linkedToProduct?: string;
+  personName?: string;        // Nom de la personne occupant le poste (facultatif)
+  photo?: string;             // Photo recadrée (data URL JPEG compacte)
 }
 
 // ==================
