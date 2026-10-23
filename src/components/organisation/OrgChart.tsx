@@ -50,7 +50,7 @@ export function OrgChart({ roles, startYear, onEdit, onRemove, onAddToTeam, read
                 const planned = startYear !== undefined && role.startYear > startYear;
                 return (
                   <div key={role.id} className={cn('group flex flex-col items-center text-center rounded-md border p-3', planned ? 'border-dashed bg-muted/20' : 'bg-background')}>
-                    <RolePhoto photo={role.photo} name={role.personName || role.title} muted={planned && !role.photo} className="h-14 w-14" />
+                    <RolePhoto photo={role.photo} name={role.personName || role.title} muted={planned && !role.photo} className="h-24 w-24" />
                     <div className="mt-2 text-sm font-semibold leading-tight">{role.personName || (planned ? 'À recruter' : '—')}</div>
                     <div className="text-xs text-muted-foreground leading-tight">{role.title}</div>
                     <div className="mt-1 flex items-center gap-1 text-[10px] text-muted-foreground">
