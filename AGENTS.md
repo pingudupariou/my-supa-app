@@ -23,4 +23,4 @@
 - Growth: per-product channel rates/start years, batch updates — aligns saves.
 
 - Summary exports share content with per-format print choices; BankReport adds intro/appendix — no duplicate layouts.
-- Role photos are small square JPEG data URLs on Role — saved with tab versions and PDF-safe.
+- Role photos are small square JPEG data URLs on Role — saved with tab versions, PDF-safe.
