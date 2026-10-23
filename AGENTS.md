@@ -20,6 +20,7 @@
 - Product-plan aggregate membership is validated through planMembership; retain aggregate IDs, persist member product snapshots for names and volumes after reload, and remove individual rows (Erplain or manual) when grouped to avoid double counting without changing Erplain or sales statistics.
 - The summary product revenue deck uses channelPrices/channelVolumes with per-channel scenario rounding, renders plan rows without expanding aggregate members, and shows annual sales rather than cash receipts to match the product plan.
 - Store active tab save identities in FinancialContext; tab saves update only their scoped data, while global snapshots capture live financial state and accessible tab versions together so restored names and contents remain aligned.
-- Growth uses per-product channel rates/start years and batch updates — aligns saves.
+- Growth: per-product channel rates/start years, batch updates — aligns saves.
 
-- Summary exports share content with per-format print-only choices; BankReport adds intro/appendix and named-page footers — preserves calculations and explanations without duplicate layouts.
+- Summary exports share content with per-format print choices; BankReport adds intro/appendix — no duplicate layouts.
+- Role photos are small square JPEG data URLs on Role — saved with tab versions, PDF-safe.

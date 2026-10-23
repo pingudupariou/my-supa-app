@@ -21,6 +21,7 @@ import { computeIncomeStatement } from '@/engine/incomeStatementConfig';
 import { ProductRevenueDeck } from '@/components/summary/ProductRevenueDeck';
 import { ProductRoadmap } from '@/components/product/ProductRoadmap';
 import { IncomeStatementSection } from '@/components/financial/IncomeStatementSection';
+import { OrgChart } from '@/components/organisation/OrgChart';
 import { aggregateByYear, MONTHS, type LoanConfig } from '@/engine/monthlyTreasuryEngine';
 import {
   ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
@@ -59,7 +60,7 @@ const revenueModeLabels: Record<RevenueMode, string> = {
   'by-client': 'Par Client',
 };
 
-type SectionKey = 'cash' | 'needs' | 'projection' | 'incomeStatement' | 'valuation' | 'clientDeck' | 'payroll' | 'evolution' | 'roadmap' | 'fundingPlan';
+type SectionKey = 'cash' | 'needs' | 'projection' | 'incomeStatement' | 'valuation' | 'clientDeck' | 'orgChart' | 'payroll' | 'evolution' | 'roadmap' | 'fundingPlan';
 
 const defaultSections: Record<SectionKey, boolean> = {
   cash: true,
@@ -68,6 +69,7 @@ const defaultSections: Record<SectionKey, boolean> = {
   fundingPlan: true,
   incomeStatement: true,
   needs: true,
+  orgChart: true,
   payroll: true,
   projection: true,
   roadmap: true,
@@ -81,6 +83,7 @@ const sectionLabels: Record<SectionKey, string> = {
   fundingPlan: 'Plan de Financement',
   incomeStatement: 'Compte de Résultat',
   needs: 'Justification des Besoins',
+  orgChart: 'Organigramme',
   payroll: 'Masse Salariale',
   projection: 'Projection Détaillée',
   roadmap: 'Roadmap Produit',
@@ -314,6 +317,7 @@ export function InvestmentSummaryPage() {
         unavailableSections={[
           ...(!loanSchedule ? ['loans'] : []),
           ...(!state.fundingPlan?.enabled || !state.fundingPlan.entries.length ? ['fundingPlan'] : []),
+          ...(!(state.roles || []).length ? ['orgChart'] : []),
         ]}
         rows={bankRows}
         scenarioLabel={scenarioLabels[state.activeScenarioId]}
@@ -1017,6 +1021,16 @@ export function InvestmentSummaryPage() {
               </div>
             </div>
           )}
+        </SectionCard>
+      )}
+
+      {/* =============== SECTION: ORGANIGRAMME =============== */}
+      {sectionVisible('orgChart') && (
+        <SectionCard title="Organigramme" id="org-chart">
+          <p className="text-xs text-muted-foreground mb-3">
+            {(state.roles || []).length} poste(s) sur {startYear}–{lastYear} · les postes en pointillés sont des recrutements prévus après {startYear}.
+          </p>
+          <OrgChart roles={state.roles || []} startYear={startYear} readOnly />
         </SectionCard>
       )}
 

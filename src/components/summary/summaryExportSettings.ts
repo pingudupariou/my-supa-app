@@ -4,7 +4,7 @@ export type ExportMode = 'standard' | 'bank';
 export const STANDARD_SECTIONS = {
   cash: 'Approche Cash', evolution: 'Graphiques d’évolution', clientDeck: 'Chiffre d’affaires par produit / canal',
   loans: 'Financement bancaire', fundingPlan: 'Plan de financement', needs: 'Justification des besoins',
-  payroll: 'Masse salariale', projection: 'Projection détaillée', incomeStatement: 'Compte de résultat',
+  orgChart: 'Organigramme', payroll: 'Masse salariale', projection: 'Projection détaillée', incomeStatement: 'Compte de résultat',
   roadmap: 'Roadmap et investissements produits', valuation: 'Valorisation et tours',
 };
 export const BANK_SECTIONS = { cover: 'Couverture', toc: 'Sommaire', executive: 'Résumé exécutif', ...STANDARD_SECTIONS, variations: 'Variations annuelles' };
