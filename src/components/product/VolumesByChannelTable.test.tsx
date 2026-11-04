@@ -30,7 +30,7 @@ describe('visual volume entry', () => {
     render(<VolumesByChannelTable products={[product]} years={years} onChannelVolumeChange={vi.fn()} onBulkChannelVolumes={bulk} />);
     fireEvent.click(screen.getByRole('button', { name: 'Croissance & projection' }));
     fireEvent.change(screen.getByLabelText('Galets B2C / an'), { target: { value: '10' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Appliquer à Galets' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Appliquer à 1 produit' }));
     expect(bulk).toHaveBeenCalledOnce();
     expect(bulk.mock.calls[0][0]).toEqual(expect.arrayContaining([
       { productId: 'galets', channel: 'B2C', year: 2027, volume: 110 },
@@ -45,7 +45,7 @@ describe('visual volume entry', () => {
     fireEvent.change(screen.getByLabelText('Galets B2C / an'), { target: { value: '10' } });
     fireEvent.change(screen.getByLabelText('Écrou B2B / an'), { target: { value: '50' } });
     fireEvent.change(screen.getByLabelText('Écrou OEM / an'), { target: { value: '20' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Appliquer à tous les produits' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Appliquer à 2 produits' }));
     expect(bulk).toHaveBeenCalledOnce();
     expect(bulk.mock.calls[0][0]).toEqual(expect.arrayContaining([
       { productId: 'galets', channel: 'B2C', year: 2028, volume: 121 },
@@ -63,7 +63,7 @@ describe('visual volume entry', () => {
     fireEvent.change(screen.getByLabelText('Galets B2C / an'), { target: { value: '10' } });
     fireEvent.click(screen.getByLabelText('Galets année de départ'));
     fireEvent.click(await screen.findByRole('option', { name: '2028' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Appliquer à Galets' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Appliquer à 1 produit' }));
     const changes = bulk.mock.calls[0][0];
     expect(changes).toContainEqual({ productId: 'galets', channel: 'B2C', year: 2028, volume: 220 });
     expect(changes.every((c: { year: number; productId: string }) => c.year === 2028 && c.productId === 'galets')).toBe(true);
@@ -77,7 +77,7 @@ describe('visual volume entry', () => {
     render(<VolumesByChannelTable products={[p]} years={years} onChannelVolumeChange={vi.fn()} onBulkChannelVolumes={bulk} />);
     fireEvent.click(screen.getByRole('button', { name: 'Croissance & projection' }));
     fireEvent.change(screen.getByLabelText('Galets B2C / an'), { target: { value: '10' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Appliquer à Galets' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Appliquer à 1 produit' }));
     const changes = bulk.mock.calls[0][0];
     expect(changes).toContainEqual({ productId: 'galets', channel: 'B2C', year: 2027, volume: 165 });
     expect(changes).toContainEqual({ productId: 'galets', channel: 'B2C', year: 2028, volume: 182 });
