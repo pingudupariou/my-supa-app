@@ -93,7 +93,7 @@ export function VolumesByChannelTable({ products, years, onChannelVolumeChange, 
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h2 className="text-xl font-semibold">Volumes par année & canal</h2>
-          <p className="text-sm text-muted-foreground">{products.length} produits et catégories · {years[0]}–{years[years.length - 1]}{toFill > 0 && <> · <span className="text-warning-foreground font-medium">{toFill} à remplir</span></>}</p>
+          <p className="text-sm text-muted-foreground">{products.length} produits et catégories · {years[0]}–{years[years.length - 1]}{toFill > 0 && <> · <span className="text-warning font-medium">{toFill} à remplir</span></>}</p>
         </div>
         <div className="flex flex-wrap gap-2">
           {onAddProduct && <ManualPlanProductDialog years={years} onAdd={p => { onAddProduct(p); setSearch(''); setSelectedId(p.id); }} />}
@@ -119,7 +119,7 @@ export function VolumesByChannelTable({ products, years, onChannelVolumeChange, 
           <div className="relative"><Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" /><Input aria-label="Rechercher un produit" placeholder="Rechercher un produit…" value={search} onChange={e => setSearch(e.target.value)} className="pl-9" /></div>
           <div className="flex lg:flex-col gap-1 overflow-x-auto lg:overflow-y-auto lg:max-h-[510px]" aria-label="Produits à saisir">
             {filtered.map(p => <Button key={p.id} variant="ghost" aria-pressed={selected?.id === p.id} onClick={() => setSelectedId(p.id)} className={`h-auto min-w-[175px] lg:min-w-0 w-full justify-between items-start p-3 text-left whitespace-normal border-l-2 rounded-none ${selected?.id === p.id ? 'bg-muted border-primary' : 'border-transparent'}`}>
-              <span className="min-w-0"><span className="block font-medium break-words">{p.name}</span><span className="block text-xs text-muted-foreground mt-1">{p.erplainMembers?.length ? `Catégorie · ${p.erplainMembers.length} produits` : 'Produit'} · {isEmpty(p) ? <span className="text-warning-foreground font-medium">à remplir</span> : formatCurrency(years.reduce((n, y) => n + revenue(p, y), 0), true)}</span></span>
+              <span className="min-w-0"><span className="block font-medium break-words">{p.name}</span><span className="block text-xs text-muted-foreground mt-1">{p.erplainMembers?.length ? `Catégorie · ${p.erplainMembers.length} produits` : 'Produit'} · {isEmpty(p) ? <span className="text-warning font-medium">à remplir</span> : formatCurrency(years.reduce((n, y) => n + revenue(p, y), 0), true)}</span></span>
               {selected?.id === p.id && <ArrowRight className="h-4 w-4 shrink-0 mt-1 ml-2" />}
             </Button>)}
           </div>
