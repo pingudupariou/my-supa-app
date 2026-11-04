@@ -3,6 +3,7 @@
 // Toutes testables indépendamment de React
 // ============================================
 
+import { syncB2BClients } from './b2bClients';
 import {
   Product,
   ProductCategory,
