@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { applyClientGrowth, clientVolume, enableSplit, hasErplainHistory, importErplainClients, supportsB2BClients, syncB2BClients } from './b2bClients';
+import { applyClientGrowth, clientVolume, enableSplit, existingClientOptions, hasErplainHistory, importErplainClients, supportsB2BClients, syncB2BClients } from './b2bClients';
 import { syncProductVolumes } from './calculations';
 import type { PlanB2BClient, Product } from './types';
 
@@ -65,5 +65,15 @@ describe('B2B par client', () => {
     ] } });
     expect(p.volumesByChannel!.B2B[2027]).toBe(120);
     expect(p.volumesByChannel!.B2B[2028]).toBe(144);
+  });
+
+  it('propose les clients existants une seule fois (Erplain + fiches B2B) sans ceux déjà sur la ligne', () => {
+    const opts = existingClientOptions(
+      [{ customer_id: 'e1', customer_name: 'Vélo Pro', channel: 'B2B' }, { customer_id: 'e2', customer_name: 'Déjà Là', channel: 'OEM' }],
+      [{ id: 'c1', company_name: 'velo pro', country: 'FR' }, { id: 'c2', company_name: 'Nouveau CRM' }, { id: 'c3', company_name: 'Pris' }],
+      [client({ id: 'x', name: 'déjà là' }), client({ id: 'y', name: 'Autre nom', crmClientId: 'c3' })],
+    );
+    expect(opts.map(o => o.name)).toEqual(['Nouveau CRM', 'Vélo Pro']);
+    expect(opts[1]).toMatchObject({ customerId: 'e1', crmClientId: 'c1' });
   });
 });
