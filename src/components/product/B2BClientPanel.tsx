@@ -1,14 +1,16 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import type { PlanB2BClient, Product } from '@/engine/types';
-import { applyClientGrowth, b2bTotal, clientVolume, enableSplit, importErplainClients, erplainKeysOf, hasErplainHistory, type ErplainClientSale } from '@/engine/b2bClients';
+import { applyClientGrowth, b2bTotal, clientVolume, enableSplit, existingClientOptions, importErplainClients, erplainKeysOf, hasErplainHistory, type ErplainClientSale, type ExistingClientOption } from '@/engine/b2bClients';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { formatCurrency } from '@/data/financialConfig';
-import { Download, Loader2, Plus, Trash2, TrendingUp, Users } from 'lucide-react';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
+import { ChevronsUpDown, Download, Loader2, Plus, Trash2, TrendingUp, UserPlus, Users } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface Props { product: Product; years: number[]; onChange: (product: Product) => void }
@@ -26,6 +28,23 @@ export function B2BClientPanel({ product, years, onChange }: Props) {
   const price = product.priceHT_B2B || product.priceHT;
   const history = new Set(split?.historyYears ?? []);
   const startOptions = years.slice(1);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [existing, setExisting] = useState<{ erplain: { customer_id: string; customer_name: string | null; channel: string }[]; crm: { id: string; company_name: string; country: string | null }[] } | null>(null);
+
+  // Clients existants : Erplain classés B2B/OEM (Statistiques commerciales) + fiches clients B2B.
+  useEffect(() => {
+    if (!enabled || existing) return;
+    let cancelled = false;
+    (async () => {
+      const [e, c] = await Promise.all([
+        supabase.from('erplain_sales_customers').select('customer_id, customer_name, channel').in('channel', ['B2B', 'OEM']),
+        supabase.from('b2b_clients').select('id, company_name, country').is('deleted_at', null),
+      ]);
+      if (!cancelled) setExisting({ erplain: e.error ? [] : (e.data ?? []), crm: c.error ? [] : (c.data ?? []) });
+    })();
+    return () => { cancelled = true; };
+  }, [enabled, existing]);
+  const options = useMemo(() => existing ? existingClientOptions(existing.erplain, existing.crm, split?.clients ?? []) : [], [existing, split?.clients]);
 
   const save = (clients: PlanB2BClient[], extra: Partial<NonNullable<Product['b2bClients']>> = {}) =>
     onChange({ ...product, b2bClients: { ...(split ?? { historyYears: [] }), enabled: true, clients, ...extra } });
@@ -62,13 +81,19 @@ export function B2BClientPanel({ product, years, onChange }: Props) {
     setLoading(false);
   };
 
-  const addClient = () => {
-    const name = newName.trim();
+  const addClient = (picked?: ExistingClientOption) => {
+    const name = (picked?.name ?? newName).trim();
     if (!name) return;
     if (split?.clients.some(c => c.name.toLocaleLowerCase('fr') === name.toLocaleLowerCase('fr'))) { toast.error('Ce client existe déjà dans cette ligne.'); return; }
-    save([...(split?.clients ?? []), { id: `manual-${Date.now().toString(36)}`, name, volumes: {}, growthRate: 0, adjustment: 0, startYear: years.find(y => y >= thisYear) ?? startOptions[0] }]);
-    setNewName('');
+    save([...(split?.clients ?? []), {
+      id: picked?.customerId ? `client-${picked.customerId}` : `manual-${Date.now().toString(36)}`, name,
+      ...(picked?.customerId ? { customerId: picked.customerId } : {}), ...(picked?.crmClientId ? { crmClientId: picked.crmClientId } : {}),
+      volumes: {}, growthRate: 0, adjustment: 0, startYear: years.find(y => y >= thisYear) ?? startOptions[0],
+    }]);
+    if (picked) { setPickerOpen(false); toast.success(`${name} ajouté`); } else setNewName('');
   };
+  const erplainOpts = options.filter(o => o.customerId);
+  const crmOpts = options.filter(o => !o.customerId);
 
   return (
     <section aria-label="B2B par client" className="rounded-lg border p-4 space-y-4">
@@ -87,9 +112,34 @@ export function B2BClientPanel({ product, years, onChange }: Props) {
       {enabled && split && <>
         <div className="flex flex-wrap items-center gap-2">
           {linked && <Button size="sm" onClick={importHistory} disabled={loading}>{loading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Download className="h-4 w-4 mr-2" />}{split.importedAt ? "Actualiser l'historique Erplain" : "Importer l'historique Erplain"}</Button>}
+          <Popover open={pickerOpen} onOpenChange={setPickerOpen}>
+            <PopoverTrigger asChild>
+              <Button size="sm" variant="outline" role="combobox" aria-expanded={pickerOpen} disabled={!existing}>
+                {existing ? <UserPlus className="h-4 w-4 mr-2" /> : <Loader2 className="h-4 w-4 mr-2 animate-spin" />}Client existant<ChevronsUpDown className="h-3.5 w-3.5 ml-2 opacity-60" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-80 p-0" align="start">
+              <Command>
+                <CommandInput placeholder="Rechercher un client…" />
+                <CommandList>
+                  <CommandEmpty>Aucun client disponible.</CommandEmpty>
+                  {erplainOpts.length > 0 && <CommandGroup heading="Clients Erplain (B2B / OEM)">
+                    {erplainOpts.map(o => <CommandItem key={o.key} value={`${o.name} ${o.key}`} onSelect={() => addClient(o)}>
+                      <span className="truncate">{o.name}</span><span className="ml-auto text-[10px] text-muted-foreground">{o.detail}</span>
+                    </CommandItem>)}
+                  </CommandGroup>}
+                  {crmOpts.length > 0 && <CommandGroup heading="Fiches clients B2B">
+                    {crmOpts.map(o => <CommandItem key={o.key} value={`${o.name} ${o.key}`} onSelect={() => addClient(o)}>
+                      <span className="truncate">{o.name}</span>{o.detail && <span className="ml-auto text-[10px] text-muted-foreground">{o.detail}</span>}
+                    </CommandItem>)}
+                  </CommandGroup>}
+                </CommandList>
+              </Command>
+            </PopoverContent>
+          </Popover>
           <div className="flex gap-2">
-            <Input aria-label="Nom du nouveau client" placeholder="Nouveau client ou prospect…" value={newName} onChange={e => setNewName(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') addClient(); }} className="h-9 w-56" />
-            <Button size="sm" variant="outline" onClick={addClient} disabled={!newName.trim()}><Plus className="h-4 w-4 mr-2" />Ajouter</Button>
+            <Input aria-label="Nom du nouveau client" placeholder="Nouveau prospect…" value={newName} onChange={e => setNewName(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') addClient(); }} className="h-9 w-48" />
+            <Button size="sm" variant="outline" onClick={() => addClient()} disabled={!newName.trim()}><Plus className="h-4 w-4 mr-2" />Ajouter</Button>
           </div>
           <Button size="sm" variant="outline" onClick={() => save(split.clients.map(c => c.remainder ? c : applyClientGrowth(c, years)))}><TrendingUp className="h-4 w-4 mr-2" />Appliquer la croissance à tous</Button>
           <Badge variant="secondary">Prix B2B {formatCurrency(price)} HT</Badge>
@@ -111,7 +161,8 @@ export function B2BClientPanel({ product, years, onChange }: Props) {
                 <TableCell className="sticky left-0 bg-background z-10">
                   {c.customerId || c.remainder ? <span className={`text-sm font-medium break-words ${c.remainder ? 'text-muted-foreground' : ''}`}>{c.name}</span>
                     : <Input aria-label={`Nom du client ${c.name}`} value={c.name} onChange={e => updateClient(c.id, { name: e.target.value })} className="h-9" />}
-                  {c.customerId && <span className="block text-[10px] text-muted-foreground mt-0.5">Client Erplain</span>}
+                  {c.customerId ? <span className="block text-[10px] text-muted-foreground mt-0.5">Client Erplain</span>
+                    : c.crmClientId && <span className="block text-[10px] text-muted-foreground mt-0.5">Fiche client B2B</span>}
                 </TableCell>
                 <TableCell className="px-2"><div className="relative"><Input aria-label={`${c.name} croissance / an`} type="number" step={1} value={c.growthRate} onChange={e => updateClient(c.id, { growthRate: Number(e.target.value) || 0 })} className="h-9 pr-6 text-center tabular-nums" /><span className="absolute right-2 top-2 text-xs text-muted-foreground">%</span></div></TableCell>
                 <TableCell className="px-2">
