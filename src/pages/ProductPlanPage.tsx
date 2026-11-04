@@ -427,6 +427,7 @@ export function ProductPlanPage() {
               years={YEARS}
               onChannelVolumeChange={handleChannelVolumeChange}
               onBulkChannelVolumes={handleBulkChannelVolumes}
+              onUpdateProduct={handleUpdateProduct}
             />
           </div>
         </TabsContent>

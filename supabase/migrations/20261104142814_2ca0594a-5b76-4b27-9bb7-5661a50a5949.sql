@@ -1,0 +1,1 @@
+ALTER FUNCTION public.sales_b2b_clients(date,date,text[]) SECURITY INVOKER;

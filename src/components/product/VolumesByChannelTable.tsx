@@ -9,18 +9,21 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { formatCurrency } from '@/data/financialConfig';
 import { ArrowRight, Check, Search, TrendingUp } from 'lucide-react';
 import { useFinancial } from '@/context/FinancialContext';
+import { supportsB2BClients } from '@/engine/b2bClients';
+import { B2BClientPanel } from './B2BClientPanel';
 
 interface Props {
   products: Product[];
   years: number[];
   onChannelVolumeChange: (productId: string, year: number, channel: 'B2C' | 'B2B' | 'OEM', volume: number) => void;
   onBulkChannelVolumes?: (changes: { productId: string; year: number; channel: 'B2C' | 'B2B' | 'OEM'; volume: number }[]) => void;
+  onUpdateProduct?: (product: Product) => void;
 }
 const CHANNELS = ['B2C', 'B2B', 'OEM'] as const;
 const CHANNEL_STYLE = { B2C: 'border-accent text-accent', B2B: 'border-success text-success', OEM: 'border-warning text-foreground' };
 const number = (value: number) => value.toLocaleString('fr-FR');
 
-export function VolumesByChannelTable({ products, years, onChannelVolumeChange, onBulkChannelVolumes }: Props) {
+export function VolumesByChannelTable({ products, years, onChannelVolumeChange, onBulkChannelVolumes, onUpdateProduct }: Props) {
   const { state } = useFinancial();
   const config = state.scenarioConfigs[state.activeScenarioId];
   const volAdj = 1 + config.volumeAdjustment;
@@ -36,6 +39,8 @@ export function VolumesByChannelTable({ products, years, onChannelVolumeChange, 
   const volume = (p: Product, year: number, ch: typeof CHANNELS[number]) => year < p.launchYear ? 0 : Math.round((p.volumesByChannel?.[ch]?.[year] || 0) * volAdj);
   const revenue = (p: Product, year: number) => CHANNELS.reduce((sum, ch) => sum + volume(p, year, ch) * price(p, ch) * priceAdj, 0);
   const yearTotals = years.map(year => ({ year, units: products.reduce((sum, p) => sum + CHANNELS.reduce((n, ch) => n + volume(p, year, ch), 0), 0), revenue: products.reduce((sum, p) => sum + revenue(p, year), 0) }));
+  // B2B détaillé par client : ses volumes viennent des clients, jamais de la croissance par canal.
+  const byClient = (p: Product, ch: typeof CHANNELS[number]) => ch === 'B2B' && !!p.b2bClients?.enabled;
   const commit = (changes: Parameters<NonNullable<Props['onBulkChannelVolumes']>>[0]) => {
     if (onBulkChannelVolumes) onBulkChannelVolumes(changes);
     else changes.forEach(c => onChannelVolumeChange(c.productId, c.year, c.channel, c.volume));
@@ -43,6 +48,7 @@ export function VolumesByChannelTable({ products, years, onChannelVolumeChange, 
   const applyGrowth = (targets: Product[]) => {
     const changes: Parameters<NonNullable<Props['onBulkChannelVolumes']>>[0] = [];
     targets.forEach(p => CHANNELS.forEach(channel => {
+      if (byClient(p, channel)) return;
       const values = { ...p.volumesByChannel?.[channel] };
       const start = Math.max(growthStartYear[p.id] ?? p.launchYear, p.launchYear);
       years.forEach((year, i) => {
@@ -58,6 +64,7 @@ export function VolumesByChannelTable({ products, years, onChannelVolumeChange, 
   const emptyChanges = () => {
     const changes: Parameters<NonNullable<Props['onBulkChannelVolumes']>>[0] = [];
     products.forEach(p => CHANNELS.forEach(channel => {
+      if (byClient(p, channel)) return;
       const values = p.volumesByChannel?.[channel] || {};
       const filled = years.filter(y => (values[y] || 0) > 0);
       const last = filled[filled.length - 1];
@@ -107,7 +114,7 @@ export function VolumesByChannelTable({ products, years, onChannelVolumeChange, 
                 {CHANNELS.map(ch => <TableRow key={ch}>
                   <TableCell className="sticky left-0 bg-background z-10"><div className={`border-l-2 pl-3 ${CHANNEL_STYLE[ch]}`}><span className="text-sm font-semibold">{ch}</span><span className="block text-xs text-muted-foreground mt-1">{formatCurrency(price(selected, ch))}</span></div></TableCell>
                   {years.map(year => <TableCell key={year} className="px-2 py-4 text-center">
-                    {year >= selected.launchYear ? <Input aria-label={`${selected.name} ${ch} ${year}`} type="number" min={0} step={1} inputMode="numeric" value={selected.volumesByChannel?.[ch]?.[year] || 0} onFocus={e => e.target.select()} onChange={e => onChannelVolumeChange(selected.id, year, ch, Number(e.target.value))} className="h-11 w-full min-w-[80px] max-w-[120px] mx-auto text-center text-base font-medium tabular-nums focus-visible:ring-accent" /> : <span className="text-xs text-muted-foreground">Avant lancement</span>}
+                    {year >= selected.launchYear ? byClient(selected, ch) ? <div className="text-base font-medium tabular-nums" aria-label={`${selected.name} ${ch} ${year}`}>{number(selected.volumesByChannel?.B2B?.[year] || 0)}<span className="block text-[10px] text-muted-foreground">par client</span></div> : <Input aria-label={`${selected.name} ${ch} ${year}`} type="number" min={0} step={1} inputMode="numeric" value={selected.volumesByChannel?.[ch]?.[year] || 0} onFocus={e => e.target.select()} onChange={e => onChannelVolumeChange(selected.id, year, ch, Number(e.target.value))} className="h-11 w-full min-w-[80px] max-w-[120px] mx-auto text-center text-base font-medium tabular-nums focus-visible:ring-accent" /> : <span className="text-xs text-muted-foreground">Avant lancement</span>}
                   </TableCell>)}
                 </TableRow>)}
                 <TableRow className="bg-muted/40"><TableCell className="sticky left-0 bg-muted text-xs font-medium">Total unités</TableCell>{years.map(y => <TableCell key={y} className="text-center tabular-nums text-sm font-semibold">{number(CHANNELS.reduce((n, ch) => n + volume(selected, y, ch), 0))}</TableCell>)}</TableRow>
@@ -115,6 +122,7 @@ export function VolumesByChannelTable({ products, years, onChannelVolumeChange, 
               </TableBody>
             </Table>
           </div>
+          {onUpdateProduct && supportsB2BClients(selected) && <B2BClientPanel product={selected} years={years} onChange={onUpdateProduct} />}
           {config.volumeAdjustment !== 0 || config.priceAdjustment !== 0 ? <Badge variant="secondary">Scénario {state.activeScenarioId} · volumes {config.volumeAdjustment * 100}% · prix {config.priceAdjustment * 100}%</Badge> : null}
         </div>}
       </div>}
@@ -125,7 +133,7 @@ export function VolumesByChannelTable({ products, years, onChannelVolumeChange, 
             <TableHeader><TableRow><TableHead className="min-w-[200px]">Produit / catégorie</TableHead>{CHANNELS.map(ch => <TableHead key={ch} className="text-center">{ch} / an (%)</TableHead>)}<TableHead className="min-w-[145px]">Année de départ</TableHead><TableHead /></TableRow></TableHeader>
             <TableBody>{products.map(p => <TableRow key={p.id}>
               <TableCell className="font-medium max-w-[260px] break-words">{p.name}</TableCell>
-              {CHANNELS.map(ch => <TableCell key={ch} className="px-2"><div className="relative"><Input aria-label={`${p.name} ${ch} / an`} type="number" value={growthRates[p.id]?.[ch] ?? 0} onChange={e => setGrowthRates(prev => ({ ...prev, [p.id]: { ...prev[p.id], [ch]: Number(e.target.value) } }))} step={1} className="min-w-[90px] pr-7 text-center tabular-nums" /><span className="absolute right-3 top-2 text-muted-foreground">%</span></div></TableCell>)}
+              {CHANNELS.map(ch => byClient(p, ch) ? <TableCell key={ch} className="px-2 text-center text-xs text-muted-foreground">Par client</TableCell> : <TableCell key={ch} className="px-2"><div className="relative"><Input aria-label={`${p.name} ${ch} / an`} type="number" value={growthRates[p.id]?.[ch] ?? 0} onChange={e => setGrowthRates(prev => ({ ...prev, [p.id]: { ...prev[p.id], [ch]: Number(e.target.value) } }))} step={1} className="min-w-[90px] pr-7 text-center tabular-nums" /><span className="absolute right-3 top-2 text-muted-foreground">%</span></div></TableCell>)}
               <TableCell><Select value={String(Math.max(growthStartYear[p.id] ?? Math.max(p.launchYear, years[0] ?? p.launchYear), p.launchYear))} onValueChange={value => setGrowthStartYear(prev => ({ ...prev, [p.id]: Number(value) }))}><SelectTrigger aria-label={`${p.name} année de départ`} disabled={!years.some(y => y >= p.launchYear)}><SelectValue /></SelectTrigger><SelectContent>{years.filter(y => y >= p.launchYear).map(y => <SelectItem key={y} value={String(y)}>{y}</SelectItem>)}</SelectContent></Select></TableCell>
               <TableCell><Button variant="outline" size="sm" aria-label={`Appliquer à ${p.name}`} disabled={!years.some((y, i) => i > 0 && years[i - 1] >= p.launchYear)} onClick={() => applyGrowth([p])}><Check className="h-4 w-4 mr-2" />Appliquer</Button></TableCell>
             </TableRow>)}</TableBody>

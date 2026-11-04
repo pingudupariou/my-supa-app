@@ -23,6 +23,8 @@
 ## Phase 2 IA
 - [x] Croissance : taux par produit/canal et année de départ, application individuelle ou groupée (5 tests réussis, build OK ; vérification sur plan connecté indisponible avec Supabase externe).
 - [ ] Simplifier visuellement la saisie des volumes du Plan produit sans changer les calculs ni les sauvegardes.
+- [x] Plan produit : B2B détaillé par client sur les lignes Erplain (historique, croissance, ajustement) — 5 tests et contrôle visuel sur données de test.
+- [ ] Vérifier l'import clients B2B avec les vraies ventes Erplain (session Supabase externe indisponible).
 - [x] Afficher la sauvegarde active par onglet, sauvegarder sur place et inclure données et noms courants dans les sauvegardes globales (8 tests ciblés et 7 tests de non-régression).
 - [ ] Vérifier sauvegarde, ouverture et restauration globale avec un compte réel : Supabase externe sans session de test disponible.
 - [x] Plan produit : noms sauvegardés dans les catégories, ajout aux catégories existantes, création manuelle et retrait visibles ; 4 tests réussis et contrôle visuel sur données de test.

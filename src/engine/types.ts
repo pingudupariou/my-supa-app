@@ -51,6 +51,26 @@ export interface Product {
   productStatus?: 'standby' | 'validated'; // Statut du produit
   erplainMembers?: string[];  // Variantes Erplain regroupées dans cette catégorie
   erplainMemberProducts?: Product[]; // Copies des membres pour leurs noms et calculs après sauvegarde
+  b2bClients?: B2BClientSplit; // Répartition facultative du B2B par client (lignes liées à Erplain)
+}
+
+// Client B2B d'une ligne du plan : volumes de base, croissance et ajustement propres.
+export interface PlanB2BClient {
+  id: string;
+  name: string;
+  customerId?: string;               // Identifiant client Erplain si importé
+  volumes: Record<number, number>;   // Volumes de base par année
+  growthRate: number;                // % par an, appliqué à partir de startYear
+  startYear?: number;                // Année de départ de la croissance et de l'ajustement
+  adjustment: number;                // % appliqué aux volumes à partir de startYear
+  remainder?: boolean;               // Ligne « Autres clients (non répartis) »
+}
+
+export interface B2BClientSplit {
+  enabled: boolean;                  // Si actif, le volume B2B de la ligne = somme des clients
+  clients: PlanB2BClient[];
+  historyYears: number[];            // Années remplies avec le réalisé Erplain
+  importedAt?: string;
 }
 
 // ==================
