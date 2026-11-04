@@ -230,8 +230,8 @@ export function ProductPlanPage() {
       <Tabs key={state.revenueMode} defaultValue={byProduct ? 'volumes' : 'entry'} className="space-y-4">
         <TabsList className="h-auto w-full flex-wrap justify-start gap-1 bg-muted/50 p-1">
           {steps.map((step, i) => (
-            <TabsTrigger key={step.value} value={step.value} className="flex-1 min-w-[180px] justify-start gap-3 px-3 py-2 text-left data-[state=active]:shadow-sm">
-              <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border text-xs font-semibold">{step.optional ? <step.icon className="h-3.5 w-3.5" /> : i + 1}</span>
+            <TabsTrigger key={step.value} value={step.value} className="group flex-1 min-w-[180px] justify-start gap-3 px-3 py-2 text-left data-[state=active]:shadow-sm">
+              <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border text-xs font-semibold group-data-[state=active]:border-primary group-data-[state=active]:bg-primary group-data-[state=active]:text-primary-foreground">{step.optional ? <step.icon className="h-3.5 w-3.5" /> : i + 1}</span>
               <span className="min-w-0">
                 <span className="block text-sm font-medium">{step.label}</span>
                 <span className="block text-[11px] font-normal text-muted-foreground whitespace-normal">{step.help}</span>
