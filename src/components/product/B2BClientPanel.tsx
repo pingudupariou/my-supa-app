@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import type { PlanB2BClient, Product } from '@/engine/types';
-import { applyClientGrowth, b2bTotal, clientVolume, enableSplit, existingClientOptions, importErplainClients, erplainKeysOf, hasErplainHistory, type ErplainClientSale, type ExistingClientOption } from '@/engine/b2bClients';
+import type { CurrentYearMethod, PlanB2BClient, Product } from '@/engine/types';
+import { applyClientGrowth, b2bTotal, clientVolume, CURRENT_YEAR_METHODS, currentYearValue, differsFromOrigin, enableSplit, existingClientOptions, importErplainClients, erplainKeysOf, hasErplainHistory, lockedYears, restoreOrigin, setCurrentYearMethod, yearProgress, type ErplainClientSale, type ExistingClientOption } from '@/engine/b2bClients';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
@@ -10,7 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { formatCurrency } from '@/data/financialConfig';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
-import { ChevronsUpDown, Download, Loader2, Plus, Trash2, TrendingUp, UserPlus, Users } from 'lucide-react';
+import { CalendarClock, ChevronsUpDown, Download, Loader2, Plus, RotateCcw, Trash2, TrendingUp, UserPlus, Users } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface Props { product: Product; years: number[]; onChange: (product: Product) => void }
@@ -61,16 +61,24 @@ export function B2BClientPanel({ product, years, onChange }: Props) {
     try {
       const keys = erplainKeysOf(product);
       const fetchYears = [...new Set([...years.filter(y => y < thisYear), thisYear - 1, thisYear])].sort();
-      const sales: ErplainClientSale[] = [];
-      for (const y of fetchYears) {
-        const to = y === thisYear ? new Date().toISOString().slice(0, 10) : `${y}-12-31`;
-        const { data, error } = await supabase.rpc('sales_b2b_clients' as never, { _from: `${y}-01-01`, _to: to, _keys: keys } as never);
+      const today = new Date();
+      const iso = (d: Date) => d.toISOString().slice(0, 10);
+      const read = async (from: string, to: string, year: number) => {
+        const { data, error } = await supabase.rpc('sales_b2b_clients' as never, { _from: from, _to: to, _keys: keys } as never);
         if (error) throw error;
-        for (const r of (data as unknown as { customer_id: string | null; customer_name: string; qty: number }[]) ?? [])
-          sales.push({ year: y, customerId: r.customer_id, name: r.customer_name || 'Client sans nom', qty: Number(r.qty) || 0 });
-      }
+        return ((data as unknown as { customer_id: string | null; customer_name: string; qty: number }[]) ?? [])
+          .map(r => ({ year, customerId: r.customer_id, name: r.customer_name || 'Client sans nom', qty: Number(r.qty) || 0 }));
+      };
+      const sales: ErplainClientSale[] = [];
+      for (const y of fetchYears) sales.push(...await read(`${y}-01-01`, y === thisYear ? iso(today) : `${y}-12-31`, y));
       if (!sales.length) { toast.info('Aucune vente B2B Erplain trouvée pour cette ligne.'); setLoading(false); return; }
-      const res = importErplainClients(product, sales, years, thisYear);
+      // Lectures pour extrapoler l'année en cours : N-1 à la même date et 90 derniers jours.
+      const sameN1 = new Date(today); sameN1.setFullYear(thisYear - 1);
+      const [n1Same, recent] = await Promise.all([
+        read(`${thisYear - 1}-01-01`, iso(sameN1), thisYear - 1),
+        read(iso(new Date(today.getTime() - 90 * 86400000)), iso(today), thisYear),
+      ]);
+      const res = importErplainClients(product, sales, years, thisYear, { asOf: iso(today), n1Same, recent });
       onChange({ ...product, b2bClients: res.split });
       setNotes(res.notes);
       toast.success(`${res.split.clients.filter(c => !c.remainder).length} client(s) B2B importé(s) d'Erplain`);
@@ -93,6 +101,15 @@ export function B2BClientPanel({ product, years, onChange }: Props) {
     if (picked) { setPickerOpen(false); toast.success(`${name} ajouté`); } else setNewName('');
   };
   const erplainOpts = options.filter(o => o.customerId);
+  // Croissance : le réalisé Erplain (années passées, année en cours si chiffre Erplain) n'est jamais écrasé.
+  const grow = (c: PlanB2BClient) => applyClientGrowth(c, years, lockedYears(c, split ?? { historyYears: [] }));
+  const withActual = (split?.clients ?? []).filter(c => c.actual?.year === thisYear);
+  const anyChanged = (split?.clients ?? []).some(differsFromOrigin);
+  const setMethodAll = (m: CurrentYearMethod) => save((split?.clients ?? []).map(c => c.actual ? setCurrentYearMethod(c, m) : c));
+  const methodLabel = (m?: CurrentYearMethod) => CURRENT_YEAR_METHODS.find(x => x.id === (m ?? 'ytd'))?.label;
+  const asOf = withActual[0]?.actual?.asOf;
+  const progress = asOf ? yearProgress(thisYear, asOf) : null;
+  const commonMethod = withActual.length && withActual.every(c => (c.cyMethod ?? 'ytd') === (withActual[0].cyMethod ?? 'ytd')) ? (withActual[0].cyMethod ?? 'ytd') : null;
   const crmOpts = options.filter(o => !o.customerId);
 
   return (
@@ -141,10 +158,55 @@ export function B2BClientPanel({ product, years, onChange }: Props) {
             <Input aria-label="Nom du nouveau client" placeholder="Nouveau prospect…" value={newName} onChange={e => setNewName(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') addClient(); }} className="h-9 w-48" />
             <Button size="sm" variant="outline" onClick={() => addClient()} disabled={!newName.trim()}><Plus className="h-4 w-4 mr-2" />Ajouter</Button>
           </div>
-          <Button size="sm" variant="outline" onClick={() => save(split.clients.map(c => c.remainder ? c : applyClientGrowth(c, years)))}><TrendingUp className="h-4 w-4 mr-2" />Appliquer la croissance à tous</Button>
+          <Button size="sm" variant="outline" onClick={() => save(split.clients.map(c => c.remainder ? c : grow(c)))}><TrendingUp className="h-4 w-4 mr-2" />Appliquer la croissance à tous</Button>
+          {anyChanged && <Button size="sm" variant="outline" onClick={() => { save(split.clients.map(restoreOrigin)); toast.success('Réalisé Erplain d’origine rétabli'); }}><RotateCcw className="h-4 w-4 mr-2" />Revenir au réalisé Erplain</Button>}
           <Badge variant="secondary">Prix B2B {formatCurrency(price)} HT</Badge>
         </div>
         {notes.length > 0 && <ul className="rounded-md border bg-muted/30 p-3 text-xs text-muted-foreground list-disc pl-6 space-y-1">{notes.map((n, i) => <li key={i}>{n}</li>)}</ul>}
+
+        {withActual.length > 0 && progress && <div className="rounded-lg border border-primary/30 bg-primary/5 p-3 space-y-3">
+          <div className="flex flex-wrap items-start justify-between gap-2">
+            <div>
+              <p className="text-sm font-semibold flex items-center gap-2"><CalendarClock className="h-4 w-4 text-primary" />Année {thisYear} : quel chiffre retenir ?</p>
+              <p className="text-xs text-muted-foreground mt-0.5">Erplain lu le {new Date(asOf!).toLocaleDateString('fr-FR')} · {Math.round(progress.fraction * 100)} % de l’année écoulée ({progress.remaining} jours restants). Cliquez sur une valeur pour la choisir client par client, ou sur une méthode pour tous.</p>
+            </div>
+            <div className="flex flex-wrap gap-1" role="group" aria-label={`Méthode ${thisYear} pour tous les clients`}>
+              {CURRENT_YEAR_METHODS.filter(m => m.id !== 'manual').map(m => <Button key={m.id} size="sm" variant={commonMethod === m.id ? 'default' : 'outline'} title={m.help} onClick={() => setMethodAll(m.id)}>{m.label}</Button>)}
+            </div>
+          </div>
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader><TableRow>
+                <TableHead>Client</TableHead>
+                <TableHead className="text-right">N-1 ({thisYear - 1})</TableHead>
+                <TableHead className="text-right">N-1 même date</TableHead>
+                {CURRENT_YEAR_METHODS.filter(m => m.id !== 'manual').map(m => <TableHead key={m.id} className="text-right" title={m.help}>{m.label}</TableHead>)}
+                <TableHead className="text-right">Retenu {thisYear}</TableHead>
+              </TableRow></TableHeader>
+              <TableBody>
+                {withActual.map(c => {
+                  const a = c.actual!, m = c.cyMethod ?? 'ytd';
+                  return <TableRow key={c.id}>
+                    <TableCell className="text-sm font-medium">{c.name}</TableCell>
+                    <TableCell className="text-right tabular-nums text-muted-foreground">{num(a.n1)}</TableCell>
+                    <TableCell className="text-right tabular-nums text-muted-foreground">{num(a.n1Same)}</TableCell>
+                    {CURRENT_YEAR_METHODS.filter(x => x.id !== 'manual').map(x => <TableCell key={x.id} className="text-right p-1">
+                      <button type="button" aria-label={`${c.name} : ${x.label}`} aria-pressed={m === x.id} onClick={() => updateClient(c.id, setCurrentYearMethod(c, x.id))}
+                        className={`w-full rounded-md px-2 py-1 text-right tabular-nums text-sm transition-colors ${m === x.id ? 'bg-primary text-primary-foreground font-semibold' : 'hover:bg-muted'}`}>
+                        {num(currentYearValue(a, x.id) ?? 0)}
+                      </button>
+                    </TableCell>)}
+                    <TableCell className="text-right">
+                      <span className="font-semibold tabular-nums">{num(c.volumes[thisYear] || 0)}</span>
+                      <span className="block text-[10px] text-muted-foreground">{methodLabel(m)}</span>
+                    </TableCell>
+                  </TableRow>;
+                })}
+              </TableBody>
+            </Table>
+          </div>
+          <p className="text-[11px] text-muted-foreground">Le chiffre Erplain retenu pour {thisYear} n’est jamais modifié par « Appliquer la croissance » : la croissance part de lui pour {thisYear + 1} et après. Taper une autre valeur dans le tableau passe le client en « Saisie libre ».</p>
+        </div>}
 
         <div className="overflow-x-auto border-y">
           <Table className="min-w-[900px]">
@@ -153,7 +215,8 @@ export function B2BClientPanel({ product, years, onChange }: Props) {
               <TableHead className="text-center min-w-[90px]">Croissance / an</TableHead>
               <TableHead className="text-center min-w-[100px]">À partir de</TableHead>
               <TableHead className="text-center min-w-[90px]">Ajustement</TableHead>
-              {years.map(y => <TableHead key={y} className="text-center min-w-[96px]">{y}{history.has(y) && <span className="block text-[10px] font-normal text-success">Réalisé Erplain</span>}</TableHead>)}
+              {years.map(y => <TableHead key={y} className="text-center min-w-[96px]">{y}{history.has(y) ? <span className="block text-[10px] font-normal text-success">Réalisé Erplain</span>
+                : y === thisYear && withActual.length > 0 && <span className="block text-[10px] font-normal text-primary">{commonMethod ? methodLabel(commonMethod) : 'Mixte'}</span>}</TableHead>)}
               <TableHead />
             </TableRow></TableHeader>
             <TableBody>
@@ -173,15 +236,20 @@ export function B2BClientPanel({ product, years, onChange }: Props) {
                 <TableCell className="px-2"><div className="relative"><Input aria-label={`${c.name} ajustement`} type="number" step={1} value={c.adjustment} onChange={e => updateClient(c.id, { adjustment: Number(e.target.value) || 0 })} className="h-9 pr-6 text-center tabular-nums" /><span className="absolute right-2 top-2 text-xs text-muted-foreground">%</span></div></TableCell>
                 {years.map(y => {
                   const eff = clientVolume(c, y);
-                  return <TableCell key={y} className="px-2 text-center">
+                  const orig = c.origin?.[y];
+                  const isCy = y === thisYear && c.actual?.year === y;
+                  return <TableCell key={y} className={`px-2 text-center ${isCy && (c.cyMethod ?? 'ytd') !== 'manual' ? 'bg-primary/5' : ''}`}>
                     <Input aria-label={`${c.name} ${y}`} type="number" min={0} step={1} inputMode="numeric" value={c.volumes[y] || 0} onFocus={e => e.target.select()}
-                      onChange={e => updateClient(c.id, { volumes: { ...c.volumes, [y]: Math.max(0, Math.round(Number(e.target.value) || 0)) } })} className="h-9 text-center tabular-nums" />
+                      onChange={e => updateClient(c.id, { volumes: { ...c.volumes, [y]: Math.max(0, Math.round(Number(e.target.value) || 0)) }, ...(isCy ? { cyMethod: 'manual' as const } : {}) })} className="h-9 text-center tabular-nums" />
                     {eff !== (c.volumes[y] || 0) && <span className="block text-[10px] text-muted-foreground mt-0.5">ajusté → {num(eff)}</span>}
+                    {orig !== undefined && orig !== (c.volumes[y] || 0) && <button type="button" className="block w-full text-[10px] text-primary underline-offset-2 hover:underline mt-0.5" title="Revenir au chiffre Erplain"
+                      onClick={() => updateClient(c.id, { volumes: { ...c.volumes, [y]: orig }, ...(isCy ? { cyMethod: 'ytd' as const } : {}) })}>Erplain {isCy ? 'à date ' : ''}: {num(orig)} ↺</button>}
                   </TableCell>;
                 })}
                 <TableCell className="px-1">
                   <div className="flex gap-1">
-                    {!c.remainder && <Button size="icon" variant="ghost" className="h-8 w-8" title={`Appliquer la croissance à ${c.name}`} aria-label={`Appliquer la croissance à ${c.name}`} onClick={() => updateClient(c.id, applyClientGrowth(c, years))}><TrendingUp className="h-4 w-4" /></Button>}
+                    {!c.remainder && <Button size="icon" variant="ghost" className="h-8 w-8" title={`Appliquer la croissance à ${c.name}`} aria-label={`Appliquer la croissance à ${c.name}`} onClick={() => updateClient(c.id, grow(c))}><TrendingUp className="h-4 w-4" /></Button>}
+                    {differsFromOrigin(c) && <Button size="icon" variant="ghost" className="h-8 w-8" title={`Revenir au réalisé Erplain de ${c.name}`} aria-label={`Revenir au réalisé Erplain de ${c.name}`} onClick={() => updateClient(c.id, restoreOrigin(c))}><RotateCcw className="h-4 w-4" /></Button>}
                     <Button size="icon" variant="ghost" className="h-8 w-8 text-destructive" title={`Retirer ${c.name}`} aria-label={`Retirer ${c.name}`} onClick={() => save(split.clients.filter(x => x.id !== c.id))}><Trash2 className="h-4 w-4" /></Button>
                   </div>
                 </TableCell>
@@ -198,7 +266,7 @@ export function B2BClientPanel({ product, years, onChange }: Props) {
             </TableBody>
           </Table>
         </div>
-        <p className="text-xs text-muted-foreground">Croissance : chaque année à partir de l'année choisie = année précédente × (1 + %). Ajustement : % appliqué aux volumes à partir de cette même année. Pensez à sauvegarder le plan.</p>
+        <p className="text-xs text-muted-foreground">Croissance : chaque année à partir de l'année choisie = année précédente × (1 + %), sans toucher au réalisé Erplain. Ajustement : % appliqué aux volumes à partir de cette même année. Pensez à sauvegarder le plan.</p>
       </>}
     </section>
   );
