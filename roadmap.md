@@ -55,3 +55,4 @@
 - [x] Étape 5 : boucle de pilotage (onglet Pilotage : propositions chiffrées issues de Stratégie IA, approbation, modification budget/ROAS/pause supervisée, suivi avant/après)
 - [ ] Relancer une analyse Stratégie IA et l'audit de structure pour obtenir les premières propositions (compte connecté requis)
 - [ ] Première publication réelle (attend l'accord explicite et GOOGLE_ADS_ALLOW_WRITE=true)
+- [x] B2B par client aussi pour les nouveaux produits manuels sans historique (test réussi ; plan réel non vérifié).

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import type { PlanB2BClient, Product } from '@/engine/types';
-import { applyClientGrowth, b2bTotal, clientVolume, enableSplit, importErplainClients, erplainKeysOf, type ErplainClientSale } from '@/engine/b2bClients';
+import { applyClientGrowth, b2bTotal, clientVolume, enableSplit, importErplainClients, erplainKeysOf, hasErplainHistory, type ErplainClientSale } from '@/engine/b2bClients';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
@@ -19,6 +19,7 @@ export function B2BClientPanel({ product, years, onChange }: Props) {
   const thisYear = new Date().getFullYear();
   const split = product.b2bClients;
   const enabled = !!split?.enabled;
+  const linked = hasErplainHistory(product);
   const [loading, setLoading] = useState(false);
   const [newName, setNewName] = useState('');
   const [notes, setNotes] = useState<string[]>([]);
@@ -75,7 +76,9 @@ export function B2BClientPanel({ product, years, onChange }: Props) {
         <div className="min-w-0">
           <h4 className="font-semibold flex items-center gap-2"><Users className="h-4 w-4 text-success" />B2B par client</h4>
           <p className="text-xs text-muted-foreground mt-1 max-w-xl">
-            {enabled ? 'Le volume B2B de cette ligne est la somme des clients ci-dessous. Prix B2B moyen appliqué à tous les clients.' : 'Répartissez le volume B2B entre vos clients, avec leur historique Erplain, leur croissance et un ajustement propre.'}
+            {enabled ? 'Le volume B2B de cette ligne est la somme des clients ci-dessous. Prix B2B moyen appliqué à tous les clients.'
+              : linked ? 'Répartissez le volume B2B entre vos clients, avec leur historique Erplain, leur croissance et un ajustement propre.'
+              : 'Nouveau produit sans historique : ajoutez vos clients ou prospects, leurs volumes, leur croissance et un ajustement propre.'}
           </p>
         </div>
         <label className="flex items-center gap-2 text-sm"><Switch aria-label="Détailler le B2B par client" checked={enabled} onCheckedChange={toggle} />Détailler par client</label>
@@ -83,7 +86,7 @@ export function B2BClientPanel({ product, years, onChange }: Props) {
 
       {enabled && split && <>
         <div className="flex flex-wrap items-center gap-2">
-          <Button size="sm" onClick={importHistory} disabled={loading}>{loading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Download className="h-4 w-4 mr-2" />}{split.importedAt ? "Actualiser l'historique Erplain" : "Importer l'historique Erplain"}</Button>
+          {linked && <Button size="sm" onClick={importHistory} disabled={loading}>{loading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Download className="h-4 w-4 mr-2" />}{split.importedAt ? "Actualiser l'historique Erplain" : "Importer l'historique Erplain"}</Button>}
           <div className="flex gap-2">
             <Input aria-label="Nom du nouveau client" placeholder="Nouveau client ou prospect…" value={newName} onChange={e => setNewName(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') addClient(); }} className="h-9 w-56" />
             <Button size="sm" variant="outline" onClick={addClient} disabled={!newName.trim()}><Plus className="h-4 w-4 mr-2" />Ajouter</Button>
@@ -132,7 +135,7 @@ export function B2BClientPanel({ product, years, onChange }: Props) {
                   </div>
                 </TableCell>
               </TableRow>)}
-              {!split.clients.length && <TableRow><TableCell colSpan={years.length + 5} className="py-6 text-center text-sm text-muted-foreground">Aucun client : importez l'historique Erplain ou ajoutez un client.</TableCell></TableRow>}
+              {!split.clients.length && <TableRow><TableCell colSpan={years.length + 5} className="py-6 text-center text-sm text-muted-foreground">{linked ? "Aucun client : importez l'historique Erplain ou ajoutez un client." : 'Aucun client : ajoutez un client ou un prospect.'}</TableCell></TableRow>}
               <TableRow className="bg-muted/40">
                 <TableCell className="sticky left-0 bg-muted text-xs font-semibold">Total B2B (unités)</TableCell><TableCell colSpan={3} />
                 {years.map(y => <TableCell key={y} className="text-center text-sm font-semibold tabular-nums">{num(b2bTotal(split, y))}</TableCell>)}<TableCell />

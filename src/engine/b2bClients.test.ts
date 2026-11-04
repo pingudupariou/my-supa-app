@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { applyClientGrowth, clientVolume, enableSplit, importErplainClients, syncB2BClients } from './b2bClients';
+import { applyClientGrowth, clientVolume, enableSplit, hasErplainHistory, importErplainClients, supportsB2BClients, syncB2BClients } from './b2bClients';
 import { syncProductVolumes } from './calculations';
 import type { PlanB2BClient, Product } from './types';
 
@@ -54,5 +54,16 @@ describe('B2B par client', () => {
     expect(nord.volumes[2025]).toBe(120);
     expect(nord.volumes[2027]).toBe(999);
     expect(nord.growthRate).toBe(20);
+  });
+
+  it('un nouveau produit manuel sans historique peut détailler son B2B par client', () => {
+    const manual: Product = { ...base, id: 'manual-nouveau', erplainMembers: undefined, volumesByChannel: { B2C: {}, B2B: {}, OEM: {} } };
+    expect(supportsB2BClients(manual)).toBe(true);
+    expect(hasErplainHistory(manual)).toBe(false);
+    const p = syncB2BClients({ ...manual, b2bClients: { enabled: true, historyYears: [], clients: [
+      applyClientGrowth(client({ id: 'p', volumes: { 2026: 100 }, growthRate: 20, startYear: 2027 }), years),
+    ] } });
+    expect(p.volumesByChannel!.B2B[2027]).toBe(120);
+    expect(p.volumesByChannel!.B2B[2028]).toBe(144);
   });
 });
