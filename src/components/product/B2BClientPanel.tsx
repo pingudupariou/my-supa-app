@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import type { PlanB2BClient, Product } from '@/engine/types';
-import { applyClientGrowth, b2bTotal, clientVolume, enableSplit, importErplainClients, erplainKeysOf, type ErplainClientSale } from '@/engine/b2bClients';
+import { applyClientGrowth, b2bTotal, clientVolume, enableSplit, importErplainClients, erplainKeysOf, hasErplainHistory, type ErplainClientSale } from '@/engine/b2bClients';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';

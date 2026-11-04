@@ -5,7 +5,9 @@ export function erplainKeysOf(p: Product): string[] {
   if (p.erplainMembers?.length) return [...new Set(p.erplainMembers.filter(k => !k.startsWith('manual:')))];
   return p.id.startsWith('erplain-') ? [p.id.slice(8)] : [];
 }
-export const supportsB2BClients = (p: Product) => erplainKeysOf(p).length > 0;
+/** Toutes les lignes peuvent détailler leur B2B par client ; l'import d'historique exige des produits Erplain. */
+export const supportsB2BClients = (_p: Product) => true;
+export const hasErplainHistory = (p: Product) => erplainKeysOf(p).length > 0;
 
 /** Volume effectif d'un client : volume de base, ajusté de « adjustment » % à partir de l'année de départ. */
 export function clientVolume(c: PlanB2BClient, year: number): number {
