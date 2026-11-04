@@ -65,6 +65,21 @@ export interface PlanB2BClient {
   startYear?: number;                // Année de départ de la croissance et de l'ajustement
   adjustment: number;                // % appliqué aux volumes à partir de startYear
   remainder?: boolean;               // Ligne « Autres clients (non répartis) »
+  actual?: ClientCurrentYearActual;  // Réalisé Erplain de l'année en cours (lu à l'import)
+  origin?: Record<number, number>;   // Réalisé Erplain d'origine (années passées + année en cours à date)
+  cyMethod?: CurrentYearMethod;      // Chiffre retenu pour l'année en cours
+}
+
+/** Chiffre de l'année en cours : réalisé à date, extrapolation, ou saisie libre (croissance possible). */
+export type CurrentYearMethod = 'ytd' | 'prorata' | 'season' | 'recent' | 'manual';
+
+export interface ClientCurrentYearActual {
+  year: number;
+  asOf: string;    // Date de lecture Erplain (AAAA-MM-JJ)
+  ytd: number;     // Ventes depuis le 1er janvier
+  n1: number;      // Ventes N-1 année complète
+  n1Same: number;  // Ventes N-1 à la même date
+  recent90: number;// Ventes des 90 derniers jours
 }
 
 export interface B2BClientSplit {
