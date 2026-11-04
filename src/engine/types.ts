@@ -59,6 +59,7 @@ export interface PlanB2BClient {
   id: string;
   name: string;
   customerId?: string;               // Identifiant client Erplain si importé
+  crmClientId?: string;              // Fiche client B2B de l'application si choisie
   volumes: Record<number, number>;   // Volumes de base par année
   growthRate: number;                // % par an, appliqué à partir de startYear
   startYear?: number;                // Année de départ de la croissance et de l'ajustement

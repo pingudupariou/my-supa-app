@@ -131,3 +131,42 @@ export function importErplainClients(p: Product, sales: ErplainClientSale[], yea
   };
   return { split: next, notes };
 }
+
+export interface ExistingClientOption {
+  key: string;
+  name: string;
+  customerId?: string;   // Client Erplain (B2B/OEM) — l'import d'historique le reconnaîtra
+  crmClientId?: string;  // Fiche client B2B de l'application
+  detail?: string;
+}
+
+const norm = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLocaleLowerCase('fr');
+
+/**
+ * Clients existants proposables : clients Erplain classés B2B/OEM et fiches clients B2B,
+ * fusionnés par nom (une seule entrée), en excluant ceux déjà présents sur la ligne.
+ */
+export function existingClientOptions(
+  erplain: { customer_id: string; customer_name: string | null; channel: string }[],
+  crm: { id: string; company_name: string; country?: string | null }[],
+  current: PlanB2BClient[],
+): ExistingClientOption[] {
+  const byName = new Map<string, ExistingClientOption>();
+  for (const e of erplain) {
+    const name = (e.customer_name ?? '').trim();
+    if (!name || norm(name) === '') continue;
+    byName.set(norm(name), { key: `erplain:${e.customer_id}`, name, customerId: e.customer_id, detail: e.channel });
+  }
+  for (const c of crm) {
+    const name = c.company_name?.trim();
+    if (!name) continue;
+    const found = byName.get(norm(name));
+    if (found) { found.crmClientId = c.id; continue; }
+    byName.set(norm(name), { key: `crm:${c.id}`, name, crmClientId: c.id, detail: c.country ?? undefined });
+  }
+  const usedIds = new Set(current.flatMap(c => [c.customerId, c.crmClientId].filter(Boolean) as string[]));
+  const usedNames = new Set(current.map(c => norm(c.name)));
+  return [...byName.values()]
+    .filter(o => !usedNames.has(norm(o.name)) && !(o.customerId && usedIds.has(o.customerId)) && !(o.crmClientId && usedIds.has(o.crmClientId)))
+    .sort((a, b) => a.name.localeCompare(b.name, 'fr'));
+}
