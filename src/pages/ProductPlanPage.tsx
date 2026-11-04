@@ -396,6 +396,7 @@ export function ProductPlanPage() {
                 onUpdateProduct={handleUpdateProduct}
                 onAddProduct={handleAddProduct}
                 onRemoveProduct={removeProduct}
+                years={YEARS}
               />
             </div>
           ) : (

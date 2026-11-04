@@ -18,9 +18,11 @@ interface SimplifiedPricingTableProps {
   onUpdateProduct: (product: Product) => void;
   onAddProduct: (product: Product) => void;
   onRemoveProduct: (id: string) => void;
+  /** Plan years, so a manual product can launch in any year of the plan. */
+  years?: number[];
 }
 
-export function SimplifiedPricingTable({ products, categories, onUpdateProduct, onAddProduct, onRemoveProduct }: SimplifiedPricingTableProps) {
+export function SimplifiedPricingTable({ products, categories, onUpdateProduct, onAddProduct, onRemoveProduct, years }: SimplifiedPricingTableProps) {
   const [expandedComments, setExpandedComments] = useState<Set<string>>(new Set());
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
 
@@ -329,7 +331,7 @@ export function SimplifiedPricingTable({ products, categories, onUpdateProduct, 
           </TableBody>
         </Table>
       </div>
-      <div className="mt-4"><ManualPlanProductDialog years={Array.from({ length: 20 }, (_, i) => new Date().getFullYear() + i)} onAdd={onAddProduct} /></div>
+      <div className="mt-4"><ManualPlanProductDialog years={years?.length ? years : Array.from({ length: 20 }, (_, i) => new Date().getFullYear() + i)} onAdd={onAddProduct} /></div>
     </SectionCard>
   );
 }
