@@ -243,7 +243,7 @@ export function ErplainActualsImport({ products, years, onApply, onSave }: Props
           </select>
         </label>
         <span className="text-xs text-muted-foreground">Plan à partir de {years[0]}</span>
-        <div className="flex flex-wrap gap-2"><ManualPlanProductDialog years={years} onAdd={p => onApply([...products, p])} />{onSave && <Button size="sm" variant="outline" onClick={onSave}><Save className="h-4 w-4 mr-2" />Sauvegarder le plan</Button>}</div>
+        <div className="flex flex-wrap gap-2">{showManualAdd && <ManualPlanProductDialog years={years} onAdd={p => onApply([...products, p])} />}{onSave && <Button size="sm" variant="outline" onClick={onSave}><Save className="h-4 w-4 mr-2" />Sauvegarder le plan</Button>}</div>
       </div>
 
       <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
