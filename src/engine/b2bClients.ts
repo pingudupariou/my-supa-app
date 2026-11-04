@@ -1,4 +1,4 @@
-import type { B2BClientSplit, PlanB2BClient, Product } from './types';
+import type { B2BClientSplit, ClientCurrentYearActual, CurrentYearMethod, PlanB2BClient, Product } from './types';
 
 /** Ligne du plan liée à Erplain (catégorie avec produits Erplain ou produit Erplain individuel). */
 export function erplainKeysOf(p: Product): string[] {
@@ -30,12 +30,62 @@ export function syncB2BClients(p: Product): Product {
   return { ...p, volumesByChannel: { ...ch, B2B } };
 }
 
-/** Croissance annuelle du client à partir de son année de départ (années antérieures inchangées). */
-export function applyClientGrowth(c: PlanB2BClient, years: number[]): PlanB2BClient {
+export const CURRENT_YEAR_METHODS: { id: CurrentYearMethod; label: string; help: string }[] = [
+  { id: 'ytd', label: 'Réalisé à date', help: 'Ventes Erplain depuis le 1er janvier, sans extrapolation' },
+  { id: 'prorata', label: 'Prorata', help: 'Ventes à date ÷ part de l’année écoulée' },
+  { id: 'season', label: 'Saisonnalité N-1', help: 'Ventes à date × (total N-1 ÷ N-1 à la même date) ; sans N-1, prorata' },
+  { id: 'recent', label: 'Rythme 90 j', help: 'Ventes à date + rythme des 90 derniers jours × jours restants' },
+  { id: 'manual', label: 'Saisie libre', help: 'Valeur saisie ou calculée par la croissance' },
+];
+
+const DAY = 86400000;
+/** Part de l'année écoulée à la date de lecture, et jours restants. */
+export function yearProgress(year: number, asOf: string) {
+  const start = Date.UTC(year, 0, 1), end = Date.UTC(year + 1, 0, 1);
+  const total = Math.round((end - start) / DAY);
+  const elapsed = Math.min(total, Math.max(1, Math.round((Date.parse(asOf) - start) / DAY) + 1));
+  return { fraction: elapsed / total, remaining: total - elapsed };
+}
+
+/** Volume de l'année en cours selon la méthode (null = saisie libre). */
+export function currentYearValue(a: ClientCurrentYearActual, m: CurrentYearMethod): number | null {
+  if (m === 'manual') return null;
+  if (m === 'ytd') return Math.round(a.ytd);
+  const { fraction, remaining } = yearProgress(a.year, a.asOf);
+  if (m === 'recent') return Math.round(a.ytd + (a.recent90 / 90) * remaining);
+  if (m === 'season' && a.n1Same > 0) return Math.round(a.ytd * (a.n1 / a.n1Same));
+  return Math.round(a.ytd / fraction);
+}
+
+/** Années protégées de la croissance : réalisé Erplain, et année en cours si son chiffre vient d'Erplain. */
+export function lockedYears(c: PlanB2BClient, split: Pick<B2BClientSplit, 'historyYears'>): number[] {
+  const locked = c.origin ? [...(split.historyYears ?? [])] : [];
+  if (c.actual && (c.cyMethod ?? 'ytd') !== 'manual') locked.push(c.actual.year);
+  return locked;
+}
+
+/** Choisit le chiffre de l'année en cours d'un client (le volume est recalculé depuis Erplain). */
+export function setCurrentYearMethod(c: PlanB2BClient, m: CurrentYearMethod): PlanB2BClient {
+  if (!c.actual) return c;
+  const v = currentYearValue(c.actual, m);
+  return { ...c, cyMethod: m, volumes: v === null ? c.volumes : { ...c.volumes, [c.actual.year]: v } };
+}
+
+/** Revient au réalisé Erplain d'origine (années passées + année en cours à date) ; prévisions futures conservées. */
+export function restoreOrigin(c: PlanB2BClient): PlanB2BClient {
+  if (!c.origin) return c;
+  return { ...c, volumes: { ...c.volumes, ...c.origin }, ...(c.actual ? { cyMethod: 'ytd' as const } : {}) };
+}
+
+export const differsFromOrigin = (c: PlanB2BClient) =>
+  !!c.origin && Object.entries(c.origin).some(([y, v]) => (c.volumes[Number(y)] || 0) !== v);
+
+/** Croissance annuelle du client à partir de son année de départ (années antérieures et années protégées inchangées). */
+export function applyClientGrowth(c: PlanB2BClient, years: number[], locked: number[] = []): PlanB2BClient {
   const start = c.startYear ?? years[1];
   const volumes = { ...c.volumes };
   years.forEach((y, i) => {
-    if (i === 0 || start === undefined || y < start) return;
+    if (i === 0 || start === undefined || y < start || locked.includes(y)) return;
     volumes[y] = Math.round((volumes[years[i - 1]] || 0) * (1 + (c.growthRate || 0) / 100));
   });
   return { ...c, volumes };
@@ -53,6 +103,8 @@ export function enableSplit(p: Product, years: number[]): B2BClientSplit {
 }
 
 export interface ErplainClientSale { year: number; customerId: string | null; name: string; qty: number }
+/** Lectures complémentaires de l'année en cours (N-1 à même date, 90 derniers jours). */
+export interface CurrentYearReads { asOf: string; n1Same: ErplainClientSale[]; recent: ErplainClientSale[] }
 
 /**
  * Import du réalisé B2B par client.
@@ -61,7 +113,7 @@ export interface ErplainClientSale { year: number; customerId: string | null; na
  *   de chaque client (année en cours à date, sinon N-1) — le total prévu ne change pas.
  * - Réimport : seules les années terminées sont mises à jour ; prévisions et réglages conservés.
  */
-export function importErplainClients(p: Product, sales: ErplainClientSale[], years: number[], thisYear: number) {
+export function importErplainClients(p: Product, sales: ErplainClientSale[], years: number[], thisYear: number, cy?: CurrentYearReads) {
   const notes: string[] = [];
   const split = p.b2bClients?.clients.length ? p.b2bClients : enableSplit(p, years);
   const histYears = years.filter(y => y < thisYear);
@@ -92,6 +144,21 @@ export function importErplainClients(p: Product, sales: ErplainClientSale[], yea
     c.name = e.name;
     histYears.forEach(y => { c!.volumes[y] = Math.round(e.qty[y] || 0); });
   }
+  // Réalisé d'origine conservé par client Erplain, pour pouvoir y revenir à tout moment.
+  const sumOf = (list: ErplainClientSale[], key: string) => list.filter(s => keyOf(s) === key).reduce((n, s) => n + s.qty, 0);
+  for (const c of clients) {
+    if (c.remainder || !(c.customerId || c.id.startsWith('client-name:'))) continue;
+    const key = c.customerId ?? `name:${c.name}`;
+    const e = byClient.get(key);
+    const origin: Record<number, number> = {};
+    histYears.forEach(y => { origin[y] = Math.round(e?.qty[y] || 0); });
+    if (cy && years.includes(thisYear)) {
+      c.actual = { year: thisYear, asOf: cy.asOf, ytd: Math.round(e?.qty[thisYear] || 0), n1: Math.round(e?.qty[thisYear - 1] || 0),
+        n1Same: Math.round(sumOf(cy.n1Same, key)), recent90: Math.round(sumOf(cy.recent, key)) };
+      origin[thisYear] = c.actual.ytd;
+    }
+    c.origin = origin;
+  }
   let remainder = clients.find(c => c.remainder);
   if (remainder) histYears.forEach(y => { remainder!.volumes[y] = 0; });
 
@@ -113,6 +180,16 @@ export function importErplainClients(p: Product, sales: ErplainClientSale[], yea
       if (remainder) remainder.volumes[y] = 0;
     }
     notes.push(`Prévisions ${futureYears[0] ?? ''}+ réparties selon les parts clients ${basisYear}${basisYear === thisYear ? ' (à date)' : ''}.`);
+  }
+  // Année en cours : chiffre Erplain selon la méthode choisie (réalisé à date par défaut), jamais écrasé par la croissance.
+  if (cy && years.includes(thisYear)) {
+    clients.forEach((c, i) => {
+      if (!c.actual || c.cyMethod === 'manual') return;
+      clients[i] = setCurrentYearMethod(c, c.cyMethod ?? 'ytd');
+    });
+    if (firstImport && remainder) remainder.volumes[thisYear] = 0;
+    remainder = clients.find(c => c.remainder);
+    notes.push(`${thisYear} : chiffre Erplain au ${new Date(cy.asOf).toLocaleDateString('fr-FR')} — choisissez réalisé à date ou une extrapolation.`);
   }
   histYears.forEach(y => {
     const before = plannedB2B[y] || 0;
