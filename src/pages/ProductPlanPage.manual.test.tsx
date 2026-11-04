@@ -10,6 +10,7 @@ vi.mock('@/integrations/supabase/client', () => {
 });
 import { FinancialProvider } from '@/context/FinancialContext';
 import { ProductPlanPage } from './ProductPlanPage';
+import { parseAmount } from '@/components/product/ManualPlanProductDialog';
 
 afterEach(cleanup);
 global.ResizeObserver ||= class { observe() {} unobserve() {} disconnect() {} } as any;
@@ -21,18 +22,28 @@ function openTab(name: RegExp) {
 function fillAndCreate(productName: string) {
   fireEvent.click(screen.getByRole('button', { name: 'Nouveau produit manuel' }));
   fireEvent.change(screen.getByRole('textbox', { name: 'Nom du nouveau produit' }), { target: { value: productName } });
-  fireEvent.change(screen.getByRole('spinbutton', { name: 'Prix B2C HT' }), { target: { value: '50' } });
-  fireEvent.change(screen.getByRole('spinbutton', { name: 'Volume B2C initial' }), { target: { value: '20' } });
-  const create = screen.getByRole('button', { name: /^Créer le produit$/ });
-  console.log('disabled?', (create as HTMLButtonElement).disabled, (screen.getByRole('spinbutton', { name: 'Année de lancement' }) as HTMLInputElement).value);
-  fireEvent.click(create);
+  fireEvent.change(screen.getByRole('textbox', { name: 'Prix B2C HT' }), { target: { value: '49,90' } });
+  fireEvent.change(screen.getByRole('textbox', { name: 'Volume B2C initial' }), { target: { value: '20' } });
+  fireEvent.click(screen.getByRole('button', { name: /^Créer le produit$/ }));
 }
 const renderPage = () => render(<QueryClientProvider client={new QueryClient()}><MemoryRouter><FinancialProvider><ProductPlanPage /></FinancialProvider></MemoryRouter></QueryClientProvider>);
 
 describe('manual product creation on the product plan page', () => {
+  it('reads French decimals and refuses unreadable amounts', () => {
+    expect(parseAmount('49,90')).toBe(49.9);
+    expect(parseAmount('1 250,5')).toBe(1250.5);
+    expect(parseAmount('')).toBe(0);
+    expect(parseAmount('abc')).toBeNaN();
+  });
+  it('explains why a product cannot be created instead of doing nothing', () => {
+    renderPage();
+    openTab(/Volumes/i);
+    fireEvent.click(screen.getByRole('button', { name: 'Nouveau produit manuel' }));
+    fireEvent.click(screen.getByRole('button', { name: /^Créer le produit$/ }));
+    expect(screen.getByRole('alert')).toHaveTextContent('Indiquez le nom du produit.');
+  });
   it('adds a product from pricing', () => {
     renderPage();
-    console.log(screen.getAllByRole('tab').map(t => t.textContent).join(' | '));
     openTab(/Pricing/i);
     fillAndCreate('Produit test pricing');
     expect(screen.queryByRole('dialog')).toBeNull();
