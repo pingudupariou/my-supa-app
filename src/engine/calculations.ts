@@ -41,7 +41,8 @@ export function channelVolumes(p: Product, year: number): { B2C: number; B2B: nu
 
 /** Recalcule volumesByYear = somme des canaux, pour que tous les calculs voient les mêmes volumes. */
 export function syncProductVolumes(products: Product[]): Product[] {
-  return (products || []).map(p => {
+  return (products || []).map(product => {
+    const p = syncB2BClients(product);
     const ch = p.volumesByChannel;
     if (!ch) return p;
     const years = new Set<number>([...Object.keys(ch.B2C || {}), ...Object.keys(ch.B2B || {}), ...Object.keys(ch.OEM || {})].map(Number));
