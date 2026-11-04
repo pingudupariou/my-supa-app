@@ -262,7 +262,7 @@ export function ProductPlanPage() {
                     </span>
                   </AccordionTrigger>
                   <AccordionContent forceMount>
-                    <ErplainActualsImport products={state.products} years={YEARS} onApply={updateProducts} onSave={saveWithVersion} />
+                    <ErplainActualsImport products={state.products} years={YEARS} onApply={updateProducts} onSave={saveWithVersion} showManualAdd={false} />
                   </AccordionContent>
                 </AccordionItem>
                 <AccordionItem value="projection" className="border-b-0">

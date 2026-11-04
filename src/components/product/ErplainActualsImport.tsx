@@ -18,9 +18,9 @@ type Ch = 'B2C' | 'B2B' | 'OEM';
 const CHS: Ch[] = ['B2C', 'B2B', 'OEM'];
 interface Agg { key: string; label: string; byYear: Record<number, Record<Ch, { qty: number; ca: number }>>; cogs: number; cogsQty: number; cy?: Record<number, { cogs: number; qty: number }> }
 
-interface Props { products: Product[]; years: number[]; onApply: (products: Product[]) => void; onSave?: () => void }
+interface Props { products: Product[]; years: number[]; onApply: (products: Product[]) => void; onSave?: () => void; showManualAdd?: boolean }
 
-export function ErplainActualsImport({ products, years, onApply, onSave }: Props) {
+export function ErplainActualsImport({ products, years, onApply, onSave, showManualAdd = true }: Props) {
   const thisYear = new Date().getFullYear();
   const pastYears = years.filter(y => y <= thisYear);
   const futureYears = years.filter(y => y > thisYear);
