@@ -44,7 +44,7 @@ describe('manual product creation on the product plan page', () => {
   });
   it('adds a product from pricing', () => {
     renderPage();
-    openTab(/Pricing/i);
+    openTab(/Produits & prix/i);
     fillAndCreate('Produit test pricing');
     expect(screen.queryByRole('dialog')).toBeNull();
     expect(screen.getAllByDisplayValue('Produit test pricing').length + screen.queryAllByText('Produit test pricing').length).toBeGreaterThan(0);

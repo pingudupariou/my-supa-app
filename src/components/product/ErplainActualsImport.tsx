@@ -18,9 +18,9 @@ type Ch = 'B2C' | 'B2B' | 'OEM';
 const CHS: Ch[] = ['B2C', 'B2B', 'OEM'];
 interface Agg { key: string; label: string; byYear: Record<number, Record<Ch, { qty: number; ca: number }>>; cogs: number; cogsQty: number; cy?: Record<number, { cogs: number; qty: number }> }
 
-interface Props { products: Product[]; years: number[]; onApply: (products: Product[]) => void; onSave?: () => void }
+interface Props { products: Product[]; years: number[]; onApply: (products: Product[]) => void; onSave?: () => void; showManualAdd?: boolean }
 
-export function ErplainActualsImport({ products, years, onApply, onSave }: Props) {
+export function ErplainActualsImport({ products, years, onApply, onSave, showManualAdd = true }: Props) {
   const thisYear = new Date().getFullYear();
   const pastYears = years.filter(y => y <= thisYear);
   const futureYears = years.filter(y => y > thisYear);
@@ -243,7 +243,7 @@ export function ErplainActualsImport({ products, years, onApply, onSave }: Props
           </select>
         </label>
         <span className="text-xs text-muted-foreground">Plan à partir de {years[0]}</span>
-        <div className="flex flex-wrap gap-2"><ManualPlanProductDialog years={years} onAdd={p => onApply([...products, p])} />{onSave && <Button size="sm" variant="outline" onClick={onSave}><Save className="h-4 w-4 mr-2" />Sauvegarder le plan</Button>}</div>
+        <div className="flex flex-wrap gap-2">{showManualAdd && <ManualPlanProductDialog years={years} onAdd={p => onApply([...products, p])} />}{onSave && <Button size="sm" variant="outline" onClick={onSave}><Save className="h-4 w-4 mr-2" />Sauvegarder le plan</Button>}</div>
       </div>
 
       <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
