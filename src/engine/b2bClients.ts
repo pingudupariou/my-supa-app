@@ -132,7 +132,7 @@ export function importErplainClients(p: Product, sales: ErplainClientSale[], yea
   const basisTotal = [...byClient.values()].reduce((n, e) => n + Math.max(0, e.qty[basisYear] || 0), 0);
 
   const clients = split.clients.map(c => ({ ...c, volumes: { ...c.volumes } }));
-  const defaultStart = futureYears[0] ?? years[1];
+  const defaultStart = (cy ? futureYears.find(y => y > thisYear) : undefined) ?? futureYears[0] ?? years[1];
   for (const [key, e] of byClient) {
     let c = clients.find(x => !x.remainder && (x.customerId ?? `name:${x.name}`) === key);
     if (!c) {
@@ -188,7 +188,6 @@ export function importErplainClients(p: Product, sales: ErplainClientSale[], yea
       clients[i] = setCurrentYearMethod(c, c.cyMethod ?? 'ytd');
     });
     if (firstImport && remainder) remainder.volumes[thisYear] = 0;
-    remainder = clients.find(c => c.remainder);
     notes.push(`${thisYear} : chiffre Erplain au ${new Date(cy.asOf).toLocaleDateString('fr-FR')} — choisissez réalisé à date ou une extrapolation.`);
   }
   histYears.forEach(y => {

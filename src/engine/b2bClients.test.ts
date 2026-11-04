@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { applyClientGrowth, clientVolume, enableSplit, existingClientOptions, hasErplainHistory, importErplainClients, supportsB2BClients, syncB2BClients } from './b2bClients';
+import { applyClientGrowth, clientVolume, differsFromOrigin, enableSplit, existingClientOptions, hasErplainHistory, importErplainClients, lockedYears, restoreOrigin, setCurrentYearMethod, supportsB2BClients, syncB2BClients } from './b2bClients';
 import { syncProductVolumes } from './calculations';
 import type { PlanB2BClient, Product } from './types';
 
@@ -75,5 +75,44 @@ describe('B2B par client', () => {
     );
     expect(opts.map(o => o.name)).toEqual(['Nouveau CRM', 'Vélo Pro']);
     expect(opts[1]).toMatchObject({ customerId: 'e1', crmClientId: 'c1' });
+  });
+});
+
+describe('B2B par client — année en cours', () => {
+  const sales = [
+    { year: 2025, customerId: 'c1', name: 'Atelier Nord', qty: 120 },
+    { year: 2026, customerId: 'c1', name: 'Atelier Nord', qty: 50 },
+  ];
+  const cy = { asOf: '2026-07-02', n1Same: [{ year: 2025, customerId: 'c1', name: 'Atelier Nord', qty: 40 }], recent: [{ year: 2026, customerId: 'c1', name: 'Atelier Nord', qty: 30 }] };
+  const imported = () => importErplainClients(base, sales, years, 2026, cy).split.clients.find(c => c.customerId === 'c1')!;
+
+  it('l’import met le réalisé Erplain à date dans l’année en cours', () => {
+    const c = imported();
+    expect(c.volumes[2026]).toBe(50);
+    expect(c.origin).toMatchObject({ 2025: 120, 2026: 50 });
+  });
+
+  it('la croissance ne remplace plus le réalisé Erplain de l’année en cours', () => {
+    const c = { ...imported(), growthRate: 10, startYear: 2026 };
+    const grown = applyClientGrowth(c, years, lockedYears(c, { historyYears: [2024, 2025] }));
+    expect(grown.volumes[2025]).toBe(120);
+    expect(grown.volumes[2026]).toBe(50);
+    expect(grown.volumes[2027]).toBe(55);
+  });
+
+  it('extrapolations de l’année en cours : prorata, saisonnalité N-1, rythme 90 jours', () => {
+    const c = imported();
+    // 2 juillet 2026 = jour 183 sur 365
+    expect(setCurrentYearMethod(c, 'prorata').volumes[2026]).toBe(Math.round(50 / (183 / 365)));
+    expect(setCurrentYearMethod(c, 'season').volumes[2026]).toBe(150); // 50 × 120 / 40
+    expect(setCurrentYearMethod(c, 'recent').volumes[2026]).toBe(Math.round(50 + 30 / 90 * 182));
+  });
+
+  it('on revient au réalisé Erplain d’origine après croissance ou saisie', () => {
+    const c = { ...setCurrentYearMethod(imported(), 'manual'), volumes: { 2025: 999, 2026: 300, 2027: 400 } };
+    const back = restoreOrigin(c);
+    expect(back.volumes).toMatchObject({ 2025: 120, 2026: 50, 2027: 400 });
+    expect(back.cyMethod).toBe('ytd');
+    expect(differsFromOrigin(back)).toBe(false);
   });
 });
