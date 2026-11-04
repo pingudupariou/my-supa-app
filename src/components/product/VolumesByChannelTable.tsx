@@ -20,12 +20,13 @@ interface Props {
   onBulkChannelVolumes?: (changes: { productId: string; year: number; channel: 'B2C' | 'B2B' | 'OEM'; volume: number }[]) => void;
   onUpdateProduct?: (product: Product) => void;
   onAddProduct?: (product: Product) => void;
+  standbyCount?: number;
 }
 const CHANNELS = ['B2C', 'B2B', 'OEM'] as const;
 const CHANNEL_STYLE = { B2C: 'border-accent text-accent', B2B: 'border-success text-success', OEM: 'border-warning text-foreground' };
 const number = (value: number) => value.toLocaleString('fr-FR');
 
-export function VolumesByChannelTable({ products, years, onChannelVolumeChange, onBulkChannelVolumes, onUpdateProduct, onAddProduct }: Props) {
+export function VolumesByChannelTable({ products, years, onChannelVolumeChange, onBulkChannelVolumes, onUpdateProduct, onAddProduct, standbyCount = 0 }: Props) {
   const { state } = useFinancial();
   const config = state.scenarioConfigs[state.activeScenarioId];
   const volAdj = 1 + config.volumeAdjustment;
@@ -93,7 +94,7 @@ export function VolumesByChannelTable({ products, years, onChannelVolumeChange, 
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h2 className="text-xl font-semibold">Volumes par année & canal</h2>
-          <p className="text-sm text-muted-foreground">{products.length} produits et catégories · {years[0]}–{years[years.length - 1]}{toFill > 0 && <> · <span className="text-warning font-medium">{toFill} à remplir</span></>}</p>
+          <p className="text-sm text-muted-foreground">{products.length} produits et catégories · {years[0]}–{years[years.length - 1]}{toFill > 0 && <> · <span className="text-warning font-medium">{toFill} à remplir</span></>}{standbyCount > 0 && <> · {standbyCount} en standby (non saisissables)</>}</p>
         </div>
         <div className="flex flex-wrap gap-2">
           {onAddProduct && <ManualPlanProductDialog years={years} onAdd={p => { onAddProduct(p); setSearch(''); setSelectedId(p.id); }} />}
@@ -114,7 +115,10 @@ export function VolumesByChannelTable({ products, years, onChannelVolumeChange, 
         </div>)}
       </div>
 
-      {!products.length ? <p className="py-10 text-center text-muted-foreground">Aucun produit validé</p> : <div className="grid grid-cols-1 lg:grid-cols-[240px_minmax(0,1fr)] gap-5">
+      {!products.length ? <div className="py-10 text-center space-y-1">
+        <p className="font-medium">Aucun produit validé à saisir</p>
+        <p className="text-sm text-muted-foreground">{standbyCount > 0 ? `${standbyCount} produit(s) en standby : validez-les dans l’étape « Produits & prix » (clic sur le badge Standby), ou créez un nouveau produit.` : 'Créez un nouveau produit ou chargez le réalisé Erplain ci-dessous.'}</p>
+      </div> : <div className="grid grid-cols-1 lg:grid-cols-[240px_minmax(0,1fr)] gap-5">
         <aside className="space-y-3 min-w-0">
           <div className="relative"><Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" /><Input aria-label="Rechercher un produit" placeholder="Rechercher un produit…" value={search} onChange={e => setSearch(e.target.value)} className="pl-9" /></div>
           <div className="flex lg:flex-col gap-1 overflow-x-auto lg:overflow-y-auto lg:max-h-[510px]" aria-label="Produits à saisir">

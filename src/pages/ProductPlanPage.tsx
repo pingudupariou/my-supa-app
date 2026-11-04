@@ -52,6 +52,7 @@ const EXPORT_SECTIONS: ExportableSection[] = [
 
 export function ProductPlanPage() {
   const saveWithVersion = useSaveWithTabVersion('product-plan');
+  const [helpersOpen, setHelpersOpen] = useState<string[]>([]);
   const {
     state,
     computed,
@@ -245,6 +246,7 @@ export function ProductPlanPage() {
             <div id="product-volumes">
               <VolumesByChannelTable
                 products={state.products.filter(p => p.productStatus === 'validated')}
+                standbyCount={state.products.filter(p => p.productStatus !== 'validated').length}
                 years={YEARS}
                 onChannelVolumeChange={handleChannelVolumeChange}
                 onBulkChannelVolumes={handleBulkChannelVolumes}
@@ -254,14 +256,15 @@ export function ProductPlanPage() {
             </div>
             <section aria-label="Aides au remplissage" className="space-y-2">
               <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Aides au remplissage</h3>
-              <Accordion type="multiple" className="rounded-lg border px-4">
+              <Accordion type="multiple" value={helpersOpen} onValueChange={setHelpersOpen} className="rounded-lg border px-4">
                 <AccordionItem value="erplain">
                   <AccordionTrigger className="hover:no-underline">
                     <span className="flex items-start gap-3 text-left"><Download className="h-4 w-4 mt-0.5 text-primary shrink-0" />
                       <span><span className="block">Réalisé Erplain & catégories</span><span className="block text-xs font-normal text-muted-foreground">Charger les ventes passées, regrouper les produits en catégories, ajouter ou retirer des produits.</span></span>
                     </span>
                   </AccordionTrigger>
-                  <AccordionContent forceMount>
+                  {/* Toujours monté : les ventes chargées restent en mémoire quand on replie. */}
+                  <AccordionContent forceMount hidden={!helpersOpen.includes('erplain')}>
                     <ErplainActualsImport products={state.products} years={YEARS} onApply={updateProducts} onSave={saveWithVersion} showManualAdd={false} />
                   </AccordionContent>
                 </AccordionItem>
@@ -271,7 +274,7 @@ export function ProductPlanPage() {
                       <span><span className="block">Base étalon de l’année en cours</span><span className="block text-xs font-normal text-muted-foreground">Projeter l’année {new Date().getFullYear()} entière à partir des ventes Erplain à date.</span></span>
                     </span>
                   </AccordionTrigger>
-                  <AccordionContent forceMount>
+                  <AccordionContent forceMount hidden={!helpersOpen.includes('projection')}>
                     <CurrentYearProjection products={state.products} years={YEARS} onApply={updateProducts} />
                   </AccordionContent>
                 </AccordionItem>
