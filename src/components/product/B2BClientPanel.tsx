@@ -202,6 +202,16 @@ export function B2BClientPanel({ product, years, onChange }: Props) {
                     </TableCell>
                   </TableRow>;
                 })}
+                <TableRow className="bg-muted/50 font-semibold border-t-2">
+                  <TableCell className="text-sm">Total ({withActual.length} clients)</TableCell>
+                  <TableCell className="text-right tabular-nums">{num(withActual.reduce((s, c) => s + (c.actual!.n1 || 0), 0))}</TableCell>
+                  <TableCell className="text-right tabular-nums">{num(withActual.reduce((s, c) => s + (c.actual!.n1Same || 0), 0))}</TableCell>
+                  {CURRENT_YEAR_METHODS.filter(x => x.id !== 'manual').map(x => <TableCell key={x.id} className="text-right tabular-nums px-3">{num(withActual.reduce((s, c) => s + (currentYearValue(c.actual!, x.id) ?? 0), 0))}</TableCell>)}
+                  <TableCell className="text-right tabular-nums">
+                    {num(withActual.reduce((s, c) => s + (c.volumes[thisYear] || 0), 0))}
+                    {split.clients.length > withActual.length && <span className="block text-[10px] font-normal text-muted-foreground">Total B2B ligne : {num(split.clients.reduce((s, c) => s + (c.volumes[thisYear] || 0), 0))}</span>}
+                  </TableCell>
+                </TableRow>
               </TableBody>
             </Table>
           </div>
