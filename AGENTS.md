@@ -18,9 +18,9 @@
 - Statistiques commerciales count sales only from Erplain invoices minus credit notes (erplain-sync action sales_sync → erplain_sales_*, aggregated by RPC sales_stats); orders are never read there, fields are used only once verified in the cached schema, and stale documents are deleted only after a full read matching Erplain's total — prevents double counting and silent history loss.
 - Sales margins join erplain_sales_lines to costflow_cost_methods by Erplain variant_id only; the cost value, formula and Erplain read date are snapshotted server-side when a method is saved (costflow_set_method), margin covers only costed lines (coverage shown), sales dated before the cost read are "estimated", credit-note quantities reverse cost — never zero-fill a missing cost.
 - Product-plan aggregate membership is validated through planMembership; retain aggregate IDs, persist member product snapshots for names and volumes after reload, and remove individual rows (Erplain or manual) when grouped to avoid double counting without changing Erplain or sales statistics.
-- The summary product revenue deck uses channelPrices/channelVolumes with per-channel scenario rounding, renders plan rows without expanding aggregate members, and shows annual sales rather than cash receipts to match the product plan.
+- Summary product deck: channelPrices/channelVolumes, per-channel scenario rounding, plan rows unexpanded, annual sales not receipts — matches product plan.
 - Store active tab save identities in FinancialContext; tab saves update only their scoped data, while global snapshots capture live financial state and accessible tab versions together so restored names and contents remain aligned.
-- Growth: per-product channel rates/start years, batch updates — aligns saves.
+- Growth: per-product channel rates/start years, batch updates; enabled b2bClients make B2B = Σ clients in syncProductVolumes — one source.
 
 - Summary exports share content with per-format print choices; BankReport adds intro/appendix — no duplicate layouts.
-- Role photos are small square JPEG data URLs on Role — saved with tab versions, PDF-safe.
+- Role photos: small square JPEG data URLs on Role — PDF-safe.
