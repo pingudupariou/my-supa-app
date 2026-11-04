@@ -4,6 +4,7 @@ import { Product } from '@/engine/types';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { formatCurrency } from '@/data/financialConfig';
@@ -36,6 +37,7 @@ export function VolumesByChannelTable({ products, years, onChannelVolumeChange, 
   const [growthOpen, setGrowthOpen] = useState(false);
   const [growthRates, setGrowthRates] = useState<Record<string, Partial<Record<typeof CHANNELS[number], number>>>>({});
   const [growthStartYear, setGrowthStartYear] = useState<Record<string, number>>({});
+  const [growthMode, setGrowthMode] = useState<'recalc' | 'fill'>('recalc');
   const filtered = products.filter(p => p.name.toLocaleLowerCase('fr').includes(search.toLocaleLowerCase('fr')));
   const selected = filtered.find(p => p.id === selectedId) ?? filtered[0];
   const price = (p: Product, ch: typeof CHANNELS[number]) => ch === 'B2C' ? p.priceHT : ch === 'B2B' ? (p.priceHT_B2B || p.priceHT) : (p.priceHT_OEM || p.priceHT);
@@ -85,6 +87,8 @@ export function VolumesByChannelTable({ products, years, onChannelVolumeChange, 
     return changes;
   };
   const missing = emptyChanges().length;
+  // Produits dont on a saisi un % ou une année de départ : seuls eux sont recalculés.
+  const touched = new Set([...Object.keys(growthRates), ...Object.keys(growthStartYear)].filter(id => products.some(p => p.id === id)));
   const isEmpty = (p: Product) => !years.some(y => CHANNELS.some(ch => (p.volumesByChannel?.[ch]?.[y] || 0) > 0));
   const toFill = products.filter(isEmpty).length;
   const index = selected ? filtered.findIndex(p => p.id === selected.id) : -1;
@@ -171,20 +175,29 @@ export function VolumesByChannelTable({ products, years, onChannelVolumeChange, 
       </div>}
 
       <Dialog open={growthOpen} onOpenChange={setGrowthOpen}><DialogContent className="max-w-5xl max-h-[85vh] overflow-y-auto" aria-describedby={undefined}><DialogHeader><DialogTitle>Croissance & projection</DialogTitle></DialogHeader>
+        <ol className="grid gap-2 sm:grid-cols-3 text-xs text-muted-foreground">
+          <li className="rounded-md bg-muted/40 px-3 py-2"><b className="text-foreground">1.</b> Tapez le % par canal sur les produits voulus (les autres ne bougent pas).</li>
+          <li className="rounded-md bg-muted/40 px-3 py-2"><b className="text-foreground">2.</b> Choisissez l’année de départ (par défaut l’année suivant l’année en cours).</li>
+          <li className="rounded-md bg-muted/40 px-3 py-2"><b className="text-foreground">3.</b> Choisissez quoi remplir, puis un seul bouton : Appliquer.</li>
+        </ol>
         <div className="overflow-x-auto border-y">
-          <Table className="min-w-[760px]">
-            <TableHeader><TableRow><TableHead className="min-w-[200px]">Produit / catégorie</TableHead>{CHANNELS.map(ch => <TableHead key={ch} className="text-center">{ch} / an (%)</TableHead>)}<TableHead className="min-w-[145px]">Année de départ</TableHead><TableHead /></TableRow></TableHeader>
-            <TableBody>{products.map(p => <TableRow key={p.id}>
-              <TableCell className="font-medium max-w-[260px] break-words">{p.name}</TableCell>
-              {CHANNELS.map(ch => byClient(p, ch) ? <TableCell key={ch} className="px-2 text-center text-xs text-muted-foreground">Par client</TableCell> : <TableCell key={ch} className="px-2"><div className="relative"><Input aria-label={`${p.name} ${ch} / an`} type="number" value={growthRates[p.id]?.[ch] ?? 0} onChange={e => setGrowthRates(prev => ({ ...prev, [p.id]: { ...prev[p.id], [ch]: Number(e.target.value) } }))} step={1} className="min-w-[90px] pr-7 text-center tabular-nums" /><span className="absolute right-3 top-2 text-muted-foreground">%</span></div></TableCell>)}
+          <Table className="min-w-[700px]">
+            <TableHeader><TableRow><TableHead className="min-w-[200px]">Produit / catégorie</TableHead>{CHANNELS.map(ch => <TableHead key={ch} className="text-center">{ch} / an (%)</TableHead>)}<TableHead className="min-w-[145px]">Année de départ</TableHead></TableRow></TableHeader>
+            <TableBody>{products.map(p => <TableRow key={p.id} className={touched.has(p.id) ? 'bg-primary/5' : ''}>
+              <TableCell className="font-medium max-w-[260px] break-words">{p.name}{touched.has(p.id) && <span className="block text-[10px] font-normal text-primary">sera recalculé</span>}</TableCell>
+              {CHANNELS.map(ch => byClient(p, ch) ? <TableCell key={ch} className="px-2 text-center text-xs text-muted-foreground">Par client<span className="block text-[10px]">(bloc B2B par client)</span></TableCell> : <TableCell key={ch} className="px-2"><div className="relative"><Input aria-label={`${p.name} ${ch} / an`} type="number" value={growthRates[p.id]?.[ch] ?? 0} onChange={e => setGrowthRates(prev => ({ ...prev, [p.id]: { ...prev[p.id], [ch]: Number(e.target.value) } }))} step={1} className="min-w-[90px] pr-7 text-center tabular-nums" /><span className="absolute right-3 top-2 text-muted-foreground">%</span></div></TableCell>)}
               <TableCell><Select value={String(startOf(p))} onValueChange={value => setGrowthStartYear(prev => ({ ...prev, [p.id]: Number(value) }))}><SelectTrigger aria-label={`${p.name} année de départ`} disabled={!years.some(y => y >= p.launchYear)}><SelectValue /></SelectTrigger><SelectContent>{years.filter(y => y >= p.launchYear).map(y => <SelectItem key={y} value={String(y)}>{y}</SelectItem>)}</SelectContent></Select></TableCell>
-              <TableCell><Button variant="outline" size="sm" aria-label={`Appliquer à ${p.name}`} disabled={!years.some((y, i) => i > 0 && years[i - 1] >= p.launchYear)} onClick={() => applyGrowth([p])}><Check className="h-4 w-4 mr-2" />Appliquer</Button></TableCell>
             </TableRow>)}</TableBody>
           </Table>
         </div>
-        <div className="flex flex-wrap justify-end gap-3">
-          <Button variant="outline" disabled={!missing} onClick={() => { commit(emptyChanges()); setGrowthOpen(false); }}><TrendingUp className="h-4 w-4 mr-2 shrink-0" /><span className="whitespace-normal">Compléter les années vides du plan ({missing})</span></Button>
-          <Button onClick={() => applyGrowth(products)}><Check className="h-4 w-4 mr-2" />Appliquer à tous les produits</Button>
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <RadioGroup value={growthMode} onValueChange={v => setGrowthMode(v as 'recalc' | 'fill')} className="gap-2" aria-label="Quoi remplir">
+            <label className="flex items-start gap-2 text-sm cursor-pointer"><RadioGroupItem value="recalc" className="mt-0.5" /><span><b>Recalculer les années</b> à partir de l’année de départ<span className="block text-xs text-muted-foreground">Seulement les produits modifiés ci-dessus ({touched.size}). Les années avant le départ ne changent pas.</span></span></label>
+            <label className="flex items-start gap-2 text-sm cursor-pointer"><RadioGroupItem value="fill" className="mt-0.5" /><span><b>Remplir seulement les cases vides</b><span className="block text-xs text-muted-foreground">Tous les produits : prolonge le dernier volume saisi, sans rien écraser ({missing} cases).</span></span></label>
+          </RadioGroup>
+          <Button disabled={growthMode === 'recalc' ? !touched.size : !missing} onClick={() => growthMode === 'recalc' ? applyGrowth(products.filter(p => touched.has(p.id))) : (commit(emptyChanges()), setGrowthOpen(false))}>
+            <Check className="h-4 w-4 mr-2" />{growthMode === 'recalc' ? `Appliquer à ${touched.size} produit${touched.size > 1 ? 's' : ''}` : `Remplir ${missing} case${missing > 1 ? 's' : ''} vide${missing > 1 ? 's' : ''}`}
+          </Button>
         </div>
       </DialogContent></Dialog>
     </section>
