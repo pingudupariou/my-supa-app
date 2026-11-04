@@ -104,6 +104,8 @@ export function B2BClientPanel({ product, years, onChange }: Props) {
   // Croissance : le réalisé Erplain (années passées, année en cours si chiffre Erplain) n'est jamais écrasé.
   const grow = (c: PlanB2BClient) => applyClientGrowth(c, years, lockedYears(c, split ?? { historyYears: [] }));
   const withActual = (split?.clients ?? []).filter(c => c.actual?.year === thisYear);
+  // Seuls les clients avec un % saisi sont recalculés : un client à 0 % garde ses volumes tels quels.
+  const growing = (split?.clients ?? []).filter(c => !c.remainder && !!c.growthRate);
   const anyChanged = (split?.clients ?? []).some(differsFromOrigin);
   const setMethodAll = (m: CurrentYearMethod) => save((split?.clients ?? []).map(c => c.actual ? setCurrentYearMethod(c, m) : c));
   const methodLabel = (m?: CurrentYearMethod) => CURRENT_YEAR_METHODS.find(x => x.id === (m ?? 'ytd'))?.label;
@@ -158,7 +160,9 @@ export function B2BClientPanel({ product, years, onChange }: Props) {
             <Input aria-label="Nom du nouveau client" placeholder="Nouveau prospect…" value={newName} onChange={e => setNewName(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') addClient(); }} className="h-9 w-48" />
             <Button size="sm" variant="outline" onClick={() => addClient()} disabled={!newName.trim()}><Plus className="h-4 w-4 mr-2" />Ajouter</Button>
           </div>
-          <Button size="sm" variant="outline" onClick={() => save(split.clients.map(c => c.remainder ? c : grow(c)))}><TrendingUp className="h-4 w-4 mr-2" />Appliquer la croissance à tous</Button>
+          <Button size="sm" variant="outline" disabled={!growing.length} title="Recalcule les années à partir de « À partir de » pour les clients ayant un % de croissance ; le réalisé Erplain n’est jamais modifié"
+            onClick={() => { save(split.clients.map(c => growing.includes(c) ? grow(c) : c)); toast.success(`Croissance appliquée à ${growing.length} client${growing.length > 1 ? 's' : ''}`); }}>
+            <TrendingUp className="h-4 w-4 mr-2" />Appliquer la croissance{growing.length ? ` (${growing.length} client${growing.length > 1 ? 's' : ''})` : ''}</Button>
           {anyChanged && <Button size="sm" variant="outline" onClick={() => { save(split.clients.map(restoreOrigin)); toast.success('Réalisé Erplain d’origine rétabli'); }}><RotateCcw className="h-4 w-4 mr-2" />Revenir au réalisé Erplain</Button>}
           <Badge variant="secondary">Prix B2B {formatCurrency(price)} HT</Badge>
         </div>
@@ -258,8 +262,6 @@ export function B2BClientPanel({ product, years, onChange }: Props) {
                 })}
                 <TableCell className="px-1">
                   <div className="flex gap-1">
-                    {!c.remainder && <Button size="icon" variant="ghost" className="h-8 w-8" title={`Appliquer la croissance à ${c.name}`} aria-label={`Appliquer la croissance à ${c.name}`} onClick={() => updateClient(c.id, grow(c))}><TrendingUp className="h-4 w-4" /></Button>}
-                    {differsFromOrigin(c) && <Button size="icon" variant="ghost" className="h-8 w-8" title={`Revenir au réalisé Erplain de ${c.name}`} aria-label={`Revenir au réalisé Erplain de ${c.name}`} onClick={() => updateClient(c.id, restoreOrigin(c))}><RotateCcw className="h-4 w-4" /></Button>}
                     <Button size="icon" variant="ghost" className="h-8 w-8 text-destructive" title={`Retirer ${c.name}`} aria-label={`Retirer ${c.name}`} onClick={() => save(split.clients.filter(x => x.id !== c.id))}><Trash2 className="h-4 w-4" /></Button>
                   </div>
                 </TableCell>
@@ -276,7 +278,7 @@ export function B2BClientPanel({ product, years, onChange }: Props) {
             </TableBody>
           </Table>
         </div>
-        <p className="text-xs text-muted-foreground">Croissance : chaque année à partir de l'année choisie = année précédente × (1 + %), sans toucher au réalisé Erplain. Ajustement : % appliqué aux volumes à partir de cette même année. Pensez à sauvegarder le plan.</p>
+        <p className="text-xs text-muted-foreground">Croissance : tapez un % par client puis « Appliquer la croissance » (un seul bouton pour tous) — chaque année à partir de l'année choisie = année précédente × (1 + %), sans toucher au réalisé Erplain. Pour revenir à Erplain : lien « Erplain ↺ » sous une case, ou « Revenir au réalisé Erplain ». Ajustement : % appliqué aux volumes à partir de cette même année. Pensez à sauvegarder le plan.</p>
       </>}
     </section>
   );
