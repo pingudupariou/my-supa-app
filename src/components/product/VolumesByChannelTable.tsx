@@ -44,6 +44,14 @@ export function VolumesByChannelTable({ products, years, onChannelVolumeChange, 
   const yearTotals = years.map(year => ({ year, units: products.reduce((sum, p) => sum + CHANNELS.reduce((n, ch) => n + volume(p, year, ch), 0), 0), revenue: products.reduce((sum, p) => sum + revenue(p, year), 0) }));
   // B2B détaillé par client : ses volumes viennent des clients, jamais de la croissance par canal.
   const byClient = (p: Product, ch: typeof CHANNELS[number]) => ch === 'B2B' && !!p.b2bClients?.enabled;
+  // Première année recalculée par la croissance : par défaut l'année suivant l'année en cours,
+  // pour ne jamais réappliquer un % sur le réalisé Erplain ni sur la projection de l'année en cours.
+  const startOf = (p: Product) => {
+    const chosen = growthStartYear[p.id];
+    if (chosen !== undefined) return Math.max(chosen, p.launchYear);
+    const def = Math.max(p.launchYear, new Date().getFullYear() + 1, years[1] ?? years[0] ?? p.launchYear);
+    return Math.min(def, years[years.length - 1] ?? def);
+  };
   const commit = (changes: Parameters<NonNullable<Props['onBulkChannelVolumes']>>[0]) => {
     if (onBulkChannelVolumes) onBulkChannelVolumes(changes);
     else changes.forEach(c => onChannelVolumeChange(c.productId, c.year, c.channel, c.volume));
@@ -53,7 +61,7 @@ export function VolumesByChannelTable({ products, years, onChannelVolumeChange, 
     targets.forEach(p => CHANNELS.forEach(channel => {
       if (byClient(p, channel)) return;
       const values = { ...p.volumesByChannel?.[channel] };
-      const start = Math.max(growthStartYear[p.id] ?? p.launchYear, p.launchYear);
+      const start = startOf(p);
       years.forEach((year, i) => {
         if (!i || year < start || years[i - 1] < p.launchYear) return;
         const value = Math.round((values[years[i - 1]] || 0) * (1 + (growthRates[p.id]?.[channel] ?? 0) / 100));
@@ -72,7 +80,7 @@ export function VolumesByChannelTable({ products, years, onChannelVolumeChange, 
       const filled = years.filter(y => (values[y] || 0) > 0);
       const last = filled[filled.length - 1];
       if (last === undefined) return;
-      years.filter(y => y > last && y >= Math.max(growthStartYear[p.id] ?? p.launchYear, p.launchYear) && !values[y]).forEach(year => changes.push({ productId: p.id, year, channel, volume: Math.round(values[last] * Math.pow(1 + (growthRates[p.id]?.[channel] ?? 0) / 100, year - Math.max(last, (growthStartYear[p.id] ?? p.launchYear) - 1))) }));
+      years.filter(y => y > last && y >= startOf(p) && !values[y]).forEach(year => changes.push({ productId: p.id, year, channel, volume: Math.round(values[last] * Math.pow(1 + (growthRates[p.id]?.[channel] ?? 0) / 100, year - Math.max(last, startOf(p) - 1))) }));
     }));
     return changes;
   };
@@ -169,7 +177,7 @@ export function VolumesByChannelTable({ products, years, onChannelVolumeChange, 
             <TableBody>{products.map(p => <TableRow key={p.id}>
               <TableCell className="font-medium max-w-[260px] break-words">{p.name}</TableCell>
               {CHANNELS.map(ch => byClient(p, ch) ? <TableCell key={ch} className="px-2 text-center text-xs text-muted-foreground">Par client</TableCell> : <TableCell key={ch} className="px-2"><div className="relative"><Input aria-label={`${p.name} ${ch} / an`} type="number" value={growthRates[p.id]?.[ch] ?? 0} onChange={e => setGrowthRates(prev => ({ ...prev, [p.id]: { ...prev[p.id], [ch]: Number(e.target.value) } }))} step={1} className="min-w-[90px] pr-7 text-center tabular-nums" /><span className="absolute right-3 top-2 text-muted-foreground">%</span></div></TableCell>)}
-              <TableCell><Select value={String(Math.max(growthStartYear[p.id] ?? Math.max(p.launchYear, years[0] ?? p.launchYear), p.launchYear))} onValueChange={value => setGrowthStartYear(prev => ({ ...prev, [p.id]: Number(value) }))}><SelectTrigger aria-label={`${p.name} année de départ`} disabled={!years.some(y => y >= p.launchYear)}><SelectValue /></SelectTrigger><SelectContent>{years.filter(y => y >= p.launchYear).map(y => <SelectItem key={y} value={String(y)}>{y}</SelectItem>)}</SelectContent></Select></TableCell>
+              <TableCell><Select value={String(startOf(p))} onValueChange={value => setGrowthStartYear(prev => ({ ...prev, [p.id]: Number(value) }))}><SelectTrigger aria-label={`${p.name} année de départ`} disabled={!years.some(y => y >= p.launchYear)}><SelectValue /></SelectTrigger><SelectContent>{years.filter(y => y >= p.launchYear).map(y => <SelectItem key={y} value={String(y)}>{y}</SelectItem>)}</SelectContent></Select></TableCell>
               <TableCell><Button variant="outline" size="sm" aria-label={`Appliquer à ${p.name}`} disabled={!years.some((y, i) => i > 0 && years[i - 1] >= p.launchYear)} onClick={() => applyGrowth([p])}><Check className="h-4 w-4 mr-2" />Appliquer</Button></TableCell>
             </TableRow>)}</TableBody>
           </Table>

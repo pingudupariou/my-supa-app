@@ -68,4 +68,21 @@ describe('visual volume entry', () => {
     expect(changes).toContainEqual({ productId: 'galets', channel: 'B2C', year: 2028, volume: 220 });
     expect(changes.every((c: { year: number; productId: string }) => c.year === 2028 && c.productId === 'galets')).toBe(true);
   });
+  it('never re-applies growth to past or current-year data, nor to B2B split by client', () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-11-04T12:00:00Z'));
+    const bulk = vi.fn();
+    const p: Product = { ...product, launchYear: 2025, volumesByChannel: { B2C: { 2025: 100, 2026: 150 }, B2B: { 2025: 50, 2026: 80 }, OEM: {} },
+      b2bClients: { enabled: true, historyYears: [2025], clients: [{ id: 'a', name: 'A', volumes: { 2025: 50, 2026: 80 }, growthRate: 0, adjustment: 0 }] } };
+    render(<VolumesByChannelTable products={[p]} years={years} onChannelVolumeChange={vi.fn()} onBulkChannelVolumes={bulk} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Croissance & projection' }));
+    fireEvent.change(screen.getByLabelText('Galets B2C / an'), { target: { value: '10' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Appliquer à Galets' }));
+    const changes = bulk.mock.calls[0][0];
+    expect(changes).toContainEqual({ productId: 'galets', channel: 'B2C', year: 2027, volume: 165 });
+    expect(changes).toContainEqual({ productId: 'galets', channel: 'B2C', year: 2028, volume: 182 });
+    expect(changes.some((c: { year: number }) => c.year <= 2026)).toBe(false);
+    expect(changes.some((c: { channel: string }) => c.channel === 'B2B')).toBe(false);
+    vi.useRealTimers();
+  });
 });
