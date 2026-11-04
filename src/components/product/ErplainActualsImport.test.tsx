@@ -65,8 +65,8 @@ describe('Plan category uniqueness', () => {
     const rendered = render(<Harness />);
     fireEvent.click(screen.getByRole('button', { name: 'Nouveau produit manuel' }));
     fireEvent.change(screen.getByRole('textbox', { name: 'Nom du nouveau produit' }), { target: { value: 'Nouveau galet' } });
-    fireEvent.change(screen.getByRole('spinbutton', { name: 'Prix B2C HT' }), { target: { value: '50' } });
-    fireEvent.change(screen.getByRole('spinbutton', { name: 'Volume B2C initial' }), { target: { value: '20' } });
+    fireEvent.change(screen.getByRole('textbox', { name: 'Prix B2C HT' }), { target: { value: '50' } });
+    fireEvent.change(screen.getByRole('textbox', { name: 'Volume B2C initial' }), { target: { value: '20' } });
     fireEvent.click(screen.getByRole('button', { name: /^Créer le produit$/ }));
     expect(latest).toHaveLength(2);
     fireEvent.click(screen.getByRole('button', { name: 'Ajouter des produits' }));
