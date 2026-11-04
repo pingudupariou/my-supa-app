@@ -261,7 +261,7 @@ export function ProductPlanPage() {
                       <span><span className="block">Réalisé Erplain & catégories</span><span className="block text-xs font-normal text-muted-foreground">Charger les ventes passées, regrouper les produits en catégories, ajouter ou retirer des produits.</span></span>
                     </span>
                   </AccordionTrigger>
-                  <AccordionContent forceMount className="data-[state=closed]:hidden">
+                  <AccordionContent forceMount>
                     <ErplainActualsImport products={state.products} years={YEARS} onApply={updateProducts} onSave={saveWithVersion} />
                   </AccordionContent>
                 </AccordionItem>
@@ -271,7 +271,7 @@ export function ProductPlanPage() {
                       <span><span className="block">Base étalon de l’année en cours</span><span className="block text-xs font-normal text-muted-foreground">Projeter l’année {new Date().getFullYear()} entière à partir des ventes Erplain à date.</span></span>
                     </span>
                   </AccordionTrigger>
-                  <AccordionContent forceMount className="data-[state=closed]:hidden">
+                  <AccordionContent forceMount>
                     <CurrentYearProjection products={state.products} years={YEARS} onApply={updateProducts} />
                   </AccordionContent>
                 </AccordionItem>
