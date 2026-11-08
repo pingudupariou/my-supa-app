@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { AlertTriangle, ChevronDown, ChevronRight, Loader2, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
+import { PipeSheet } from '@/components/pipe/PipeSheet';
 import { countBy, filterOrders, pipeTotals, type PipeOrder } from '@/components/pipe/pipeModel';
 
 const eur = (v: number) => v.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 });
@@ -143,54 +144,11 @@ export function PipeCommercialPage() {
           <CardTitle className="text-base">Détail des commandes</CardTitle>
           <div className="flex gap-2">
             <Input placeholder="N° ou client…" value={search} onChange={(e) => setSearch(e.target.value)} className="w-56" />
-            <Select value={sort} onValueChange={(v) => setSort(v as typeof sort)}>
-              <SelectTrigger className="w-48"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="unbilled">Tri : reste à facturer</SelectItem>
-                <SelectItem value="unpaid">Tri : reste à encaisser</SelectItem>
-                <SelectItem value="total_ht">Tri : montant HT</SelectItem>
-                <SelectItem value="dated_at">Tri : date</SelectItem>
-              </SelectContent>
-            </Select>
+
           </div>
         </CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader><TableRow>
-              <TableHead /><TableHead>Commande</TableHead><TableHead>Date</TableHead><TableHead>Client</TableHead><TableHead>Statut</TableHead>
-              <TableHead className="text-right">HT</TableHead><TableHead className="text-right">Reste à facturer</TableHead><TableHead className="text-right">Reste à encaisser</TableHead>
-            </TableRow></TableHeader>
-            <TableBody>
-              {sorted.map((o) => (
-                <Fragment key={o.id}>
-                  <TableRow className="cursor-pointer" onClick={() => setOpen(open === o.id ? null : o.id)}>
-                    <TableCell>{open === o.id ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}</TableCell>
-                    <TableCell className="font-medium">{o.label}</TableCell>
-                    <TableCell>{o.dated_at ? new Date(o.dated_at).toLocaleDateString('fr-FR') : '—'}</TableCell>
-                    <TableCell>{o.customer ?? '—'} <Badge variant="outline" className="ml-1">{lab(o.channel)}</Badge></TableCell>
-                    <TableCell className="space-x-1"><Badge variant="secondary">{lab(o.status ?? '—')}</Badge><Badge variant="outline">{lab(o.billing_status ?? '—')}</Badge><Badge variant="outline">{lab(o.payment_status ?? '—')}</Badge></TableCell>
-                    <TableCell className="text-right">{o.total_ht === null ? '—' : eur(o.total_ht)}</TableCell>
-                    <TableCell className="text-right font-medium">{o.unbilled === null ? '—' : eur(o.unbilled)}</TableCell>
-                    <TableCell className="text-right">{o.unpaid === null ? '—' : eur(o.unpaid)}</TableCell>
-                  </TableRow>
-                  {open === o.id && (
-                    <TableRow><TableCell colSpan={8} className="bg-muted/40">
-                      <div className="grid gap-2 text-sm md:grid-cols-4">
-                        <div>Facturé : <b>{o.billed === null ? '—' : eur(o.billed)}</b></div>
-                        <div>Encaissé : <b>{o.paid === null ? '—' : eur(o.paid)}</b></div>
-                        <div>Total TTC : <b>{o.total_ttc === null ? '—' : eur(o.total_ttc)}</b></div>
-                        <div>Expédition : <b>{lab(o.shipping_status ?? '—')}</b>{o.shipping_at ? ` · prévue ${new Date(o.shipping_at).toLocaleDateString('fr-FR')}` : ''}</div>
-                      </div>
-                      <Table className="mt-2"><TableHeader><TableRow><TableHead>Référence</TableHead><TableHead>Produit</TableHead><TableHead className="text-right">Qté</TableHead><TableHead className="text-right">Expédiée</TableHead></TableRow></TableHeader>
-                        <TableBody>{o.lines.map((l, i) => <TableRow key={i}><TableCell>{l.sku ?? '—'}</TableCell><TableCell>{l.label ?? '—'}</TableCell><TableCell className="text-right">{l.quantity ?? '—'}</TableCell><TableCell className="text-right">{l.shipped ?? '—'}</TableCell></TableRow>)}</TableBody>
-                      </Table>
-                    </TableCell></TableRow>
-                  )}
-                </Fragment>
-              ))}
-              {!sorted.length && <TableRow><TableCell colSpan={8} className="py-6 text-center text-muted-foreground">{loading ? 'Lecture des commandes Erplain…' : 'Aucune commande pour ces filtres.'}</TableCell></TableRow>}
-            </TableBody>
-          </Table>
+          <PipeSheet orders={filtered} />
         </CardContent>
       </Card>
     </div>
