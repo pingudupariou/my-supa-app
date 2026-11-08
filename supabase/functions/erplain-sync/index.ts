@@ -459,7 +459,7 @@ Deno.serve(async (req) => {
       const gql = makeGql(tk, rootRow?.data?.endpoint ?? DEFAULT_ENDPOINT, deadline, (st) => steps.push(st));
       const base = await ordersWithCustomer(admin, gql, { ...DATASETS[0], sel: "" });
       const custSel = base.sel.replace("customer {", "customer { id");
-      const sel = `id label status dated_at shipping_at shipping_status billing_status payment_status currency total_without_tax total billed_amount unbilled_amount paid_amount unpaid_amount
+      const sel = `id label status dated_at shipping_at shipping_status billing_status payment_status total_without_tax total billed_amount unbilled_amount paid_amount unpaid_amount
         line_items { id type quantity shipped_quantity variant { id sku label } } ${custSel}`;
       const orders: any[] = []; let partial = false; let total: number | null = null;
       for (let page = 1; page <= 60; page++) {
@@ -478,7 +478,7 @@ Deno.serve(async (req) => {
         const ch = String(chan.get(String(c.id ?? "")) ?? "").toLowerCase();
         return {
           id: o.id, label: o.label, status: o.status, dated_at: o.dated_at, shipping_at: o.shipping_at, shipping_status: o.shipping_status,
-          billing_status: o.billing_status, payment_status: o.payment_status, currency: o.currency,
+          billing_status: o.billing_status, payment_status: o.payment_status, currency: null,
           customer_id: c.id ?? null, customer: c.company_name || c.display_name || c.name || c.label || [c.first_name, c.last_name].filter(Boolean).join(" ") || null,
           channel: ch === "b2b" || ch === "oem" ? ch : "b2c",
           total_ht: n(o.total_without_tax), total_ttc: n(o.total), billed: n(o.billed_amount), unbilled: n(o.unbilled_amount), paid: n(o.paid_amount), unpaid: n(o.unpaid_amount),
