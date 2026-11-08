@@ -475,7 +475,7 @@ Deno.serve(async (req) => {
       const n = (v: any) => (v === null || v === undefined || v === "" ? null : Number(v));
       const out = orders.map((o: any) => {
         const c = o.customer ?? {};
-        const ch = chan.get(String(c.id ?? ""));
+        const ch = String(chan.get(String(c.id ?? "")) ?? "").toLowerCase();
         return {
           id: o.id, label: o.label, status: o.status, dated_at: o.dated_at, shipping_at: o.shipping_at, shipping_status: o.shipping_status,
           billing_status: o.billing_status, payment_status: o.payment_status, currency: o.currency,
