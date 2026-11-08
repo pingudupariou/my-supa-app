@@ -21,6 +21,7 @@ import { PendingApprovalPage } from "@/pages/PendingApprovalPage";
 import { PermissionsPage } from "@/pages/PermissionsPage";
 import { CostFlowPage } from "@/pages/CostFlowPage";
 import { SalesStatsPage } from "@/pages/SalesStatsPage";
+import { PipeCommercialPage } from "@/pages/PipeCommercialPage";
 import { TimeTrackingPage } from "@/pages/TimeTrackingPage";
 import { SnapshotsPage } from "@/pages/SnapshotsPage";
 import { PricingPage } from "@/pages/PricingPage";
@@ -165,6 +166,13 @@ const App = () => (
                 <ProtectedRoute tabKey="sales-stats">
                   <DashboardLayout>
                     <SalesStatsPage />
+                  </DashboardLayout>
+                </ProtectedRoute>
+              } />
+              <Route path="/pipe-commercial" element={
+                <ProtectedRoute tabKey="pipe-commercial">
+                  <DashboardLayout>
+                    <PipeCommercialPage />
                   </DashboardLayout>
                 </ProtectedRoute>
               } />

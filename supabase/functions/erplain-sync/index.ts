@@ -441,6 +441,52 @@ Deno.serve(async (req) => {
         return json({ status: "api_error", message: msg, steps: steps.slice(-5) });
       }
     }
+    if (peekAction === "pipe_orders") {
+      // Pipe commercial: live read-only list of Erplain sales orders (amounts and billing/payment statuses as read).
+      let pp = role?.role === "admin" ? "write" : "hidden";
+      if (role?.role !== "admin" && role?.role && role?.approved) {
+        const { data: perm } = await admin.from("tab_permissions").select("permission").eq("role", role.role).eq("tab_key", "pipe-commercial").maybeSingle();
+        pp = perm?.permission ?? "hidden";
+      }
+      if (pp !== "read" && pp !== "write") return json({ error: "Forbidden" }, 403);
+      const b = await req.json().catch(() => ({}));
+      const from = /^\d{4}-\d{2}-\d{2}$/.test(String(b.from ?? "")) ? String(b.from) : new Date(Date.now() - 365 * 864e5).toISOString().slice(0, 10);
+      const tk = Deno.env.get("ERPLAIN_API_TOKEN");
+      if (!tk) return json({ status: "config_error", message: "Secret ERPLAIN_API_TOKEN absent côté serveur." });
+      const { data: rootRow } = await admin.from("erplain_schema_cache").select("data").eq("type_name", "__root").maybeSingle();
+      const steps: any[] = [];
+      const deadline = Date.now() + 100000;
+      const gql = makeGql(tk, rootRow?.data?.endpoint ?? DEFAULT_ENDPOINT, deadline, (st) => steps.push(st));
+      const base = await ordersWithCustomer(admin, gql, { ...DATASETS[0], sel: "" });
+      const custSel = base.sel.replace("customer {", "customer { id");
+      const sel = `id label status dated_at shipping_at shipping_status billing_status payment_status currency total_without_tax total billed_amount unbilled_amount paid_amount unpaid_amount
+        line_items { id type quantity shipped_quantity variant { id sku label } } ${custSel}`;
+      const orders: any[] = []; let partial = false; let total: number | null = null;
+      for (let page = 1; page <= 60; page++) {
+        const r = await gql(`Commandes page ${page}`, `{ Orders(first: 25, page: ${page}, where: { column: DATED_AT, operator: GTE, value: ${JSON.stringify(from)} }) { paginatorInfo { hasMorePages total } data { ${sel} } } }`);
+        if (r.errors.length || !r.data?.Orders) { if (!orders.length) return json({ status: "api_error", message: r.errors.join(" | ") || "Lecture impossible", steps: steps.slice(-3) }); partial = true; break; }
+        total = r.data.Orders.paginatorInfo?.total ?? total;
+        orders.push(...r.data.Orders.data);
+        if (!r.data.Orders.paginatorInfo?.hasMorePages) break;
+        if (Date.now() > deadline - 5000) { partial = true; break; }
+      }
+      const { data: cls } = await admin.from("erplain_sales_customers").select("customer_id,channel");
+      const chan = new Map((cls ?? []).map((c: any) => [String(c.customer_id), c.channel]));
+      const n = (v: any) => (v === null || v === undefined || v === "" ? null : Number(v));
+      const out = orders.map((o: any) => {
+        const c = o.customer ?? {};
+        const ch = String(chan.get(String(c.id ?? "")) ?? "").toLowerCase();
+        return {
+          id: o.id, label: o.label, status: o.status, dated_at: o.dated_at, shipping_at: o.shipping_at, shipping_status: o.shipping_status,
+          billing_status: o.billing_status, payment_status: o.payment_status, currency: o.currency,
+          customer_id: c.id ?? null, customer: c.company_name || c.display_name || c.name || c.label || [c.first_name, c.last_name].filter(Boolean).join(" ") || null,
+          channel: ch === "b2b" || ch === "oem" ? ch : "b2c",
+          total_ht: n(o.total_without_tax), total_ttc: n(o.total), billed: n(o.billed_amount), unbilled: n(o.unbilled_amount), paid: n(o.paid_amount), unpaid: n(o.unpaid_amount),
+          lines: (o.line_items ?? []).filter((l: any) => l?.variant).map((l: any) => ({ sku: l.variant?.sku ?? null, label: l.variant?.label ?? null, quantity: n(l.quantity), shipped: n(l.shipped_quantity) })),
+        };
+      });
+      return json({ status: partial ? "partial" : "success", from, total, read: out.length, orders: out, read_at: new Date().toISOString() });
+    }
     if (peekAction === "costflow_preview" || peekAction === "costflow_catalog" || peekAction === "costflow_variant" || peekAction === "costflow_refresh_bom" || peekAction === "costflow_set_method" || peekAction === "costflow_bulk_method") {
       // Read-only comparison for CostFlow: needs read access on the costflow tab (admins always).
       let cf = role?.role === "admin" ? "write" : "hidden";
