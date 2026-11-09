@@ -135,6 +135,8 @@ export function SalesStatsPage() {
   const [syncing, setSyncing] = useState(false);
   const [customers, setCustomers] = useState<Record<string, { channel: string; commercial_country: string | null }>>({});
   const [search, setSearch] = useState('');
+  const [tab, setTab] = useState('breakdown');
+  const [copied, setCopied] = useState(false);
   const [shipCost, setShipCost] = useState<string>(() => localStorage.getItem('sales-ship-cost') ?? '');
   useEffect(() => { localStorage.setItem('sales-ship-cost', shipCost); }, [shipCost]);
   const shipCostNum = shipCost.trim() === '' || !Number.isFinite(Number(shipCost.replace(',', '.'))) ? null : Number(shipCost.replace(',', '.'));
@@ -186,8 +188,7 @@ export function SalesStatsPage() {
     setCustomers((m) => ({ ...m, [id]: next })); load();
   };
 
-  const monthly = useMemo(() => {
-    const m = new Map<string, any>();
+  const monthly = useMemo(() => {    const m = new Map<string, any>();
     for (const r of stats?.by_month ?? []) { const o = m.get(r.month) ?? { month: r.month }; o[r.channel] = (o[r.channel] ?? 0) + r.ca_ht; m.set(r.month, o); }
     return [...m.values()].sort((a, b) => a.month.localeCompare(b.month));
   }, [stats]);
