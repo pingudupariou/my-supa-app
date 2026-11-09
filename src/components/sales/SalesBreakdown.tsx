@@ -142,7 +142,8 @@ export function SalesBreakdown({ from, to, search }: { from: string; to: string;
         const byK = new Map((ads?.by_product ?? []).map((p: any) => [p.k, p]));
         const withAds = prods.map((r) => { const a: any = byK.get(r.key); const spend = a ? (a.direct ?? 0) + (a.alloc ?? 0) : 0; const x = marginOf(r); const after = x.m == null ? null : x.m - spend; return { r, x, spend, after, direct: a?.direct ?? 0 }; });
         return (<>
-          <p className="text-xs text-muted-foreground">3. Produits B2C · tous pays — {prods.length} produits, hors livraison. Colonne « Ads » = dépenses directement attribuées au produit annoncé + part estimée au prorata du CA ; elle ne concerne que le B2C.</p>
+          <div className="flex flex-wrap items-center gap-2"><p className="text-xs text-muted-foreground">3. Produits B2C · tous pays — {prods.length} produits, hors livraison. Colonne « Ads » = dépenses directement attribuées au produit annoncé + part estimée au prorata du CA ; elle ne concerne que le B2C.</p>
+            {copyBtn(true, withAds.slice().sort(cmpRows).slice(0, 300))}</div>
           <Table><TableHeader><TableRow><Th k="label" label="Produit" right={false} /><Th k="ca_ht" label="CA HT" /><Th k="qty" label="Qté" /><Th k="cogs" label="Coût vendu" /><Th k="m" label="Marge" /><Th k="spend" label="Ads" /><Th k="after" label="Marge après Ads" /><Th k="pct" label="Marge %" /><Th k="cov" label="Couverture" /></TableRow></TableHeader>
             <TableBody>{withAds.slice().sort(cmpRows).slice(0, 300).map(({ r, x, spend, after, direct }) => (
               <TableRow key={r.key}><TableCell className="max-w-[320px] truncate">{r.label}</TableCell><TableCell className="text-right tabular-nums">{eur(r.ca_ht)}</TableCell><TableCell className="text-right tabular-nums">{nb(r.qty)}</TableCell>
@@ -153,7 +154,8 @@ export function SalesBreakdown({ from, to, search }: { from: string; to: string;
         </>);
       })()}
       {(ch !== 'B2C' || cc !== 'all') && (<>
-        <p className="text-xs text-muted-foreground">3. Produits {ch === 'all' ? 'tous canaux' : CH_LABEL[ch] ?? ch} · {cc === 'all' ? 'tous pays' : cc} — {prods.length} produits, hors livraison. Pays = pays de livraison Erplain.{ch === 'B2C' && cc !== 'all' ? ' Le détail Ads par produit n\'est disponible que tous pays confondus.' : ''}</p>
+        <div className="flex flex-wrap items-center gap-2"><p className="text-xs text-muted-foreground">3. Produits {ch === 'all' ? 'tous canaux' : CH_LABEL[ch] ?? ch} · {cc === 'all' ? 'tous pays' : cc} — {prods.length} produits, hors livraison. Pays = pays de livraison Erplain.{ch === 'B2C' && cc !== 'all' ? ' Le détail Ads par produit n\'est disponible que tous pays confondus.' : ''}</p>
+          {copyBtn(false, prods.map((r) => ({ r, x: marginOf(r) })).sort(cmpRows).slice(0, 300))}</div>
         <Table><TableHeader><TableRow><Th k="label" label="Produit" right={false} /><Th k="ca_ht" label="CA HT" /><Th k="qty" label="Qté" /><Th k="cogs" label="Coût vendu" /><Th k="m" label="Marge" /><Th k="pct" label="Marge %" /><Th k="cov" label="Couverture" /></TableRow></TableHeader>
           <TableBody>{prods.map((r) => ({ r })).sort(cmpRows).slice(0, 300).map(({ r }) => { const x = marginOf(r); return (
             <TableRow key={r.key}><TableCell className="max-w-[320px] truncate">{r.label}</TableCell><TableCell className="text-right tabular-nums">{eur(r.ca_ht)}</TableCell><TableCell className="text-right tabular-nums">{nb(r.qty)}</TableCell>
