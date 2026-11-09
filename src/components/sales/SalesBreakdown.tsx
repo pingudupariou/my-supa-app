@@ -2,7 +2,9 @@ import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Loader2 } from 'lucide-react';
+import { Copy, Loader2 } from 'lucide-react';
+import { toast } from 'sonner';
+import { copyTable, num, type Cell } from '@/lib/clipboard';
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 
 const CH_LABEL: Record<string, string> = { B2C: 'B2C', B2B: 'B2B', OEM: 'OEM', A_CLASSER: 'À classer' };
@@ -75,6 +77,29 @@ export function SalesBreakdown({ from, to, search }: { from: string; to: string;
   const prods = agg(inCc, (r) => r.key).map((r) => ({ ...r, label: names.get(r.key) || r.key })).filter((r) => !q || r.label.toLowerCase().includes(q));
   const chip = (active: boolean, onClick: () => void, label: string, v: number) => (
     <Button key={label} size="sm" variant={active ? 'default' : 'outline'} onClick={onClick} className="h-7">{label} <span className="ml-1 opacity-70 tabular-nums">{eur(v)}</span></Button>);
+  const [copied, setCopied] = useState(false);
+  /** Copy the product table exactly as displayed: same filter, same sort order, same columns. */
+  const copyProds = async (withAds: boolean, list: { r: Agg; x: ReturnType<typeof marginOf>; spend?: number; after?: number | null }[]) => {
+    const headers = withAds
+      ? ['Produit', 'CA HT', 'Qté', 'Coût vendu', 'Marge €', 'Ads', 'Marge après Ads', 'Marge %', 'Couverture %', 'Note']
+      : ['Produit', 'CA HT', 'Qté', 'Coût vendu', 'Marge €', 'Marge %', 'Couverture %', 'Note'];
+    const body: Cell[][] = list.map(({ r, x, spend, after }) => {
+      const note = [x.est ? 'marge estimée' : '', x.inc ? 'couverture incomplète' : ''].filter(Boolean).join(' ; ');
+      const row: Cell[] = [r.label, num(r.ca_ht), num(r.qty, 1), num(r.cogs), num(x.m)];
+      if (withAds) row.push(ads ? num(spend ?? 0) : '', ads ? num(after ?? null) : '');
+      row.push(x.pct == null ? '' : num(x.pct * 100, 1), x.cov == null ? '' : num(x.cov * 100, 1), note);
+      return row;
+    });
+    if (!body.length) return toast.error('Aucune ligne à copier : le filtre ne laisse rien afficher.');
+    const ok = await copyTable(headers, body);
+    if (!ok) return toast.error('Le navigateur a refusé la copie : sélectionnez les cellules à la souris puis Ctrl+C.');
+    setCopied(true); setTimeout(() => setCopied(false), 2000);
+    toast.success(`${body.length} ligne(s) copiée(s) · ${ch === 'all' ? 'tous canaux' : CH_LABEL[ch] ?? ch} · ${cc === 'all' ? 'tous pays' : cc} — collez dans Excel avec Ctrl+V`);
+  };
+  const copyBtn = (withAds: boolean, list: { r: Agg; x: ReturnType<typeof marginOf>; spend?: number; after?: number | null }[]) => (
+    <Button variant="outline" size="sm" className="h-7 ml-auto" onClick={() => copyProds(withAds, list)} title="Copier les lignes affichées pour les coller dans Excel">
+      <Copy className="h-3.5 w-3.5 mr-1.5" />{copied ? 'Copié !' : 'Copier'}
+    </Button>);
   return (
     <div className="space-y-3">
       {err && <p className="text-sm text-destructive">{err}</p>}
