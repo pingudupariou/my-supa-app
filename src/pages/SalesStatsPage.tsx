@@ -357,18 +357,23 @@ export function SalesStatsPage() {
       </Card>
 
       <div className="space-y-2"><h2 className="text-base font-semibold">Détail</h2>
-      <Tabs defaultValue="breakdown">
+      <Tabs value={tab} onValueChange={setTab}>
         <div className="flex flex-wrap items-center justify-between gap-2">
           <TabsList className="h-auto flex-wrap">
             <TabsTrigger value="breakdown">Canal › pays › produit</TabsTrigger><TabsTrigger value="months">Périodes</TabsTrigger><TabsTrigger value="customers">Clients</TabsTrigger><TabsTrigger value="products">Produits</TabsTrigger>
             <TabsTrigger value="cc">Pays commercial</TabsTrigger><TabsTrigger value="dc">Pays de livraison</TabsTrigger><TabsTrigger value="channels">Canaux</TabsTrigger>
           </TabsList>
-          <Input placeholder="Rechercher…" value={search} onChange={(e) => setSearch(e.target.value)} className="w-56" />
+          <div className="flex items-center gap-2">
+            <Input placeholder="Rechercher…" value={search} onChange={(e) => setSearch(e.target.value)} className="w-56" />
+            {detailFor(tab) && (
+              <Button variant="outline" size="sm" onClick={copyDetail} disabled={!stats} title="Copier les lignes affichées pour les coller dans Excel">
+                <Copy className="h-4 w-4 mr-2" />{copied ? 'Copié !' : 'Copier le tableau'}
+              </Button>
+            )}
+          </div>
         </div>
         <Card className="mt-2"><CardContent className="pt-4">
-          <TabsContent value="months">{table(Object.values((stats?.by_month ?? []).reduce((m: Record<string, Row>, r) => {
-            const o = m[r.month] ?? (m[r.month] = { key: r.month, ca_ht: 0, qty: 0, prod_ht: 0, cogs: 0, cov_ht: 0, est_ht: 0 });
-            o.ca_ht += r.ca_ht; o.qty += r.qty; o.prod_ht! += r.prod_ht; o.cogs! += r.cogs; o.cov_ht! += r.cov_ht; o.est_ht! += r.est_ht; return m; }, {})).sort((a, b) => b.key.localeCompare(a.key)), 'country')}</TabsContent>
+          <TabsContent value="months">{table(monthRows, 'country')}</TabsContent>
           <TabsContent value="customers">{table(stats?.by_customer ?? [], 'customer')}</TabsContent>
           <TabsContent value="products">{table(stats?.by_product ?? [], 'product')}</TabsContent>
           <TabsContent value="cc">{table(stats?.by_commercial_country ?? [], 'cc')}</TabsContent>
