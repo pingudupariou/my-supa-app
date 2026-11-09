@@ -27,7 +27,12 @@ vi.mock('@/integrations/supabase/client', () => ({
   supabase: {
     rpc: vi.fn(async (name: string) => (name === 'sales_stats' ? { data: stats, error: null } : { data: name === 'sales_breakdown' ? [] : null, error: null })),
     from: () => ({
-      select: () => ({ order: () => ({ maybeSingle: async () => ({ data: null, error: null }), range: async () => ({ data: customers, error: null }) }) }),
+      select: () => ({
+        order: () => ({
+          limit: () => ({ maybeSingle: async () => ({ data: null, error: null }) }),
+          range: async () => ({ data: customers, error: null }),
+        }),
+      }),
       upsert: async () => ({ error: null }),
     }),
     functions: { invoke: async () => ({ data: null, error: null }) },
