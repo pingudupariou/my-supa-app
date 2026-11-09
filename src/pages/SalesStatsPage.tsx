@@ -9,12 +9,13 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { AlertTriangle, CheckCircle2, Loader2, RefreshCw } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Copy, Loader2, RefreshCw } from 'lucide-react';
 import { Bar, BarChart, CartesianGrid, ComposedChart, Legend, Line, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { toast } from 'sonner';
 import { SalesBreakdown } from '@/components/sales/SalesBreakdown';
+import { copyTable } from '@/lib/clipboard';
+import { CHANNELS, CH_LABEL, detailTSV, margin, type DetailKind, type Row } from '@/components/sales/salesStatsModel';
 
-type Row = { key: string; label?: string; channel?: string; ca_ht: number; qty: number; default_share?: number; prod_ht?: number; cogs?: number; cov_ht?: number; est_ht?: number; unit_cost?: number | null };
 type Stats = {
   totals: { ca_ht: number; qty: number; shipping_ht: number; docs: number; prod_ht: number; cogs: number; cov_ht: number; est_ht: number };
   shipping: { billed_ht: number; docs: number; est_cost: number | null; real_cost: number | null };
@@ -25,18 +26,11 @@ type Stats = {
   reconciliation: { docs_ht: number; lines_ht: number; invoices: number; credit_notes: number; missing_total: number; no_customer: number; credit_no_qty_ht: number };
   excluded: { reason: string; doc_type: string; n: number; ht: number }[];
 };
-const CHANNELS = ['B2C', 'B2B', 'OEM', 'A_CLASSER'] as const;
-const CH_LABEL: Record<string, string> = { B2C: 'B2C (Shopify)', B2B: 'B2B', OEM: 'OEM', A_CLASSER: 'À classer' };
 const CH_COLOR: Record<string, string> = { B2C: 'hsl(var(--primary))', B2B: 'hsl(var(--chart-2, 160 60% 40%))', OEM: 'hsl(var(--chart-4, 35 90% 50%))', A_CLASSER: 'hsl(var(--muted-foreground))' };
 const eur = (v: number | null | undefined) => v == null ? '—' : new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(v);
 const nb = (v: number) => new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 1 }).format(v);
 const METHOD_LABEL: Record<string, string> = { cump_finished: 'CUMP produit fini', components_plus_mfg: 'Composants + frais de fabrication', confirmed_full: 'Coût complet confirmé' };
 /** Margin on lines with a validated cost only; incomplete if some product revenue has no cost, estimated if a current cost is applied to older sales. */
-function margin(r: { prod_ht?: number; cogs?: number; cov_ht?: number; est_ht?: number }) {
-  const prod = r.prod_ht ?? 0, cov = r.cov_ht ?? 0, cogs = r.cogs ?? 0;
-  const m = cov - cogs;
-  return { m: cov ? m : null, pct: cov ? m / cov : null, coverage: prod ? cov / prod : null, incomplete: Math.abs(prod - cov) > 0.5, estimated: (r.est_ht ?? 0) > 0.5 };
-}
 const pctf = (v: number | null) => v == null ? '—' : `${(v * 100).toFixed(1)} %`;
 function MarginCell({ r }: { r: Row }) {
   const x = margin(r);
@@ -141,6 +135,8 @@ export function SalesStatsPage() {
   const [syncing, setSyncing] = useState(false);
   const [customers, setCustomers] = useState<Record<string, { channel: string; commercial_country: string | null }>>({});
   const [search, setSearch] = useState('');
+  const [tab, setTab] = useState('breakdown');
+  const [copied, setCopied] = useState(false);
   const [shipCost, setShipCost] = useState<string>(() => localStorage.getItem('sales-ship-cost') ?? '');
   useEffect(() => { localStorage.setItem('sales-ship-cost', shipCost); }, [shipCost]);
   const shipCostNum = shipCost.trim() === '' || !Number.isFinite(Number(shipCost.replace(',', '.'))) ? null : Number(shipCost.replace(',', '.'));
@@ -197,6 +193,35 @@ export function SalesStatsPage() {
     for (const r of stats?.by_month ?? []) { const o = m.get(r.month) ?? { month: r.month }; o[r.channel] = (o[r.channel] ?? 0) + r.ca_ht; m.set(r.month, o); }
     return [...m.values()].sort((a, b) => a.month.localeCompare(b.month));
   }, [stats]);
+
+  /** Month rows of the « Périodes » table, reused by the copy so both show exactly the same numbers. */
+  const monthRows = useMemo(() => Object.values((stats?.by_month ?? []).reduce((m: Record<string, Row>, r) => {
+    const o = m[r.month] ?? (m[r.month] = { key: r.month, ca_ht: 0, qty: 0, prod_ht: 0, cogs: 0, cov_ht: 0, est_ht: 0 });
+    o.ca_ht += r.ca_ht; o.qty += r.qty; o.prod_ht! += r.prod_ht; o.cogs! += r.cogs; o.cov_ht! += r.cov_ht; o.est_ht! += r.est_ht; return m;
+  }, {})).sort((a, b) => b.key.localeCompare(a.key)), [stats]);
+
+  /** Which table the « Copier » button exports for the open tab (the breakdown tab copies from inside itself). */
+  const detailFor = (t: string): { kind: DetailKind; rows: Row[] } | null => {
+    if (!stats) return null;
+    if (t === 'months') return { kind: 'country', rows: monthRows };
+    if (t === 'customers') return { kind: 'customer', rows: stats.by_customer ?? [] };
+    if (t === 'products') return { kind: 'product', rows: stats.by_product ?? [] };
+    if (t === 'cc') return { kind: 'cc', rows: stats.by_commercial_country ?? [] };
+    if (t === 'dc') return { kind: 'country', rows: stats.by_delivery_country ?? [] };
+    if (t === 'channels') return { kind: 'country', rows: (stats.by_channel ?? []).map((r) => ({ ...r, label: CH_LABEL[r.key] ?? r.key })) };
+    return null;
+  };
+
+  const copyDetail = async () => {
+    const d = detailFor(tab);
+    if (!d) return;
+    const { headers, body } = detailTSV(d.kind, d.rows, customers, search, canWrite);
+    if (!body.length) return toast.error('Aucune ligne à copier : le filtre ne laisse rien afficher.');
+    const ok = await copyTable(headers, body);
+    if (!ok) return toast.error('Le navigateur a refusé la copie : sélectionnez les cellules à la souris puis Ctrl+C.');
+    setCopied(true); setTimeout(() => setCopied(false), 2000);
+    toast.success(`${body.length} ligne(s) copiée(s) · ${range0} → ${range1} — collez dans Excel avec Ctrl+V`);
+  };
 
   const rec = stats?.reconciliation;
   const recGap = rec ? Math.round((rec.docs_ht - rec.lines_ht) * 100) / 100 : 0;
@@ -332,18 +357,23 @@ export function SalesStatsPage() {
       </Card>
 
       <div className="space-y-2"><h2 className="text-base font-semibold">Détail</h2>
-      <Tabs defaultValue="breakdown">
+      <Tabs value={tab} onValueChange={setTab}>
         <div className="flex flex-wrap items-center justify-between gap-2">
           <TabsList className="h-auto flex-wrap">
             <TabsTrigger value="breakdown">Canal › pays › produit</TabsTrigger><TabsTrigger value="months">Périodes</TabsTrigger><TabsTrigger value="customers">Clients</TabsTrigger><TabsTrigger value="products">Produits</TabsTrigger>
             <TabsTrigger value="cc">Pays commercial</TabsTrigger><TabsTrigger value="dc">Pays de livraison</TabsTrigger><TabsTrigger value="channels">Canaux</TabsTrigger>
           </TabsList>
-          <Input placeholder="Rechercher…" value={search} onChange={(e) => setSearch(e.target.value)} className="w-56" />
+          <div className="flex items-center gap-2">
+            <Input placeholder="Rechercher…" value={search} onChange={(e) => setSearch(e.target.value)} className="w-56" />
+            {detailFor(tab) && (
+              <Button variant="outline" size="sm" onClick={copyDetail} disabled={!stats} title="Copier les lignes affichées pour les coller dans Excel">
+                <Copy className="h-4 w-4 mr-2" />{copied ? 'Copié !' : 'Copier le tableau'}
+              </Button>
+            )}
+          </div>
         </div>
         <Card className="mt-2"><CardContent className="pt-4">
-          <TabsContent value="months">{table(Object.values((stats?.by_month ?? []).reduce((m: Record<string, Row>, r) => {
-            const o = m[r.month] ?? (m[r.month] = { key: r.month, ca_ht: 0, qty: 0, prod_ht: 0, cogs: 0, cov_ht: 0, est_ht: 0 });
-            o.ca_ht += r.ca_ht; o.qty += r.qty; o.prod_ht! += r.prod_ht; o.cogs! += r.cogs; o.cov_ht! += r.cov_ht; o.est_ht! += r.est_ht; return m; }, {})).sort((a, b) => b.key.localeCompare(a.key)), 'country')}</TabsContent>
+          <TabsContent value="months">{table(monthRows, 'country')}</TabsContent>
           <TabsContent value="customers">{table(stats?.by_customer ?? [], 'customer')}</TabsContent>
           <TabsContent value="products">{table(stats?.by_product ?? [], 'product')}</TabsContent>
           <TabsContent value="cc">{table(stats?.by_commercial_country ?? [], 'cc')}</TabsContent>

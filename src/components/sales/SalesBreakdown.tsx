@@ -2,7 +2,9 @@ import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Loader2 } from 'lucide-react';
+import { Copy, Loader2 } from 'lucide-react';
+import { toast } from 'sonner';
+import { copyTable, num, type Cell } from '@/lib/clipboard';
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 
 const CH_LABEL: Record<string, string> = { B2C: 'B2C', B2B: 'B2B', OEM: 'OEM', A_CLASSER: 'À classer' };
@@ -75,6 +77,29 @@ export function SalesBreakdown({ from, to, search }: { from: string; to: string;
   const prods = agg(inCc, (r) => r.key).map((r) => ({ ...r, label: names.get(r.key) || r.key })).filter((r) => !q || r.label.toLowerCase().includes(q));
   const chip = (active: boolean, onClick: () => void, label: string, v: number) => (
     <Button key={label} size="sm" variant={active ? 'default' : 'outline'} onClick={onClick} className="h-7">{label} <span className="ml-1 opacity-70 tabular-nums">{eur(v)}</span></Button>);
+  const [copied, setCopied] = useState(false);
+  /** Copy the product table exactly as displayed: same filter, same sort order, same columns. */
+  const copyProds = async (withAds: boolean, list: { r: Agg; x: ReturnType<typeof marginOf>; spend?: number; after?: number | null }[]) => {
+    const headers = withAds
+      ? ['Produit', 'CA HT', 'Qté', 'Coût vendu', 'Marge €', 'Ads', 'Marge après Ads', 'Marge %', 'Couverture %', 'Note']
+      : ['Produit', 'CA HT', 'Qté', 'Coût vendu', 'Marge €', 'Marge %', 'Couverture %', 'Note'];
+    const body: Cell[][] = list.map(({ r, x, spend, after }) => {
+      const note = [x.est ? 'marge estimée' : '', x.inc ? 'couverture incomplète' : ''].filter(Boolean).join(' ; ');
+      const row: Cell[] = [r.label, num(r.ca_ht), num(r.qty, 1), num(r.cogs), num(x.m)];
+      if (withAds) row.push(ads ? num(spend ?? 0) : '', ads ? num(after ?? null) : '');
+      row.push(x.pct == null ? '' : num(x.pct * 100, 1), x.cov == null ? '' : num(x.cov * 100, 1), note);
+      return row;
+    });
+    if (!body.length) return toast.error('Aucune ligne à copier : le filtre ne laisse rien afficher.');
+    const ok = await copyTable(headers, body);
+    if (!ok) return toast.error('Le navigateur a refusé la copie : sélectionnez les cellules à la souris puis Ctrl+C.');
+    setCopied(true); setTimeout(() => setCopied(false), 2000);
+    toast.success(`${body.length} ligne(s) copiée(s) · ${ch === 'all' ? 'tous canaux' : CH_LABEL[ch] ?? ch} · ${cc === 'all' ? 'tous pays' : cc} — collez dans Excel avec Ctrl+V`);
+  };
+  const copyBtn = (withAds: boolean, list: { r: Agg; x: ReturnType<typeof marginOf>; spend?: number; after?: number | null }[]) => (
+    <Button variant="outline" size="sm" className="h-7 ml-auto" onClick={() => copyProds(withAds, list)} title="Copier les lignes affichées pour les coller dans Excel">
+      <Copy className="h-3.5 w-3.5 mr-1.5" />{copied ? 'Copié !' : 'Copier'}
+    </Button>);
   return (
     <div className="space-y-3">
       {err && <p className="text-sm text-destructive">{err}</p>}
@@ -117,7 +142,8 @@ export function SalesBreakdown({ from, to, search }: { from: string; to: string;
         const byK = new Map((ads?.by_product ?? []).map((p: any) => [p.k, p]));
         const withAds = prods.map((r) => { const a: any = byK.get(r.key); const spend = a ? (a.direct ?? 0) + (a.alloc ?? 0) : 0; const x = marginOf(r); const after = x.m == null ? null : x.m - spend; return { r, x, spend, after, direct: a?.direct ?? 0 }; });
         return (<>
-          <p className="text-xs text-muted-foreground">3. Produits B2C · tous pays — {prods.length} produits, hors livraison. Colonne « Ads » = dépenses directement attribuées au produit annoncé + part estimée au prorata du CA ; elle ne concerne que le B2C.</p>
+          <div className="flex flex-wrap items-center gap-2"><p className="text-xs text-muted-foreground">3. Produits B2C · tous pays — {prods.length} produits, hors livraison. Colonne « Ads » = dépenses directement attribuées au produit annoncé + part estimée au prorata du CA ; elle ne concerne que le B2C.</p>
+            {copyBtn(true, withAds.slice().sort(cmpRows).slice(0, 300))}</div>
           <Table><TableHeader><TableRow><Th k="label" label="Produit" right={false} /><Th k="ca_ht" label="CA HT" /><Th k="qty" label="Qté" /><Th k="cogs" label="Coût vendu" /><Th k="m" label="Marge" /><Th k="spend" label="Ads" /><Th k="after" label="Marge après Ads" /><Th k="pct" label="Marge %" /><Th k="cov" label="Couverture" /></TableRow></TableHeader>
             <TableBody>{withAds.slice().sort(cmpRows).slice(0, 300).map(({ r, x, spend, after, direct }) => (
               <TableRow key={r.key}><TableCell className="max-w-[320px] truncate">{r.label}</TableCell><TableCell className="text-right tabular-nums">{eur(r.ca_ht)}</TableCell><TableCell className="text-right tabular-nums">{nb(r.qty)}</TableCell>
@@ -128,7 +154,8 @@ export function SalesBreakdown({ from, to, search }: { from: string; to: string;
         </>);
       })()}
       {(ch !== 'B2C' || cc !== 'all') && (<>
-        <p className="text-xs text-muted-foreground">3. Produits {ch === 'all' ? 'tous canaux' : CH_LABEL[ch] ?? ch} · {cc === 'all' ? 'tous pays' : cc} — {prods.length} produits, hors livraison. Pays = pays de livraison Erplain.{ch === 'B2C' && cc !== 'all' ? ' Le détail Ads par produit n\'est disponible que tous pays confondus.' : ''}</p>
+        <div className="flex flex-wrap items-center gap-2"><p className="text-xs text-muted-foreground">3. Produits {ch === 'all' ? 'tous canaux' : CH_LABEL[ch] ?? ch} · {cc === 'all' ? 'tous pays' : cc} — {prods.length} produits, hors livraison. Pays = pays de livraison Erplain.{ch === 'B2C' && cc !== 'all' ? ' Le détail Ads par produit n\'est disponible que tous pays confondus.' : ''}</p>
+          {copyBtn(false, prods.map((r) => ({ r, x: marginOf(r) })).sort(cmpRows).slice(0, 300))}</div>
         <Table><TableHeader><TableRow><Th k="label" label="Produit" right={false} /><Th k="ca_ht" label="CA HT" /><Th k="qty" label="Qté" /><Th k="cogs" label="Coût vendu" /><Th k="m" label="Marge" /><Th k="pct" label="Marge %" /><Th k="cov" label="Couverture" /></TableRow></TableHeader>
           <TableBody>{prods.map((r) => ({ r })).sort(cmpRows).slice(0, 300).map(({ r }) => { const x = marginOf(r); return (
             <TableRow key={r.key}><TableCell className="max-w-[320px] truncate">{r.label}</TableCell><TableCell className="text-right tabular-nums">{eur(r.ca_ht)}</TableCell><TableCell className="text-right tabular-nums">{nb(r.qty)}</TableCell>
