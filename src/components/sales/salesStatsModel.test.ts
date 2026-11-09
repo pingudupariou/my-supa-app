@@ -20,7 +20,7 @@ describe('copier vers Excel', () => {
     const { body } = detailTSV('product', [r({ unit_cost: null, cogs: null as any, est_ht: 500, cov_ht: 0 })], {}, '', false);
     expect(body[0][3]).toBe('coût manquant');
     expect(body[0][4]).toBe('');
-    expect(body[0][9]).toBe('marge estimée ; couverture incomplète');
+    expect(body[0][8]).toBe('marge estimée ; couverture incomplète');
   });
   it('copies only the rows matching the search, like the screen', () => {
     const rows = [r({}), r({ key: 'v2', label: 'VIS' })];
