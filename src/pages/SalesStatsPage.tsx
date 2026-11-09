@@ -9,12 +9,13 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { AlertTriangle, CheckCircle2, Loader2, RefreshCw } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Copy, Loader2, RefreshCw } from 'lucide-react';
 import { Bar, BarChart, CartesianGrid, ComposedChart, Legend, Line, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { toast } from 'sonner';
 import { SalesBreakdown } from '@/components/sales/SalesBreakdown';
+import { copyTable } from '@/lib/clipboard';
+import { CHANNELS, CH_LABEL, detailTSV, margin, type DetailKind, type Row } from '@/components/sales/salesStatsModel';
 
-type Row = { key: string; label?: string; channel?: string; ca_ht: number; qty: number; default_share?: number; prod_ht?: number; cogs?: number; cov_ht?: number; est_ht?: number; unit_cost?: number | null };
 type Stats = {
   totals: { ca_ht: number; qty: number; shipping_ht: number; docs: number; prod_ht: number; cogs: number; cov_ht: number; est_ht: number };
   shipping: { billed_ht: number; docs: number; est_cost: number | null; real_cost: number | null };
@@ -25,18 +26,11 @@ type Stats = {
   reconciliation: { docs_ht: number; lines_ht: number; invoices: number; credit_notes: number; missing_total: number; no_customer: number; credit_no_qty_ht: number };
   excluded: { reason: string; doc_type: string; n: number; ht: number }[];
 };
-const CHANNELS = ['B2C', 'B2B', 'OEM', 'A_CLASSER'] as const;
-const CH_LABEL: Record<string, string> = { B2C: 'B2C (Shopify)', B2B: 'B2B', OEM: 'OEM', A_CLASSER: 'À classer' };
 const CH_COLOR: Record<string, string> = { B2C: 'hsl(var(--primary))', B2B: 'hsl(var(--chart-2, 160 60% 40%))', OEM: 'hsl(var(--chart-4, 35 90% 50%))', A_CLASSER: 'hsl(var(--muted-foreground))' };
 const eur = (v: number | null | undefined) => v == null ? '—' : new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(v);
 const nb = (v: number) => new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 1 }).format(v);
 const METHOD_LABEL: Record<string, string> = { cump_finished: 'CUMP produit fini', components_plus_mfg: 'Composants + frais de fabrication', confirmed_full: 'Coût complet confirmé' };
 /** Margin on lines with a validated cost only; incomplete if some product revenue has no cost, estimated if a current cost is applied to older sales. */
-function margin(r: { prod_ht?: number; cogs?: number; cov_ht?: number; est_ht?: number }) {
-  const prod = r.prod_ht ?? 0, cov = r.cov_ht ?? 0, cogs = r.cogs ?? 0;
-  const m = cov - cogs;
-  return { m: cov ? m : null, pct: cov ? m / cov : null, coverage: prod ? cov / prod : null, incomplete: Math.abs(prod - cov) > 0.5, estimated: (r.est_ht ?? 0) > 0.5 };
-}
 const pctf = (v: number | null) => v == null ? '—' : `${(v * 100).toFixed(1)} %`;
 function MarginCell({ r }: { r: Row }) {
   const x = margin(r);
