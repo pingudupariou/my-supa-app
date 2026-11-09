@@ -25,7 +25,11 @@ const customers = [{ customer_id: 'c1', channel: 'OEM', commercial_country: 'DE'
 
 vi.mock('@/integrations/supabase/client', () => ({
   supabase: {
-    rpc: vi.fn(async (name: string) => (name === 'sales_stats' ? { data: stats, error: null } : { data: name === 'sales_breakdown' ? [] : null, error: null })),
+    rpc: vi.fn(async (name: string) => (name === 'sales_stats'
+      ? { data: stats, error: null }
+      : name === 'sales_breakdown'
+        ? { data: [{ label: 'ECROU DISQUE', ca_ht: 1000, qty: 10, cogs: 400, cov_ht: 1000, prod_ht: 1000, est_ht: 0 }], error: null }
+        : { data: null, error: null })),
     from: () => ({
       select: () => ({
         order: () => ({
@@ -88,6 +92,10 @@ describe('copier les tableaux de Statistiques commerciales', () => {
     render(<MemoryRouter><SalesStatsPage /></MemoryRouter>);
     await screen.findByText(/3\. Produits/);
     expect(screen.queryByRole('button', { name: /Copier le tableau/ })).toBeNull();
-    expect(screen.getByRole('button', { name: /^Copier$/ })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /^Copier$/ }));
+    await waitFor(() => expect(writeText).toHaveBeenCalled());
+    const text = writeText.mock.calls[0][0] as string;
+    expect(text.split('\n')[0]).toBe(['Produit', 'CA HT', 'Qté', 'Coût vendu', 'Marge €', 'Marge %', 'Couverture %', 'Note'].join('\t'));
+    expect(text).toContain(['ECROU DISQUE', '1000', '10', '400', '600', '60', '100', ''].join('\t'));
   });
 });
