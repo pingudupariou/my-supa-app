@@ -188,10 +188,40 @@ export function SalesStatsPage() {
     setCustomers((m) => ({ ...m, [id]: next })); load();
   };
 
-  const monthly = useMemo(() => {    const m = new Map<string, any>();
+  const monthly = useMemo(() => {
+    const m = new Map<string, any>();
     for (const r of stats?.by_month ?? []) { const o = m.get(r.month) ?? { month: r.month }; o[r.channel] = (o[r.channel] ?? 0) + r.ca_ht; m.set(r.month, o); }
     return [...m.values()].sort((a, b) => a.month.localeCompare(b.month));
   }, [stats]);
+
+  /** Month rows of the « Périodes » table, reused by the copy so both show exactly the same numbers. */
+  const monthRows = useMemo(() => Object.values((stats?.by_month ?? []).reduce((m: Record<string, Row>, r) => {
+    const o = m[r.month] ?? (m[r.month] = { key: r.month, ca_ht: 0, qty: 0, prod_ht: 0, cogs: 0, cov_ht: 0, est_ht: 0 });
+    o.ca_ht += r.ca_ht; o.qty += r.qty; o.prod_ht! += r.prod_ht; o.cogs! += r.cogs; o.cov_ht! += r.cov_ht; o.est_ht! += r.est_ht; return m;
+  }, {})).sort((a, b) => b.key.localeCompare(a.key)), [stats]);
+
+  /** Which table the « Copier » button exports for the open tab (the breakdown tab copies from inside itself). */
+  const detailFor = (t: string): { kind: DetailKind; rows: Row[] } | null => {
+    if (!stats) return null;
+    if (t === 'months') return { kind: 'country', rows: monthRows };
+    if (t === 'customers') return { kind: 'customer', rows: stats.by_customer ?? [] };
+    if (t === 'products') return { kind: 'product', rows: stats.by_product ?? [] };
+    if (t === 'cc') return { kind: 'cc', rows: stats.by_commercial_country ?? [] };
+    if (t === 'dc') return { kind: 'country', rows: stats.by_delivery_country ?? [] };
+    if (t === 'channels') return { kind: 'country', rows: (stats.by_channel ?? []).map((r) => ({ ...r, label: CH_LABEL[r.key] ?? r.key })) };
+    return null;
+  };
+
+  const copyDetail = async () => {
+    const d = detailFor(tab);
+    if (!d) return;
+    const { headers, body } = detailTSV(d.kind, d.rows, customers, search, canWrite);
+    if (!body.length) return toast.error('Aucune ligne à copier : le filtre ne laisse rien afficher.');
+    const ok = await copyTable(headers, body);
+    if (!ok) return toast.error('Le navigateur a refusé la copie : sélectionnez les cellules à la souris puis Ctrl+C.');
+    setCopied(true); setTimeout(() => setCopied(false), 2000);
+    toast.success(`${body.length} ligne(s) copiée(s) · ${range0} → ${range1} — collez dans Excel avec Ctrl+V`);
+  };
 
   const rec = stats?.reconciliation;
   const recGap = rec ? Math.round((rec.docs_ht - rec.lines_ht) * 100) / 100 : 0;
