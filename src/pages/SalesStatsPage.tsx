@@ -151,7 +151,16 @@ export function SalesStatsPage() {
     const [s, r, c] = await Promise.all([
       supabase.rpc('sales_stats' as any, { _from: range0, _to: range1, _include_shipping: shipping, _channels: channels.length === CHANNELS.length ? null : channels, _ship_cost_per_doc: shipCostNum }),
       supabase.from('erplain_sales_sync_runs' as any).select('*').order('started_at', { ascending: false }).limit(1).maybeSingle(),
-      supabase.from('erplain_sales_customers' as any).select('customer_id,channel,commercial_country').range(0, 4999),
+      (async () => {
+        const all: any[] = [];
+        for (let p = 0; p < 50; p++) {
+          const { data, error } = await supabase.from('erplain_sales_customers' as any).select('customer_id,channel,commercial_country').order('customer_id').range(p * 1000, p * 1000 + 999);
+          if (error) return { data: all, error };
+          all.push(...((data as any[]) ?? []));
+          if (!data || data.length < 1000) break;
+        }
+        return { data: all, error: null };
+      })(),
     ]);
     if (s.error) toast.error(`Statistiques : ${s.error.message}`); else setStats(s.data as any);
     setRun(r.data);
