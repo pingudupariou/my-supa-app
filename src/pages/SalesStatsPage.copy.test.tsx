@@ -49,7 +49,7 @@ import { SalesStatsPage } from './SalesStatsPage';
 afterEach(() => { cleanup(); vi.clearAllMocks(); });
 global.ResizeObserver ||= class { observe() {} unobserve() {} disconnect() {} } as any;
 
-const writeText = vi.fn(async () => {});
+const writeText = vi.fn(async (_text: string) => {});
 Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
 
 const openTab = async (name: RegExp) => {
