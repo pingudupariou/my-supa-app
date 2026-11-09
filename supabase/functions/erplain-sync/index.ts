@@ -470,7 +470,7 @@ Deno.serve(async (req) => {
         if (!r.data.Orders.paginatorInfo?.hasMorePages) break;
         if (Date.now() > deadline - 5000) { partial = true; break; }
       }
-      const { data: cls } = await admin.from("erplain_sales_customers").select("customer_id,channel");
+      const { data: cls } = await admin.from("erplain_sales_customers").select("customer_id,channel").in("channel", ["B2B", "OEM"]).range(0, 9999);
       const chan = new Map((cls ?? []).map((c: any) => [String(c.customer_id), c.channel]));
       const n = (v: any) => (v === null || v === undefined || v === "" ? null : Number(v));
       const out = orders.map((o: any) => {
