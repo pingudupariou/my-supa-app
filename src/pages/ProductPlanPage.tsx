@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { CustomerClassificationButton } from '@/components/customers/CustomerClassification';
 import { useFinancial, RevenueMode } from '@/context/FinancialContext';
 import { Product } from '@/engine/types';
 import { SectionCard, KPICard } from '@/components/ui/KPICard';
@@ -165,6 +166,7 @@ export function ProductPlanPage() {
       />
 
       {/* Sélecteur de mode CA */}
+      <CustomerClassificationButton />
       <div className="flex flex-wrap items-center justify-between gap-4 p-4 bg-muted/30 rounded-lg border">
         <div className="flex items-center gap-4">
           <span className="text-sm font-medium">Mode de calcul du CA :</span>

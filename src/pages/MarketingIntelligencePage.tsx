@@ -1,4 +1,5 @@
 import { B2CAdMargin } from '@/components/marketing/margin/B2CAdMargin';
+import { CustomerClassificationButton } from '@/components/customers/CustomerClassification';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
@@ -542,6 +543,7 @@ export function MarketingIntelligencePage() {
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-bold">Marketing Intelligence</h1>
+      <CustomerClassificationButton />
       <TaskSummary onOpen={() => setTab('tasks')} />
       <Tabs value={tab} onValueChange={setTab}>
         <TabsList className="h-auto flex-wrap">

@@ -470,7 +470,9 @@ Deno.serve(async (req) => {
       try { batch = await readPipeOrders(gql, sel, from, cursor, to); }
       catch (e) { return json({ status: "api_error", message: String((e as Error).message).slice(0, 400) }); }
       const { orders, total, next } = batch;
-      const { data: cls } = await admin.from("erplain_sales_customers").select("customer_id,channel").in("channel", ["B2B", "OEM"]).range(0, 9999);
+      const customerIds = [...new Set(orders.map((o: any) => o.customer?.id != null ? String(o.customer.id) : null).filter(Boolean))];
+      const { data: cls, error: clsError } = customerIds.length ? await admin.from("erplain_sales_customers").select("customer_id,channel").in("customer_id", customerIds) : { data: [], error: null };
+      if (clsError) return json({ status: "api_error", message: "Classement clients indisponible : " + clsError.message });
       const chan = new Map((cls ?? []).map((c: any) => [String(c.customer_id), c.channel]));
       const n = (v: any) => (v === null || v === undefined || v === "" ? null : Number(v));
       const out = orders.map((o: any) => {
@@ -485,6 +487,11 @@ Deno.serve(async (req) => {
           lines: (o.line_items ?? []).filter((l: any) => l?.variant).map((l: any) => ({ sku: l.variant?.sku ?? null, label: l.variant?.label ?? null, quantity: n(l.quantity), shipped: n(l.shipped_quantity) })),
         };
       });
+      const newCustomers = [...new Map(out.filter((o: any) => o.customer_id).map((o: any) => [String(o.customer_id), { customer_id: String(o.customer_id), customer_name: o.customer }])).values()];
+      if (newCustomers.length) {
+        const { error } = await admin.from("erplain_sales_customers").upsert(newCustomers, { onConflict: "customer_id", ignoreDuplicates: true });
+        if (error) return json({ status: "api_error", message: "Enregistrement des clients impossible : " + error.message });
+      }
       return json({ status: next ? "partial" : "success", from, to, total, next, message: batch.message, read: out.length, orders: out, read_at: new Date().toISOString() });
     }
     if (peekAction === "costflow_preview" || peekAction === "costflow_catalog" || peekAction === "costflow_variant" || peekAction === "costflow_refresh_bom" || peekAction === "costflow_set_method" || peekAction === "costflow_bulk_method") {
