@@ -9,11 +9,12 @@ import { Users, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/context/AuthContext';
 import { PipeRulesPanel } from '@/components/pipe/PipeRulesPanel';
-import { matchesRule, type ChannelRule } from '@/components/pipe/pipeRules';
+import { type ChannelRule } from '@/components/pipe/pipeRules';
 import type { PipeOrder } from '@/components/pipe/pipeModel';
 import { CHANNEL_LABELS, crmChannel, effectiveChannel, notifyClassification, type ClientChannel } from './classificationModel';
 import { useCustomerClassification } from './useCustomerClassification';
 import { ErplainCustomerPicker } from './ErplainCustomerPicker';
+import { customerRuleAssignments } from './customerRules';
 
 export function CustomerClassificationButton({ orders = [] }: { orders?: PipeOrder[] }) {
   const [open, setOpen] = useState(false);
@@ -72,23 +73,45 @@ function CustomerClassification({ orders }: { orders: PipeOrder[] }) {
     const known = new Set(orders.map(o => o.customer_id));
     return [...orders, ...customers.filter(c => !known.has(c.customer_id)).map(c => ({ id: `client:${c.customer_id}`, customer_id: c.customer_id, customer: c.customer_name, label: null, lines: [], channel: effectiveChannel(c.channel).toLowerCase() } as PipeOrder))];
   }, [orders, customers]);
-  const [selectedRule, setSelectedRule] = useState('');
-  const chosen = rules.find(r => r.id === selectedRule);
-  const candidates = useMemo(() => {
-    if (!chosen) return [];
-    const matchedIds = new Set(samples.filter(o => matchesRule(o, chosen)).map(o => o.customer_id));
-    return customers.filter(c => matchedIds.has(c.customer_id));
-  }, [chosen, customers, samples]);
+  const [ruleOrders, setRuleOrders] = useState<PipeOrder[]>([]);
+  const [ordersReady, setOrdersReady] = useState(false);
+  const [ordersError, setOrdersError] = useState<string | null>(null);
+  const [ordersFrom, setOrdersFrom] = useState('2000-01-01');
+  const [ordersTo, setOrdersTo] = useState(() => new Date().toISOString().slice(0,10));
+  const assignments = useMemo(() => customerRuleAssignments(customers, ordersReady ? ruleOrders : orders, rules), [customers, ordersReady, ruleOrders, orders, rules]);
+  const changed = assignments.filter(a => a.customer.channel !== a.channel);
+  const needsOrders = rules.some(r => r.enabled && ['label','sku','product'].includes(r.field));
+  const loadRuleOrders = async () => {
+    setBusy(true); setOrdersError(null); setOrdersReady(false);
+    const collected = new Map<string, PipeOrder>();
+    let cursor: { page: number; size: number } | undefined;
+    try {
+      for (let batch = 0; batch < 1000; batch++) {
+        const { data, error } = await supabase.functions.invoke('erplain-sync', { body: { action: 'pipe_orders', from: ordersFrom, to: ordersTo, cursor } });
+        if (error || !['success','partial'].includes(data?.status)) throw new Error(error?.message ?? data?.message ?? 'Lecture Erplain impossible');
+        for (const order of data.orders ?? []) collected.set(String(order.id), order);
+        if (data.message) throw new Error(data.message);
+        if (data.status === 'success') { setRuleOrders([...collected.values()]); setOrdersReady(true); return; }
+        if (!data.next || (cursor && data.next.page <= cursor.page)) throw new Error('Lecture incomplète, réessayez.');
+        cursor = data.next;
+      }
+      throw new Error('Lecture trop volumineuse : réduisez la période.');
+    } catch (e) { setOrdersError((e as Error).message); }
+    finally { setBusy(false); }
+  };
   const apply = async () => {
-    if (!chosen || !candidates.length || !window.confirm(`Affecter ${candidates.length} client(s) au canal ${chosen.channel.toUpperCase()} dans tous les onglets ?`)) return;
+    if (!changed.length || (needsOrders && !ordersReady) || !window.confirm(`Reclasser ${changed.length} client(s) avec toutes les règles actives dans tous les onglets ?`)) return;
     setBusy(true);
     try {
-      for (let i = 0; i < candidates.length; i += 500) {
-        const { error } = await supabase.rpc('assign_customer_channels', { _ids: candidates.slice(i, i + 500).map(c => c.customer_id), _channel: chosen.channel.toUpperCase() });
-        if (error) throw error;
+      for (const channel of ['B2C','B2B','OEM']) {
+        const ids = changed.filter(a => a.channel === channel).map(a => a.customer.customer_id);
+        for (let i = 0; i < ids.length; i += 500) {
+          const { error } = await supabase.rpc('assign_customer_channels', { _ids: ids.slice(i,i+500), _channel: channel });
+          if (error) throw error;
+        }
       }
-      toast.success('Clients affectés dans tous les onglets');
-    } catch (e) { toast.error(`Affectation interrompue : ${(e as Error).message}`); }
+      toast.success('Classement commun mis à jour');
+    } catch (e) { toast.error(`Classement interrompu : ${(e as Error).message}`); }
     finally { setBusy(false); notifyClassification(); await reload(); }
   };
   return <div className="space-y-3">
@@ -102,10 +125,12 @@ function CustomerClassification({ orders }: { orders: PipeOrder[] }) {
         <Input aria-label="Rechercher un client CRM" placeholder="Client CRM…" value={search} onChange={e => { setSearch(e.target.value); setCrmLimit(50); }} />
         <div className="max-h-96 overflow-auto"><table className="w-full text-sm"><thead><tr className="border-b"><th className="p-2 text-left">Client CRM</th><th className="p-2 text-left">Client Erplain lié</th><th className="p-2 text-left">Canal commun</th></tr></thead><tbody>{crmClients.filter(c => (c.company_name ?? '').toLowerCase().includes(search.toLowerCase())).slice(0, crmLimit).map(c => <tr key={c.id} className="border-b"><td className="p-2">{c.company_name}</td><td className="p-2"><ErplainCustomerPicker customers={customers} value={c.erplain_customer_id} disabled={!canWrite || busy} onChange={id => saveCrm(c.id, { erplain_customer_id: id })} /></td><td className="p-2">{c.erplain_customer_id ? <span>{crmChannel(c,customers)} · affectation Erplain</span> : <Select value={c.sales_channel} disabled={!canWrite || busy} onValueChange={v => saveCrm(c.id, { sales_channel: v })}><SelectTrigger className="w-28"><SelectValue /></SelectTrigger><SelectContent>{['B2C','B2B','OEM'].map(k => <SelectItem key={k} value={k}>{k}</SelectItem>)}</SelectContent></Select>}</td></tr>)}</tbody></table></div>{crmClients.filter(c => (c.company_name ?? '').toLowerCase().includes(search.toLowerCase())).length > crmLimit && <Button variant="outline" onClick={() => setCrmLimit(v => v + 50)}>Afficher plus de clients</Button>}</>}
       </TabsContent>
-      <TabsContent value="rules" className="space-y-3"><PipeRulesPanel rules={rules} orders={samples} canWrite={canWrite} onReload={reloadRules} error={ruleError} />
-        <div className="flex flex-wrap gap-2"><Select value={selectedRule} onValueChange={setSelectedRule}><SelectTrigger className="w-64"><SelectValue placeholder="Règle à appliquer aux clients" /></SelectTrigger><SelectContent>{rules.filter(r => r.enabled).map(r => <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>)}</SelectContent></Select><Button onClick={apply} disabled={!canWrite || busy || !candidates.length}>Affecter {candidates.length} client(s)</Button></div>
-        {chosen && <div className="text-xs text-muted-foreground">{candidates.slice(0,10).map(c => <p key={c.customer_id}>{c.customer_name} → {chosen.channel.toUpperCase()}</p>)}</div>}
-        <p className="text-xs text-muted-foreground">Les règles préparent une affectation client à confirmer ; elles ne reclassent plus les commandes isolément. Les références BC et produits utilisent les commandes chargées dans le Pipe.</p>
+      <TabsContent value="rules" className="space-y-3"><PipeRulesPanel rules={rules} orders={ordersReady ? ruleOrders : samples} canWrite={canWrite} onReload={reloadRules} error={ruleError} />
+        {needsOrders && <div className="flex flex-wrap items-center gap-2"><Input className="w-40" type="date" aria-label="Début des commandes pour le classement" value={ordersFrom} onChange={e => { setOrdersFrom(e.target.value); setOrdersReady(false); }} /><Input className="w-40" type="date" aria-label="Fin des commandes pour le classement" value={ordersTo} onChange={e => { setOrdersTo(e.target.value); setOrdersReady(false); }} /><Button variant="outline" disabled={busy || !ordersFrom || !ordersTo || ordersFrom > ordersTo} onClick={loadRuleOrders}>{busy ? 'Chargement…' : 'Charger les commandes Erplain'}</Button><span className="text-xs text-muted-foreground">{ordersReady ? `${ruleOrders.length} commandes chargées` : 'Commandes à charger pour les règles BC / produits'}</span></div>}
+        {ordersError && <p role="alert" className="text-sm text-destructive">{ordersError}</p>}
+        <div className="flex flex-wrap items-center gap-3"><Button onClick={apply} disabled={!canWrite || busy || !changed.length || (needsOrders && !ordersReady)}>Classer les clients avec mes règles</Button><span className="text-sm text-muted-foreground">{assignments.length} clients reconnus · {changed.length} changements</span></div>
+        <div className="max-h-64 overflow-auto"><table className="w-full text-sm"><thead><tr><th className="p-2 text-left">Client</th><th className="p-2 text-left">Actuel</th><th className="p-2 text-left">Selon les règles</th><th className="p-2 text-left">Règle retenue</th></tr></thead><tbody>{changed.slice(0,50).map(a => <tr className="border-b" key={a.customer.customer_id}><td className="p-2">{a.customer.customer_name || a.customer.customer_id}</td><td className="p-2">{CHANNEL_LABELS[a.customer.channel]}</td><td className="p-2">{a.channel}</td><td className="p-2">{a.rule}</td></tr>)}</tbody></table></div>
+        <p className="text-xs text-muted-foreground">Priorité la plus basse en premier · Un seul canal par client · Clients non reconnus conservés · Corrections manuelles dans Clients Erplain</p>
       </TabsContent>
     </Tabs>
   </div>;
