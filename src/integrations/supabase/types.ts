@@ -137,6 +137,7 @@ export type Database = {
           delivery_fee_rule: string | null
           delivery_method: string | null
           eer_date: number | null
+          erplain_customer_id: string | null
           geographic_zone: string | null
           id: string
           is_active: boolean
@@ -145,6 +146,7 @@ export type Database = {
           notes: string | null
           payment_terms: string | null
           pricing_rule: string | null
+          sales_channel: string
           specific_advantages: string | null
           termination_notice: string | null
           transport_rules: string | null
@@ -166,6 +168,7 @@ export type Database = {
           delivery_fee_rule?: string | null
           delivery_method?: string | null
           eer_date?: number | null
+          erplain_customer_id?: string | null
           geographic_zone?: string | null
           id?: string
           is_active?: boolean
@@ -174,6 +177,7 @@ export type Database = {
           notes?: string | null
           payment_terms?: string | null
           pricing_rule?: string | null
+          sales_channel?: string
           specific_advantages?: string | null
           termination_notice?: string | null
           transport_rules?: string | null
@@ -195,6 +199,7 @@ export type Database = {
           delivery_fee_rule?: string | null
           delivery_method?: string | null
           eer_date?: number | null
+          erplain_customer_id?: string | null
           geographic_zone?: string | null
           id?: string
           is_active?: boolean
@@ -203,6 +208,7 @@ export type Database = {
           notes?: string | null
           payment_terms?: string | null
           pricing_rule?: string | null
+          sales_channel?: string
           specific_advantages?: string | null
           termination_notice?: string | null
           transport_rules?: string | null
@@ -216,6 +222,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "b2b_client_categories"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "b2b_clients_erplain_customer_id_fkey"
+            columns: ["erplain_customer_id"]
+            isOneToOne: false
+            referencedRelation: "erplain_sales_customers"
+            referencedColumns: ["customer_id"]
           },
         ]
       }
@@ -4042,6 +4055,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      assign_customer_channels: {
+        Args: { _channel: string; _ids: string[] }
+        Returns: number
+      }
       b2c_ad_margin: {
         Args: {
           _from: string
@@ -4053,8 +4070,10 @@ export type Database = {
       }
       bump_erplain_mo_reference: { Args: { _min: number }; Returns: undefined }
       current_user_can_write_plan_atelier: { Args: never; Returns: boolean }
+      current_user_classification_access: { Args: never; Returns: string }
       current_user_marketing_access: { Args: never; Returns: string }
       current_user_tab_access: { Args: { _tab: string }; Returns: string }
+      customer_channel: { Args: { _customer_id: string }; Returns: string }
       ga4_dashboard: {
         Args: {
           _channel?: string
