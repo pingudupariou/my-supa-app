@@ -24,3 +24,4 @@
 
 - Summary exports share content with per-format print choices; BankReport adds intro/appendix — no duplicate layouts.
 - Role photos: small square JPEG data URLs on Role — PDF-safe.
+- Pipe commercial reads the selected period in resumable bounded Erplain batches; preserve cursor page size and show failures separately from empty filters — avoids timeouts and silently missing orders.

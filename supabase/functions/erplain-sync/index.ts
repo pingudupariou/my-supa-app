@@ -6,6 +6,7 @@ import { DATASETS, FILTER_TYPES, makeGql, pageQuery, whereColumns, ordersWithCus
 import { computePlan, moPayload } from "./plan.ts";
 import { costflowPreview, costflowCatalog, costflowVariant, costByMethod } from "./costflow.ts";
 import { salesSync } from "./sales.ts";
+import { readPipeOrders } from "./pipe.ts";
 
 const DEFAULT_ENDPOINT = "https://api.erplain.app/graphql";
 
@@ -461,15 +462,11 @@ Deno.serve(async (req) => {
       const custSel = base.sel.replace("customer {", "customer { id");
       const sel = `id label status dated_at shipping_at shipping_status billing_status payment_status total_without_tax total billed_amount unbilled_amount paid_amount unpaid_amount
         line_items { id type quantity shipped_quantity variant { id sku label } } ${custSel}`;
-      const orders: any[] = []; let partial = false; let total: number | null = null;
-      for (let page = 1; page <= 60; page++) {
-        const r = await gql(`Commandes page ${page}`, `{ Orders(first: 25, page: ${page}, where: { column: DATED_AT, operator: GTE, value: ${JSON.stringify(from)} }) { paginatorInfo { hasMorePages total } data { ${sel} } } }`);
-        if (r.errors.length || !r.data?.Orders) { if (!orders.length) return json({ status: "api_error", message: r.errors.join(" | ") || "Lecture impossible", steps: steps.slice(-3) }); partial = true; break; }
-        total = r.data.Orders.paginatorInfo?.total ?? total;
-        orders.push(...r.data.Orders.data);
-        if (!r.data.Orders.paginatorInfo?.hasMorePages) break;
-        if (Date.now() > deadline - 5000) { partial = true; break; }
-      }
+      const cursor = b.cursor && Number.isInteger(b.cursor.page) && b.cursor.page > 0 && [1, 2, 5, 10].includes(b.cursor.size) ? b.cursor : undefined;
+      let batch;
+      try { batch = await readPipeOrders(gql, sel, from, cursor); }
+      catch (e) { return json({ status: "api_error", message: String((e as Error).message).slice(0, 400) }); }
+      const { orders, total, next } = batch;
       const { data: cls } = await admin.from("erplain_sales_customers").select("customer_id,channel").in("channel", ["B2B", "OEM"]).range(0, 9999);
       const chan = new Map((cls ?? []).map((c: any) => [String(c.customer_id), c.channel]));
       const n = (v: any) => (v === null || v === undefined || v === "" ? null : Number(v));
@@ -485,7 +482,7 @@ Deno.serve(async (req) => {
           lines: (o.line_items ?? []).filter((l: any) => l?.variant).map((l: any) => ({ sku: l.variant?.sku ?? null, label: l.variant?.label ?? null, quantity: n(l.quantity), shipped: n(l.shipped_quantity) })),
         };
       });
-      return json({ status: partial ? "partial" : "success", from, total, read: out.length, orders: out, read_at: new Date().toISOString() });
+      return json({ status: next ? "partial" : "success", from, total, next, message: batch.message, read: out.length, orders: out, read_at: new Date().toISOString() });
     }
     if (peekAction === "costflow_preview" || peekAction === "costflow_catalog" || peekAction === "costflow_variant" || peekAction === "costflow_refresh_bom" || peekAction === "costflow_set_method" || peekAction === "costflow_bulk_method") {
       // Read-only comparison for CostFlow: needs read access on the costflow tab (admins always).
