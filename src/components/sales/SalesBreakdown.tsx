@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { CLASSIFICATION_EVENT } from '@/components/customers/classificationModel';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -21,6 +22,12 @@ const marginOf = (r: Agg) => { const m = r.cov_ht - r.cogs; return { m: r.cov_ht
 /** Channel → delivery country → product drill-down (product lines only, shipping excluded). */
 export function SalesBreakdown({ from, to, search }: { from: string; to: string; search: string }) {
   const [rows, setRows] = useState<BRow[]>([]);
+  const [classificationVersion, setClassificationVersion] = useState(0);
+  useEffect(() => {
+    const refresh = () => setClassificationVersion(v => v + 1);
+    window.addEventListener(CLASSIFICATION_EVENT, refresh);
+    return () => window.removeEventListener(CLASSIFICATION_EVENT, refresh);
+  }, []);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [ch, setCh] = useState('all');
@@ -53,7 +60,7 @@ export function SalesBreakdown({ from, to, search }: { from: string; to: string;
       if (!live) return; if (error) setErr(error.message); setRows((data as any) ?? []); setLoading(false);
     });
     return () => { live = false; };
-  }, [from, to]);
+  }, [from, to, classificationVersion]);
   const [ads, setAds] = useState<any>(null);
   const [adsErr, setAdsErr] = useState<string | null>(null);
   useEffect(() => {
@@ -63,7 +70,7 @@ export function SalesBreakdown({ from, to, search }: { from: string; to: string;
       if (!live) return; if (error) setAdsErr(error.message.includes('forbidden') ? 'Accès Marketing Intelligence requis pour voir les dépenses Ads.' : error.message); setAds(data);
     });
     return () => { live = false; };
-  }, [ch, from, to]);
+  }, [ch, from, to, classificationVersion]);
   const agg = (rs: BRow[], k: (r: BRow) => string) => Object.values(rs.reduce((m: Record<string, Agg>, r) => {
     const key = k(r); const o = m[key] ?? (m[key] = { key, label: key, ca_ht: 0, qty: 0, prod_ht: 0, cogs: 0, cov_ht: 0, est_ht: 0 });
     o.ca_ht += r.ca_ht; o.qty += r.qty; o.prod_ht += r.prod_ht; o.cogs += r.cogs; o.cov_ht += r.cov_ht; o.est_ht += r.est_ht; return m;

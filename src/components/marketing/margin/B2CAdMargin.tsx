@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { CLASSIFICATION_EVENT } from '@/components/customers/classificationModel';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -35,6 +36,11 @@ export function B2CAdMargin() {
     setData(d); setLoading(false);
   };
   useEffect(() => { load(); /* eslint-disable-next-line */ }, [from, to, ship]);
+  useEffect(() => {
+    const refresh = () => { void load(); };
+    window.addEventListener(CLASSIFICATION_EVENT, refresh);
+    return () => window.removeEventListener(CLASSIFICATION_EVENT, refresh);
+  }, [from, to, ship, shipCostNum]);
 
   const margin = (r: Row) => {
     let m = (r.cov_ht ?? 0) - (r.cogs ?? 0);

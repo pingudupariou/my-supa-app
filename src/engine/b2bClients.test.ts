@@ -70,11 +70,16 @@ describe('B2B par client', () => {
   it('propose les clients existants une seule fois (Erplain + fiches B2B) sans ceux déjà sur la ligne', () => {
     const opts = existingClientOptions(
       [{ customer_id: 'e1', customer_name: 'Vélo Pro', channel: 'B2B' }, { customer_id: 'e2', customer_name: 'Déjà Là', channel: 'OEM' }],
-      [{ id: 'c1', company_name: 'velo pro', country: 'FR' }, { id: 'c2', company_name: 'Nouveau CRM' }, { id: 'c3', company_name: 'Pris' }],
-      [client({ id: 'x', name: 'déjà là' }), client({ id: 'y', name: 'Autre nom', crmClientId: 'c3' })],
+      [{ id: 'c1', company_name: 'velo pro', country: 'FR', erplain_customer_id: 'e1' }, { id: 'c2', company_name: 'Nouveau CRM' }, { id: 'c3', company_name: 'Pris' }],
+      [client({ id: 'x', name: 'déjà là', customerId: 'e2' }), client({ id: 'y', name: 'Autre nom', crmClientId: 'c3' })],
     );
     expect(opts.map(o => o.name)).toEqual(['Nouveau CRM', 'Vélo Pro']);
     expect(opts[1]).toMatchObject({ customerId: 'e1', crmClientId: 'c1' });
+  });
+  it('does not link same-name CRM and Erplain customers without an explicit ID', () => {
+    const options = existingClientOptions([{ customer_id: 'e1', customer_name: 'Vélo Pro', channel: 'B2B' }], [{ id: 'c1', company_name: 'Vélo Pro' }], []);
+    expect(options).toHaveLength(2);
+    expect(options.find(o => o.customerId === 'e1')?.crmClientId).toBeUndefined();
   });
 });
 

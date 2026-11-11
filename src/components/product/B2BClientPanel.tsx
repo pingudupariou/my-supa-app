@@ -13,6 +13,7 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { CalendarClock, ChevronsUpDown, Download, Loader2, Plus, RotateCcw, Trash2, TrendingUp, UserPlus, Users } from 'lucide-react';
 import { toast } from 'sonner';
 import { useCustomerClassification } from '@/components/customers/useCustomerClassification';
+import { crmChannel } from '@/components/customers/classificationModel';
 
 interface Props { product: Product; years: number[]; onChange: (product: Product) => void }
 
@@ -40,9 +41,9 @@ export function B2BClientPanel({ product, years, onChange }: Props) {
     (async () => {
       const [e, c] = await Promise.all([
         Promise.resolve({ data: classifiedCustomers.filter(c => c.channel === 'B2B'), error: null }),
-        supabase.from('b2b_clients').select('id, company_name, country').is('deleted_at', null),
+        supabase.from('b2b_clients').select('id, company_name, country, erplain_customer_id, sales_channel').is('deleted_at', null),
       ]);
-      if (!cancelled) setExisting({ erplain: e.error ? [] : (e.data ?? []), crm: c.error ? [] : (c.data ?? []) });
+      if (!cancelled) setExisting({ erplain: e.error ? [] : (e.data ?? []), crm: c.error ? [] : (c.data ?? []).filter(client => crmChannel(client, classifiedCustomers) === 'B2B') });
     })();
     return () => { cancelled = true; };
   }, [enabled, existing, classifiedCustomers]);

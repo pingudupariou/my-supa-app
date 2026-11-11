@@ -1,16 +1,23 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-const { invoke } = vi.hoisted(() => ({ invoke: vi.fn() }));
-vi.mock('@/integrations/supabase/client', () => ({ supabase: { functions: { invoke }, from: () => ({ select: () => { const query = { order: () => query, range: () => Promise.resolve({ data: [], error: null }) }; return query; } }) } }));
+const { invoke, classification } = vi.hoisted(() => ({ invoke: vi.fn(), classification: { rows: [] as { customer_id: string; channel: string }[] } }));
+vi.mock('@/integrations/supabase/client', () => ({ supabase: { functions: { invoke }, from: () => ({ select: () => { const query = { order: () => query, range: () => Promise.resolve({ data: classification.rows, error: null }) }; return query; } }) } }));
 vi.mock('@/context/AuthContext', () => ({ useAuth: () => ({ getTabPermission: () => 'write' }) }));
-vi.mock('@/components/pipe/PipeSheet', () => ({ PipeSheet: ({ orders }: { orders: { label: string }[] }) => <div>{orders.map(o => o.label).join(', ')}</div> }));
+vi.mock('@/components/pipe/PipeSheet', () => ({ PipeSheet: ({ orders }: { orders: { label: string; channel: string }[] }) => <div><span>{orders.map(o => o.label).join(', ')}</span><span data-testid="channels">{orders.map(o => o.channel).join(', ')}</span></div> }));
 import { PipeCommercialPage } from './PipeCommercialPage';
 
 const order = { id: '1', label: 'BC-NOV', status: 'active', dated_at: '2026-11-10', channel: 'b2b', total_ht: 100, billed: 0, unbilled: 100, paid: 0, unpaid: 120, lines: [] };
-afterEach(() => { cleanup(); vi.resetAllMocks(); vi.useRealTimers(); });
+afterEach(() => { cleanup(); classification.rows = []; vi.resetAllMocks(); vi.useRealTimers(); });
 
 describe('Pipe refresh', () => {
+  it('uses the shared client assignment rather than the order channel', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] }); vi.setSystemTime(new Date('2026-11-11T06:15:00Z'));
+    classification.rows = [{ customer_id: 'c1', channel: 'OEM' }];
+    invoke.mockResolvedValue({ data: { status: 'success', orders: [{ ...order, customer_id: 'c1', channel: 'b2b' }], total: 1 } });
+    render(<PipeCommercialPage />);
+    await waitFor(() => expect(screen.getByTestId('channels')).toHaveTextContent('oem'));
+  });
   it('requests the selected month and continues partial pages without duplicate orders', async () => {
     vi.useFakeTimers({ toFake: ['Date'] }); vi.setSystemTime(new Date('2026-11-11T06:15:00Z'));
     invoke.mockResolvedValueOnce({ data: { status: 'partial', orders: [order], total: 2, next: { page: 6, size: 10 }, read_at: '2026-11-11' } });
