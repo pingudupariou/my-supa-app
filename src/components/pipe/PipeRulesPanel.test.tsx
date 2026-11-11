@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
 const { insert, update, remove } = vi.hoisted(() => ({ insert: vi.fn(), update: vi.fn(), remove: vi.fn() }));
 vi.mock('@/integrations/supabase/client', () => ({ supabase: { from: () => ({ insert, update, delete: remove }) } }));
@@ -11,7 +11,7 @@ it('saves a new rule and reloads the persisted rules', async () => {
   fireEvent.click(screen.getByRole('button', { name: 'Nouvelle règle' }));
   fireEvent.change(screen.getByLabelText('Nom de la règle'), { target: { value: 'Commandes revendeurs' } });
   fireEvent.change(screen.getByLabelText('Texte recherché'), { target: { value: 'B2B-' } });
-  fireEvent.click(screen.getByRole('button', { name: 'Enregistrer la règle' }));
+  await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Enregistrer la règle' })); });
   await vi.waitFor(() => expect(onReload).toHaveBeenCalledTimes(1));
   expect(insert).toHaveBeenCalledWith({ name: 'Commandes revendeurs', field: 'label', operator: 'contains', value: 'B2B-', channel: 'b2b', priority: 100, enabled: true });
   expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
