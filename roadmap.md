@@ -1,3 +1,8 @@
+## Pipe commercial — périodes et règles
+- [ ] Ajouter mois précédent, mois au choix et plage personnalisée.
+- [ ] Enregistrer et gérer les règles B2C/B2B/OEM avec priorité et aperçu, sans modifier Erplain ni Statistiques commerciales.
+- [ ] Tester les périodes et la catégorisation ; vérifier le parcours connecté si une session est disponible.
+
 ## Dossier bancaire basé sur la synthèse actuelle
 - [x] Réutiliser la présentation actuelle, conserver les explications générales et les commentaires modifiables ; PDF testé sur le plan de démonstration (données connectées indisponibles).
 
