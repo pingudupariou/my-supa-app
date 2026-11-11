@@ -13,6 +13,7 @@ import { matchesRule, type ChannelRule } from '@/components/pipe/pipeRules';
 import type { PipeOrder } from '@/components/pipe/pipeModel';
 import { CHANNEL_LABELS, crmChannel, effectiveChannel, notifyClassification, type ClientChannel } from './classificationModel';
 import { useCustomerClassification } from './useCustomerClassification';
+import { ErplainCustomerPicker } from './ErplainCustomerPicker';
 
 export function CustomerClassificationButton({ orders = [] }: { orders?: PipeOrder[] }) {
   const [open, setOpen] = useState(false);
@@ -24,6 +25,7 @@ function CustomerClassification({ orders }: { orders: PipeOrder[] }) {
   const canWrite = getTabPermission('customer-classification') === 'write';
   const { customers, error, loading, reload } = useCustomerClassification();
   const [search, setSearch] = useState('');
+  const [activeTab, setActiveTab] = useState('clients');
   const [filter, setFilter] = useState('all');
   const [busy, setBusy] = useState(false);
   const [crmClients, setCrmClients] = useState<{ id: string; company_name: string; erplain_customer_id: string | null; sales_channel: string }[]>([]);
@@ -71,7 +73,11 @@ function CustomerClassification({ orders }: { orders: PipeOrder[] }) {
   }, [orders, customers]);
   const [selectedRule, setSelectedRule] = useState('');
   const chosen = rules.find(r => r.id === selectedRule);
-  const candidates = chosen ? customers.filter(c => samples.some(o => o.customer_id === c.customer_id && matchesRule(o, chosen))) : [];
+  const candidates = useMemo(() => {
+    if (!chosen) return [];
+    const matchedIds = new Set(samples.filter(o => matchesRule(o, chosen)).map(o => o.customer_id));
+    return customers.filter(c => matchedIds.has(c.customer_id));
+  }, [chosen, customers, samples]);
   const apply = async () => {
     if (!chosen || !candidates.length || !window.confirm(`Affecter ${candidates.length} client(s) au canal ${chosen.channel.toUpperCase()} dans tous les onglets ?`)) return;
     setBusy(true);
@@ -87,13 +93,13 @@ function CustomerClassification({ orders }: { orders: PipeOrder[] }) {
   return <div className="space-y-3">
     <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">{Object.keys(CHANNEL_LABELS).map(k => <span key={k}>{CHANNEL_LABELS[k]} : {customers.filter(c => c.channel === k).length}</span>)}<span>{canWrite ? 'Modification autorisée' : 'Consultation uniquement'}</span></div>
     {error && <p role="alert" className="text-sm text-destructive">Chargement impossible : {error}</p>}
-    <Tabs defaultValue="clients"><TabsList className="h-auto flex-wrap"><TabsTrigger value="clients">Clients Erplain</TabsTrigger><TabsTrigger value="crm">Clients CRM & liens</TabsTrigger><TabsTrigger value="rules">Règles & affectation groupée</TabsTrigger></TabsList>
+    <Tabs value={activeTab} onValueChange={setActiveTab}><TabsList className="h-auto flex-wrap"><TabsTrigger value="clients">Clients Erplain</TabsTrigger><TabsTrigger value="crm">Clients CRM & liens</TabsTrigger><TabsTrigger value="rules">Règles & affectation groupée</TabsTrigger></TabsList>
       <TabsContent value="clients" className="space-y-3"><div className="flex flex-wrap gap-2"><Input aria-label="Rechercher un client" placeholder="Client ou identifiant Erplain…" value={search} onChange={e => setSearch(e.target.value)} className="flex-1" /><Select value={filter} onValueChange={setFilter}><SelectTrigger className="w-52"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">Tous les clients</SelectItem>{Object.entries(CHANNEL_LABELS).map(([k,v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}</SelectContent></Select><Button variant="outline" size="icon" aria-label="Actualiser les clients" onClick={reload} disabled={loading}><RefreshCw className="h-4 w-4" /></Button></div>
         <div className="max-h-96 overflow-auto"><table className="w-full text-sm"><thead className="sticky top-0 bg-background"><tr className="border-b"><th className="p-2 text-left">Client / ID Erplain</th><th className="p-2 text-left">Canal commun</th><th className="p-2 text-left">Pays commercial</th></tr></thead><tbody>{list.slice(0,200).map(c => <tr key={c.customer_id} className="border-b"><td className="p-2">{c.customer_name || 'Client sans nom'}<span className="block text-xs text-muted-foreground">{c.customer_id}</span></td><td className="p-2"><Select value={c.channel} disabled={!canWrite || busy} onValueChange={v => save(c.customer_id, { channel: v as ClientChannel })}><SelectTrigger className="w-52"><SelectValue /></SelectTrigger><SelectContent>{Object.entries(CHANNEL_LABELS).map(([k,v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}</SelectContent></Select></td><td className="p-2"><Input key={`${c.customer_id}:${c.commercial_country}`} aria-label={`Pays de ${c.customer_name}`} defaultValue={c.commercial_country ?? ''} placeholder="auto" maxLength={3} disabled={!canWrite || busy} className="w-20" onBlur={e => { const v = e.target.value.trim().toUpperCase(); if (v !== (c.commercial_country ?? '')) void save(c.customer_id, { commercial_country: v || null }); }} /></td></tr>)}</tbody></table></div><p className="text-xs text-muted-foreground">{Math.min(list.length,200)} / {list.length} clients · À classer = B2C par défaut</p>
       </TabsContent>
-      <TabsContent value="crm" className="space-y-3">
+      <TabsContent value="crm" className="space-y-3">{activeTab === 'crm' && <>
         <Input aria-label="Rechercher un client CRM" placeholder="Client CRM…" value={search} onChange={e => setSearch(e.target.value)} />
-        <div className="max-h-96 overflow-auto"><table className="w-full text-sm"><thead><tr className="border-b"><th className="p-2 text-left">Client CRM</th><th className="p-2 text-left">Client Erplain lié</th><th className="p-2 text-left">Canal commun</th></tr></thead><tbody>{crmClients.filter(c => c.company_name.toLowerCase().includes(search.toLowerCase())).map(c => <tr key={c.id} className="border-b"><td className="p-2">{c.company_name}</td><td className="p-2"><Select value={c.erplain_customer_id ?? 'none'} disabled={!canWrite || busy} onValueChange={v => saveCrm(c.id, { erplain_customer_id: v === 'none' ? null : v })}><SelectTrigger className="w-64"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="none">Non lié à Erplain</SelectItem>{customers.map(e => <SelectItem key={e.customer_id} value={e.customer_id}>{e.customer_name || 'Sans nom'} · {e.customer_id}</SelectItem>)}</SelectContent></Select></td><td className="p-2">{c.erplain_customer_id ? <span>{crmChannel(c,customers)} · affectation Erplain</span> : <Select value={c.sales_channel} disabled={!canWrite || busy} onValueChange={v => saveCrm(c.id, { sales_channel: v })}><SelectTrigger className="w-28"><SelectValue /></SelectTrigger><SelectContent>{['B2C','B2B','OEM'].map(k => <SelectItem key={k} value={k}>{k}</SelectItem>)}</SelectContent></Select>}</td></tr>)}</tbody></table></div>
+        <div className="max-h-96 overflow-auto"><table className="w-full text-sm"><thead><tr className="border-b"><th className="p-2 text-left">Client CRM</th><th className="p-2 text-left">Client Erplain lié</th><th className="p-2 text-left">Canal commun</th></tr></thead><tbody>{crmClients.filter(c => (c.company_name ?? '').toLowerCase().includes(search.toLowerCase())).slice(0, 50).map(c => <tr key={c.id} className="border-b"><td className="p-2">{c.company_name}</td><td className="p-2"><ErplainCustomerPicker customers={customers} value={c.erplain_customer_id} disabled={!canWrite || busy} onChange={id => saveCrm(c.id, { erplain_customer_id: id })} /></td><td className="p-2">{c.erplain_customer_id ? <span>{crmChannel(c,customers)} · affectation Erplain</span> : <Select value={c.sales_channel} disabled={!canWrite || busy} onValueChange={v => saveCrm(c.id, { sales_channel: v })}><SelectTrigger className="w-28"><SelectValue /></SelectTrigger><SelectContent>{['B2C','B2B','OEM'].map(k => <SelectItem key={k} value={k}>{k}</SelectItem>)}</SelectContent></Select>}</td></tr>)}</tbody></table></div></>}
       </TabsContent>
       <TabsContent value="rules" className="space-y-3"><PipeRulesPanel rules={rules} orders={samples} canWrite={canWrite} onReload={reloadRules} error={ruleError} />
         <div className="flex flex-wrap gap-2"><Select value={selectedRule} onValueChange={setSelectedRule}><SelectTrigger className="w-64"><SelectValue placeholder="Règle à appliquer aux clients" /></SelectTrigger><SelectContent>{rules.filter(r => r.enabled).map(r => <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>)}</SelectContent></Select><Button onClick={apply} disabled={!canWrite || busy || !candidates.length}>Affecter {candidates.length} client(s)</Button></div>
