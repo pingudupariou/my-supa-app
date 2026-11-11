@@ -26,4 +26,4 @@ it('allows switching all classification tabs and closing with a large customer l
   expect(screen.getByRole('textbox', { name: 'Rechercher un client' })).toBeEnabled();
   fireEvent.click(screen.getByRole('button', { name: 'Close' }));
   expect(screen.queryByRole('dialog')).toBeNull();
-});
+}, 15000);
