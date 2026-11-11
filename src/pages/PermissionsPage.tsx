@@ -30,6 +30,7 @@ const TAB_ITEMS = [
   { key: 'costflow', label: 'Production et BE' },
   { key: 'plan-atelier', label: 'Plan atelier' },
   { key: 'sales-stats', label: 'Statistiques commerciales' },
+  { key: 'customer-classification', label: 'Classement clients (commun)' },
   { key: 'pipe-commercial', label: 'Pipe commercial' },
   { key: 'marketing-intelligence', label: 'Marketing Intelligence' },
   { key: 'crm', label: 'CRM' },

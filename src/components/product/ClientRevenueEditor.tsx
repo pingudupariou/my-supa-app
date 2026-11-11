@@ -10,6 +10,8 @@ import { formatCurrency } from '@/data/financialConfig';
 import { Trash2, Users, Plus, ChevronRight, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
 import { ClientRevenueConfig, ClientRevenueEntry } from '@/context/FinancialContext';
 import { useB2BClientsData } from '@/hooks/useB2BClientsData';
+import { useCustomerClassification } from '@/components/customers/useCustomerClassification';
+import { crmChannel } from '@/components/customers/classificationModel';
 
 interface ClientRevenueEditorProps {
   config: ClientRevenueConfig;
@@ -24,13 +26,14 @@ function channelFromCategory(catName: string | null | undefined): 'B2B' | 'OEM' 
 
 export function ClientRevenueEditor({ config: rawConfig, onChange, years }: ClientRevenueEditorProps) {
   const { clients, categories, projections } = useB2BClientsData();
+  const { customers } = useCustomerClassification();
   const baseYear = years[0];
   const [sortOrder, setSortOrder] = useState<'none' | 'asc' | 'desc'>('none');
 
   const config: ClientRevenueConfig = {
     entries: (rawConfig?.entries ?? []).map(e => ({
       ...e,
-      channel: e.channel ?? 'B2B',
+      channel: clients.some(c => c.id === e.clientId) ? crmChannel(clients.find(c => c.id === e.clientId) ?? {}, customers) : e.channel ?? 'B2B',
       individualGrowthRate: e.individualGrowthRate ?? null,
       revenueByYear: e.revenueByYear ?? {},
     })),
@@ -51,7 +54,7 @@ export function ClientRevenueEditor({ config: rawConfig, onChange, years }: Clie
     const client = clients.find(c => c.id === clientId);
     if (!client || config.entries.some(e => e.clientId === clientId)) return;
     const cat = categories.find(c => c.id === client.category_id);
-    const channel = channelFromCategory(cat?.name);
+    const channel = crmChannel(client, customers);
     const n1 = projections?.find(p => p.client_id === clientId && p.year === baseYear - 1);
     update({
       entries: [...config.entries, {
@@ -193,7 +196,7 @@ export function ClientRevenueEditor({ config: rawConfig, onChange, years }: Clie
                 const cat = categories.find(ct => ct.id === c.category_id);
                 return (
                   <SelectItem key={c.id} value={c.id}>
-                    {c.company_name} <span className="text-muted-foreground text-xs ml-1">({channelFromCategory(cat?.name)})</span>
+                    {c.company_name} <span className="text-muted-foreground text-xs ml-1">({crmChannel(c, customers)})</span>
                   </SelectItem>
                 );
               })}

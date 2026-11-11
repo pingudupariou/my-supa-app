@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/context/AuthContext';
+import { CustomerClassificationButton } from '@/components/customers/CustomerClassification';
+import { CLASSIFICATION_EVENT, notifyClassification } from '@/components/customers/classificationModel';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -125,6 +127,7 @@ function Explorer({ stats }: { stats: Stats }) {
 export function SalesStatsPage() {
   const { getTabPermission } = useAuth();
   const canWrite = getTabPermission('sales-stats') === 'write';
+  const canClassify = getTabPermission('customer-classification') === 'write';
   const [period, setPeriod] = useState('12');
   const [from, setFrom] = useState(''); const [to, setTo] = useState('');
   const [shipping, setShipping] = useState(false);
@@ -164,6 +167,11 @@ export function SalesStatsPage() {
     setLoading(false);
   }, [range0, range1, shipping, channels, shipCostNum]);
   useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    const refresh = () => { void load(); };
+    window.addEventListener(CLASSIFICATION_EVENT, refresh); window.addEventListener('focus', refresh);
+    return () => { window.removeEventListener(CLASSIFICATION_EVENT, refresh); window.removeEventListener('focus', refresh); };
+  }, [load]);
 
   const sync = async (restart = false) => {
     setSyncing(true);
@@ -185,7 +193,7 @@ export function SalesStatsPage() {
     const next = { ...cur, ...patch };
     const { error } = await supabase.from('erplain_sales_customers' as any).upsert({ customer_id: id, customer_name: label ?? null, channel: next.channel, commercial_country: next.commercial_country || null });
     if (error) return toast.error(error.message);
-    setCustomers((m) => ({ ...m, [id]: next })); load();
+    setCustomers((m) => ({ ...m, [id]: next })); notifyClassification(); load();
   };
 
   const monthly = useMemo(() => {
@@ -261,14 +269,14 @@ export function SalesStatsPage() {
                 <TableCell className="font-medium">{r.label || r.key}</TableCell>
                 {kind === 'customer' && <>
                   <TableCell>
-                    {r.channel === 'B2C' || !canWrite || r.key == null ? <Badge variant="outline">{CH_LABEL[r.channel ?? 'A_CLASSER']}</Badge> : (
+                    {!canClassify || r.key == null ? <Badge variant="outline">{CH_LABEL[r.channel ?? 'A_CLASSER']}</Badge> : (
                       <Select value={c?.channel ?? 'A_CLASSER'} onValueChange={(v) => saveCustomer(r.key, r.label, { channel: v })}>
                         <SelectTrigger className="h-8 w-32"><SelectValue /></SelectTrigger>
-                        <SelectContent>{['B2B', 'OEM', 'A_CLASSER'].map((v) => <SelectItem key={v} value={v}>{CH_LABEL[v]}</SelectItem>)}</SelectContent>
+                        <SelectContent>{['B2C', 'B2B', 'OEM', 'A_CLASSER'].map((v) => <SelectItem key={v} value={v}>{CH_LABEL[v]}</SelectItem>)}</SelectContent>
                       </Select>)}
                   </TableCell>
                   <TableCell>
-                    {canWrite && r.key && r.channel !== 'B2C' ? (
+                    {canClassify && r.key ? (
                       <Input className="h-8 w-20" defaultValue={c?.commercial_country ?? ''} placeholder="auto" maxLength={3}
                         onBlur={(e) => { const v = e.target.value.trim().toUpperCase(); if (v !== (c?.commercial_country ?? '')) saveCustomer(r.key, r.label, { commercial_country: v || null }); }} />
                     ) : <span className="text-muted-foreground">{c?.commercial_country ?? 'auto'}</span>}
@@ -293,7 +301,7 @@ export function SalesStatsPage() {
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold">Statistiques commerciales</h1>
-          <p className="text-sm text-muted-foreground">Source unique : factures moins avoirs Erplain (lecture seule). Ventes Shopify classées B2C.</p>
+          <p className="text-sm text-muted-foreground">Source unique : factures moins avoirs Erplain (lecture seule). Canal commun par client.</p>
         </div>
         {canWrite && (
           <div className="flex gap-2">
@@ -302,6 +310,8 @@ export function SalesStatsPage() {
           </div>
         )}
       </div>
+
+      <CustomerClassificationButton />
 
       {run && (
         <p className="text-xs text-muted-foreground">

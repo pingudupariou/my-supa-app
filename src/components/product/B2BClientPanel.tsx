@@ -12,12 +12,14 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { CalendarClock, ChevronsUpDown, Download, Loader2, Plus, RotateCcw, Trash2, TrendingUp, UserPlus, Users } from 'lucide-react';
 import { toast } from 'sonner';
+import { useCustomerClassification } from '@/components/customers/useCustomerClassification';
 
 interface Props { product: Product; years: number[]; onChange: (product: Product) => void }
 
 const num = (n: number) => n.toLocaleString('fr-FR');
 
 export function B2BClientPanel({ product, years, onChange }: Props) {
+  const { customers: classifiedCustomers } = useCustomerClassification();
   const thisYear = new Date().getFullYear();
   const split = product.b2bClients;
   const enabled = !!split?.enabled;
@@ -37,13 +39,14 @@ export function B2BClientPanel({ product, years, onChange }: Props) {
     let cancelled = false;
     (async () => {
       const [e, c] = await Promise.all([
-        supabase.from('erplain_sales_customers').select('customer_id, customer_name, channel').in('channel', ['B2B', 'OEM']),
+        Promise.resolve({ data: classifiedCustomers.filter(c => c.channel === 'B2B'), error: null }),
         supabase.from('b2b_clients').select('id, company_name, country').is('deleted_at', null),
       ]);
       if (!cancelled) setExisting({ erplain: e.error ? [] : (e.data ?? []), crm: c.error ? [] : (c.data ?? []) });
     })();
     return () => { cancelled = true; };
-  }, [enabled, existing]);
+  }, [enabled, existing, classifiedCustomers]);
+  useEffect(() => { setExisting(null); }, [classifiedCustomers]);
   const options = useMemo(() => existing ? existingClientOptions(existing.erplain, existing.crm, split?.clients ?? []) : [], [existing, split?.clients]);
 
   const save = (clients: PlanB2BClient[], extra: Partial<NonNullable<Product['b2bClients']>> = {}) =>

@@ -27,6 +27,8 @@ export interface B2BClient {
   specific_advantages: string | null;
   notes: string | null;
   category_id: string | null;
+  erplain_customer_id: string | null;
+  sales_channel: 'B2C' | 'B2B' | 'OEM';
   account_manager: string | null;
   deleted_at: string | null;
   created_at: string;

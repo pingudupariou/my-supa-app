@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react';
+import { CustomerClassificationButton } from '@/components/customers/CustomerClassification';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ClientSubTabs } from '@/components/crm/ClientSubTabs';
 import { Card, CardContent } from '@/components/ui/card';
@@ -123,6 +124,7 @@ export function CRMPage() {
 
   return (
     <div className="space-y-6">
+      <CustomerClassificationButton />
       <div className="flex items-start justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">CRM — Clients</h1>
