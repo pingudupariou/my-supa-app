@@ -49,6 +49,8 @@ function Chips({ title, items, selected, onChange }: { title: string; items: [st
 export function PipeCommercialPage() {
   const [orders, setOrders] = useState<PipeOrder[]>([]);
   const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [progress, setProgress] = useState(0);
   const [info, setInfo] = useState<{ partial: boolean; total: number | null; read_at: string } | null>(null);
   const [period, setPeriod] = useState('month');
   const [statuses, setStatuses] = useState<string[]>(['active', 'pending_validation']);
@@ -61,16 +63,37 @@ export function PipeCommercialPage() {
 
   const load = useCallback(async () => {
     setLoading(true);
+    setLoadError(null);
+    setProgress(0);
+    const collected = new Map<string, PipeOrder>();
+    let cursor: { page: number; size: number } | undefined;
     try {
-      const { data, error } = await supabase.functions.invoke('erplain-sync', { body: { action: 'pipe_orders', from: iso(periodFrom('12m')) } });
-      if (error) throw error;
-      if (data?.status !== 'success' && data?.status !== 'partial') throw new Error(data?.message ?? 'Lecture Erplain impossible');
-      setOrders(data.orders ?? []);
-      setInfo({ partial: data.status === 'partial', total: data.total, read_at: data.read_at });
-    } catch (e) { toast.error(`Commandes Erplain : ${(e as Error).message}`); }
+      for (let batch = 0; batch < 1000; batch++) {
+        const { data, error } = await supabase.functions.invoke('erplain-sync', { body: { action: 'pipe_orders', from: iso(periodFrom(period)), cursor } });
+        if (error) {
+          const context = 'context' in error ? error.context : null;
+          const detail = context instanceof Response ? await context.json().catch(() => null) : null;
+          throw new Error(detail?.message ?? detail?.error ?? error.message);
+        }
+        if (data?.status !== 'success' && data?.status !== 'partial') throw new Error(data?.message ?? 'Lecture Erplain impossible');
+        for (const order of data.orders ?? []) collected.set(String(order.id), order);
+        setOrders([...collected.values()]);
+        setProgress(collected.size);
+        setInfo({ partial: data.status === 'partial', total: data.total, read_at: data.read_at });
+        if (data.message) throw new Error(data.message);
+        if (data.status === 'success') return;
+        if (!data.next || (cursor && data.next.page <= cursor.page)) throw new Error('Lecture interrompue : actualisez pour réessayer.');
+        cursor = data.next;
+      }
+      throw new Error('Lecture incomplète : trop de pages Erplain.');
+    } catch (e) {
+      const message = (e as Error).message;
+      setLoadError(message);
+      toast.error(`Commandes Erplain : ${message}`);
+    }
     finally { setLoading(false); }
-  }, []);
-  useEffect(() => { load(); }, [load]);
+  }, [period]);
+  useEffect(() => { setOrders([]); setInfo(null); load(); }, [load]);
 
   const inPeriod = useMemo(() => filterOrders(orders, { from: iso(periodFrom(period)), statuses: [], billing: [], payment: [], channels: [], search: '' }), [orders, period]);
   const filtered = useMemo(() => filterOrders(inPeriod, { from: null, statuses, billing, payment, channels, search }), [inPeriod, statuses, billing, payment, channels, search]);
@@ -101,7 +124,9 @@ export function PipeCommercialPage() {
           <Button onClick={load} disabled={loading} variant="outline">{loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}Actualiser</Button>
         </div>
       </div>
-      {info && <p className="text-xs text-muted-foreground">Lu le {new Date(info.read_at).toLocaleString('fr-FR')} · {orders.length} commandes sur 12 mois{info.partial && <span className="ml-2 inline-flex items-center gap-1 text-destructive"><AlertTriangle className="h-3 w-3" />lecture partielle ({orders.length}/{info.total ?? '?'}) — actualisez</span>}</p>}
+      {loading && <p role="status" className="text-sm text-muted-foreground">Lecture Erplain en cours · {progress} commande(s) reçue(s)</p>}
+      {loadError && <div role="alert" className="flex items-center gap-2 border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive"><AlertTriangle className="h-4 w-4 shrink-0" />Actualisation Erplain échouée : {loadError}</div>}
+      {info && <p className="text-xs text-muted-foreground">Lu le {new Date(info.read_at).toLocaleString('fr-FR')} · {orders.length} commandes sur la période{info.partial && !loading && <span className="ml-2 inline-flex items-center gap-1 text-destructive"><AlertTriangle className="h-3 w-3" />lecture partielle ({orders.length}/{info.total ?? '?'}) — actualisez</span>}</p>}
 
       <Card>
         <CardContent className="grid gap-4 pt-4 md:grid-cols-2">
@@ -148,6 +173,7 @@ export function PipeCommercialPage() {
           </div>
         </CardHeader>
         <CardContent>
+          {!loading && !loadError && inPeriod.length > 0 && !filtered.length && <div className="mb-3 flex flex-wrap items-center gap-3 text-sm"><span>{inPeriod.length} commande(s) reçue(s), masquée(s) par les filtres.</span><Button variant="outline" size="sm" onClick={() => { setStatuses([]); setBilling([]); setPayment([]); setChannels([]); setSearch(''); }}>Afficher toutes les commandes</Button></div>}
           <PipeSheet orders={filtered} />
         </CardContent>
       </Card>
