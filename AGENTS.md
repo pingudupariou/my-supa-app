@@ -25,3 +25,4 @@
 - Summary exports share content with per-format print choices; BankReport adds intro/appendix — no duplicate layouts.
 - Role photos: small square JPEG data URLs on Role — PDF-safe.
 - Pipe commercial reads the selected period in resumable bounded Erplain batches; preserve cursor page size and show failures separately from empty filters — avoids timeouts and silently missing orders.
+- Pipe channel rules are shared under tab-scoped RLS and applied only to Pipe orders, first enabled match by ascending priority; otherwise retain sales customer classification — keeps order-specific rules from changing invoice statistics or Erplain.

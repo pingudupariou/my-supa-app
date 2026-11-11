@@ -3290,6 +3290,45 @@ export type Database = {
         }
         Relationships: []
       }
+      pipe_channel_rules: {
+        Row: {
+          channel: string
+          created_at: string
+          enabled: boolean
+          field: string
+          id: string
+          name: string
+          operator: string
+          priority: number
+          updated_at: string
+          value: string
+        }
+        Insert: {
+          channel: string
+          created_at?: string
+          enabled?: boolean
+          field: string
+          id?: string
+          name: string
+          operator: string
+          priority?: number
+          updated_at?: string
+          value: string
+        }
+        Update: {
+          channel?: string
+          created_at?: string
+          enabled?: boolean
+          field?: string
+          id?: string
+          name?: string
+          operator?: string
+          priority?: number
+          updated_at?: string
+          value?: string
+        }
+        Relationships: []
+      }
       pricing_config: {
         Row: {
           config_data: Json

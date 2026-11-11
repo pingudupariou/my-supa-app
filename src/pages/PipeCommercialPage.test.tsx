@@ -2,7 +2,8 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 const { invoke } = vi.hoisted(() => ({ invoke: vi.fn() }));
-vi.mock('@/integrations/supabase/client', () => ({ supabase: { functions: { invoke } } }));
+vi.mock('@/integrations/supabase/client', () => ({ supabase: { functions: { invoke }, from: () => ({ select: () => { const query = { order: () => query, range: () => Promise.resolve({ data: [], error: null }) }; return query; } }) } }));
+vi.mock('@/context/AuthContext', () => ({ useAuth: () => ({ getTabPermission: () => 'write' }) }));
 vi.mock('@/components/pipe/PipeSheet', () => ({ PipeSheet: ({ orders }: { orders: { label: string }[] }) => <div>{orders.map(o => o.label).join(', ')}</div> }));
 import { PipeCommercialPage } from './PipeCommercialPage';
 
@@ -17,6 +18,7 @@ describe('Pipe refresh', () => {
     render(<PipeCommercialPage />);
     await screen.findByText('BC-NOV, BC-NOV-2');
     expect(invoke.mock.calls[0][1].body.from).toBe('2026-11-01');
+    expect(invoke.mock.calls[0][1].body.to).toBe('2026-11-11');
     expect(invoke.mock.calls[1][1].body.cursor).toEqual({ page: 6, size: 10 });
     expect(invoke).toHaveBeenCalledTimes(2);
   });

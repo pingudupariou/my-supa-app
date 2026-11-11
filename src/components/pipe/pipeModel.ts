@@ -1,13 +1,13 @@
 export type PipeOrder = {
   id: string; label: string | null; status: string | null; dated_at: string | null; shipping_at: string | null; shipping_status: string | null;
   billing_status: string | null; payment_status: string | null; currency: string | null;
-  customer_id: string | null; customer: string | null; channel: 'b2b' | 'oem' | 'b2c';
+  customer_id: string | null; customer: string | null; channel: 'b2b' | 'oem' | 'b2c'; channel_rule?: string | null;
   total_ht: number | null; total_ttc: number | null; billed: number | null; unbilled: number | null; paid: number | null; unpaid: number | null;
   lines: { sku: string | null; label: string | null; quantity: number | null; shipped: number | null }[];
 };
 
 export type PipeFilters = {
-  from: string | null; // YYYY-MM-DD inclusive, on order date
+  from: string | null; to?: string | null; // YYYY-MM-DD inclusive, on order date
   statuses: string[]; billing: string[]; payment: string[]; channels: string[]; search: string;
 };
 
@@ -17,6 +17,7 @@ export function filterOrders(orders: PipeOrder[], f: PipeFilters) {
   const q = f.search.trim().toLowerCase();
   return orders.filter((o) =>
     (!f.from || (o.dated_at ?? '').slice(0, 10) >= f.from) &&
+    (!f.to || (o.dated_at ?? '').slice(0, 10) <= f.to) &&
     inSet(f.statuses, o.status) && inSet(f.billing, o.billing_status) && inSet(f.payment, o.payment_status) && inSet(f.channels, o.channel) &&
     (!q || `${o.label ?? ''} ${o.customer ?? ''}`.toLowerCase().includes(q)));
 }

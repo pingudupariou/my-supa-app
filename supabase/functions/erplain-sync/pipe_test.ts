@@ -4,6 +4,14 @@ import type { GqlResult } from "./erplain.ts";
 
 const result = (items: unknown[], more: boolean): GqlResult => ({ data: { Orders: { data: items, paginatorInfo: { hasMorePages: more, total: 60 } } }, errors: [], httpStatus: 200, complexity: false, timeout: false });
 
+Deno.test("Pipe historical period includes the last day and excludes the next month", async () => {
+  let query = "";
+  await readPipeOrders(async (_label, q) => { query = q; return result([], false); }, "id", "2026-10-01", undefined, "2026-10-31");
+  assertEquals(query.includes('operator: GTE, value: "2026-10-01"'), true);
+  assertEquals(query.includes('operator: LT, value: "2026-11-01"'), true);
+  assertEquals(query.includes('AND:'), true);
+});
+
 Deno.test("Pipe resumes every order without skipping pages", async () => {
   const queries: string[] = [];
   const gql = async (_label: string, query: string) => { queries.push(query); return result([{ id: queries.length }], queries.length < 6); };
