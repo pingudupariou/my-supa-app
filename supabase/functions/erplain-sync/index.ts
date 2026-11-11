@@ -451,7 +451,10 @@ Deno.serve(async (req) => {
       }
       if (pp !== "read" && pp !== "write") return json({ error: "Forbidden" }, 403);
       const b = await req.json().catch(() => ({}));
-      const from = /^\d{4}-\d{2}-\d{2}$/.test(String(b.from ?? "")) ? String(b.from) : new Date(Date.now() - 365 * 864e5).toISOString().slice(0, 10);
+      const validDate = (v: unknown): v is string => typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v) && Number.isFinite(Date.parse(v)) && new Date(v).toISOString().slice(0, 10) === v;
+      if (!validDate(b.from) || (b.to !== undefined && (!validDate(b.to) || b.to < b.from))) return json({ error: "Période invalide : vérifiez les dates de début et de fin." }, 400);
+      const from = b.from;
+      const to = b.to;
       const tk = Deno.env.get("ERPLAIN_API_TOKEN");
       if (!tk) return json({ status: "config_error", message: "Secret ERPLAIN_API_TOKEN absent côté serveur." });
       const { data: rootRow } = await admin.from("erplain_schema_cache").select("data").eq("type_name", "__root").maybeSingle();
@@ -464,7 +467,7 @@ Deno.serve(async (req) => {
         line_items { id type quantity shipped_quantity variant { id sku label } } ${custSel}`;
       const cursor = b.cursor && Number.isInteger(b.cursor.page) && b.cursor.page > 0 && [1, 2, 5, 10].includes(b.cursor.size) ? b.cursor : undefined;
       let batch;
-      try { batch = await readPipeOrders(gql, sel, from, cursor); }
+      try { batch = await readPipeOrders(gql, sel, from, cursor, to); }
       catch (e) { return json({ status: "api_error", message: String((e as Error).message).slice(0, 400) }); }
       const { orders, total, next } = batch;
       const { data: cls } = await admin.from("erplain_sales_customers").select("customer_id,channel").in("channel", ["B2B", "OEM"]).range(0, 9999);
@@ -482,7 +485,7 @@ Deno.serve(async (req) => {
           lines: (o.line_items ?? []).filter((l: any) => l?.variant).map((l: any) => ({ sku: l.variant?.sku ?? null, label: l.variant?.label ?? null, quantity: n(l.quantity), shipped: n(l.shipped_quantity) })),
         };
       });
-      return json({ status: next ? "partial" : "success", from, total, next, message: batch.message, read: out.length, orders: out, read_at: new Date().toISOString() });
+      return json({ status: next ? "partial" : "success", from, to, total, next, message: batch.message, read: out.length, orders: out, read_at: new Date().toISOString() });
     }
     if (peekAction === "costflow_preview" || peekAction === "costflow_catalog" || peekAction === "costflow_variant" || peekAction === "costflow_refresh_bom" || peekAction === "costflow_set_method" || peekAction === "costflow_bulk_method") {
       // Read-only comparison for CostFlow: needs read access on the costflow tab (admins always).
