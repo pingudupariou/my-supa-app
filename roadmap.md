@@ -1,8 +1,9 @@
 ## Pipe commercial — périodes et règles
 ## Harmonisation des classements clients
-- [ ] Centraliser le paramétrage et harmoniser les sources B2C/B2B/OEM de tous les onglets concernés.
-- [ ] Préserver les affectations existantes et préciser le traitement des règles par commande.
-- [ ] Tester la cohérence entre les consommateurs et les droits de modification.
+- [x] Centraliser le paramétrage et harmoniser les sources B2C/B2B/OEM de tous les onglets concernés.
+- [x] Préserver les affectations existantes ; règles converties en aide à une affectation client confirmée, liens CRM explicites.
+- [x] Tester la cohérence des consommateurs et les droits de modification ; RPC commerciales vérifiées et erplain-sync déployée.
+- [ ] Vérifier une affectation avec les données réelles entre onglets : session Supabase externe indisponible.
 
 - [x] Ajouter mois précédent, mois au choix et plage personnalisée.
 - [x] Enregistrer et gérer les règles B2C/B2B/OEM avec priorité et aperçu, sans modifier Erplain ni Statistiques commerciales.
