@@ -7,7 +7,8 @@ export const PIPE_PERIODS = [
 export function pipePeriod(key: string, month: string, from: string, to: string, now = new Date()) {
   const end = iso(now);
   if (key === 'custom') return { from, to };
-  if (key === 'pick_month' && /^\d{4}-\d{2}$/.test(month)) {
+  if (key === 'pick_month') {
+    if (!/^\d{4}-\d{2}$/.test(month) || Number(month.slice(5)) < 1 || Number(month.slice(5)) > 12) return { from: '', to: '' };
     const [y, m] = month.split('-').map(Number);
     return { from: `${month}-01`, to: iso(new Date(y, m, 0)) };
   }
