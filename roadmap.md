@@ -1,5 +1,6 @@
 ## Pipe commercial — périodes et règles
 ## Harmonisation des classements clients
+- [ ] Remplacer l'application d'une seule règle par un classement commun avec toutes les règles prioritaires, et conserver la saisie manuelle B2C/B2B/OEM.
 - [x] Centraliser le paramétrage et harmoniser les sources B2C/B2B/OEM de tous les onglets concernés.
 - [x] Préserver les affectations existantes ; règles converties en aide à une affectation client confirmée, liens CRM explicites.
 - [x] Tester la cohérence des consommateurs et les droits de modification ; RPC commerciales vérifiées et erplain-sync déployée.
