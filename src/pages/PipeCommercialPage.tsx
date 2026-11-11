@@ -1,4 +1,8 @@
-import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useAuth } from '@/context/AuthContext';
+import { PipeRulesPanel } from '@/components/pipe/PipeRulesPanel';
+import { classifyOrders, type ChannelRule } from '@/components/pipe/pipeRules';
+import { PIPE_PERIODS, pipePeriod, validPeriod } from '@/components/pipe/pipePeriods';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -19,16 +23,6 @@ const LABELS: Record<string, string> = {
   b2b: 'B2B', oem: 'OEM', b2c: 'B2C / à classer', '—': 'Non renseigné',
 };
 const lab = (k: string) => LABELS[k] ?? k;
-const PERIODS = [
-  { key: 'month', label: 'Mois en cours' }, { key: '3m', label: '3 derniers mois' }, { key: 'year', label: 'Année en cours' }, { key: '12m', label: '12 derniers mois' },
-];
-function periodFrom(key: string) {
-  const d = new Date();
-  if (key === 'month') return new Date(d.getFullYear(), d.getMonth(), 1);
-  if (key === '3m') return new Date(d.getFullYear(), d.getMonth() - 2, 1);
-  if (key === 'year') return new Date(d.getFullYear(), 0, 1);
-  return new Date(d.getFullYear() - 1, d.getMonth(), d.getDate());
-}
 const iso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
 function Chips({ title, items, selected, onChange }: { title: string; items: [string, number][]; selected: string[]; onChange: (v: string[]) => void }) {
@@ -47,12 +41,35 @@ function Chips({ title, items, selected, onChange }: { title: string; items: [st
 }
 
 export function PipeCommercialPage() {
+  const { getTabPermission } = useAuth();
+  const canWrite = getTabPermission('pipe-commercial') === 'write';
+  const [rules, setRules] = useState<ChannelRule[]>([]);
+  const [rulesError, setRulesError] = useState<string | null>(null);
+  const request = useRef(0);
   const [orders, setOrders] = useState<PipeOrder[]>([]);
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [progress, setProgress] = useState(0);
   const [info, setInfo] = useState<{ partial: boolean; total: number | null; read_at: string } | null>(null);
   const [period, setPeriod] = useState('month');
+  const [month, setMonth] = useState(() => iso(new Date()).slice(0, 7));
+  const [customFrom, setCustomFrom] = useState(() => iso(new Date(new Date().getFullYear(), new Date().getMonth(), 1)));
+  const [customTo, setCustomTo] = useState(() => iso(new Date()));
+  const range = pipePeriod(period, month, customFrom, customTo);
+  const periodValid = validPeriod(range.from, range.to);
+  const reloadRules = useCallback(async () => {
+    try {
+      const collected: ChannelRule[] = [];
+      for (let page = 0; ; page++) {
+        const { data, error } = await supabase.from('pipe_channel_rules').select('*').order('priority').order('created_at').order('id').range(page * 1000, page * 1000 + 999);
+        if (error) throw error;
+        collected.push(...(data ?? []) as ChannelRule[]);
+        if ((data ?? []).length < 1000) break;
+      }
+      setRules(collected); setRulesError(null);
+    } catch (e) { setRulesError((e as Error).message); }
+  }, []);
+  useEffect(() => { void reloadRules(); }, [reloadRules]);
   const [statuses, setStatuses] = useState<string[]>(['active', 'pending_validation']);
   const [billing, setBilling] = useState<string[]>([]);
   const [payment, setPayment] = useState<string[]>([]);
@@ -62,6 +79,8 @@ export function PipeCommercialPage() {
   const [sort, setSort] = useState<'dated_at' | 'unbilled' | 'unpaid' | 'total_ht'>('unbilled');
 
   const load = useCallback(async () => {
+    const run = ++request.current;
+    if (!validPeriod(range.from, range.to)) { setLoading(false); return; }
     setLoading(true);
     setLoadError(null);
     setProgress(0);
@@ -69,7 +88,8 @@ export function PipeCommercialPage() {
     let cursor: { page: number; size: number } | undefined;
     try {
       for (let batch = 0; batch < 1000; batch++) {
-        const { data, error } = await supabase.functions.invoke('erplain-sync', { body: { action: 'pipe_orders', from: iso(periodFrom(period)), cursor } });
+        const { data, error } = await supabase.functions.invoke('erplain-sync', { body: { action: 'pipe_orders', from: range.from, to: range.to, cursor } });
+        if (run !== request.current) return;
         if (error) {
           const context = 'context' in error ? error.context : null;
           const detail = context instanceof Response ? await context.json().catch(() => null) : null;
@@ -87,15 +107,17 @@ export function PipeCommercialPage() {
       }
       throw new Error('Lecture incomplète : trop de pages Erplain.');
     } catch (e) {
+      if (run !== request.current) return;
       const message = (e as Error).message;
       setLoadError(message);
       toast.error(`Commandes Erplain : ${message}`);
     }
-    finally { setLoading(false); }
-  }, [period]);
-  useEffect(() => { setOrders([]); setInfo(null); load(); }, [load]);
+    finally { if (run === request.current) setLoading(false); }
+  }, [range.from, range.to]);
+  useEffect(() => { setOrders([]); setInfo(null); setLoadError(null); void load(); return () => { request.current++; }; }, [load]);
 
-  const inPeriod = useMemo(() => filterOrders(orders, { from: iso(periodFrom(period)), statuses: [], billing: [], payment: [], channels: [], search: '' }), [orders, period]);
+  const periodOrders = useMemo(() => filterOrders(orders, { from: range.from, to: range.to, statuses: [], billing: [], payment: [], channels: [], search: '' }), [orders, range.from, range.to]);
+  const inPeriod = useMemo(() => classifyOrders(periodOrders, rules), [periodOrders, rules]);
   const filtered = useMemo(() => filterOrders(inPeriod, { from: null, statuses, billing, payment, channels, search }), [inPeriod, statuses, billing, payment, channels, search]);
   const t = pipeTotals(filtered);
   const sorted = [...filtered].sort((a, b) => sort === 'dated_at' ? (b.dated_at ?? '').localeCompare(a.dated_at ?? '') : (b[sort] ?? 0) - (a[sort] ?? 0));
@@ -116,14 +138,19 @@ export function PipeCommercialPage() {
           <h1 className="text-2xl font-bold">Pipe commercial</h1>
           <p className="text-sm text-muted-foreground">Bons de commande Erplain, lus en direct (lecture seule). Montants tels que fournis par Erplain.</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Select value={period} onValueChange={setPeriod}>
             <SelectTrigger className="w-48"><SelectValue /></SelectTrigger>
-            <SelectContent>{PERIODS.map((p) => <SelectItem key={p.key} value={p.key}>{p.label}</SelectItem>)}</SelectContent>
+            <SelectContent>{PIPE_PERIODS.map((p) => <SelectItem key={p.key} value={p.key}>{p.label}</SelectItem>)}</SelectContent>
           </Select>
-          <Button onClick={load} disabled={loading} variant="outline">{loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}Actualiser</Button>
+          {period === 'pick_month' && <Input type="month" aria-label="Mois à consulter" value={month} onChange={e => setMonth(e.target.value)} className="w-44" />}
+          {period === 'custom' && <><Input type="date" aria-label="Date de début" value={customFrom} onChange={e => setCustomFrom(e.target.value)} className="w-40" /><span className="text-sm text-muted-foreground">au</span><Input type="date" aria-label="Date de fin" value={customTo} onChange={e => setCustomTo(e.target.value)} className="w-40" /></>}
+          <Button onClick={() => { void reloadRules(); void load(); }} disabled={loading || !periodValid} variant="outline">{loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}Actualiser</Button>
         </div>
       </div>
+      {!periodValid && <p role="alert" className="text-sm text-destructive">Choisissez une période valide : le début doit précéder la fin.</p>}
+      {periodValid && <p className="text-sm text-muted-foreground">Date du bon de commande · du {new Date(`${range.from}T12:00:00`).toLocaleDateString('fr-FR')} au {new Date(`${range.to}T12:00:00`).toLocaleDateString('fr-FR')}</p>}
+      <PipeRulesPanel rules={rules} orders={periodOrders} canWrite={canWrite} onReload={reloadRules} error={rulesError} />
       {loading && <p role="status" className="text-sm text-muted-foreground">Lecture Erplain en cours · {progress} commande(s) reçue(s)</p>}
       {loadError && <div role="alert" className="flex items-center gap-2 border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive"><AlertTriangle className="h-4 w-4 shrink-0" />Actualisation Erplain échouée : {loadError}</div>}
       {info && <p className="text-xs text-muted-foreground">Lu le {new Date(info.read_at).toLocaleString('fr-FR')} · {orders.length} commandes sur la période{info.partial && !loading && <span className="ml-2 inline-flex items-center gap-1 text-destructive"><AlertTriangle className="h-3 w-3" />lecture partielle ({orders.length}/{info.total ?? '?'}) — actualisez</span>}</p>}

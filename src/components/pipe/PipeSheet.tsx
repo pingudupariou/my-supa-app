@@ -37,7 +37,7 @@ export function PipeSheet({ orders }: { orders: PipeOrder[] }) {
                   <tr className={`cursor-pointer hover:bg-accent/30 ${BAND[o.channel]}`} onClick={() => setOpen(open === o.id ? null : o.id)}>
                     {i === 0 && <td rowSpan={list.length + list.filter((x) => x.id === open).length} className={`${td} bg-primary/10 text-center font-semibold capitalize [writing-mode:vertical-rl] rotate-180`}>
                       {m === '—' ? '—' : new Date(`${m}-01`).toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' })}</td>}
-                    <td className={`${td} text-center`}>{CIBLE[o.channel]}</td>
+                    <td className={`${td} text-center`} title={o.channel_rule ? `Règle : ${o.channel_rule}` : 'Classement de Statistiques commerciales'}>{o.channel_rule ? o.channel.toUpperCase() : CIBLE[o.channel]}{o.channel_rule && <span className="block text-[10px] text-muted-foreground">{o.channel_rule}</span>}</td>
                     <td className={`${td} text-center font-medium`}>{o.label}</td>
                     <td className={`${td} text-center`}>{d(o.shipping_at)}</td>
                     <td className={`${td} text-center`}>{pieces(o) || ''}</td>
