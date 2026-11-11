@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { SectionCard } from '@/components/ui/KPICard';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -19,14 +19,9 @@ interface ClientRevenueEditorProps {
   years: number[];
 }
 
-function channelFromCategory(catName: string | null | undefined): 'B2B' | 'OEM' {
-  if (!catName) return 'B2B';
-  return catName.toLowerCase().includes('oem') ? 'OEM' : 'B2B';
-}
-
 export function ClientRevenueEditor({ config: rawConfig, onChange, years }: ClientRevenueEditorProps) {
   const { clients, categories, projections } = useB2BClientsData();
-  const { customers } = useCustomerClassification();
+  const { customers, loading: classificationLoading, error: classificationError } = useCustomerClassification();
   const baseYear = years[0];
   const [sortOrder, setSortOrder] = useState<'none' | 'asc' | 'desc'>('none');
 
@@ -42,6 +37,14 @@ export function ClientRevenueEditor({ config: rawConfig, onChange, years }: Clie
     marginB2C: rawConfig?.marginB2C ?? 0.6,
     marginByCategory: rawConfig?.marginByCategory ?? {},
   };
+  useEffect(() => {
+    if (classificationLoading || classificationError || !clients.length) return;
+    const entries = (rawConfig?.entries ?? []).map(e => {
+      const client = clients.find(c => c.id === e.clientId);
+      return client ? { ...e, channel: crmChannel(client, customers) } : e;
+    });
+    if (entries.some((e,i) => e.channel !== rawConfig?.entries?.[i]?.channel)) onChange({ ...rawConfig, entries });
+  }, [clients, customers, classificationLoading, classificationError, rawConfig, onChange]);
 
   // --- Handlers ---
   const update = (patch: Partial<ClientRevenueConfig>) => onChange({ ...config, ...patch });

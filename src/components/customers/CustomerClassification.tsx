@@ -11,7 +11,7 @@ import { useAuth } from '@/context/AuthContext';
 import { PipeRulesPanel } from '@/components/pipe/PipeRulesPanel';
 import { matchesRule, type ChannelRule } from '@/components/pipe/pipeRules';
 import type { PipeOrder } from '@/components/pipe/pipeModel';
-import { CHANNEL_LABELS, effectiveChannel, notifyClassification, type ClientChannel } from './classificationModel';
+import { CHANNEL_LABELS, crmChannel, effectiveChannel, notifyClassification, type ClientChannel } from './classificationModel';
 import { useCustomerClassification } from './useCustomerClassification';
 
 export function CustomerClassificationButton({ orders = [] }: { orders?: PipeOrder[] }) {
@@ -26,6 +26,24 @@ function CustomerClassification({ orders }: { orders: PipeOrder[] }) {
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState('all');
   const [busy, setBusy] = useState(false);
+  const [crmClients, setCrmClients] = useState<{ id: string; company_name: string; erplain_customer_id: string | null; sales_channel: string }[]>([]);
+  const reloadCrm = useCallback(async () => {
+    const all: typeof crmClients = [];
+    for (let p = 0; ; p++) {
+      const { data, error } = await supabase.from('b2b_clients').select('id,company_name,erplain_customer_id,sales_channel').is('deleted_at', null).order('id').range(p * 1000, p * 1000 + 999);
+      if (error) { toast.error(`Clients CRM : ${error.message}`); return; }
+      all.push(...(data ?? [])); if ((data ?? []).length < 1000) break;
+    }
+    setCrmClients(all);
+  }, []);
+  useEffect(() => { void reloadCrm(); }, [reloadCrm]);
+  const saveCrm = async (id: string, patch: { erplain_customer_id?: string | null; sales_channel?: string }) => {
+    setBusy(true);
+    const { error } = await supabase.from('b2b_clients').update(patch).eq('id', id);
+    setBusy(false);
+    if (error) return toast.error(error.message);
+    await reloadCrm(); notifyClassification(); toast.success('Classement CRM enregistré');
+  };
   const [rules, setRules] = useState<ChannelRule[]>([]);
   const [ruleError, setRuleError] = useState<string | null>(null);
   const reloadRules = useCallback(async () => {
@@ -69,9 +87,13 @@ function CustomerClassification({ orders }: { orders: PipeOrder[] }) {
   return <div className="space-y-3">
     <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">{Object.keys(CHANNEL_LABELS).map(k => <span key={k}>{CHANNEL_LABELS[k]} : {customers.filter(c => c.channel === k).length}</span>)}<span>{canWrite ? 'Modification autorisée' : 'Consultation uniquement'}</span></div>
     {error && <p role="alert" className="text-sm text-destructive">Chargement impossible : {error}</p>}
-    <Tabs defaultValue="clients"><TabsList><TabsTrigger value="clients">Clients</TabsTrigger><TabsTrigger value="rules">Règles & affectation groupée</TabsTrigger></TabsList>
+    <Tabs defaultValue="clients"><TabsList className="h-auto flex-wrap"><TabsTrigger value="clients">Clients Erplain</TabsTrigger><TabsTrigger value="crm">Clients CRM & liens</TabsTrigger><TabsTrigger value="rules">Règles & affectation groupée</TabsTrigger></TabsList>
       <TabsContent value="clients" className="space-y-3"><div className="flex flex-wrap gap-2"><Input aria-label="Rechercher un client" placeholder="Client ou identifiant Erplain…" value={search} onChange={e => setSearch(e.target.value)} className="flex-1" /><Select value={filter} onValueChange={setFilter}><SelectTrigger className="w-52"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">Tous les clients</SelectItem>{Object.entries(CHANNEL_LABELS).map(([k,v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}</SelectContent></Select><Button variant="outline" size="icon" aria-label="Actualiser les clients" onClick={reload} disabled={loading}><RefreshCw className="h-4 w-4" /></Button></div>
         <div className="max-h-96 overflow-auto"><table className="w-full text-sm"><thead className="sticky top-0 bg-background"><tr className="border-b"><th className="p-2 text-left">Client / ID Erplain</th><th className="p-2 text-left">Canal commun</th><th className="p-2 text-left">Pays commercial</th></tr></thead><tbody>{list.slice(0,200).map(c => <tr key={c.customer_id} className="border-b"><td className="p-2">{c.customer_name || 'Client sans nom'}<span className="block text-xs text-muted-foreground">{c.customer_id}</span></td><td className="p-2"><Select value={c.channel} disabled={!canWrite || busy} onValueChange={v => save(c.customer_id, { channel: v as ClientChannel })}><SelectTrigger className="w-52"><SelectValue /></SelectTrigger><SelectContent>{Object.entries(CHANNEL_LABELS).map(([k,v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}</SelectContent></Select></td><td className="p-2"><Input key={`${c.customer_id}:${c.commercial_country}`} aria-label={`Pays de ${c.customer_name}`} defaultValue={c.commercial_country ?? ''} placeholder="auto" maxLength={3} disabled={!canWrite || busy} className="w-20" onBlur={e => { const v = e.target.value.trim().toUpperCase(); if (v !== (c.commercial_country ?? '')) void save(c.customer_id, { commercial_country: v || null }); }} /></td></tr>)}</tbody></table></div><p className="text-xs text-muted-foreground">{Math.min(list.length,200)} / {list.length} clients · À classer = B2C par défaut</p>
+      </TabsContent>
+      <TabsContent value="crm" className="space-y-3">
+        <Input aria-label="Rechercher un client CRM" placeholder="Client CRM…" value={search} onChange={e => setSearch(e.target.value)} />
+        <div className="max-h-96 overflow-auto"><table className="w-full text-sm"><thead><tr className="border-b"><th className="p-2 text-left">Client CRM</th><th className="p-2 text-left">Client Erplain lié</th><th className="p-2 text-left">Canal commun</th></tr></thead><tbody>{crmClients.filter(c => c.company_name.toLowerCase().includes(search.toLowerCase())).map(c => <tr key={c.id} className="border-b"><td className="p-2">{c.company_name}</td><td className="p-2"><Select value={c.erplain_customer_id ?? 'none'} disabled={!canWrite || busy} onValueChange={v => saveCrm(c.id, { erplain_customer_id: v === 'none' ? null : v })}><SelectTrigger className="w-64"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="none">Non lié à Erplain</SelectItem>{customers.map(e => <SelectItem key={e.customer_id} value={e.customer_id}>{e.customer_name || 'Sans nom'} · {e.customer_id}</SelectItem>)}</SelectContent></Select></td><td className="p-2">{c.erplain_customer_id ? <span>{crmChannel(c,customers)} · affectation Erplain</span> : <Select value={c.sales_channel} disabled={!canWrite || busy} onValueChange={v => saveCrm(c.id, { sales_channel: v })}><SelectTrigger className="w-28"><SelectValue /></SelectTrigger><SelectContent>{['B2C','B2B','OEM'].map(k => <SelectItem key={k} value={k}>{k}</SelectItem>)}</SelectContent></Select>}</td></tr>)}</tbody></table></div>
       </TabsContent>
       <TabsContent value="rules" className="space-y-3"><PipeRulesPanel rules={rules} orders={samples} canWrite={canWrite} onReload={reloadRules} error={ruleError} />
         <div className="flex flex-wrap gap-2"><Select value={selectedRule} onValueChange={setSelectedRule}><SelectTrigger className="w-64"><SelectValue placeholder="Règle à appliquer aux clients" /></SelectTrigger><SelectContent>{rules.filter(r => r.enabled).map(r => <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>)}</SelectContent></Select><Button onClick={apply} disabled={!canWrite || busy || !candidates.length}>Affecter {candidates.length} client(s)</Button></div>

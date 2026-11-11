@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/hooks/use-toast';
+import { CLASSIFICATION_EVENT } from '@/components/customers/classificationModel';
 
 export interface B2BClient {
   id: string;
@@ -149,6 +150,11 @@ export function useB2BClientsData() {
   }, [user, toast]);
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
+  useEffect(() => {
+    const refresh = () => { void fetchAll(); };
+    window.addEventListener(CLASSIFICATION_EVENT, refresh); window.addEventListener('focus', refresh);
+    return () => { window.removeEventListener(CLASSIFICATION_EVENT, refresh); window.removeEventListener('focus', refresh); };
+  }, [fetchAll]);
 
   const upsertClient = useCallback(async (data: Partial<B2BClient> & { company_name: string }) => {
     if (!user) return null;
