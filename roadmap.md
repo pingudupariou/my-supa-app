@@ -1,4 +1,9 @@
 ## Pipe commercial — périodes et règles
+## Harmonisation des classements clients
+- [ ] Centraliser le paramétrage et harmoniser les sources B2C/B2B/OEM de tous les onglets concernés.
+- [ ] Préserver les affectations existantes et préciser le traitement des règles par commande.
+- [ ] Tester la cohérence entre les consommateurs et les droits de modification.
+
 - [x] Ajouter mois précédent, mois au choix et plage personnalisée.
 - [x] Enregistrer et gérer les règles B2C/B2B/OEM avec priorité et aperçu, sans modifier Erplain ni Statistiques commerciales.
 - [x] Tester les périodes et la catégorisation : 18 tests interface/logique et 4 tests serveur réussis ; fonction déployée.
