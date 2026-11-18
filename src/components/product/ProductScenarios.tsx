@@ -12,7 +12,7 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { SectionCard } from '@/components/ui/KPICard';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { CHS, applyScenario, newScenario, productLines, scenarioCost, scenarioPrices, scenarioResults, setOverride, type ProductScenario, type YearResult } from '@/engine/productScenarios';
+import { CHS, applyScenario, newScenario, overrideCount, productLines, scenarioClientVolume, scenarioCost, scenarioPrices, scenarioResults, scenarioVolumes, setClientVolume, setOverride, setVolumeOverride, type ProductScenario, type YearResult } from '@/engine/productScenarios';
 import type { Product, ProductCategory } from '@/engine/types';
 
 type Metric = 'revenue' | 'margin' | 'marginPct' | 'cogs' | 'units';
@@ -175,7 +175,8 @@ export function ProductScenarios({ years }: { years: number[] }) {
 
       {sel && (
         <SectionCard title={`Construire « ${sel.name} »`}>
-        <p className="-mt-2 mb-3 text-sm text-muted-foreground">Une case vide reprend la valeur du plan (affichée en gris).</p>
+        <p className="-mt-2 mb-3 text-sm text-muted-foreground">Référence : l'étape « Volume par année et par canal ». Une case vide reprend la valeur du plan (affichée en gris).</p>
+          <VsPlan plan={series[0].res} sc={series.find(s => s.id === sel.id)!.res} years={years} />
           <div className="mb-4 flex flex-wrap items-center gap-2">
             <Input className="h-8 w-56" value={sel.name} onChange={e => patch({ ...sel, name: e.target.value })} aria-label="Nom du scénario" />
             <Button size="sm" variant="outline" onClick={() => create(sel)}><CopyPlus className="mr-1 h-4 w-4" />Dupliquer</Button>
@@ -186,7 +187,8 @@ export function ProductScenarios({ years }: { years: number[] }) {
 
           <div className="grid gap-4 lg:grid-cols-[1fr_auto]">
             <div className="rounded-lg border p-3">
-              <p className="mb-2 text-sm font-medium">Volumes en % du plan</p>
+              <p className="mb-2 text-sm font-medium">Volumes en % du plan (tous produits)</p>
+              <p className="mb-2 text-xs text-muted-foreground">Un volume saisi dans un produit ci-dessous remplace ce %.</p>
               <table className="text-sm">
                 <thead><tr className="text-xs text-muted-foreground"><th className="pr-3 text-left">Canal</th>{years.map(y => <th key={y} className="px-1">{y}</th>)}</tr></thead>
                 <tbody>{CHS.map(ch => (
@@ -228,7 +230,10 @@ export function ProductScenarios({ years }: { years: number[] }) {
 
 function ProductRow({ p, sc, years, open, onToggle, onChange, chName }: { p: Product; sc: ProductScenario; years: number[]; open: boolean; onToggle: () => void; onChange: (s: ProductScenario) => void; chName: (c: ProductCategory) => string }) {
   const o = sc.products[p.id];
-  const count = Object.values(o?.prices ?? {}).reduce((s, r) => s + Object.keys(r).length, 0) + Object.keys(o?.unitCost ?? {}).length;
+  const count = overrideCount(o);
+  const tot = (s: ProductScenario | null) => productLines([p], s, years).reduce((a, l) => ({ rev: a.rev + l.revenue, mg: a.mg + l.revenue - l.cogs, u: a.u + l.units }), { rev: 0, mg: 0, u: 0 });
+  const tp = tot(null), ts = tot(sc);
+  const clients = p.b2bClients?.enabled ? p.b2bClients.clients : [];
   const fields: [ProductCategory | 'cost', string][] = [...CHS.map(c => [c, `Prix ${chName(c)} HT`] as [ProductCategory, string]), ['cost', 'Coût de revient']];
   const own = (f: ProductCategory | 'cost', y: number) => f === 'cost' ? o?.unitCost?.[y] : o?.prices?.[y]?.[f];
   const eff = (f: ProductCategory | 'cost', y: number) => f === 'cost' ? scenarioCost(p, sc, y) : scenarioPrices(p, sc, y)[f];
@@ -239,6 +244,7 @@ function ProductRow({ p, sc, years, open, onToggle, onChange, chName }: { p: Pro
         {open ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
         <span className="flex-1 truncate">{p.name}</span>
         {count > 0 && <Badge variant="secondary">{count} valeur(s) modifiée(s)</Badge>}
+        {count > 0 && <span className="text-xs text-muted-foreground">CA <Delta a={ts.rev} b={tp.rev} /> · Marge <Delta a={ts.mg} b={tp.mg} /></span>}
       </button>
       {open && (
         <div className="overflow-x-auto px-3 pb-3">
@@ -261,6 +267,46 @@ function ProductRow({ p, sc, years, open, onToggle, onChange, chName }: { p: Pro
                   ))}
                 </tr>
               ))}
+              <tr><td colSpan={years.length + 1} className="pt-3 text-xs font-medium">Volumes (unités) — plan en gris</td></tr>
+              {CHS.map(ch => (
+                <tr key={`v-${ch}`}>
+                  <td className="whitespace-nowrap pr-3 text-xs">Volume {chName(ch)}{ch === 'B2B' && clients.length ? ' (total)' : ''}</td>
+                  {years.map((y, i) => { const own = o?.volumes?.[y]?.[ch]; const planV = scenarioVolumes(p, null, y)[ch]; const effV = scenarioVolumes(p, sc, y)[ch];
+                    return (
+                    <td key={y} className="px-1 py-0.5">
+                      <div className="flex items-center">
+                        <Input className={`h-7 w-20 text-right text-xs ${own !== undefined ? 'border-primary' : ''}`} placeholder={String(effV)} value={own ?? ''}
+                          onChange={e => onChange(setVolumeOverride(sc, p.id, ch, [y], parse(e.target.value)))} aria-label={`Volume ${chName(ch)} ${y}`} />
+                        {i < years.length - 1 && own !== undefined && <button title="Recopier sur les années suivantes" className="ml-0.5 text-muted-foreground hover:text-primary" onClick={() => onChange(setVolumeOverride(sc, p.id, ch, years.slice(i + 1), own))}><ArrowRight className="h-3 w-3" /></button>}
+                      </div>
+                      {effV !== planV && <div className="text-right text-[10px] text-muted-foreground">plan {planV}</div>}
+                    </td>); })}
+                </tr>
+              ))}
+              {clients.map(c => (
+                <tr key={`c-${c.id}`}>
+                  <td className="whitespace-nowrap pl-3 pr-3 text-xs text-muted-foreground">↳ {c.name}</td>
+                  {years.map((y, i) => { const own = o?.clientVolumes?.[c.id]?.[y]; const planV = scenarioClientVolume(p, c.id, null, y); const effV = scenarioClientVolume(p, c.id, sc, y);
+                    return (
+                    <td key={y} className="px-1 py-0.5">
+                      <div className="flex items-center">
+                        <Input disabled={o?.volumes?.[y]?.B2B !== undefined} className={`h-7 w-20 text-right text-xs ${own !== undefined ? 'border-primary' : ''}`} placeholder={String(effV)} value={own ?? ''}
+                          onChange={e => onChange(setClientVolume(sc, p.id, c.id, [y], parse(e.target.value)))} aria-label={`Volume ${c.name} ${y}`} />
+                        {i < years.length - 1 && own !== undefined && <button title="Recopier sur les années suivantes" className="ml-0.5 text-muted-foreground hover:text-primary" onClick={() => onChange(setClientVolume(sc, p.id, c.id, years.slice(i + 1), own))}><ArrowRight className="h-3 w-3" /></button>}
+                      </div>
+                      {effV !== planV && <div className="text-right text-[10px] text-muted-foreground">plan {planV}</div>}
+                    </td>); })}
+                </tr>
+              ))}
+              <tr><td colSpan={years.length + 1} className="pt-3" /></tr>
+              <tr className="text-xs">
+                <td className="pr-3 font-medium">CA HT vs plan</td>
+                {years.map(y => { const a = productLines([p], sc, [y])[0], b = productLines([p], null, [y])[0]; return <td key={y} className="px-1 text-right"><div className="font-mono">{formatCurrency(a.revenue)}</div><Delta a={a.revenue} b={b.revenue} /></td>; })}
+              </tr>
+              <tr className="text-xs">
+                <td className="pr-3 font-medium">Marge brute vs plan</td>
+                {years.map(y => { const a = productLines([p], sc, [y])[0], b = productLines([p], null, [y])[0]; return <td key={y} className="px-1 text-right"><div className="font-mono">{formatCurrency(a.revenue - a.cogs)}</div><Delta a={a.revenue - a.cogs} b={b.revenue - b.cogs} /></td>; })}
+              </tr>
               <tr className="text-xs text-muted-foreground">
                 <td className="pr-3">Marge unitaire {chName('B2C')}</td>
                 {years.map(y => { const pr = eff('B2C', y), c = eff('cost', y); return <td key={y} className="px-1 text-right">{pr ? `${(((pr - c) / pr) * 100).toFixed(0)} %` : '—'}</td>; })}
@@ -269,6 +315,35 @@ function ProductRow({ p, sc, years, open, onToggle, onChange, chName }: { p: Pro
           </table>
         </div>
       )}
+    </div>
+  );
+}
+
+/** Écart scénario vs plan, en valeur et en %. */
+function Delta({ a, b, unit }: { a: number; b: number; unit?: boolean }) {
+  const d = a - b;
+  if (Math.abs(d) < 0.5) return <span className="text-[10px] text-muted-foreground">= plan</span>;
+  const pct = b ? ` (${d > 0 ? '+' : ''}${((d / Math.abs(b)) * 100).toFixed(1)} %)` : '';
+  return <span className={`text-[10px] ${d > 0 ? 'text-primary' : 'text-destructive'}`}>{d > 0 ? '+' : '−'}{unit ? Math.round(Math.abs(d)).toLocaleString('fr-FR') : formatCurrency(Math.abs(d))}{pct}</span>;
+}
+
+/** Où en est le scénario par rapport au plan initial (total des années et par année). */
+function VsPlan({ plan, sc, years }: { plan: YearResult[]; sc: YearResult[]; years: number[] }) {
+  const sum = (r: YearResult[], k: 'revenue' | 'margin' | 'units' | 'cogs') => r.reduce((s, x) => s + x[k], 0);
+  const kpis: [string, 'revenue' | 'margin' | 'units' | 'cogs'][] = [['CA HT', 'revenue'], ['Coût de revient', 'cogs'], ['Marge après transport', 'margin'], ['Unités', 'units']];
+  return (
+    <div className="sticky top-0 z-10 mb-4 rounded-lg border bg-card p-3 shadow-sm">
+      <p className="mb-2 text-xs font-medium text-muted-foreground">Scénario vs plan initial — total {years[0]}–{years[years.length - 1]}</p>
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+        {kpis.map(([l, k]) => { const a = sum(sc, k), b = sum(plan, k); return (
+          <div key={k}><div className="text-xs text-muted-foreground">{l}</div>
+            <div className="font-mono text-sm font-semibold">{k === 'units' ? Math.round(a).toLocaleString('fr-FR') : formatCurrency(a)}</div>
+            <Delta a={a} b={b} unit={k === 'units'} />
+            <div className="text-[10px] text-muted-foreground">plan {k === 'units' ? Math.round(b).toLocaleString('fr-FR') : formatCurrency(b)}</div></div>); })}
+      </div>
+      <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs">
+        {years.map(y => { const a = sc.find(r => r.year === y)!, b = plan.find(r => r.year === y)!; return <span key={y}><b>{y}</b> marge <Delta a={a.margin} b={b.margin} /></span>; })}
+      </div>
     </div>
   );
 }

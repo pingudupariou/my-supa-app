@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { applyScenario, newScenario, scenarioResults, setOverride } from './productScenarios';
+import { applyScenario, newScenario, scenarioResults, setClientVolume, setOverride, setVolumeOverride } from './productScenarios';
 import { calculateProductRevenue } from './calculations';
 import type { Product } from './types';
 
@@ -27,5 +27,25 @@ describe('scénarios plan produit', () => {
     const [ap] = applyScenario([p], sc, Y);
     expect(calculateProductRevenue(ap, 2027)).toBe(10 * 150 + 5 * 80);
     expect(calculateProductRevenue(ap, 2026)).toBe(1400);
+  });
+});
+
+describe('scénarios : volumes par canal et par client', () => {
+  it('un volume saisi par canal remplace le plan pour cette année seulement', () => {
+    const sc = setVolumeOverride(newScenario('S', 0), 'a', 'B2B', [2027], 20);
+    const r = scenarioResults([p], sc, Y, {});
+    expect(r[0].units).toBe(15);
+    expect(r[1].units).toBe(30);
+  });
+  it('le B2B détaillé par client suit les volumes clients du scénario', () => {
+    const q: Product = { ...p, b2bClients: { enabled: true, historyYears: [], clients: [
+      { id: 'c1', name: 'X', volumes: { 2026: 3, 2027: 3 }, growthRate: 0, adjustment: 0 },
+      { id: 'c2', name: 'Y', volumes: { 2026: 2, 2027: 2 }, growthRate: 0, adjustment: 0 }] } };
+    const sc = setClientVolume(newScenario('S', 0), 'a', 'c1', [2027], 10);
+    const r = scenarioResults([q], sc, Y, {});
+    expect(r[0].units).toBe(15);
+    expect(r[1].units).toBe(10 + 10 + 2);
+    const [ap] = applyScenario([q], sc, Y);
+    expect(ap.b2bClients!.clients[0].volumes[2027]).toBe(10);
   });
 });
