@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Bar, CartesianGrid, ComposedChart, Legend, Line, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import { Area, Bar, BarChart, CartesianGrid, ComposedChart, Legend, Line, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { toast } from 'sonner';
-import { ChevronDown, ChevronRight, Copy, CopyPlus, Plus, Trash2, Upload, ArrowRight } from 'lucide-react';
+import { Pencil, Eye, EyeOff, ChevronDown, ChevronRight, Copy, CopyPlus, Plus, Trash2, Upload, ArrowRight } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useFinancial } from '@/context/FinancialContext';
 import { useChannelLabels } from '@/components/customers/useChannelLabels';
@@ -14,6 +14,7 @@ import { SectionCard } from '@/components/ui/KPICard';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { CHS, applyScenario, newScenario, overrideCount, productLines, scenarioClientVolume, scenarioCost, scenarioPrices, scenarioResults, scenarioVolumes, setClientVolume, setOverride, setVolumeOverride, type ProductScenario, type YearResult } from '@/engine/productScenarios';
 import type { Product, ProductCategory } from '@/engine/types';
+import { syncProductVolumes } from '@/engine/calculations';
 
 type Metric = 'revenue' | 'margin' | 'marginPct' | 'cogs' | 'units';
 const METRICS: [Metric, string][] = [['revenue', 'CA HT'], ['margin', 'Marge après transport'], ['marginPct', 'Marge %'], ['cogs', 'Coût de revient'], ['units', 'Unités']];
@@ -62,6 +63,11 @@ export function ProductScenarios({ years }: { years: number[] }) {
   const [search, setSearch] = useState('');
   const [open, setOpen] = useState<string | null>(null);
   const [confirmApply, setConfirmApply] = useState(false);
+  const [hidden, setHidden] = useState<Set<string>>(new Set());
+  const [chartType, setChartType] = useState<'line' | 'bar' | 'area'>('line');
+  const [showReal, setShowReal] = useState(true);
+  const [renaming, setRenaming] = useState<string | null>(null);
+  const toggle = (id: string) => setHidden(h => { const n = new Set(h); if (n.has(id)) n.delete(id); else n.add(id); return n; });
   const sel = scenarios.find(s => s.id === selId) ?? null;
   const actuals = useErplainActuals(years);
   const thisYear = new Date().getFullYear();
@@ -89,6 +95,22 @@ export function ProductScenarios({ years }: { years: number[] }) {
     toast.success(`« ${sel.name} » appliqué au plan. Pensez à sauvegarder le plan.`);
   };
 
+  const visible = series.filter(s => !hidden.has(s.id));
+  const deltaData = years.map(y => {
+    const row: Record<string, number | string> = { year: String(y) };
+    const p = series[0].res.find(r => r.year === y)!;
+    visible.filter(s => s.id !== 'plan').forEach(s => { const r = s.res.find(x => x.year === y)!; row[s.id] = metric === 'marginPct' ? ((r.marginPct ?? 0) - (p.marginPct ?? 0)) * 100 : (r[metric] as number) - (p[metric] as number); });
+    return row;
+  });
+  const mixData = useMemo(() => {
+    const synced = syncProductVolumes(products);
+    return visible.map(s => {
+      const sc = s.id === 'plan' ? null : scenarios.find(x => x.id === s.id) ?? null;
+      const row: Record<string, number | string> = { name: s.name };
+      CHS.forEach(ch => { row[ch] = synced.reduce((t, p) => t + years.reduce((u, y) => u + scenarioVolumes(p, sc, y)[ch] * scenarioPrices(p, sc, y)[ch], 0), 0); });
+      return row;
+    });
+  }, [products, scenarios, years, visible.map(v => v.id).join()]);
   const chartData = years.map(y => {
     const row: Record<string, number | null | string> = { year: String(y) };
     const a = actualValue(actuals.find(x => x.year === y), metric);
@@ -125,8 +147,14 @@ export function ProductScenarios({ years }: { years: number[] }) {
         <p className="-mt-2 mb-3 text-sm text-muted-foreground">Testez d'autres prix, coûts de revient, volumes et transport sans toucher au plan, puis comparez avec le réel Erplain.</p>
         <div className="flex flex-wrap items-center gap-2">
           {scenarios.map(s => (
-            <button key={s.id} onClick={() => setSelId(s.id)} className={`flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm transition ${s.id === selId ? 'border-primary bg-primary/10 font-medium' : 'hover:bg-muted'}`}>
+            renaming === s.id ? (
+              <Input key={s.id} autoFocus className="h-8 w-48" defaultValue={s.name} aria-label="Renommer le scénario"
+                onBlur={e => { const n = e.target.value.trim(); if (n) patch({ ...s, name: n }); setRenaming(null); }}
+                onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); if (e.key === 'Escape') setRenaming(null); }} />
+            ) :
+            <button key={s.id} onClick={() => setSelId(s.id)} onDoubleClick={() => setRenaming(s.id)} title="Double-clic pour renommer" className={`group flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm transition ${s.id === selId ? 'border-primary bg-primary/10 font-medium' : 'hover:bg-muted'}`}>
               <span className="h-2.5 w-2.5 rounded-full" style={{ background: s.color }} />{s.name}
+              <Pencil className="h-3 w-3 opacity-40 group-hover:opacity-100" onClick={e => { e.stopPropagation(); setRenaming(s.id); }} />
               {s.appliedAt && <Badge variant="secondary" className="text-[10px]">appliqué</Badge>}
             </button>
           ))}
@@ -139,9 +167,17 @@ export function ProductScenarios({ years }: { years: number[] }) {
         <p className="-mt-2 mb-3 text-sm text-muted-foreground">Réel Erplain (années terminées, année en cours à date) face au plan et à chaque scénario.</p>
         <div className="mb-3 flex flex-wrap items-center gap-2">
           {METRICS.map(([m, l]) => <Button key={m} size="sm" variant={metric === m ? 'default' : 'outline'} onClick={() => setMetric(m)}>{l}</Button>)}
+          <span className="mx-1 h-5 w-px bg-border" />
+          {([['line', 'Courbes'], ['bar', 'Barres'], ['area', 'Aires']] as const).map(([t, l]) => <Button key={t} size="sm" variant={chartType === t ? 'secondary' : 'ghost'} onClick={() => setChartType(t)}>{l}</Button>)}
           <Button size="sm" variant="ghost" className="ml-auto" onClick={copyComparison}><Copy className="mr-1 h-4 w-4" />Copier pour Excel</Button>
         </div>
-        <div className="h-72">
+        <div className="mb-3 flex flex-wrap items-center gap-2 text-xs">
+          <span className="text-muted-foreground">Superposer :</span>
+          <button onClick={() => setShowReal(v => !v)} className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1 ${showReal ? '' : 'opacity-40'}`}>{showReal ? <Eye className="h-3 w-3" /> : <EyeOff className="h-3 w-3" />}Réel Erplain</button>
+          {series.map(s => <button key={s.id} onClick={() => toggle(s.id)} className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1 ${hidden.has(s.id) ? 'opacity-40' : ''}`}><span className="h-2.5 w-2.5 rounded-full" style={{ background: s.color }} />{s.name}</button>)}
+          <button className="text-muted-foreground underline" onClick={() => setHidden(new Set())}>tout afficher</button>
+        </div>
+        <div className="h-80">
           <ResponsiveContainer width="100%" height="100%">
             <ComposedChart data={chartData}>
               <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
@@ -149,10 +185,40 @@ export function ProductScenarios({ years }: { years: number[] }) {
               <YAxis tickFormatter={v => metric === 'marginPct' ? `${v} %` : metric === 'units' ? Number(v).toLocaleString('fr-FR') : `${Math.round(Number(v) / 1000)} k€`} width={70} />
               <Tooltip formatter={(v: any) => v == null ? '—' : metric === 'marginPct' ? `${Number(v).toFixed(1)} %` : metric === 'units' ? Number(v).toLocaleString('fr-FR') : formatCurrency(Number(v))} />
               <Legend />
-              <Bar dataKey="reel" name="Réel Erplain" fill="hsl(var(--primary) / 0.35)" />
-              {series.map(s => <Line key={s.id} dataKey={s.id} name={s.name} stroke={s.color} strokeWidth={s.id === 'plan' ? 2 : 2.5} strokeDasharray={s.id === 'plan' ? '5 4' : undefined} dot />)}
+              {showReal && <Bar dataKey="reel" name="Réel Erplain" fill="hsl(var(--primary) / 0.35)" />}
+              {visible.map(s => chartType === 'bar'
+                ? <Bar key={s.id} dataKey={s.id} name={s.name} fill={s.color} fillOpacity={s.id === 'plan' ? 0.45 : 0.85} />
+                : chartType === 'area'
+                  ? <Area key={s.id} type="monotone" dataKey={s.id} name={s.name} stroke={s.color} fill={s.color} fillOpacity={0.12} strokeWidth={2} strokeDasharray={s.id === 'plan' ? '5 4' : undefined} />
+                  : <Line key={s.id} type="monotone" dataKey={s.id} name={s.name} stroke={s.color} strokeWidth={s.id === 'plan' ? 2 : 2.5} strokeDasharray={s.id === 'plan' ? '5 4' : undefined} dot />)}
             </ComposedChart>
           </ResponsiveContainer>
+        </div>
+        <div className="mt-4 grid gap-4 lg:grid-cols-2">
+          <div className="rounded-lg border p-3">
+            <p className="mb-2 text-sm font-medium">Écart vs plan initial — {METRICS.find(m => m[0] === metric)![1]}</p>
+            <div className="h-56"><ResponsiveContainer width="100%" height="100%">
+              <BarChart data={deltaData}>
+                <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+                <XAxis dataKey="year" /><YAxis width={70} tickFormatter={v => metric === 'marginPct' ? `${v} pt` : metric === 'units' ? Number(v).toLocaleString('fr-FR') : `${Math.round(Number(v) / 1000)} k€`} />
+                <Tooltip formatter={(v: any) => metric === 'marginPct' ? `${Number(v).toFixed(1)} pt` : metric === 'units' ? Math.round(Number(v)).toLocaleString('fr-FR') : formatCurrency(Number(v))} />
+                <ReferenceLine y={0} className="stroke-muted-foreground" />
+                {visible.filter(s => s.id !== 'plan').map(s => <Bar key={s.id} dataKey={s.id} name={s.name} fill={s.color} />)}
+              </BarChart>
+            </ResponsiveContainer></div>
+            {!visible.some(s => s.id !== 'plan') && <p className="text-xs text-muted-foreground">Affichez au moins un scénario.</p>}
+          </div>
+          <div className="rounded-lg border p-3">
+            <p className="mb-2 text-sm font-medium">CA HT par canal — total {years[0]}–{years[years.length - 1]}</p>
+            <div className="h-56"><ResponsiveContainer width="100%" height="100%">
+              <BarChart data={mixData} layout="vertical">
+                <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+                <XAxis type="number" tickFormatter={v => `${Math.round(Number(v) / 1000)} k€`} /><YAxis type="category" dataKey="name" width={110} />
+                <Tooltip formatter={(v: any) => formatCurrency(Number(v))} /><Legend />
+                {CHS.map((ch, i) => <Bar key={ch} dataKey={ch} name={chName(ch)} stackId="c" fill={["#0891b2", "#ea580c", "#9333ea"][i]} />)}
+              </BarChart>
+            </ResponsiveContainer></div>
+          </div>
         </div>
         <div className="mt-4 overflow-x-auto">
           <table className="w-full text-sm">
