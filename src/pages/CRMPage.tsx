@@ -1,4 +1,8 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
+import { CrmDisplaySettings } from '@/components/crm/CrmDisplaySettings';
+import { applyCrmFilter, DEFAULT_CRM_FILTER, type CrmDisplayFilter } from '@/components/crm/crmDisplayFilter';
+import { useCustomerClassification } from '@/components/customers/useCustomerClassification';
+import { crmChannel } from '@/components/customers/classificationModel';
 import { CustomerClassificationButton } from '@/components/customers/CustomerClassification';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ClientSubTabs } from '@/components/crm/ClientSubTabs';
@@ -42,6 +46,11 @@ export function CRMPage() {
   const [showAssociator, setShowAssociator] = useState(false);
   const [activeTab, setActiveTab] = useState('gestion');
   const [searchQuery, setSearchQuery] = useState('');
+  const { customers: erplainCustomers } = useCustomerClassification();
+  const [displayFilter, setDisplayFilter] = useState<CrmDisplayFilter>(() => {
+    try { return { ...DEFAULT_CRM_FILTER, ...JSON.parse(localStorage.getItem('crm-display-filter') ?? '{}') }; } catch { return DEFAULT_CRM_FILTER; }
+  });
+  useEffect(() => { localStorage.setItem('crm-display-filter', JSON.stringify(displayFilter)); }, [displayFilter]);
 
   const entityId = bizEntities.selectedEntityId;
   const filterByEntity = entityId && entityId !== 'all';
@@ -110,9 +119,10 @@ export function CRMPage() {
   };
 
   // Clients list for fiches tab - filtered by entity
-  const fichesClients = entityClientIds != null
+  const entityFiches = entityClientIds != null
     ? b2b.clients.filter(c => entityClientIds.includes(c.id))
     : b2b.clients;
+  const fichesClients = useMemo(() => applyCrmFilter(entityFiches, displayFilter, c => crmChannel(c, erplainCustomers)), [entityFiches, displayFilter, erplainCustomers]);
 
   if (b2b.isLoading && crm.isLoading) {
     return (
@@ -124,7 +134,7 @@ export function CRMPage() {
 
   return (
     <div className="space-y-6">
-      <CustomerClassificationButton />
+      <div className="flex flex-wrap gap-2"><CustomerClassificationButton /><CrmDisplaySettings value={displayFilter} onChange={setDisplayFilter} categories={b2b.categories} shown={fichesClients.length} total={entityFiches.length} /></div>
       <div className="flex items-start justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">CRM — Clients</h1>
