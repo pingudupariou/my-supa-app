@@ -1849,6 +1849,7 @@ export type Database = {
       erplain_sales_customers: {
         Row: {
           channel: string
+          channel_source: string | null
           commercial_country: string | null
           created_at: string
           customer_id: string
@@ -1858,6 +1859,7 @@ export type Database = {
         }
         Insert: {
           channel?: string
+          channel_source?: string | null
           commercial_country?: string | null
           created_at?: string
           customer_id: string
@@ -1867,6 +1869,7 @@ export type Database = {
         }
         Update: {
           channel?: string
+          channel_source?: string | null
           commercial_country?: string | null
           created_at?: string
           customer_id?: string
@@ -1892,6 +1895,7 @@ export type Database = {
           label: string | null
           lines_raw: number | null
           order_id: string | null
+          order_label: string | null
           run_id: string | null
           shipping_country: string | null
           shipping_ht: number | null
@@ -1918,6 +1922,7 @@ export type Database = {
           label?: string | null
           lines_raw?: number | null
           order_id?: string | null
+          order_label?: string | null
           run_id?: string | null
           shipping_country?: string | null
           shipping_ht?: number | null
@@ -1944,6 +1949,7 @@ export type Database = {
           label?: string | null
           lines_raw?: number | null
           order_id?: string | null
+          order_label?: string | null
           run_id?: string | null
           shipping_country?: string | null
           shipping_ht?: number | null
@@ -4055,6 +4061,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      apply_customer_rules: { Args: never; Returns: Json }
       assign_customer_channels: {
         Args: { _channel: string; _ids: string[] }
         Returns: number
@@ -4117,6 +4124,11 @@ export type Database = {
           num: number
           reference: string
         }[]
+      }
+      norm_rule_text: { Args: { _v: string }; Returns: string }
+      rule_text_matches: {
+        Args: { _op: string; _text: string; _value: string }
+        Returns: boolean
       }
       sales_b2b_clients: {
         Args: { _from: string; _keys: string[]; _to: string }
