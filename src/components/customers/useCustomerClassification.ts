@@ -5,7 +5,7 @@ import { CLASSIFICATION_EVENT, type ClassifiedCustomer } from './classificationM
 export async function readClassifiedCustomers() {
   const all: ClassifiedCustomer[] = [];
   for (let p = 0; ; p++) {
-    const { data, error } = await supabase.from('erplain_sales_customers').select('customer_id,customer_name,channel,commercial_country').order('customer_id').range(p * 1000, p * 1000 + 999);
+    const { data, error } = await supabase.from('erplain_sales_customers').select('customer_id,customer_name,channel,commercial_country,channel_source').order('customer_id').range(p * 1000, p * 1000 + 999);
     if (error) throw error;
     all.push(...(data ?? []));
     if ((data ?? []).length < 1000) return all;

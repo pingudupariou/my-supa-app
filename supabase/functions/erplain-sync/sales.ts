@@ -108,6 +108,7 @@ function toRows(d: any, docType: string, runId: string) {
     doc: { id, doc_type: docType, erplain_id: Number(d.id), label: d.label ?? null, status, dated_at: (d.dated_at ?? d.created_at ?? null)?.slice?.(0, 10) ?? null,
       customer_id: d.customer?.id != null ? String(d.customer.id) : null, customer_name: custName(d.customer),
       order_id: d.order?.id != null ? String(d.order.id) : (d.order_id != null ? String(d.order_id) : null), source: d.source ?? d.order?.source ?? null,
+      order_label: d.order?.label ?? null,
       is_shopify: isShopify, shopify_reason: isShopify ? "Source ou intégration Shopify sur le document ou sa commande" : null,
       shipping_country: country(d.shipping_address), billing_country: country(d.billing_address), currency: d.currency ?? null,
       total_ht: ht, total_ttc: ttc !== null ? r2(Math.abs(ttc) * sign) : null, total_tax: tax !== null ? r2(Math.abs(tax) * sign) : null,
@@ -179,6 +180,8 @@ export async function salesSync(admin: any, gql: Gql, userId: string, restart: b
   }
   if (phase === "done") {
     const bad = errors.some((e) => e.code === "count");
+    // Shared customer classification follows the rules automatically once order references are fresh.
+    await admin.rpc("apply_customer_rules").then(({ error }: any) => { if (error) console.error("apply_customer_rules", error.message); });
     await save({ status: bad ? "warning" : "success", finished_at: new Date().toISOString(), message: bad ? "Lecture terminée avec écarts" : "Lecture complète" });
   }
   const { data: saved } = await admin.from("erplain_sales_sync_runs").select("*").eq("id", run.id).single();

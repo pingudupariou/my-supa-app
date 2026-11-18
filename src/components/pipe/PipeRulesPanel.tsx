@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Pencil, Plus, Trash2, ListFilter } from 'lucide-react';
 import { toast } from 'sonner';
+import { applyRulesNow } from '@/components/customers/applyRules';
 import { matchesRule, ruleFields, ruleOperators, type ChannelRule } from './pipeRules';
 import type { PipeOrder } from './pipeModel';
 
@@ -20,7 +21,7 @@ export function PipeRulesPanel({ rules, orders, canWrite, onReload, error }: { r
   const matched = draft ? orders.filter(o => matchesRule(o, { ...draft, enabled: true })) : [];
   const change = async (action: () => PromiseLike<{ error: { message: string } | null }>) => {
     setBusy(true);
-    try { const { error } = await action(); if (error) throw error; await onReload(); return true; }
+    try { const { error } = await action(); if (error) throw error; await onReload(); await applyRulesNow(); return true; }
     catch (e) { const message = (e as Error).message; setFormError(message); toast.error(message); return false; }
     finally { setBusy(false); }
   };
@@ -39,7 +40,7 @@ export function PipeRulesPanel({ rules, orders, canWrite, onReload, error }: { r
     </div>
     {error && <p role="alert" className="text-sm text-destructive">Classement par règles indisponible : {error}<Button variant="ghost" size="sm" onClick={onReload}>Réessayer</Button></p>}
     {expanded && <div className="mt-3 space-y-2">
-      <p className="text-xs text-muted-foreground">Règles d’aide à l’affectation des clients · Application commune après confirmation</p>
+      <p className="text-xs text-muted-foreground">Les règles font foi : chaque modification reclasse automatiquement tous les clients (sauf corrections manuelles) dans tous les onglets.</p>
       {!rules.length && <p className="text-sm text-muted-foreground">Aucune règle enregistrée.</p>}
       {rules.map(r => <div key={r.id} className="flex flex-wrap items-center gap-3 border-b border-border py-2 text-sm">
         <Switch aria-label={`Activer ${r.name}`} checked={r.enabled} disabled={!canWrite || busy} onCheckedChange={enabled => change(() => supabase.from('pipe_channel_rules').update({ enabled }).eq('id', r.id))} />
@@ -47,7 +48,7 @@ export function PipeRulesPanel({ rules, orders, canWrite, onReload, error }: { r
         {canWrite && <><Button variant="ghost" size="icon" aria-label={`Modifier ${r.name}`} disabled={busy} onClick={() => { setFormError(''); setDraft({ ...r }); }}><Pencil className="h-4 w-4" /></Button><Button variant="ghost" size="icon" aria-label={`Supprimer ${r.name}`} disabled={busy} onClick={() => { if (window.confirm(`Supprimer la règle « ${r.name} » ?`)) change(() => supabase.from('pipe_channel_rules').delete().eq('id', r.id)); }}><Trash2 className="h-4 w-4" /></Button></>}
       </div>)}
     </div>}
-    <Dialog open={!!draft} onOpenChange={v => { if (!v && !busy) setDraft(null); }}><DialogContent className="max-h-[90vh] overflow-y-auto"><DialogHeader><DialogTitle>{draft?.id ? 'Modifier la règle' : 'Nouvelle règle'}</DialogTitle><DialogDescription>Aide au classement commun des clients</DialogDescription></DialogHeader>
+    <Dialog open={!!draft} onOpenChange={v => { if (!v && !busy) setDraft(null); }}><DialogContent className="max-h-[90vh] overflow-y-auto"><DialogHeader><DialogTitle>{draft?.id ? 'Modifier la règle' : 'Nouvelle règle'}</DialogTitle><DialogDescription>Le client prend le canal de la première règle (priorité la plus basse) qui reconnaît un de ses bons de commande, son nom, son ID ou ses produits.</DialogDescription></DialogHeader>
       {draft && <div className="space-y-3">
         <div><Label htmlFor="rule-name">Nom de la règle</Label><Input id="rule-name" maxLength={100} value={draft.name} onChange={e => setDraft({ ...draft, name: e.target.value })} /></div>
         <div><Label>Champ Erplain</Label><Select value={draft.field} onValueChange={field => setDraft({ ...draft, field: field as ChannelRule['field'] })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{Object.entries(ruleFields).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}</SelectContent></Select></div>

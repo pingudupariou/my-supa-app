@@ -1,0 +1,1 @@
+ALTER FUNCTION public.apply_customer_rules() SECURITY INVOKER;
