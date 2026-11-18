@@ -8,3 +8,8 @@ export function crmChannel(client: { erplain_customer_id?: string | null; sales_
   if (client.erplain_customer_id) return effectiveChannel(customers.find(c => c.customer_id === client.erplain_customer_id)?.channel);
   return effectiveChannel(client.sales_channel ?? 'B2B');
 }
+/** Calls onChange each time the shared customer classification changes (rules, manual sorting, CRM links). */
+export function onClassificationChange(onChange: () => void) {
+  window.addEventListener(CLASSIFICATION_EVENT, onChange);
+  return () => window.removeEventListener(CLASSIFICATION_EVENT, onChange);
+}

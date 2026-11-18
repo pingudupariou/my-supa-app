@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import { onClassificationChange } from '@/components/customers/classificationModel';
 import { supabase } from '@/integrations/supabase/client';
 import { Product } from '@/engine/types';
 import { SectionCard } from '@/components/ui/KPICard';
@@ -53,6 +54,13 @@ export function CurrentYearProjection({ products, years, onApply }: Props) {
     return q;
   };
 
+  // Channels come from the shared customer classification: recompute when it changes.
+  const loadRef = useRef<() => Promise<void>>();
+  const loadedRef = useRef(false);
+  loadedRef.current = data !== null;
+  useEffect(() => onClassificationChange(() => {
+    if (loadedRef.current && loadRef.current) { void loadRef.current().then(() => toast.info('Base de projection recalculée selon le nouveau classement clients')); }
+  }), []);
   const load = async () => {
     setLoading(true);
     try {
@@ -67,6 +75,7 @@ export function CurrentYearProjection({ products, years, onApply }: Props) {
     } catch (e: any) { toast.error(`Lecture des ventes impossible : ${e.message}`); }
     setLoading(false);
   };
+  loadRef.current = load;
 
   const sum = (q: Qty, p: Product, c: Ch) => keysOf(p).reduce((s, k) => s + (q[k]?.[c] ?? 0), 0);
   const project = (p: Product, c: Ch, m: Method): number => {

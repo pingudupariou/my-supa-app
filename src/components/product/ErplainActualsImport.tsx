@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import { onClassificationChange } from '@/components/customers/classificationModel';
 import { supabase } from '@/integrations/supabase/client';
 import { Product } from '@/engine/types';
 import { SectionCard } from '@/components/ui/KPICard';
@@ -62,6 +63,13 @@ export function ErplainActualsImport({ products, years, onApply, onSave, showMan
   const availableRows = [...candidates.values()];
   const memberName = (key: string) => candidates.get(key)?.label ?? 'Nom indisponible — actualiser les ventes';
 
+  // Channels come from the shared customer classification: recompute when it changes.
+  const loadRef = useRef<() => Promise<void>>();
+  const loadedRef = useRef(false);
+  loadedRef.current = rows !== null;
+  useEffect(() => onClassificationChange(() => {
+    if (loadedRef.current && loadRef.current) { void loadRef.current().then(() => toast.info('Ventes Erplain et prix des catégories recalculés selon le nouveau classement clients')); }
+  }), []);
   const load = async () => {
     setLoading(true);
     const map = new Map<string, Agg>();
@@ -86,6 +94,7 @@ export function ErplainActualsImport({ products, years, onApply, onSave, showMan
     } catch (e: any) { toast.error(`Lecture des ventes impossible : ${e.message}`); }
     setLoading(false);
   };
+  loadRef.current = load;
 
   const total = (a: Agg) => Object.values(a.byYear).reduce((s, y) => s + CHS.reduce((t, c) => t + y[c].ca, 0), 0);
   const lastYearOf = (a: Agg) => { const ys = Object.keys(a.byYear).map(Number); return ys.length ? Math.max(...ys) : years[0] ?? thisYear; };
