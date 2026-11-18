@@ -1,9 +1,9 @@
 import type { Gql } from "./erplain.ts";
 
 /** Read bounded batches; a cursor always resumes with the same page size. */
-export async function readPipeOrders(gql: Gql, selection: string, from: string, cursor?: { page: number; size: number }, to?: string) {
+export async function readPipeOrders(gql: Gql, selection: string, from: string, cursor?: { page: number; size: number }, to?: string, defaultSize = 10) {
   let page = cursor?.page ?? 1;
-  let size = cursor?.size ?? 10;
+  let size = cursor?.size ?? defaultSize;
   const orders: any[] = [];
   let total: number | null = null;
   for (let reads = 0; reads < 5; reads++) {

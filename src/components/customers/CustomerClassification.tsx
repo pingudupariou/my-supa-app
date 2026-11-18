@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -109,16 +109,28 @@ function CustomerClassification({ orders }: { orders: PipeOrder[] }) {
   const conflicts = assignments.filter(a => a.conflict.length > 0);
   const kept = customers.filter(c => c.channel !== 'A_CLASSER' && !assignments.some(a => a.customer.customer_id === c.customer_id)).length;
   const needsOrders = rules.some(r => r.enabled && ['label','sku','product'].includes(r.field));
+  const [progress, setProgress] = useState<{ read: number; total: number | null } | null>(null);
+  const stopRef = useRef(false);
   const loadRuleOrders = async () => {
-    setBusy(true); setOrdersError(null); setOrdersReady(false);
+    setBusy(true); setOrdersError(null); setOrdersReady(false); stopRef.current = false; setProgress({ read: 0, total: null });
     const collected = new Map<string, PipeOrder>();
+    const withLines = rules.some(r => r.enabled && ['sku','product'].includes(r.field));
     let cursor: { page: number; size: number } | undefined;
+    let retries = 0;
     try {
-      for (let batch = 0; batch < 1000; batch++) {
-        const { data, error } = await supabase.functions.invoke('erplain-sync', { body: { action: 'pipe_orders', from: ordersFrom, to: ordersTo, cursor } });
-        if (error || !['success','partial'].includes(data?.status)) throw new Error(error?.message ?? data?.message ?? 'Lecture Erplain impossible');
+      for (let batch = 0; batch < 2000; batch++) {
+        if (stopRef.current) throw new Error('Chargement arrêté : les règles ne peuvent pas être appliquées sur une lecture partielle.');
+        const { data, error } = await supabase.functions.invoke('erplain-sync', { body: { action: 'pipe_orders', from: ordersFrom, to: ordersTo, cursor, light: true, with_lines: withLines } });
+        const failed = error || !['success','partial'].includes(data?.status);
+        if (failed || data.message) {
+          for (const order of data?.orders ?? []) collected.set(String(order.id), order);
+          if (data?.next) cursor = data.next;
+          if (++retries > 3) throw new Error(error?.message ?? data?.message ?? 'Lecture Erplain impossible');
+          await new Promise(r => setTimeout(r, 1500 * retries)); continue;
+        }
+        retries = 0;
         for (const order of data.orders ?? []) collected.set(String(order.id), order);
-        if (data.message) throw new Error(data.message);
+        setProgress({ read: collected.size, total: data.total ?? null });
         if (data.status === 'success') { setRuleOrders([...collected.values()]); setOrdersReady(true); return; }
         if (!data.next || (cursor && data.next.page <= cursor.page)) throw new Error('Lecture incomplète, réessayez.');
         cursor = data.next;
@@ -167,7 +179,7 @@ function CustomerClassification({ orders }: { orders: PipeOrder[] }) {
       })()}
       </TabsContent>
       <TabsContent value="rules" className="space-y-3"><PipeRulesPanel rules={rules} orders={ordersReady ? ruleOrders : samples} canWrite={canWrite} onReload={reloadRules} error={ruleError} />
-        {needsOrders && <div className="flex flex-wrap items-center gap-2"><Input className="w-40" type="date" aria-label="Début des commandes pour le classement" value={ordersFrom} onChange={e => { setOrdersFrom(e.target.value); setOrdersReady(false); }} /><Input className="w-40" type="date" aria-label="Fin des commandes pour le classement" value={ordersTo} onChange={e => { setOrdersTo(e.target.value); setOrdersReady(false); }} /><Button variant="outline" disabled={busy || !ordersFrom || !ordersTo || ordersFrom > ordersTo} onClick={loadRuleOrders}>{busy ? 'Chargement…' : 'Charger les commandes Erplain'}</Button><span className="text-xs text-muted-foreground">{ordersReady ? `${ruleOrders.length} commandes chargées` : 'Commandes à charger pour les règles BC / produits'}</span></div>}
+        {needsOrders && <div className="flex flex-wrap items-center gap-2"><Input className="w-40" type="date" aria-label="Début des commandes pour le classement" value={ordersFrom} onChange={e => { setOrdersFrom(e.target.value); setOrdersReady(false); }} /><Input className="w-40" type="date" aria-label="Fin des commandes pour le classement" value={ordersTo} onChange={e => { setOrdersTo(e.target.value); setOrdersReady(false); }} /><Button variant="outline" disabled={busy || !ordersFrom || !ordersTo || ordersFrom > ordersTo} onClick={loadRuleOrders}>{busy && progress ? 'Chargement…' : 'Charger les commandes Erplain'}</Button>{busy && progress && <Button variant="ghost" size="sm" onClick={() => { stopRef.current = true; }}>Arrêter</Button>}<span className="text-xs text-muted-foreground">{busy && progress ? `${progress.read}${progress.total != null ? ` / ${progress.total}` : ''} commandes lues…` : ordersReady ? `${ruleOrders.length} commandes chargées` : 'Commandes à charger pour les règles BC / produits'}</span></div>}
         {ordersError && <p role="alert" className="text-sm text-destructive">{ordersError}</p>}
         <div className="flex flex-wrap items-center gap-3"><Button onClick={apply} disabled={!canWrite || busy || !changed.length || (needsOrders && !ordersReady)}>Classer les clients avec mes règles</Button><span className="text-sm text-muted-foreground">{recognized} clients reconnus · {changed.length} changements</span></div>
         <label className="flex items-start gap-2 text-sm"><input type="checkbox" className="mt-1" checked={resetUnmatched} disabled={!canWrite} onChange={e => setResetUnmatched(e.target.checked)} /><span>Repartir de zéro : remettre « À classer » les clients qu'aucune règle ne reconnaît{!resetUnmatched && kept > 0 ? ` (${kept} client(s) gardent aujourd'hui une ancienne catégorie)` : ''}. Vos corrections manuelles sont à refaire ensuite à l'étape 3.</span></label>

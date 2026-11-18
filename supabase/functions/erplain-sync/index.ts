@@ -463,11 +463,13 @@ Deno.serve(async (req) => {
       const gql = makeGql(tk, rootRow?.data?.endpoint ?? DEFAULT_ENDPOINT, deadline, (st) => steps.push(st));
       const base = await ordersWithCustomer(admin, gql, { ...DATASETS[0], sel: "" });
       const custSel = base.sel.replace("customer {", "customer { id");
-      const sel = `id label status dated_at shipping_at shipping_status billing_status payment_status total_without_tax total billed_amount unbilled_amount paid_amount unpaid_amount
+      // light: rule classification only needs label + customer (+ product lines when asked) — far fewer fields, bigger pages.
+      const light = b.light === true;
+      const sel = light ? `id label dated_at ${b.with_lines ? "line_items { id variant { id sku label } }" : ""} ${custSel}` : `id label status dated_at shipping_at shipping_status billing_status payment_status total_without_tax total billed_amount unbilled_amount paid_amount unpaid_amount
         line_items { id type quantity shipped_quantity variant { id sku label } } ${custSel}`;
-      const cursor = b.cursor && Number.isInteger(b.cursor.page) && b.cursor.page > 0 && [1, 2, 5, 10].includes(b.cursor.size) ? b.cursor : undefined;
+      const cursor = b.cursor && Number.isInteger(b.cursor.page) && b.cursor.page > 0 && [1, 2, 5, 10, 25, 50, 100].includes(b.cursor.size) ? b.cursor : undefined;
       let batch;
-      try { batch = await readPipeOrders(gql, sel, from, cursor, to); }
+      try { batch = await readPipeOrders(gql, sel, from, cursor, to, light ? (b.with_lines ? 50 : 100) : 10); }
       catch (e) { return json({ status: "api_error", message: String((e as Error).message).slice(0, 400) }); }
       const { orders, total, next } = batch;
       const customerIds = [...new Set(orders.map((o: any) => o.customer?.id != null ? String(o.customer.id) : null).filter(Boolean))];
