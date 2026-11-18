@@ -111,13 +111,25 @@ export function ErplainActualsImport({ products, years, onApply, onSave, showMan
 
   // Refresh prices/cost of every plan category (and its members) from Erplain sales of the reference year.
   // Members without sales that year keep their previous price and are listed as missing; volumes are untouched.
+  // Re-reads every Erplain-linked plan row (categories and single products) with the current shared
+  // customer classification: past-year volumes per channel + reference-year prices. Current/future years untouched.
   const refreshCategories = (list: Agg[], year: number) => {
     const byKey = new Map(list.map(a => [a.key, a]));
+    const keysOf = (p: Product) => p.erplainMembers?.length ? p.erplainMembers : p.id.startsWith('erplain-') ? [p.id.slice(8)] : [];
     let changed = 0;
     const next = products.map(cat => {
-      if (!cat.erplainMembers?.length) return cat;
-      const present = cat.erplainMembers.map(k => byKey.get(k)).filter((a): a is Agg => soldIn(a, year));
-      if (!present.length) return cat;
+      const keys = keysOf(cat);
+      if (!keys.length) return cat;
+      const aggs = keys.map(k => byKey.get(k)).filter((a): a is Agg => !!a);
+      if (!aggs.length) return cat;
+      const vbc = { B2C: { ...(cat.volumesByChannel?.B2C ?? {}) }, B2B: { ...(cat.volumesByChannel?.B2B ?? {}) }, OEM: { ...(cat.volumesByChannel?.OEM ?? {}) } } as Record<Ch, Record<number, number>>;
+      for (const y of years.filter(y => y < thisYear)) {
+        for (const c of CHS) {
+          if (c === 'B2B' && cat.b2bClients?.enabled) continue;
+          vbc[c][y] = aggs.reduce((s, a) => s + (a.byYear[y]?.[c].qty ?? 0), 0);
+        }
+      }
+      const present = aggs.filter(a => soldIn(a, year));
       const sum = { B2C: { qty: 0, ca: 0 }, B2B: { qty: 0, ca: 0 }, OEM: { qty: 0, ca: 0 } } as Record<Ch, { qty: number; ca: number }>;
       let cogs = 0, cq = 0;
       for (const a of present) {
@@ -129,6 +141,7 @@ export function ErplainActualsImport({ products, years, onApply, onSave, showMan
       changed++;
       return {
         ...cat,
+        volumesByChannel: vbc,
         priceHT: b2c ? round(b2c) : cat.priceHT, priceTTC_B2C: b2c ? round(b2c * 1.2) : cat.priceTTC_B2C,
         priceHT_B2B: b2b ? round(b2b) : cat.priceHT_B2B, priceHT_OEM: oem ? round(oem) : cat.priceHT_OEM,
         unitCost: cq > 0 ? round(cogs / cq) : cat.unitCost,
@@ -140,8 +153,9 @@ export function ErplainActualsImport({ products, years, onApply, onSave, showMan
         }),
       };
     });
-    if (changed) { onApply(next); toast.success(`Prix de ${changed} catégorie(s) mis à jour avec les ventes ${year}`); }
+    if (changed) { onApply(next); toast.success(`${changed} ligne(s) du plan mises à jour selon le classement clients actuel (volumes des années passées, prix ${year})`); }
   };
+
 
   const apply = (group?: string, keys: string[] = [...sel], categoryId?: string) => {
     try { applyUnsafe(group, keys, categoryId); }
