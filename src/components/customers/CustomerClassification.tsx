@@ -102,8 +102,12 @@ function CustomerClassification({ orders }: { orders: PipeOrder[] }) {
   const [ordersError, setOrdersError] = useState<string | null>(null);
   const [ordersFrom, setOrdersFrom] = useState('2000-01-01');
   const [ordersTo, setOrdersTo] = useState(() => new Date().toISOString().slice(0,10));
-  const assignments = useMemo(() => customerRuleAssignments(customers, ordersReady ? ruleOrders : orders, rules), [customers, ordersReady, ruleOrders, orders, rules]);
+  const [resetUnmatched, setResetUnmatched] = useState(false);
+  const assignments = useMemo(() => customerRuleAssignments(customers, ordersReady ? ruleOrders : orders, rules, { resetUnmatched }), [customers, ordersReady, ruleOrders, orders, rules, resetUnmatched]);
   const changed = assignments.filter(a => a.customer.channel !== a.channel);
+  const recognized = assignments.filter(a => a.channel !== 'A_CLASSER').length;
+  const conflicts = assignments.filter(a => a.conflict.length > 0);
+  const kept = customers.filter(c => c.channel !== 'A_CLASSER' && !assignments.some(a => a.customer.customer_id === c.customer_id)).length;
   const needsOrders = rules.some(r => r.enabled && ['label','sku','product'].includes(r.field));
   const loadRuleOrders = async () => {
     setBusy(true); setOrdersError(null); setOrdersReady(false);
@@ -127,7 +131,7 @@ function CustomerClassification({ orders }: { orders: PipeOrder[] }) {
     if (!changed.length || (needsOrders && !ordersReady) || !window.confirm(`Reclasser ${changed.length} client(s) avec toutes les règles actives dans tous les onglets ?`)) return;
     setBusy(true);
     try {
-      for (const channel of ['B2C','B2B','OEM']) {
+      for (const channel of ['B2C','B2B','OEM','A_CLASSER']) {
         const ids = changed.filter(a => a.channel === channel).map(a => a.customer.customer_id);
         for (let i = 0; i < ids.length; i += 500) {
           const { error } = await supabase.rpc('assign_customer_channels', { _ids: ids.slice(i,i+500), _channel: channel });
@@ -165,9 +169,11 @@ function CustomerClassification({ orders }: { orders: PipeOrder[] }) {
       <TabsContent value="rules" className="space-y-3"><PipeRulesPanel rules={rules} orders={ordersReady ? ruleOrders : samples} canWrite={canWrite} onReload={reloadRules} error={ruleError} />
         {needsOrders && <div className="flex flex-wrap items-center gap-2"><Input className="w-40" type="date" aria-label="Début des commandes pour le classement" value={ordersFrom} onChange={e => { setOrdersFrom(e.target.value); setOrdersReady(false); }} /><Input className="w-40" type="date" aria-label="Fin des commandes pour le classement" value={ordersTo} onChange={e => { setOrdersTo(e.target.value); setOrdersReady(false); }} /><Button variant="outline" disabled={busy || !ordersFrom || !ordersTo || ordersFrom > ordersTo} onClick={loadRuleOrders}>{busy ? 'Chargement…' : 'Charger les commandes Erplain'}</Button><span className="text-xs text-muted-foreground">{ordersReady ? `${ruleOrders.length} commandes chargées` : 'Commandes à charger pour les règles BC / produits'}</span></div>}
         {ordersError && <p role="alert" className="text-sm text-destructive">{ordersError}</p>}
-        <div className="flex flex-wrap items-center gap-3"><Button onClick={apply} disabled={!canWrite || busy || !changed.length || (needsOrders && !ordersReady)}>Classer les clients avec mes règles</Button><span className="text-sm text-muted-foreground">{assignments.length} clients reconnus · {changed.length} changements</span></div>
-        <div className="max-h-64 overflow-auto"><table className="w-full text-sm"><thead><tr><th className="p-2 text-left">Client</th><th className="p-2 text-left">Actuel</th><th className="p-2 text-left">Selon les règles</th><th className="p-2 text-left">Règle retenue</th></tr></thead><tbody>{changed.slice(0,50).map(a => <tr className="border-b" key={a.customer.customer_id}><td className="p-2">{a.customer.customer_name || a.customer.customer_id}</td><td className="p-2">{CHANNEL_LABELS[a.customer.channel]}</td><td className="p-2">{a.channel}</td><td className="p-2">{a.rule}</td></tr>)}</tbody></table></div>
-        <p className="text-xs text-muted-foreground">Priorité la plus basse en premier · Un seul canal par client · Clients non reconnus conservés · Corrections manuelles dans Clients Erplain</p>
+        <div className="flex flex-wrap items-center gap-3"><Button onClick={apply} disabled={!canWrite || busy || !changed.length || (needsOrders && !ordersReady)}>Classer les clients avec mes règles</Button><span className="text-sm text-muted-foreground">{recognized} clients reconnus · {changed.length} changements</span></div>
+        <label className="flex items-start gap-2 text-sm"><input type="checkbox" className="mt-1" checked={resetUnmatched} disabled={!canWrite} onChange={e => setResetUnmatched(e.target.checked)} /><span>Repartir de zéro : remettre « À classer » les clients qu'aucune règle ne reconnaît{!resetUnmatched && kept > 0 ? ` (${kept} client(s) gardent aujourd'hui une ancienne catégorie)` : ''}. Vos corrections manuelles sont à refaire ensuite à l'étape 3.</span></label>
+        {conflicts.length > 0 && <p className="text-sm text-destructive">{conflicts.length} client(s) correspondent à plusieurs règles de canaux différents : la règle de priorité la plus basse l'emporte. Ex. : {conflicts.slice(0,3).map(a => `${a.customer.customer_name || a.customer.customer_id} (${a.channel} vs ${a.conflict.join('/')})`).join(', ')}. Utilisez « Commence par » plutôt que « Contient » pour les références (ex. SO, SI).</p>}
+        <div className="max-h-64 overflow-auto"><table className="w-full text-sm"><thead><tr><th className="p-2 text-left">Client</th><th className="p-2 text-left">Actuel</th><th className="p-2 text-left">Selon les règles</th><th className="p-2 text-left">Règle retenue</th></tr></thead><tbody>{changed.slice(0,50).map(a => <tr className="border-b" key={a.customer.customer_id}><td className="p-2">{a.customer.customer_name || a.customer.customer_id}</td><td className="p-2">{CHANNEL_LABELS[a.customer.channel]}</td><td className="p-2">{a.channel === 'A_CLASSER' ? 'À classer' : a.channel}</td><td className="p-2">{a.rule}</td></tr>)}</tbody></table></div>
+        <p className="text-xs text-muted-foreground">Priorité la plus basse en premier · Un seul canal par client · {resetUnmatched ? 'Clients non reconnus remis à classer' : 'Clients non reconnus conservés'} · Corrections manuelles dans Clients Erplain</p>
       </TabsContent>
     </Tabs>
   </div>;

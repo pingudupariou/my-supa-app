@@ -14,3 +14,11 @@ it('matches client names without loaded orders and leaves unmatched customers un
   expect(customerRuleAssignments(customers, [], [rule({ value: 'Absent' })])).toEqual([]);
   expect(customers[0].channel).toBe('OEM');
 });
+import { customerRuleAssignments as cra } from './customerRules';
+describe('old categories', () => {
+  const rule = { id: 'r', name: 'B2B SO', field: 'label', operator: 'starts_with', value: 'SO', channel: 'b2b', priority: 1, enabled: true } as never;
+  const customers = [{ customer_id: '1', customer_name: 'A', channel: 'OEM' }, { customer_id: '2', customer_name: 'B', channel: 'B2B' }] as never;
+  const orders = [{ id: 'o', customer_id: '2', customer: 'B', label: 'SO2600027', lines: [] }] as never;
+  it('keeps unmatched old category by default', () => { expect(cra(customers, orders, [rule]).map(a => a.customer.customer_id)).toEqual(['2']); });
+  it('resets unmatched old category when asked', () => { expect(cra(customers, orders, [rule], { resetUnmatched: true }).find(a => a.customer.customer_id === '1')?.channel).toBe('A_CLASSER'); });
+});
