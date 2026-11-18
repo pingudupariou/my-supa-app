@@ -1,3 +1,4 @@
+import type React from 'react';
 import type { ProductScenario } from '@/engine/productScenarios';
 import { createContext, useContext, useState, useMemo, ReactNode, useCallback, useEffect, useRef } from 'react';
 import { Product, Role, Expense, FundingRound, ProductPlanCategory } from '@/engine/types';
@@ -373,7 +374,10 @@ function getDefaultState(): FinancialState {
   };
 }
 
-const FinancialContext = createContext<FinancialContextType | undefined>(undefined);
+// Keep one context instance across hot reloads so providers and consumers always match.
+const contextStore = globalThis as unknown as { __financialContext?: React.Context<FinancialContextType | undefined> };
+const FinancialContext = contextStore.__financialContext ?? createContext<FinancialContextType | undefined>(undefined);
+contextStore.__financialContext = FinancialContext;
 
 export function FinancialProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
