@@ -51,6 +51,8 @@ export interface Product {
   productStatus?: 'standby' | 'validated'; // Statut du produit
   erplainMembers?: string[];  // Variantes Erplain regroupées dans cette catégorie
   erplainMemberProducts?: Product[]; // Copies des membres pour leurs noms et calculs après sauvegarde
+  pricesByYear?: Record<number, Partial<Record<ProductCategory, number>>>; // Prix HT par canal et année (scénario appliqué) ; sinon prix de base
+  unitCostByYear?: Record<number, number>; // Coût de revient par année (scénario appliqué) ; sinon unitCost
   b2bClients?: B2BClientSplit; // Répartition facultative du B2B par client (lignes liées à Erplain)
 }
 

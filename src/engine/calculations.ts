@@ -27,10 +27,16 @@ import {
  * Calcule le CA pour un produit donné sur une année
  */
 /** Prix HT par canal : prix B2B/OEM saisis, sinon prix B2C (même règle partout). */
-export function channelPrices(p: Product): { B2C: number; B2B: number; OEM: number } {
+export function channelPrices(p: Product, year?: number): { B2C: number; B2B: number; OEM: number } {
   const b2c = p.priceHT || 0;
-  return { B2C: b2c, B2B: p.priceHT_B2B || b2c, OEM: p.priceHT_OEM || b2c };
+  const base = { B2C: b2c, B2B: p.priceHT_B2B || b2c, OEM: p.priceHT_OEM || b2c };
+  const o = year !== undefined ? p.pricesByYear?.[year] : undefined;
+  if (!o) return base;
+  return { B2C: o.B2C ?? base.B2C, B2B: o.B2B ?? base.B2B, OEM: o.OEM ?? base.OEM };
 }
+
+/** Coût de revient d'une année : valeur de l'année si définie, sinon coût de base. */
+export const unitCostAt = (p: Product, year: number): number => p.unitCostByYear?.[year] ?? p.unitCost;
 
 /** Volumes par canal d'une année (0 avant le lancement). Sans détail canal : tout en B2C. */
 export function channelVolumes(p: Product, year: number): { B2C: number; B2B: number; OEM: number } {
@@ -60,7 +66,7 @@ export function calculateProductRevenue(
   priceMultiplier: number = 1
 ): number {
   const v = channelVolumes(product, year);
-  const pr = channelPrices(product);
+  const pr = channelPrices(product, year);
   return (v.B2C * pr.B2C + v.B2B * pr.B2B + v.OEM * pr.OEM) * volumeMultiplier * priceMultiplier;
 }
 
@@ -109,7 +115,7 @@ export function calculateCOGS(
   return products.reduce((total, product) => {
     if (product.launchYear <= year) {
       const volumes = (product.volumesByYear[year] || 0) * volumeMultiplier;
-      return total + volumes * product.unitCost;
+      return total + volumes * unitCostAt(product, year);
     }
     return total;
   }, 0);

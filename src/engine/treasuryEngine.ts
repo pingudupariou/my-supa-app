@@ -96,27 +96,28 @@ function calculateRevenueForYear(
       const coef_oem = product.coef_oem || 1.4;
 
       void coef_shop; void coef_dist; void coef_oem;
-      const priceMarqueB2B_HT = product.priceHT_B2B || priceHT_B2C;
-      const priceOEM_HT = product.priceHT_OEM || priceHT_B2C;
+      const yp = product.pricesByYear?.[year];
+      const priceMarqueB2B_HT = yp?.B2B ?? (product.priceHT_B2B || priceHT_B2C);
+      const priceOEM_HT = yp?.OEM ?? (product.priceHT_OEM || priceHT_B2C);
 
       // B2C
       const volB2C = Math.round((volumesByChannel.B2C[year] || 0) * (1 + scenarioConfig.volumeAdjustment));
-      revenue += volB2C * priceHT_B2C * (1 + scenarioConfig.priceAdjustment);
-      cogs += volB2C * product.unitCost;
+      revenue += volB2C * (yp?.B2C ?? priceHT_B2C) * (1 + scenarioConfig.priceAdjustment);
+      cogs += volB2C * (product.unitCostByYear?.[year] ?? product.unitCost);
 
       // B2B
       const volB2B = Math.round((volumesByChannel.B2B[year] || 0) * (1 + scenarioConfig.volumeAdjustment));
       revenue += volB2B * priceMarqueB2B_HT * (1 + scenarioConfig.priceAdjustment);
-      cogs += volB2B * product.unitCost;
+      cogs += volB2B * (product.unitCostByYear?.[year] ?? product.unitCost);
 
       // OEM
       const volOEM = Math.round((volumesByChannel.OEM[year] || 0) * (1 + scenarioConfig.volumeAdjustment));
       revenue += volOEM * priceOEM_HT * (1 + scenarioConfig.priceAdjustment);
-      cogs += volOEM * product.unitCost;
+      cogs += volOEM * (product.unitCostByYear?.[year] ?? product.unitCost);
     } else if (product.volumesByYear[year]) {
       const volume = Math.round(product.volumesByYear[year] * (1 + scenarioConfig.volumeAdjustment));
       revenue += volume * product.priceHT * (1 + scenarioConfig.priceAdjustment);
-      cogs += volume * product.unitCost;
+      cogs += volume * (product.unitCostByYear?.[year] ?? product.unitCost);
     }
   });
 

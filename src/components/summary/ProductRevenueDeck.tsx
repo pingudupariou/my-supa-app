@@ -16,8 +16,8 @@ export function ProductRevenueDeck({ products, years, volumeAdjustment, priceAdj
   const { options, exporting } = useActiveSummaryExport();
   // Match the plan's per-channel rounding and active scenario, not cash receipts.
   const rows = products.map(product => {
-    const prices = channelPrices(product);
     const amounts = years.map(year => {
+      const prices = channelPrices(product, year);
       const volumes = channelVolumes(product, year);
       return (['B2C', 'B2B', 'OEM'] as const).reduce((sum, channel) =>
         sum + Math.round(volumes[channel] * (1 + volumeAdjustment)) * prices[channel] * (1 + priceAdjustment), 0);

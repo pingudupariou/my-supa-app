@@ -14,6 +14,7 @@ import { ProductRoadmap } from '@/components/product/ProductRoadmap';
 import { GlobalRevenueEditor, calculateGlobalRevenue } from '@/components/product/GlobalRevenueEditor';
 import { ClientRevenueEditor } from '@/components/product/ClientRevenueEditor';
 import { ErplainActualsImport } from '@/components/product/ErplainActualsImport';
+import { ProductScenarios } from '@/components/product/ProductScenarios';
 import { CurrentYearProjection } from '@/components/product/CurrentYearProjection';
 import { PageExportPDF, ExportableSection } from '@/components/export/PageExportPDF';
 import { ReadOnlyWrapper } from '@/components/auth/ReadOnlyWrapper';
@@ -139,6 +140,7 @@ export function ProductPlanPage() {
         ]
       : [{ value: 'entry', label: state.revenueMode === 'by-client' ? 'CA par client' : 'CA global par canal', help: 'Saisie du chiffre d’affaires', icon: Target }]),
     { value: 'results', label: 'Résultats', help: 'CA, marge, transport', icon: PieChart },
+    ...(byProduct ? [{ value: 'scenarios', label: 'Scénarios', help: 'Prix, coûts, comparaison', icon: Layers }] : []),
     { value: 'roadmap', label: 'Roadmap', help: 'Facultatif', icon: Map, optional: true },
   ];
 
@@ -438,6 +440,12 @@ export function ProductPlanPage() {
             </div>
           )}
         </TabsContent>
+
+        {byProduct && (
+          <TabsContent value="scenarios">
+            <ProductScenarios years={YEARS} />
+          </TabsContent>
+        )}
 
         <TabsContent value="roadmap">
           <ProductRoadmap

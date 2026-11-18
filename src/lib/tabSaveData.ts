@@ -1,5 +1,5 @@
 export const TAB_FIELDS = {
-  'product-plan': ['products', 'productCategories', 'revenueMode', 'globalRevenueConfig', 'clientRevenueConfig', 'roadmapBlocks', 'transportConfig'],
+  'product-plan': ['products', 'productCategories', 'revenueMode', 'globalRevenueConfig', 'clientRevenueConfig', 'roadmapBlocks', 'transportConfig', 'productScenarios'],
   charges: ['expenses', 'opexMode', 'simpleOpexConfig'],
   organisation: ['roles', 'hiringSimulation'],
   previsionnel: ['monthlyTreasuryConfig', 'incomeStatementConfig'],

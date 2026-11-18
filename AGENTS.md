@@ -29,3 +29,4 @@
 - CRM links to Erplain are explicit IDs, never guessed names; linked channels use the shared assignment and unlinked clients have a dedicated channel, not a category-name inference — avoids accidental client merges.
 - Customer linkage pickers render bounded search results only while open, never a full Erplain option list per CRM row — prevents large customer lists from freezing the classification dialog.
 - CRM records link to Erplain customers by explicit ID only (unique per user, enforced by index); name matches are suggestions requiring confirmation, and linked records take the Erplain classification — prevents duplicate customers and divergent channels.
+- Product-plan scenarios (engine/productScenarios.ts) store only overrides vs the plan (per-year prices/costs, volume %, transport %); applying writes Product.pricesByYear/unitCostByYear read by channelPrices(p, year)/unitCostAt — one price source for all tabs.

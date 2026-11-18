@@ -1,7 +1,8 @@
+import type { ProductScenario } from '@/engine/productScenarios';
 import { createContext, useContext, useState, useMemo, ReactNode, useCallback, useEffect, useRef } from 'react';
 import { Product, Role, Expense, FundingRound, ProductPlanCategory } from '@/engine/types';
 import { defaultProducts, defaultRoles, defaultExpenses, defaultFundingRounds } from '@/engine/defaults';
-import { syncProductVolumes, calculateTotalRevenue, calculateCOGS, calculatePayroll, calculateHeadcount, calculateTotalOpex, calculateTotalVolumes, calculateDepreciation } from '@/engine/calculations';
+import { syncProductVolumes, channelPrices, unitCostAt, calculateTotalRevenue, calculateCOGS, calculatePayroll, calculateHeadcount, calculateTotalOpex, calculateTotalVolumes, calculateDepreciation } from '@/engine/calculations';
 import { calculateTreasuryProjection, TreasuryProjection } from '@/engine/treasuryEngine';
 import { calculateMonthlyTreasuryProjection, MonthlyTreasuryProjection, getDefaultMonthlyTreasuryConfig, MonthlyTreasuryConfig, LoanConfig } from '@/engine/monthlyTreasuryEngine';
 import { calculateCapexByYear } from '@/engine/fundingNeedsCalculator';
@@ -206,6 +207,7 @@ interface FinancialState {
   incomeStatementConfig: IncomeStatementConfig;
   financingOptions: FinancingOptions;
   bankLoans: LoanConfig[];
+  productScenarios?: ProductScenario[];
 }
 
 export interface FinancingOptions { equity: boolean; bankLoan: boolean }
@@ -254,6 +256,7 @@ interface FinancialContextType {
   updateIncomeStatementConfig: (config: Partial<IncomeStatementConfig>) => void;
   updateFinancingOptions: (options: Partial<FinancingOptions>) => void;
   updateBankLoans: (loans: LoanConfig[]) => void;
+  updateProductScenarios: (scenarios: ProductScenario[]) => void;
   updateProductCategories: (categories: ProductPlanCategory[]) => void;
   updateTransportConfig: (mode: RevenueMode, config: Partial<TransportModeConfig>) => void;
   applyTabData: (partial: Partial<FinancialState>) => void;
@@ -478,6 +481,7 @@ export function FinancialProvider({ children }: { children: ReactNode }) {
   const updateHiringSimulation = useCallback((config: Partial<HiringSimulationConfig>) => { setState(prev => ({ ...prev, hiringSimulation: { ...prev.hiringSimulation, ...config }, hasUnsavedChanges: true })); }, []);
   const updateFundingPlan = useCallback((config: Partial<FundingPlanConfig>) => { setState(prev => ({ ...prev, fundingPlan: { ...prev.fundingPlan, ...config }, hasUnsavedChanges: true })); }, []);
   const updateFinancingOptions = useCallback((options: Partial<FinancingOptions>) => { setState(prev => ({ ...prev, financingOptions: { ...(prev.financingOptions ?? { equity: true, bankLoan: false }), ...options }, hasUnsavedChanges: true })); }, []);
+  const updateProductScenarios = useCallback((productScenarios: ProductScenario[]) => { setState(prev => ({ ...prev, productScenarios, hasUnsavedChanges: true })); }, []);
   const updateBankLoans = useCallback((bankLoans: LoanConfig[]) => { setState(prev => ({ ...prev, bankLoans, hasUnsavedChanges: true })); }, []);
   const updateIncomeStatementConfig = useCallback((config: Partial<IncomeStatementConfig>) => { setState(prev => ({ ...prev, incomeStatementConfig: { ...prev.incomeStatementConfig, ...config }, hasUnsavedChanges: true })); }, []);
   const updateProductCategories = useCallback((productCategories: ProductPlanCategory[]) => { setState(prev => ({ ...prev, productCategories, hasUnsavedChanges: true })); }, []);
@@ -574,14 +578,13 @@ export function FinancialProvider({ children }: { children: ReactNode }) {
           const volB2C = Math.round((p.volumesByChannel.B2C[year] || 0) * (1 + config.volumeAdjustment));
           const volB2B = Math.round((p.volumesByChannel.B2B[year] || 0) * (1 + config.volumeAdjustment));
           const volOEM = Math.round((p.volumesByChannel.OEM[year] || 0) * (1 + config.volumeAdjustment));
-          revenue += volB2C * p.priceHT * (1 + config.priceAdjustment)
-                   + volB2B * (p.priceHT_B2B || p.priceHT) * (1 + config.priceAdjustment)
-                   + volOEM * (p.priceHT_OEM || p.priceHT) * (1 + config.priceAdjustment);
-          cogs += (volB2C + volB2B + volOEM) * p.unitCost;
+          const pr = channelPrices(p, year);
+          revenue += (volB2C * pr.B2C + volB2B * pr.B2B + volOEM * pr.OEM) * (1 + config.priceAdjustment);
+          cogs += (volB2C + volB2B + volOEM) * unitCostAt(p, year);
         } else {
           const vol = Math.round((p.volumesByYear[year] || 0) * (1 + config.volumeAdjustment));
-          revenue += vol * p.priceHT * (1 + config.priceAdjustment);
-          cogs += vol * p.unitCost;
+          revenue += vol * channelPrices(p, year).B2C * (1 + config.priceAdjustment);
+          cogs += vol * unitCostAt(p, year);
         }
       });
       return { year, revenue, cogs };
@@ -726,6 +729,7 @@ export function FinancialProvider({ children }: { children: ReactNode }) {
       updateIncomeStatementConfig,
       updateFinancingOptions,
       updateBankLoans,
+      updateProductScenarios,
       updateProductCategories,
       updateTransportConfig,
       applyTabData,
