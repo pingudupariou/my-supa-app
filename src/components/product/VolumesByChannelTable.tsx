@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Product } from '@/engine/types';
+import { useChannelLabels } from '@/components/customers/useChannelLabels';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -40,6 +41,7 @@ export function VolumesByChannelTable({ products, years, onChannelVolumeChange, 
   const [growthMode, setGrowthMode] = useState<'recalc' | 'fill'>('recalc');
   const filtered = products.filter(p => p.name.toLocaleLowerCase('fr').includes(search.toLocaleLowerCase('fr')));
   const selected = filtered.find(p => p.id === selectedId) ?? filtered[0];
+  const { name: chName } = useChannelLabels();
   const price = (p: Product, ch: typeof CHANNELS[number]) => ch === 'B2C' ? p.priceHT : ch === 'B2B' ? (p.priceHT_B2B || p.priceHT) : (p.priceHT_OEM || p.priceHT);
   const volume = (p: Product, year: number, ch: typeof CHANNELS[number]) => year < p.launchYear ? 0 : Math.round((p.volumesByChannel?.[ch]?.[year] || 0) * volAdj);
   const revenue = (p: Product, year: number) => CHANNELS.reduce((sum, ch) => sum + volume(p, year, ch) * price(p, ch) * priceAdj, 0);
@@ -159,7 +161,7 @@ export function VolumesByChannelTable({ products, years, onChannelVolumeChange, 
               <TableHeader><TableRow className="bg-muted/50"><TableHead className="sticky left-0 bg-muted z-10 w-36">Canal / prix HT</TableHead>{years.map(y => <TableHead key={y} className="text-center min-w-[104px]">{y}</TableHead>)}</TableRow></TableHeader>
               <TableBody>
                 {CHANNELS.map(ch => <TableRow key={ch}>
-                  <TableCell className="sticky left-0 bg-background z-10"><div className={`border-l-2 pl-3 ${CHANNEL_STYLE[ch]}`}><span className="text-sm font-semibold">{ch}</span><span className="block text-xs text-muted-foreground mt-1">{formatCurrency(price(selected, ch))}</span></div></TableCell>
+                  <TableCell className="sticky left-0 bg-background z-10"><div className={`border-l-2 pl-3 ${CHANNEL_STYLE[ch]}`}><span className="text-sm font-semibold">{chName(ch)}</span><span className="block text-xs text-muted-foreground mt-1">{formatCurrency(price(selected, ch))}</span></div></TableCell>
                   {years.map(year => <TableCell key={year} className="px-2 py-4 text-center">
                     {year >= selected.launchYear ? byClient(selected, ch) ? <div className="text-base font-medium tabular-nums" aria-label={`${selected.name} ${ch} ${year}`}>{number(selected.volumesByChannel?.B2B?.[year] || 0)}<span className="block text-[10px] text-muted-foreground">par client</span></div> : <Input aria-label={`${selected.name} ${ch} ${year}`} type="number" min={0} step={1} inputMode="numeric" value={selected.volumesByChannel?.[ch]?.[year] || 0} data-volume-cell onKeyDown={nextOnEnter} onFocus={e => e.target.select()} onChange={e => onChannelVolumeChange(selected.id, year, ch, Number(e.target.value))} className="h-11 w-full min-w-[80px] max-w-[120px] mx-auto text-center text-base font-medium tabular-nums focus-visible:ring-accent" /> : <span className="text-xs text-muted-foreground">Avant lancement</span>}
                   </TableCell>)}
@@ -182,7 +184,7 @@ export function VolumesByChannelTable({ products, years, onChannelVolumeChange, 
         </ol>
         <div className="overflow-x-auto border-y">
           <Table className="min-w-[700px]">
-            <TableHeader><TableRow><TableHead className="min-w-[200px]">Produit / catégorie</TableHead>{CHANNELS.map(ch => <TableHead key={ch} className="text-center">{ch} / an (%)</TableHead>)}<TableHead className="min-w-[145px]">Année de départ</TableHead></TableRow></TableHeader>
+            <TableHeader><TableRow><TableHead className="min-w-[200px]">Produit / catégorie</TableHead>{CHANNELS.map(ch => <TableHead key={ch} className="text-center">{chName(ch)} / an (%)</TableHead>)}<TableHead className="min-w-[145px]">Année de départ</TableHead></TableRow></TableHeader>
             <TableBody>{products.map(p => <TableRow key={p.id} className={touched.has(p.id) ? 'bg-primary/5' : ''}>
               <TableCell className="font-medium max-w-[260px] break-words">{p.name}{touched.has(p.id) && <span className="block text-[10px] font-normal text-primary">sera recalculé</span>}</TableCell>
               {CHANNELS.map(ch => byClient(p, ch) ? <TableCell key={ch} className="px-2 text-center text-xs text-muted-foreground">Par client<span className="block text-[10px]">(bloc B2B par client)</span></TableCell> : <TableCell key={ch} className="px-2"><div className="relative"><Input aria-label={`${p.name} ${ch} / an`} type="number" value={growthRates[p.id]?.[ch] ?? 0} onChange={e => setGrowthRates(prev => ({ ...prev, [p.id]: { ...prev[p.id], [ch]: Number(e.target.value) } }))} step={1} className="min-w-[90px] pr-7 text-center tabular-nums" /><span className="absolute right-3 top-2 text-muted-foreground">%</span></div></TableCell>)}

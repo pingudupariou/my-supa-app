@@ -1310,6 +1310,24 @@ export type Database = {
           },
         ]
       }
+      customer_channel_labels: {
+        Row: {
+          code: string
+          label: string
+          updated_at: string
+        }
+        Insert: {
+          code: string
+          label: string
+          updated_at?: string
+        }
+        Update: {
+          code?: string
+          label?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       customer_interactions: {
         Row: {
           business_entity_id: string | null

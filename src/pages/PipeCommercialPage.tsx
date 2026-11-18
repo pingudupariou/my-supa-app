@@ -1,3 +1,4 @@
+import { liveChannelMap, useChannelLabels } from '@/components/customers/useChannelLabels';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { CustomerClassificationButton } from '@/components/customers/CustomerClassification';
@@ -21,9 +22,10 @@ const LABELS: Record<string, string> = {
   active: 'En cours', pending_validation: 'À valider', completed: 'Terminée', cancelled: 'Annulée', draft: 'Brouillon', archived: 'Archivée',
   not_billed: 'Non facturé', partially_billed: 'Facturé en partie', billed: 'Facturé', fully_billed: 'Facturé',
   not_paid: 'Non payé', unpaid: 'Non payé', partially_paid: 'Payé en partie', paid: 'Payé', fully_paid: 'Payé',
-  b2b: 'B2B', oem: 'OEM', b2c: 'B2C / à classer', '—': 'Non renseigné',
+  '—': 'Non renseigné',
 };
-const lab = (k: string) => LABELS[k] ?? k;
+const CH_NAMES = liveChannelMap({}, true, { B2C: ' / à classer' });
+const lab = (k: string) => CH_NAMES[k] ?? LABELS[k] ?? k;
 const iso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
 function Chips({ title, items, selected, onChange }: { title: string; items: [string, number][]; selected: string[]; onChange: (v: string[]) => void }) {
@@ -42,6 +44,7 @@ function Chips({ title, items, selected, onChange }: { title: string; items: [st
 }
 
 export function PipeCommercialPage() {
+  useChannelLabels();
   const { getTabPermission } = useAuth();
   const canWrite = getTabPermission('pipe-commercial') === 'write';
   const { customers, reload: reloadCustomers, error: customerError } = useCustomerClassification();

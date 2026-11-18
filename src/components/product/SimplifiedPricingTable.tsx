@@ -1,3 +1,4 @@
+import { useChannelLabels } from '@/components/customers/useChannelLabels';
 import { useState } from 'react';
 import { Product, ProductPlanCategory } from '@/engine/types';
 import { SectionCard } from '@/components/ui/KPICard';
@@ -23,6 +24,7 @@ interface SimplifiedPricingTableProps {
 }
 
 export function SimplifiedPricingTable({ products, categories, onUpdateProduct, onAddProduct, onRemoveProduct, years }: SimplifiedPricingTableProps) {
+  const { name: chName } = useChannelLabels();
   const [expandedComments, setExpandedComments] = useState<Set<string>>(new Set());
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
 
@@ -280,10 +282,10 @@ export function SimplifiedPricingTable({ products, categories, onUpdateProduct, 
               <TableHead className="text-xs font-semibold text-center">Statut</TableHead>
               <TableHead className="text-xs font-semibold text-center">Catégorie</TableHead>
               <TableHead className="text-xs font-semibold text-center">Lancement</TableHead>
-              <TableHead className="text-xs font-semibold text-right">TTC B2C</TableHead>
-              <TableHead className="text-xs font-semibold text-right">HT B2C</TableHead>
-              <TableHead className="text-xs font-semibold text-right">HT B2B</TableHead>
-              <TableHead className="text-xs font-semibold text-right">HT OEM</TableHead>
+              <TableHead className="text-xs font-semibold text-right">TTC {chName('B2C')}</TableHead>
+              <TableHead className="text-xs font-semibold text-right">HT {chName('B2C')}</TableHead>
+              <TableHead className="text-xs font-semibold text-right">HT {chName('B2B')}</TableHead>
+              <TableHead className="text-xs font-semibold text-right">HT {chName('OEM')}</TableHead>
               <TableHead className="text-xs font-semibold text-right">Coût Unit.</TableHead>
               <TableHead className="text-xs font-semibold text-right">Marge B2C</TableHead>
               <TableHead className="text-xs font-semibold text-right">Marge B2B</TableHead>

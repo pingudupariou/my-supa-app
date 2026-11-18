@@ -1,3 +1,4 @@
+import { channelName, useChannelLabels } from '@/components/customers/useChannelLabels';
 import { useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
@@ -14,6 +15,7 @@ import type { PipeOrder } from './pipeModel';
 
 const blank: ChannelRule = { id: '', name: '', field: 'label', operator: 'contains', value: '', channel: 'b2b', priority: 100, enabled: true };
 export function PipeRulesPanel({ rules, orders, canWrite, onReload, error }: { rules: ChannelRule[]; orders: PipeOrder[]; canWrite: boolean; onReload: () => Promise<void>; error: string | null }) {
+  useChannelLabels();
   const [expanded, setExpanded] = useState(false);
   const [draft, setDraft] = useState<ChannelRule | null>(null);
   const [busy, setBusy] = useState(false);
@@ -44,7 +46,7 @@ export function PipeRulesPanel({ rules, orders, canWrite, onReload, error }: { r
       {!rules.length && <p className="text-sm text-muted-foreground">Aucune règle enregistrée.</p>}
       {rules.map(r => <div key={r.id} className="flex flex-wrap items-center gap-3 border-b border-border py-2 text-sm">
         <Switch aria-label={`Activer ${r.name}`} checked={r.enabled} disabled={!canWrite || busy} onCheckedChange={enabled => change(() => supabase.from('pipe_channel_rules').update({ enabled }).eq('id', r.id))} />
-        <span className="text-muted-foreground">#{r.priority}</span><div className="min-w-0 flex-1"><strong>{r.name}</strong><p className="break-words text-xs text-muted-foreground">{ruleFields[r.field]} · {ruleOperators[r.operator]} « {r.value} » → {r.channel.toUpperCase()} · {orders.filter(o => matchesRule(o, r)).length} correspondances sur la période</p></div>
+        <span className="text-muted-foreground">#{r.priority}</span><div className="min-w-0 flex-1"><strong>{r.name}</strong><p className="break-words text-xs text-muted-foreground">{ruleFields[r.field]} · {ruleOperators[r.operator]} « {r.value} » → {channelName(r.channel)} · {orders.filter(o => matchesRule(o, r)).length} correspondances sur la période</p></div>
         {canWrite && <><Button variant="ghost" size="icon" aria-label={`Modifier ${r.name}`} disabled={busy} onClick={() => { setFormError(''); setDraft({ ...r }); }}><Pencil className="h-4 w-4" /></Button><Button variant="ghost" size="icon" aria-label={`Supprimer ${r.name}`} disabled={busy} onClick={() => { if (window.confirm(`Supprimer la règle « ${r.name} » ?`)) change(() => supabase.from('pipe_channel_rules').delete().eq('id', r.id)); }}><Trash2 className="h-4 w-4" /></Button></>}
       </div>)}
     </div>}
@@ -54,8 +56,8 @@ export function PipeRulesPanel({ rules, orders, canWrite, onReload, error }: { r
         <div><Label>Champ Erplain</Label><Select value={draft.field} onValueChange={field => setDraft({ ...draft, field: field as ChannelRule['field'] })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{Object.entries(ruleFields).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}</SelectContent></Select></div>
         <div><Label>Condition</Label><Select value={draft.operator} onValueChange={operator => setDraft({ ...draft, operator: operator as ChannelRule['operator'] })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{Object.entries(ruleOperators).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}</SelectContent></Select></div>
         <div><Label htmlFor="rule-value">Texte recherché</Label><Input id="rule-value" maxLength={200} value={draft.value} onChange={e => setDraft({ ...draft, value: e.target.value })} /></div>
-        <div className="grid grid-cols-2 gap-3"><div><Label>Canal attribué</Label><Select value={draft.channel} onValueChange={channel => setDraft({ ...draft, channel: channel as ChannelRule['channel'] })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{['b2c', 'b2b', 'oem'].map(k => <SelectItem key={k} value={k}>{k.toUpperCase()}</SelectItem>)}</SelectContent></Select></div><div><Label htmlFor="rule-priority">Priorité</Label><Input id="rule-priority" type="number" min={1} max={9999} value={draft.priority} onChange={e => setDraft({ ...draft, priority: Number(e.target.value) })} /></div></div>
-        <div className="border-t border-border pt-3"><strong className="text-sm">Aperçu · {matched.length} commande(s) correspondante(s)</strong>{matched.slice(0, 5).map(o => <p key={o.id} className="text-xs text-muted-foreground">{o.label} · {o.customer} → {draft.channel.toUpperCase()}</p>)}</div>
+        <div className="grid grid-cols-2 gap-3"><div><Label>Canal attribué</Label><Select value={draft.channel} onValueChange={channel => setDraft({ ...draft, channel: channel as ChannelRule['channel'] })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{['b2c', 'b2b', 'oem'].map(k => <SelectItem key={k} value={k}>{channelName(k)}</SelectItem>)}</SelectContent></Select></div><div><Label htmlFor="rule-priority">Priorité</Label><Input id="rule-priority" type="number" min={1} max={9999} value={draft.priority} onChange={e => setDraft({ ...draft, priority: Number(e.target.value) })} /></div></div>
+        <div className="border-t border-border pt-3"><strong className="text-sm">Aperçu · {matched.length} commande(s) correspondante(s)</strong>{matched.slice(0, 5).map(o => <p key={o.id} className="text-xs text-muted-foreground">{o.label} · {o.customer} → {channelName(draft.channel)}</p>)}</div>
         {formError && <p role="alert" className="text-sm text-destructive">{formError}</p>}
         <Button onClick={save} disabled={busy}>{busy ? 'Enregistrement…' : 'Enregistrer la règle'}</Button>
       </div>}

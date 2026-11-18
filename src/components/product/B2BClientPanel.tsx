@@ -13,6 +13,7 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { CalendarClock, ChevronsUpDown, Download, Loader2, Plus, RotateCcw, Trash2, TrendingUp, UserPlus, Users } from 'lucide-react';
 import { toast } from 'sonner';
 import { useCustomerClassification } from '@/components/customers/useCustomerClassification';
+import { useChannelLabels } from '@/components/customers/useChannelLabels';
 import { crmChannel } from '@/components/customers/classificationModel';
 
 interface Props { product: Product; years: number[]; onChange: (product: Product) => void }
@@ -21,6 +22,7 @@ const num = (n: number) => n.toLocaleString('fr-FR');
 
 export function B2BClientPanel({ product, years, onChange }: Props) {
   const { customers: classifiedCustomers } = useCustomerClassification();
+  const { name: chName } = useChannelLabels();
   const thisYear = new Date().getFullYear();
   const split = product.b2bClients;
   const enabled = !!split?.enabled;
@@ -122,7 +124,7 @@ export function B2BClientPanel({ product, years, onChange }: Props) {
     <section aria-label="B2B par client" className="rounded-lg border p-4 space-y-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
-          <h4 className="font-semibold flex items-center gap-2"><Users className="h-4 w-4 text-success" />B2B par client</h4>
+          <h4 className="font-semibold flex items-center gap-2"><Users className="h-4 w-4 text-success" />{chName('B2B')} par client</h4>
           <p className="text-xs text-muted-foreground mt-1 max-w-xl">
             {enabled ? 'Le volume B2B de cette ligne est la somme des clients ci-dessous. Prix B2B moyen appliqué à tous les clients.'
               : linked ? 'Répartissez le volume B2B entre vos clients, avec leur historique Erplain, leur croissance et un ajustement propre.'

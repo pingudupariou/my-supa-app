@@ -1,9 +1,10 @@
+import { channelName, liveChannelMap, useChannelLabels } from '@/components/customers/useChannelLabels';
 import { Fragment, useState } from 'react';
 import type { PipeOrder } from './pipeModel';
 
 const eur = (v: number | null) => (v === null ? '—' : v.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR', minimumFractionDigits: 2 }));
 const d = (v: string | null) => (v ? new Date(v).toLocaleDateString('fr-FR') : '');
-const CIBLE: Record<string, string> = { b2b: 'B2B', oem: 'OEM', b2c: 'B2C / à classer' };
+const CIBLE: Record<string, string> = liveChannelMap({}, true, { B2C: ' / à classer' });
 const BAND: Record<string, string> = { b2b: 'bg-muted/60', oem: 'bg-accent/40', b2c: 'bg-secondary/60' };
 const isPaid = (o: PipeOrder) => /^(fully_)?paid$/.test(o.payment_status ?? '');
 const isBilled = (o: PipeOrder) => /^(fully_)?billed$/.test(o.billing_status ?? '');
@@ -12,6 +13,7 @@ const sum = (l: PipeOrder[], k: 'total_ht' | 'total_ttc' | 'unbilled' | 'unpaid'
 
 /** Spreadsheet-style view modelled on the KPI file: month band, target, order ref, paid yes/no, amounts, subtotals. */
 export function PipeSheet({ orders }: { orders: PipeOrder[] }) {
+  useChannelLabels();
   const [open, setOpen] = useState<string | null>(null);
   const months = new Map<string, PipeOrder[]>();
   for (const o of [...orders].sort((a, b) => (b.dated_at ?? '').localeCompare(a.dated_at ?? '') || a.channel.localeCompare(b.channel))) {
@@ -37,7 +39,7 @@ export function PipeSheet({ orders }: { orders: PipeOrder[] }) {
                   <tr className={`cursor-pointer hover:bg-accent/30 ${BAND[o.channel]}`} onClick={() => setOpen(open === o.id ? null : o.id)}>
                     {i === 0 && <td rowSpan={list.length + list.filter((x) => x.id === open).length} className={`${td} bg-primary/10 text-center font-semibold capitalize [writing-mode:vertical-rl] rotate-180`}>
                       {m === '—' ? '—' : new Date(`${m}-01`).toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' })}</td>}
-                    <td className={`${td} text-center`} title={o.channel_rule ? `Règle : ${o.channel_rule}` : 'Classement de Statistiques commerciales'}>{o.channel_rule ? o.channel.toUpperCase() : CIBLE[o.channel]}{o.channel_rule && <span className="block text-[10px] text-muted-foreground">{o.channel_rule}</span>}</td>
+                    <td className={`${td} text-center`} title={o.channel_rule ? `Règle : ${o.channel_rule}` : 'Classement de Statistiques commerciales'}>{o.channel_rule ? channelName(o.channel) : CIBLE[o.channel]}{o.channel_rule && <span className="block text-[10px] text-muted-foreground">{o.channel_rule}</span>}</td>
                     <td className={`${td} text-center font-medium`}>{o.label}</td>
                     <td className={`${td} text-center`}>{d(o.shipping_at)}</td>
                     <td className={`${td} text-center`}>{pieces(o) || ''}</td>

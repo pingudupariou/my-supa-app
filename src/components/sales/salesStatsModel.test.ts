@@ -31,7 +31,7 @@ describe('copier vers Excel', () => {
     const { body } = detailTSV('customer', [r({ channel: 'B2B' })], { v1: { channel: 'OEM', commercial_country: 'DE' } }, '', true);
     expect(body[0].slice(0, 3)).toEqual(['ECROU DISQUE', 'OEM', 'DE']);
     const b2c = detailTSV('customer', [r({ channel: 'B2C' })], { v1: { channel: 'OEM', commercial_country: 'DE' } }, '', true).body[0];
-    expect(b2c.slice(0, 3)).toEqual(['ECROU DISQUE', 'B2C (Shopify)', 'DE']);
+    expect(b2c.slice(0, 3)).toEqual(['ECROU DISQUE', 'B2C', 'DE']);
   });
   it('copies the customer country as "auto" when nothing was chosen', () => {
     const { body } = detailTSV('customer', [r({ channel: 'B2B' })], {}, '', false);

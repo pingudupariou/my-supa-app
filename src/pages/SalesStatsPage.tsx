@@ -1,3 +1,4 @@
+import { useChannelLabels } from '@/components/customers/useChannelLabels';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/context/AuthContext';
@@ -125,6 +126,7 @@ function Explorer({ stats }: { stats: Stats }) {
 }
 
 export function SalesStatsPage() {
+  useChannelLabels();
   const { getTabPermission } = useAuth();
   const canWrite = getTabPermission('sales-stats') === 'write';
   const canClassify = getTabPermission('customer-classification') === 'write';

@@ -1,3 +1,4 @@
+import { liveChannelMap, useChannelLabels } from '@/components/customers/useChannelLabels';
 import { useEffect, useState } from 'react';
 import { CLASSIFICATION_EVENT } from '@/components/customers/classificationModel';
 import { supabase } from '@/integrations/supabase/client';
@@ -8,7 +9,7 @@ import { toast } from 'sonner';
 import { copyTable, num, type Cell } from '@/lib/clipboard';
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 
-const CH_LABEL: Record<string, string> = { B2C: 'B2C', B2B: 'B2B', OEM: 'OEM', A_CLASSER: 'À classer' };
+const CH_LABEL: Record<string, string> = liveChannelMap({ A_CLASSER: 'À classer' });
 const eur = (v: number | null | undefined) => v == null ? '—' : new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(v);
 const nb = (v: number) => new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 1 }).format(v);
 const pctf = (v: number | null) => v == null ? '—' : `${(v * 100).toFixed(1)} %`;
@@ -21,6 +22,7 @@ const marginOf = (r: Agg) => { const m = r.cov_ht - r.cogs; return { m: r.cov_ht
 
 /** Channel → delivery country → product drill-down (product lines only, shipping excluded). */
 export function SalesBreakdown({ from, to, search }: { from: string; to: string; search: string }) {
+  useChannelLabels();
   const [rows, setRows] = useState<BRow[]>([]);
   const [classificationVersion, setClassificationVersion] = useState(0);
   useEffect(() => {

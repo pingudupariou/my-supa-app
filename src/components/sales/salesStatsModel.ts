@@ -1,3 +1,4 @@
+import { liveChannelMap } from '@/components/customers/useChannelLabels';
 import { num, txt, type Cell } from '@/lib/clipboard';
 
 export type Row = {
@@ -17,7 +18,7 @@ export type Row = {
 export type Customers = Record<string, { channel: string; commercial_country: string | null }>;
 
 export const CHANNELS = ['B2C', 'B2B', 'OEM', 'A_CLASSER'] as const;
-export const CH_LABEL: Record<string, string> = { B2C: 'B2C (Shopify)', B2B: 'B2B', OEM: 'OEM', A_CLASSER: 'À classer' };
+export const CH_LABEL: Record<string, string> = liveChannelMap({ A_CLASSER: 'À classer' });
 
 /** Margin on lines with a validated cost only; incomplete if some product revenue has no cost, estimated if a current cost is applied to older sales. */
 export function margin(r: { prod_ht?: number; cogs?: number; cov_ht?: number; est_ht?: number }) {
