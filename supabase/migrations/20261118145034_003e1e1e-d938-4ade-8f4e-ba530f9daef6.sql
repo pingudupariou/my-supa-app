@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX IF NOT EXISTS b2b_clients_unique_erplain_link ON public.b2b_clients (user_id, erplain_customer_id) WHERE erplain_customer_id IS NOT NULL AND deleted_at IS NULL;

@@ -28,3 +28,4 @@
 - Resolve all Erplain channels through the shared customer assignment; the common classifier applies all enabled rules in priority order once per customer, with complete date-bounded Pipe reads for BC/product rules and explicit confirmation — prevents cross-tab divergence and partial-read reclassification.
 - CRM links to Erplain are explicit IDs, never guessed names; linked channels use the shared assignment and unlinked clients have a dedicated channel, not a category-name inference — avoids accidental client merges.
 - Customer linkage pickers render bounded search results only while open, never a full Erplain option list per CRM row — prevents large customer lists from freezing the classification dialog.
+- CRM records link to Erplain customers by explicit ID only (unique per user, enforced by index); name matches are suggestions requiring confirmation, and linked records take the Erplain classification — prevents duplicate customers and divergent channels.

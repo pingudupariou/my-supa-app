@@ -13,10 +13,10 @@ afterEach(cleanup);
 it('allows switching all classification tabs and closing with a large customer list', async () => {
   render(<CustomerClassificationButton />);
   fireEvent.click(screen.getByRole('button', { name: 'Classement clients' }));
-  const crm = screen.getByRole('tab', { name: 'Liens CRM' });
+  const crm = screen.getByRole('tab', { name: /Rapprochement CRM/ });
   fireEvent.mouseDown(crm); fireEvent.click(crm);
   await screen.findByText('CRM 0');
-  fireEvent.click(screen.getByRole('button', { name: 'Afficher plus de clients' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Afficher plus de fiches' }));
   expect(screen.getByText('CRM 79')).toBeInTheDocument();
   const rules = screen.getByRole('tab', { name: '1-2. Règles automatiques' });
   fireEvent.mouseDown(rules); fireEvent.click(rules);
