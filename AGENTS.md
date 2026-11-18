@@ -25,7 +25,7 @@
 - Summary exports share content with per-format print choices; BankReport adds intro/appendix — no duplicate layouts.
 - Role photos: small square JPEG data URLs on Role — PDF-safe.
 - Pipe commercial reads the selected period in resumable bounded Erplain batches; preserve cursor page size and show failures separately from empty filters — avoids timeouts and silently missing orders.
-- Resolve all Erplain channels through the shared customer assignment; the common classifier applies all enabled rules in priority order once per customer, with complete date-bounded Pipe reads for BC/product rules and explicit confirmation — prevents cross-tab divergence and partial-read reclassification.
+- Resolve all Erplain channels through the shared customer assignment; rules are authoritative and applied server-side by RPC apply_customer_rules (first match by priority on invoice order_label, name, ID, SKU/product; unmatched → A_CLASSER) after every rule change and sales sync, while channel_source='manual' overrides are never touched — keeps every tab on one dynamic classification.
 - CRM links to Erplain are explicit IDs, never guessed names; linked channels use the shared assignment and unlinked clients have a dedicated channel, not a category-name inference — avoids accidental client merges.
 - Customer linkage pickers render bounded search results only while open, never a full Erplain option list per CRM row — prevents large customer lists from freezing the classification dialog.
 - CRM records link to Erplain customers by explicit ID only (unique per user, enforced by index); name matches are suggestions requiring confirmation, and linked records take the Erplain classification — prevents duplicate customers and divergent channels.

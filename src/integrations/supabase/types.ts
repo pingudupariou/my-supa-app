@@ -4062,6 +4062,7 @@ export type Database = {
     }
     Functions: {
       apply_customer_rules: { Args: never; Returns: Json }
+      apply_customer_rules_guarded: { Args: never; Returns: undefined }
       assign_customer_channels: {
         Args: { _channel: string; _ids: string[] }
         Returns: number
