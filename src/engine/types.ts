@@ -87,6 +87,7 @@ export interface B2BClientSplit {
   clients: PlanB2BClient[];
   historyYears: number[];            // Années remplies avec le réalisé Erplain
   importedAt?: string;
+  savedB2B?: Record<number, number>; // Volume B2B de la ligne avant activation, restauré à la désactivation
 }
 
 // ==================

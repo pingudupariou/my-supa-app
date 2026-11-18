@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import type { CurrentYearMethod, PlanB2BClient, Product } from '@/engine/types';
-import { applyClientGrowth, b2bTotal, clientVolume, CURRENT_YEAR_METHODS, currentYearValue, differsFromOrigin, enableSplit, existingClientOptions, importErplainClients, erplainKeysOf, hasErplainHistory, lockedYears, restoreOrigin, setCurrentYearMethod, yearProgress, type ErplainClientSale, type ExistingClientOption } from '@/engine/b2bClients';
+import { applyClientGrowth, b2bTotal, clientVolume, CURRENT_YEAR_METHODS, currentYearValue, differsFromOrigin, disableSplit, enableSplit, existingClientOptions, importErplainClients, erplainKeysOf, hasErplainHistory, lockedYears, restoreOrigin, setCurrentYearMethod, yearProgress, type ErplainClientSale, type ExistingClientOption } from '@/engine/b2bClients';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
@@ -59,7 +59,7 @@ export function B2BClientPanel({ product, years, onChange }: Props) {
 
   const toggle = (on: boolean) => {
     if (on) onChange({ ...product, b2bClients: enableSplit(product, years) });
-    else if (split) onChange({ ...product, b2bClients: { ...split, enabled: false } });
+    else if (split) onChange(disableSplit(product));
   };
 
   const importHistory = async () => {

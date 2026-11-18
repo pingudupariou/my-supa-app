@@ -97,9 +97,19 @@ const remainderOf = (volumes: Record<number, number>): PlanB2BClient =>
 
 /** Activation : le B2B existant passe dans « Autres clients » pour que le total ne change pas. */
 export function enableSplit(p: Product, years: number[]): B2BClientSplit {
-  if (p.b2bClients?.clients.length) return { ...p.b2bClients, enabled: true };
   const existing = p.volumesByChannel?.B2B ?? {};
-  return { enabled: true, historyYears: [], clients: [remainderOf(Object.fromEntries(years.map(y => [y, existing[y] || 0])))] };
+  const savedB2B = { ...existing };
+  if (p.b2bClients?.clients.length) return { ...p.b2bClients, enabled: true, savedB2B };
+  return { enabled: true, historyYears: [], savedB2B, clients: [remainderOf(Object.fromEntries(years.map(y => [y, existing[y] || 0])))] };
+}
+
+/** Désactivation : détail client conservé, volume B2B d'avant activation restauré. */
+export function disableSplit(p: Product): Product {
+  const split = p.b2bClients;
+  if (!split) return p;
+  const ch = p.volumesByChannel ?? { B2C: {}, B2B: {}, OEM: {} };
+  const volumesByChannel = split.savedB2B ? { ...ch, B2B: { ...split.savedB2B } } : ch;
+  return { ...p, volumesByChannel, b2bClients: { ...split, enabled: false } };
 }
 
 export interface ErplainClientSale { year: number; customerId: string | null; name: string; qty: number }

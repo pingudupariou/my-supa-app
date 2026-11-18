@@ -121,3 +121,16 @@ describe('B2B par client — année en cours', () => {
     expect(differsFromOrigin(back)).toBe(false);
   });
 });
+
+import { disableSplit as _dis, enableSplit as _en } from './b2bClients';
+describe('toggle détail par client', () => {
+  it('restaure le volume B2B initial et garde les clients', () => {
+    const p: any = { id: 'x', volumesByChannel: { B2C: {}, B2B: { 2026: 100 }, OEM: {} } };
+    const on = { ...p, b2bClients: _en(p, [2026]), volumesByChannel: { ...p.volumesByChannel, B2B: { 2026: 250 } } };
+    on.b2bClients.clients[0].volumes[2026] = 250;
+    const off = _dis(on);
+    expect(off.volumesByChannel.B2B[2026]).toBe(100);
+    expect(off.b2bClients.clients[0].volumes[2026]).toBe(250);
+    expect(_en(off, [2026]).clients[0].volumes[2026]).toBe(250);
+  });
+});
