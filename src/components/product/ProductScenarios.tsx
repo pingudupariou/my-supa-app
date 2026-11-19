@@ -6,6 +6,8 @@ import { supabase } from '@/integrations/supabase/client';
 import { useFinancial } from '@/context/FinancialContext';
 import { useChannelLabels } from '@/components/customers/useChannelLabels';
 import { copyTable, type Cell } from '@/lib/clipboard';
+import { downloadScenarioWorkbook } from '@/lib/scenarioWorkbook';
+import { FileSpreadsheet } from 'lucide-react';
 import { formatCurrency } from '@/data/financialConfig';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -139,6 +141,12 @@ export function ProductScenarios({ years }: { years: number[] }) {
     toast[ok ? 'success' : 'error'](ok ? `Détail « ${sel?.name ?? 'Plan actuel'} » copié pour Excel.` : 'Copie refusée par le navigateur.');
   };
 
+  const exportExcel = () => {
+    try {
+      downloadScenarioWorkbook(products, [{ name: 'Plan actuel', scenario: null }, ...scenarios.map(s => ({ name: s.name, scenario: s }))], years, planTransport, chName);
+      toast.success('Fichier Excel téléchargé : formules actives, une feuille par version.');
+    } catch (e) { toast.error(`Export Excel impossible : ${(e as Error).message}`); }
+  };
   const filtered = products.filter(p => !search || p.name.toLowerCase().includes(search.toLowerCase()));
 
   return (
@@ -170,6 +178,7 @@ export function ProductScenarios({ years }: { years: number[] }) {
           <span className="mx-1 h-5 w-px bg-border" />
           {([['line', 'Courbes'], ['bar', 'Barres'], ['area', 'Aires']] as const).map(([t, l]) => <Button key={t} size="sm" variant={chartType === t ? 'secondary' : 'ghost'} onClick={() => setChartType(t)}>{l}</Button>)}
           <Button size="sm" variant="ghost" className="ml-auto" onClick={copyComparison}><Copy className="mr-1 h-4 w-4" />Copier pour Excel</Button>
+          <Button size="sm" onClick={exportExcel}><FileSpreadsheet className="mr-1 h-4 w-4" />Fichier Excel complet</Button>
         </div>
         <div className="mb-3 flex flex-wrap items-center gap-2 text-xs">
           <span className="text-muted-foreground">Superposer :</span>

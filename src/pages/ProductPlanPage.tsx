@@ -259,12 +259,13 @@ export function ProductPlanPage() {
               />
             </div>
             <section aria-label="Aides au remplissage" className="space-y-2">
-              <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Aides au remplissage</h3>
+              <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Remplir depuis Erplain</h3>
+              <p className="text-xs text-muted-foreground">Ⓐ lit les ventes réelles Erplain (années passées et à date) ; Ⓑ choisit comment compléter l’année en cours. Rien ne change dans le tableau tant que vous ne cliquez pas « Appliquer ».</p>
               <Accordion type="multiple" value={helpersOpen} onValueChange={setHelpersOpen} className="rounded-lg border px-4">
                 <AccordionItem value="erplain">
                   <AccordionTrigger className="hover:no-underline">
                     <span className="flex items-start gap-3 text-left"><Download className="h-4 w-4 mt-0.5 text-primary shrink-0" />
-                      <span><span className="block">Réalisé Erplain & catégories</span><span className="block text-xs font-normal text-muted-foreground">Charger les ventes passées, regrouper les produits en catégories, ajouter ou retirer des produits.</span></span>
+                      <span><span className="block">Ⓐ Lire les ventes Erplain (réalisé) & catégories</span><span className="block text-xs font-normal text-muted-foreground">Lecture seule : volumes et prix moyens HT des années passées par canal, regroupement en catégories.</span></span>
                     </span>
                   </AccordionTrigger>
                   {/* Toujours monté : les ventes chargées restent en mémoire quand on replie. */}
@@ -275,7 +276,7 @@ export function ProductPlanPage() {
                 <AccordionItem value="projection" className="border-b-0">
                   <AccordionTrigger className="hover:no-underline">
                     <span className="flex items-start gap-3 text-left"><CalendarClock className="h-4 w-4 mt-0.5 text-primary shrink-0" />
-                      <span><span className="block">Base étalon de l’année en cours</span><span className="block text-xs font-normal text-muted-foreground">Projeter l’année {new Date().getFullYear()} entière à partir des ventes Erplain à date.</span></span>
+                      <span><span className="block">Ⓑ Choisir le scénario de l’année {new Date().getFullYear()}</span><span className="block text-xs font-normal text-muted-foreground">Réalisé à date, prorata, saisonnalité N-1 ou rythme 90 j : choisissez puis appliquez au tableau.</span></span>
                     </span>
                   </AccordionTrigger>
                   <AccordionContent forceMount hidden={!helpersOpen.includes('projection')}>
