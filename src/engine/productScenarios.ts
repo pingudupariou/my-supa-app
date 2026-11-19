@@ -115,7 +115,7 @@ export function scenarioResults(products: Product[], sc: ProductScenario | null,
 }
 
 export function newScenario(name: string, index: number): ProductScenario {
-  return { id: crypto.randomUUID(), name, color: SCENARIO_COLORS[index % SCENARIO_COLORS.length], createdAt: new Date().toISOString(), products: {}, volumePct: {} };
+  return { id: (globalThis.crypto?.randomUUID?.() ?? `sc-${Date.now()}-${Math.random().toString(36).slice(2)}`), name, color: SCENARIO_COLORS[index % SCENARIO_COLORS.length], createdAt: new Date().toISOString(), products: {}, volumePct: {} };
 }
 
 /** Change une valeur (undefined = revenir à la valeur du plan). */
