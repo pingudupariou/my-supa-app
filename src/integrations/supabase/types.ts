@@ -4157,6 +4157,10 @@ export type Database = {
         Args: { _channels?: string[]; _from: string; _to: string }
         Returns: Json
       }
+      sales_customer_product: {
+        Args: { _from: string; _to: string }
+        Returns: Json
+      }
       sales_stats: {
         Args: {
           _channels?: string[]
