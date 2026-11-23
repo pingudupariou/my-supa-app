@@ -400,6 +400,7 @@ export function CustomerDetail({
               onPermanentDelete={onPermanentDeleteMeeting}
               getTrashedMeetings={getTrashedMeetings}
               isAdmin={isAdmin}
+              onCreateReminder={onCreateReminder}
             />
           </TabsContent>
 

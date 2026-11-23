@@ -15,6 +15,7 @@ import { CustomerDetail } from '@/components/crm/CustomerDetail';
 import { PipelineKanban } from '@/components/crm/PipelineKanban';
 import { ReminderBanner } from '@/components/crm/ReminderBanner';
 import { CrmReminderManager } from '@/components/crm/CrmReminderManager';
+import { CrmAgendaDashboard } from '@/components/crm/CrmAgendaDashboard';
 import { useB2BClientsData } from '@/hooks/useB2BClientsData';
 import { BusinessEntitySelector } from '@/components/crm/BusinessEntitySelector';
 import { BusinessEntityManager } from '@/components/crm/BusinessEntityManager';
@@ -304,6 +305,14 @@ export function CRMPage() {
 
         {/* Centralized Reminders tab */}
         <TabsContent value="suivi" className="space-y-4">
+          <CrmAgendaDashboard
+            reminders={filteredReminders}
+            meetings={filteredMeetings}
+            customers={customersForSelect}
+            onComplete={crm.completeReminder}
+            onUncomplete={crm.uncompleteReminder}
+            onSelectClient={id => { setSelectedClientId(id); setActiveTab('gestion'); }}
+          />
           <Card>
             <CardContent className="pt-6">
               <CrmReminderManager

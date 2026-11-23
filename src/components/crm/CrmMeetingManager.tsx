@@ -8,6 +8,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Plus, Calendar, MapPin, Clock, Users, CheckCircle2, XCircle, Trash2, Save, ChevronUp, RotateCcw, Archive, AlertTriangle, StickyNote } from 'lucide-react';
 import { CrmMeeting } from '@/hooks/useCRMData';
 import { cn } from '@/lib/utils';
+import { MeetingReminderForm } from './MeetingReminderForm';
 
 interface CrmMeetingManagerProps {
   meetings: CrmMeeting[];
@@ -19,6 +20,7 @@ interface CrmMeetingManagerProps {
   onPermanentDelete?: (id: string) => Promise<boolean>;
   getTrashedMeetings?: () => Promise<CrmMeeting[]>;
   isAdmin?: boolean;
+  onCreateReminder?: (r: any) => Promise<any>;
 }
 
 const STATUS_MAP: Record<string, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' }> = {
@@ -27,7 +29,7 @@ const STATUS_MAP: Record<string, { label: string; variant: 'default' | 'secondar
   cancelled: { label: 'Annulé', variant: 'destructive' },
 };
 
-export function CrmMeetingManager({ meetings, customerId, onCreate, onUpdate, onDelete, onRestore, onPermanentDelete, getTrashedMeetings, isAdmin }: CrmMeetingManagerProps) {
+export function CrmMeetingManager({ meetings, customerId, onCreate, onUpdate, onDelete, onRestore, onPermanentDelete, getTrashedMeetings, isAdmin, onCreateReminder }: CrmMeetingManagerProps) {
   const [showAdd, setShowAdd] = useState(false);
   const [createMode, setCreateMode] = useState<'plan' | 'note'>('plan');
   const [showTrash, setShowTrash] = useState(false);
@@ -402,6 +404,10 @@ export function CrmMeetingManager({ meetings, customerId, onCreate, onUpdate, on
                         className="text-sm resize-y min-h-[100px] leading-relaxed"
                       />
                     </div>
+
+                    {onCreateReminder && (
+                      <MeetingReminderForm meeting={m} actionText={draft?.action_items ?? m.action_items ?? ''} onCreate={onCreateReminder} />
+                    )}
 
                     <div className="flex justify-end items-center gap-2">
                       {savingId === m.id && (
