@@ -3,10 +3,19 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
-import { ChevronLeft, ChevronRight, CalendarDays, Download, Bell, Users, AlertTriangle } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ChevronDown, ChevronUp, CalendarDays, Download, Bell, Users, AlertTriangle } from 'lucide-react';
 import { CrmMeeting, CrmReminder, REMINDER_TYPES } from '@/hooks/useCRMData';
 import { downloadIcs, IcsItem } from '@/lib/crmIcs';
 import { cn } from '@/lib/utils';
+
+const pad = (n: number) => String(n).padStart(2, '0');
+const keyOf = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+const WEEKDAYS = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
+const OPEN_KEY = 'crm-agenda-open';
+
+const readOpen = () => {
+  try { return localStorage.getItem(OPEN_KEY) !== '0'; } catch { return true; }
+};
 
 interface Props {
   reminders: CrmReminder[];
@@ -17,14 +26,12 @@ interface Props {
   onSelectClient?: (id: string) => void;
 }
 
-const pad = (n: number) => String(n).padStart(2, '0');
-const keyOf = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-const WEEKDAYS = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
-
 export function CrmAgendaDashboard({ reminders, meetings, customers, onComplete, onUncomplete, onSelectClient }: Props) {
   const todayKey = keyOf(new Date());
   const [month, setMonth] = useState(() => { const d = new Date(); return new Date(d.getFullYear(), d.getMonth(), 1); });
   const [selected, setSelected] = useState(todayKey);
+  const [open, setOpen] = useState(readOpen);
+  const toggleOpen = () => setOpen(v => { const next = !v; try { localStorage.setItem(OPEN_KEY, next ? '1' : '0'); } catch { /* stockage indisponible */ } return next; });
   const name = (id: string) => customers.find(c => c.id === id)?.company_name ?? '';
 
   const byDay = useMemo(() => {
@@ -56,6 +63,17 @@ export function CrmAgendaDashboard({ reminders, meetings, customers, onComplete,
     downloadIcs(items, 'crm-agenda.ics');
   };
 
+  const persistOpen = (v: boolean) => { try { localStorage.setItem(OPEN_KEY, v ? '1' : '0'); } catch { /* stockage indisponible */ } };
+  const openDay = (k: string) => { const d = new Date(k + 'T12:00'); setMonth(new Date(d.getFullYear(), d.getMonth(), 1)); setSelected(k); setOpen(true); persistOpen(true); };
+
+  // Prochaines actions à faire : retards d'abord, puis les dates les plus proches
+  const nextUp = useMemo(() => {
+    const pending = reminders.filter(r => !r.is_completed);
+    const late = pending.filter(r => r.due_date.slice(0, 10) < todayKey).sort((a, b) => a.due_date.localeCompare(b.due_date));
+    const soon = pending.filter(r => r.due_date.slice(0, 10) >= todayKey).sort((a, b) => a.due_date.localeCompare(b.due_date));
+    return [...late, ...soon].slice(0, 5);
+  }, [reminders, todayKey]);
+
   return (
     <Card>
       <CardHeader className="pb-3">
@@ -67,9 +85,36 @@ export function CrmAgendaDashboard({ reminders, meetings, customers, onComplete,
             <Button size="sm" variant="outline" onClick={exportUpcoming} title="Fichier à ouvrir dans Outlook pour ajouter les rappels et RDV à venir">
               <Download className="h-3.5 w-3.5 mr-1" /> Ajouter à Outlook
             </Button>
+            <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => { setOpen(v => { const next = !v; persistOpen(next); return next; }); }} title={open ? 'Replier l\'agenda' : 'Déplier l\'agenda'} aria-label={open ? 'Replier l\'agenda' : 'Déplier l\'agenda'}>
+              {open ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+            </Button>
           </div>
         </div>
       </CardHeader>
+      {!open && (
+        <CardContent className="pt-0">
+          {nextUp.length === 0 ? (
+            <p className="text-sm text-muted-foreground">Aucune action à faire. Ouvrez l'agenda pour planifier un rappel.</p>
+          ) : (
+            <div className="flex flex-wrap gap-2">
+              {nextUp.map(r => {
+                const k = r.due_date.slice(0, 10);
+                const late = k < todayKey;
+                return (
+                  <button key={r.id} onClick={() => openDay(k)} className={cn(
+                    'max-w-full rounded-md border px-2 py-1 text-left text-xs transition-colors hover:bg-accent',
+                    late ? 'border-destructive/40 bg-destructive/10 text-destructive' : 'bg-background')}>
+                    <span className="font-medium">{new Date(r.due_date + 'T12:00').toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })}</span>
+                    {' · '}{r.title}
+                    {name(r.customer_id) && <span className="text-muted-foreground"> – {name(r.customer_id)}</span>}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </CardContent>
+      )}
+      {open && (
       <CardContent className="grid gap-4 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
         <div>
           <div className="flex items-center justify-between mb-2">
@@ -129,7 +174,7 @@ export function CrmAgendaDashboard({ reminders, meetings, customers, onComplete,
             <div className="pt-2 border-t">
               <p className="text-xs font-medium text-destructive mb-1">En retard</p>
               {overdue.slice(0, 6).map(r => (
-                <button key={r.id} onClick={() => { setSelected(r.due_date.slice(0, 10)); const d = new Date(r.due_date); setMonth(new Date(d.getFullYear(), d.getMonth(), 1)); }}
+                <button key={r.id} onClick={() => openDay(r.due_date.slice(0, 10))}
                   className="block w-full text-left text-xs hover:underline truncate">
                   {new Date(r.due_date).toLocaleDateString('fr-FR')} · {r.title} {name(r.customer_id) && `– ${name(r.customer_id)}`}
                 </button>
@@ -138,6 +183,7 @@ export function CrmAgendaDashboard({ reminders, meetings, customers, onComplete,
           )}
         </div>
       </CardContent>
+      )}
     </Card>
   );
 }

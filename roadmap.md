@@ -69,3 +69,7 @@
 - [ ] Relancer une analyse Stratégie IA et l'audit de structure pour obtenir les premières propositions (compte connecté requis)
 - [ ] Première publication réelle (attend l'accord explicite et GOOGLE_ADS_ALLOW_WRITE=true)
 - [x] B2B par client aussi pour les nouveaux produits manuels sans historique (test réussi ; plan réel non vérifié).
+
+## CRM — agenda des actions
+- [x] Rendre l'agenda des actions visible en haut de page sur tous les onglets, avec repli mémorisé sur l'appareil (3 tests réussis).
+- [ ] Vérifier l'affichage sur le CRM connecté (session Supabase externe indisponible).

@@ -162,6 +162,16 @@ export function CRMPage() {
         </div>
       </div>
 
+      {/* Agenda des actions — toujours visible en haut de page, sur tous les onglets */}
+      <CrmAgendaDashboard
+        reminders={filteredReminders}
+        meetings={filteredMeetings}
+        customers={customersForSelect}
+        onComplete={crm.completeReminder}
+        onUncomplete={crm.uncompleteReminder}
+        onSelectClient={id => { setSelectedClientId(id); setActiveTab('gestion'); }}
+      />
+
       {/* Banners */}
       <ReminderBanner reminders={filteredReminders} customers={customersForSelect} />
       <TaskBanner tasks={tasksData.tasks} currentUserId={user?.id} />
@@ -305,14 +315,6 @@ export function CRMPage() {
 
         {/* Centralized Reminders tab */}
         <TabsContent value="suivi" className="space-y-4">
-          <CrmAgendaDashboard
-            reminders={filteredReminders}
-            meetings={filteredMeetings}
-            customers={customersForSelect}
-            onComplete={crm.completeReminder}
-            onUncomplete={crm.uncompleteReminder}
-            onSelectClient={id => { setSelectedClientId(id); setActiveTab('gestion'); }}
-          />
           <Card>
             <CardContent className="pt-6">
               <CrmReminderManager
