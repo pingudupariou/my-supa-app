@@ -74,3 +74,59 @@ export function detailTSV(
 
   return { headers, body };
 }
+
+/** Plan-product category for each Erplain sales product key (variant id), from the product plan's own grouping. */
+export function categoryIndex(
+  products: { id: string; productCategoryId?: string; erplainMembers?: string[] }[],
+  categories: { id: string; name: string }[],
+): Record<string, string> {
+  const names = Object.fromEntries(categories.map((c) => [c.id, c.name]));
+  const out: Record<string, string> = {};
+  for (const p of products) {
+    const name = p.productCategoryId ? names[p.productCategoryId] : undefined;
+    if (!name) continue;
+    const keys = p.erplainMembers?.length ? p.erplainMembers : p.id.startsWith('erplain-') ? [p.id.slice(8)] : [];
+    for (const k of keys) out[k] = name;
+  }
+  return out;
+}
+
+export const NO_CATEGORY = 'Sans catégorie (plan produit)';
+
+/** Sum rows by category; each product counts once in exactly one category. */
+export function byCategory(rows: Row[], idx: Record<string, string>): Row[] {
+  const m: Record<string, Row> = {};
+  for (const r of rows) {
+    const k = idx[r.key] ?? NO_CATEGORY;
+    const o = m[k] ?? (m[k] = { key: k, label: k, ca_ht: 0, qty: 0, prod_ht: 0, cogs: 0, cov_ht: 0, est_ht: 0 });
+    o.ca_ht += r.ca_ht; o.qty += r.qty; o.prod_ht! += r.prod_ht ?? 0; o.cogs! += r.cogs ?? 0; o.cov_ht! += r.cov_ht ?? 0; o.est_ht! += r.est_ht ?? 0;
+  }
+  return Object.values(m).sort((a, b) => b.ca_ht - a.ca_ht);
+}
+
+export type PivotMetric = 'ca' | 'qty' | 'margin' | 'pct';
+export const metricOf = (r: Row | undefined, m: PivotMetric): number | null => {
+  if (!r) return null;
+  if (m === 'ca') return r.ca_ht;
+  if (m === 'qty') return r.qty;
+  const x = margin(r);
+  return m === 'margin' ? x.m : x.pct == null ? null : x.pct * 100;
+};
+
+export type PivotRow = { key: string; label: string; cells: (number | null)[]; total: number | null };
+
+/** Rows = items, columns = chosen channels in the chosen order, plus a total computed from the summed raw values. */
+export function buildPivot(perChannel: Record<string, Row[]>, order: string[], metric: PivotMetric, sort: 'total' | 'name' | string): PivotRow[] {
+  const items = new Map<string, { label: string; cols: Record<string, Row> }>();
+  for (const ch of order) for (const r of perChannel[ch] ?? []) {
+    const it = items.get(r.key) ?? { label: (r.label || r.key || '?').trim(), cols: {} };
+    it.cols[ch] = r; items.set(r.key, it);
+  }
+  const sum = (rs: Row[]): Row => rs.reduce((a, r) => ({ ...a, ca_ht: a.ca_ht + r.ca_ht, qty: a.qty + r.qty, prod_ht: a.prod_ht! + (r.prod_ht ?? 0), cogs: a.cogs! + (r.cogs ?? 0), cov_ht: a.cov_ht! + (r.cov_ht ?? 0), est_ht: a.est_ht! + (r.est_ht ?? 0) }), { key: '', ca_ht: 0, qty: 0, prod_ht: 0, cogs: 0, cov_ht: 0, est_ht: 0 } as Row);
+  const rows = [...items].map(([key, it]) => ({ key, label: it.label, cells: order.map((c) => metricOf(it.cols[c], metric)), total: metricOf(sum(Object.values(it.cols)), metric) }));
+  const v = (x: number | null) => x ?? -Infinity;
+  if (sort === 'name') rows.sort((a, b) => a.label.localeCompare(b.label, 'fr'));
+  else if (sort === 'total') rows.sort((a, b) => v(b.total) - v(a.total));
+  else { const i = order.indexOf(sort); rows.sort((a, b) => v(b.cells[i]) - v(a.cells[i])); }
+  return rows;
+}

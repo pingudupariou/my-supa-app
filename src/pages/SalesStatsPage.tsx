@@ -17,7 +17,11 @@ import { Bar, BarChart, CartesianGrid, ComposedChart, Legend, Line, ResponsiveCo
 import { toast } from 'sonner';
 import { SalesBreakdown } from '@/components/sales/SalesBreakdown';
 import { copyTable } from '@/lib/clipboard';
-import { CHANNELS, CH_LABEL, detailTSV, margin, type DetailKind, type Row } from '@/components/sales/salesStatsModel';
+import { useFinancial } from '@/context/FinancialContext';
+import { CustomStats, type CustomPivot } from '@/components/sales/CustomStats';
+import { buildSalesWorkbook, downloadWorkbook } from '@/lib/salesWorkbook';
+import { FileSpreadsheet, CalendarClock } from 'lucide-react';
+import { byCategory, categoryIndex, CHANNELS, CH_LABEL, detailTSV, margin, type DetailKind, type Row } from '@/components/sales/salesStatsModel';
 
 type Stats = {
   totals: { ca_ht: number; qty: number; shipping_ht: number; docs: number; prod_ht: number; cogs: number; cov_ht: number; est_ht: number };
@@ -146,6 +150,14 @@ export function SalesStatsPage() {
   useEffect(() => { localStorage.setItem('sales-ship-cost', shipCost); }, [shipCost]);
   const shipCostNum = shipCost.trim() === '' || !Number.isFinite(Number(shipCost.replace(',', '.'))) ? null : Number(shipCost.replace(',', '.'));
   const [range0, range1] = periodRange(period, from, to);
+  const { state: fin } = useFinancial();
+  const catIdx = useMemo(() => categoryIndex(fin.products ?? [], fin.productCategories ?? []), [fin.products, fin.productCategories]);
+  const [pivot, setPivot] = useState<CustomPivot | null>(null);
+  const [span, setSpan] = useState<{ first: string | null; last: string | null }>({ first: null, last: null });
+  useEffect(() => {
+    const q = (asc: boolean) => supabase.from('erplain_sales_documents' as any).select('dated_at').eq('counted', true).not('dated_at', 'is', null).order('dated_at', { ascending: asc }).limit(1).maybeSingle();
+    Promise.all([q(true), q(false)]).then(([a, b]) => setSpan({ first: (a.data as any)?.dated_at ?? null, last: (b.data as any)?.dated_at ?? null }));
+  }, [run?.updated_at]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -215,6 +227,7 @@ export function SalesStatsPage() {
     if (!stats) return null;
     if (t === 'months') return { kind: 'country', rows: monthRows };
     if (t === 'customers') return { kind: 'customer', rows: stats.by_customer ?? [] };
+    if (t === 'categories') return { kind: 'country', rows: byCategory(stats.by_product ?? [], catIdx) };
     if (t === 'products') return { kind: 'product', rows: stats.by_product ?? [] };
     if (t === 'cc') return { kind: 'cc', rows: stats.by_commercial_country ?? [] };
     if (t === 'dc') return { kind: 'country', rows: stats.by_delivery_country ?? [] };
@@ -231,6 +244,29 @@ export function SalesStatsPage() {
     if (!ok) return toast.error('Le navigateur a refusé la copie : sélectionnez les cellules à la souris puis Ctrl+C.');
     setCopied(true); setTimeout(() => setCopied(false), 2000);
     toast.success(`${body.length} ligne(s) copiée(s) · ${range0} → ${range1} — collez dans Excel avec Ctrl+V`);
+  };
+
+  const fr = (d: string | null | undefined) => d ? new Date(d).toLocaleDateString('fr-FR') : '—';
+  const exportExcel = () => {
+    if (!stats) return;
+    const chs = channels.map((c) => CH_LABEL[c]).join(', ');
+    const wb = buildSalesWorkbook([
+      ['Période', `${fr(range0)} → ${fr(range1)}`], ['Canaux', chs], ['Livraison', shipping ? 'incluse' : 'exclue'],
+      ['Factures Erplain disponibles', `du ${fr(span.first)} au ${fr(span.last)}`],
+      ['Dernière lecture Erplain', run ? new Date(run.updated_at).toLocaleString('fr-FR') : 'aucune'],
+      ['Exporté le', new Date().toLocaleString('fr-FR')],
+      ['CA HT net', String(stats.totals.ca_ht)], ['Quantités', String(stats.totals.qty)], ['Documents', String(stats.totals.docs)],
+    ], [
+      { name: 'Mois', first: 'Mois', rows: [...monthRows].reverse() },
+      { name: 'Canaux', first: 'Canal', rows: (stats.by_channel ?? []).map((r) => ({ ...r, label: CH_LABEL[r.key] ?? r.key })) },
+      { name: 'Catégories produit', first: 'Catégorie', rows: byCategory(stats.by_product ?? [], catIdx) },
+      { name: 'Produits', first: 'Produit', rows: stats.by_product ?? [], extra: [{ header: 'Catégorie', value: (r) => catIdx[r.key] ?? '' }, { header: 'Coût unit.', value: (r) => r.unit_cost ?? null }] },
+      { name: 'Clients', first: 'Client', rows: stats.by_customer ?? [], extra: [{ header: 'Canal', value: (r) => CH_LABEL[customers[r.key]?.channel ?? r.channel ?? 'A_CLASSER'] }] },
+      { name: 'Pays commercial', first: 'Pays', rows: stats.by_commercial_country ?? [] },
+      { name: 'Pays livraison', first: 'Pays', rows: stats.by_delivery_country ?? [] },
+    ], pivot ? { name: 'Personnalisé', headers: pivot.headers, rows: pivot.rows, unit: pivot.unit } : undefined);
+    downloadWorkbook(wb, `statistiques-commerciales_${range0}_${range1}.xlsx`);
+    toast.success('Fichier Excel téléchargé');
   };
 
   const rec = stats?.reconciliation;
@@ -315,6 +351,14 @@ export function SalesStatsPage() {
 
       <CustomerClassificationButton />
 
+      <Card className="border-primary/20"><CardContent className="py-3 flex flex-wrap items-center gap-x-6 gap-y-2 text-sm">
+        <CalendarClock className="h-5 w-5 text-primary" />
+        <div><p className="text-xs text-muted-foreground">Données Erplain disponibles</p><p className="font-medium">du {fr(span.first)} au {fr(span.last)} <span className="text-muted-foreground font-normal">(dernière facture/avoir)</span></p></div>
+        <div><p className="text-xs text-muted-foreground">À jour au</p><p className="font-medium">{run ? new Date(run.updated_at).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' }) : 'jamais lu'} {run && <Badge variant={run.status === 'running' || run.status === 'error' ? 'destructive' : 'outline'} className="ml-1">{run.status === 'running' ? 'lecture incomplète' : run.status === 'error' ? 'erreur' : 'complet'}</Badge>}</p></div>
+        <div><p className="text-xs text-muted-foreground">Période affichée</p><p className="font-medium">{fr(range0)} → {fr(range1)}</p></div>
+        <Button className="ml-auto" variant="outline" onClick={exportExcel} disabled={!stats}><FileSpreadsheet className="h-4 w-4 mr-2" />Exporter Excel (tout)</Button>
+      </CardContent></Card>
+
       {run && (
         <p className="text-xs text-muted-foreground">
           Dernière lecture : {new Date(run.updated_at).toLocaleString('fr-FR')} — {run.status === 'running' ? `en cours (${run.phase === 'invoices' ? 'factures' : 'avoirs'}, page ${run.page})` : run.message}
@@ -368,11 +412,17 @@ export function SalesStatsPage() {
         </Tabs>
       </Card>
 
+      <Card>
+        <CardHeader className="pb-2"><CardTitle className="text-base">Statistiques personnalisées</CardTitle>
+          <p className="text-xs text-muted-foreground">Choisissez les lignes (catégorie, client, produit), les canaux en colonnes et leur ordre, pour la période sélectionnée.</p></CardHeader>
+        <CardContent>{range0 && range1 && <CustomStats from={range0} to={range1} shipping={shipping} catIdx={catIdx} onChange={setPivot} />}</CardContent>
+      </Card>
+
       <div className="space-y-2"><h2 className="text-base font-semibold">Détail</h2>
       <Tabs value={tab} onValueChange={setTab}>
         <div className="flex flex-wrap items-center justify-between gap-2">
           <TabsList className="h-auto flex-wrap">
-            <TabsTrigger value="breakdown">Canal › pays › produit</TabsTrigger><TabsTrigger value="months">Périodes</TabsTrigger><TabsTrigger value="customers">Clients</TabsTrigger><TabsTrigger value="products">Produits</TabsTrigger>
+            <TabsTrigger value="breakdown">Canal › pays › produit</TabsTrigger><TabsTrigger value="months">Périodes</TabsTrigger><TabsTrigger value="customers">Clients</TabsTrigger><TabsTrigger value="categories">Catégories produit</TabsTrigger><TabsTrigger value="products">Produits</TabsTrigger>
             <TabsTrigger value="cc">Pays commercial</TabsTrigger><TabsTrigger value="dc">Pays de livraison</TabsTrigger><TabsTrigger value="channels">Canaux</TabsTrigger>
           </TabsList>
           <div className="flex items-center gap-2">
@@ -387,6 +437,7 @@ export function SalesStatsPage() {
         <Card className="mt-2"><CardContent className="pt-4">
           <TabsContent value="months">{table(monthRows, 'country')}</TabsContent>
           <TabsContent value="customers">{table(stats?.by_customer ?? [], 'customer')}</TabsContent>
+          <TabsContent value="categories">{table(byCategory(stats?.by_product ?? [], catIdx), 'country')}</TabsContent>
           <TabsContent value="products">{table(stats?.by_product ?? [], 'product')}</TabsContent>
           <TabsContent value="cc">{table(stats?.by_commercial_country ?? [], 'cc')}</TabsContent>
           <TabsContent value="dc">{table(stats?.by_delivery_country ?? [], 'country')}</TabsContent>

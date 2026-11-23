@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { MemoryRouter } from 'react-router-dom';
 
 vi.mock('@/context/AuthContext', () => ({ useAuth: () => ({ user: null, getTabPermission: () => 'write', role: 'admin', isAdmin: true }) }));
+vi.mock('@/context/FinancialContext', () => ({ useFinancial: () => ({ state: { products: [], productCategories: [] } }) }));
 
 const stats = {
   totals: { ca_ht: 1500, qty: 30, shipping_ht: 100, docs: 5, prod_ht: 1400, cogs: 500, cov_ht: 1400, est_ht: 0 },
@@ -31,12 +32,16 @@ vi.mock('@/integrations/supabase/client', () => ({
         ? { data: [{ label: 'ECROU DISQUE', ca_ht: 1000, qty: 10, cogs: 400, cov_ht: 1000, prod_ht: 1000, est_ht: 0 }], error: null }
         : { data: null, error: null })),
     from: () => ({
-      select: () => ({
-        order: () => ({
-          limit: () => ({ maybeSingle: async () => ({ data: null, error: null }) }),
-          range: async () => ({ data: customers, error: null }),
-        }),
-      }),
+      select: () => {
+        const q: any = {
+          eq: () => q, not: () => q,
+          order: () => ({
+            limit: () => ({ maybeSingle: async () => ({ data: null, error: null }) }),
+            range: async () => ({ data: customers, error: null }),
+          }),
+        };
+        return q;
+      },
       upsert: async () => ({ error: null }),
     }),
     functions: { invoke: async () => ({ data: null, error: null }) },

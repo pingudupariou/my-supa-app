@@ -46,3 +46,16 @@ describe('copier vers Excel', () => {
     await expect(copyTable(['a'], [[1]])).resolves.toSatisfy((v: boolean) => typeof v === 'boolean');
   });
 });
+
+import { buildPivot, byCategory, categoryIndex, NO_CATEGORY } from './salesStatsModel';
+describe('custom stats', () => {
+  it('maps grouped plan products to their category once', () => {
+    const idx = categoryIndex([{ id: 'g', productCategoryId: 'c1', erplainMembers: ['v1', 'v2'] }, { id: 'erplain-v3', productCategoryId: 'c2' }], [{ id: 'c1', name: 'Vélos' }, { id: 'c2', name: 'Pièces' }]);
+    const rows = byCategory([{ key: 'v1', ca_ht: 100, qty: 1 }, { key: 'v2', ca_ht: 50, qty: 2 }, { key: 'v3', ca_ht: 10, qty: 1 }, { key: 'v9', ca_ht: 5, qty: 1 }], idx);
+    expect(rows.map((r) => [r.key, r.ca_ht])).toEqual([['Vélos', 150], ['Pièces', 10], [NO_CATEGORY, 5]]);
+  });
+  it('keeps the chosen channel order and totals', () => {
+    const p = buildPivot({ B2C: [{ key: 'a', ca_ht: 10, qty: 1 }], B2B: [{ key: 'a', ca_ht: 30, qty: 1 }, { key: 'b', ca_ht: 5, qty: 1 }] }, ['B2B', 'B2C'], 'ca', 'total');
+    expect(p).toEqual([{ key: 'a', label: 'a', cells: [30, 10], total: 40 }, { key: 'b', label: 'b', cells: [5, null], total: 5 }]);
+  });
+});
