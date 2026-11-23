@@ -83,9 +83,11 @@ export function categoryIndex(
   const names = Object.fromEntries(categories.map((c) => [c.id, c.name]));
   const out: Record<string, string> = {};
   for (const p of products) {
-    const name = p.productCategoryId ? names[p.productCategoryId] : undefined;
+    const grouped = !!p.erplainMembers?.length;
+    // A plan row grouping several Erplain products is itself a category; otherwise use the visual category if any.
+    const name = (p.productCategoryId ? names[p.productCategoryId] : undefined) ?? (grouped ? p.name : undefined);
     if (!name) continue;
-    const keys = p.erplainMembers?.length ? p.erplainMembers : p.id.startsWith('erplain-') ? [p.id.slice(8)] : [];
+    const keys = grouped ? p.erplainMembers! : p.id.startsWith('erplain-') ? [p.id.slice(8)] : [];
     for (const k of keys) out[k] = name;
   }
   return out;
@@ -128,5 +130,32 @@ export function buildPivot(perChannel: Record<string, Row[]>, order: string[], m
   if (sort === 'name') rows.sort((a, b) => a.label.localeCompare(b.label, 'fr'));
   else if (sort === 'total') rows.sort((a, b) => v(b.total) - v(a.total));
   else { const i = order.indexOf(sort); rows.sort((a, b) => v(b.cells[i]) - v(a.cells[i])); }
+  return rows;
+}
+
+export type CrossLine = Row & { channel: string; customer: string; customer_label?: string };
+export type CrossDim = 'category' | 'customer' | 'product';
+const dimVal = (l: CrossLine, d: CrossDim, idx: Record<string, string>): [string, string] =>
+  d === 'customer' ? [l.customer, (l.customer_label || l.customer).trim()] : d === 'product' ? [l.key, (l.label || l.key).trim()] : [idx[l.key] ?? NO_CATEGORY, idx[l.key] ?? NO_CATEGORY];
+
+/** Customer × product lines grouped by one or two dimensions, channels as columns; filters keep only chosen customers / categories. */
+export function crossPivot(lines: CrossLine[], a: CrossDim, b: CrossDim | null, idx: Record<string, string>, order: string[], metric: PivotMetric, sort: string,
+  filter: { customers?: string[]; categories?: string[] } = {}): PivotRow[] {
+  const per: Record<string, Record<string, Row>> = {};
+  for (const l of lines) {
+    if (filter.customers?.length && !filter.customers.includes(l.customer)) continue;
+    if (filter.categories?.length && !filter.categories.includes(idx[l.key] ?? NO_CATEGORY)) continue;
+    const [ka, la] = dimVal(l, a, idx); const [kb, lb] = b ? dimVal(l, b, idx) : ['', ''];
+    const key = b ? `${ka}\u0001${kb}` : ka; const label = b ? `${la} › ${lb}` : la;
+    const m = per[l.channel] ??= {};
+    const o = m[key] ??= { key, label, ca_ht: 0, qty: 0, prod_ht: 0, cogs: 0, cov_ht: 0, est_ht: 0 };
+    o.ca_ht += l.ca_ht; o.qty += l.qty; o.prod_ht! += l.prod_ht ?? 0; o.cogs! += l.cogs ?? 0; o.cov_ht! += l.cov_ht ?? 0; o.est_ht! += l.est_ht ?? 0;
+  }
+  const rows = buildPivot(Object.fromEntries(Object.entries(per).map(([c, m]) => [c, Object.values(m)])), order, metric, sort);
+  if (b && sort !== 'name') { // keep sub-rows under their group, groups ordered by their own total
+    const g: Record<string, number> = {};
+    for (const r of rows) { const k = r.key.split('\u0001')[0]; g[k] = (g[k] ?? 0) + (r.total ?? 0); }
+    rows.sort((x, y) => { const gx = x.key.split('\u0001')[0], gy = y.key.split('\u0001')[0]; return gx === gy ? 0 : g[gy] - g[gx]; });
+  }
   return rows;
 }

@@ -6,7 +6,10 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { ArrowLeft, ArrowRight, Copy, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { copyTable, num } from '@/lib/clipboard';
-import { buildPivot, byCategory, CHANNELS, CH_LABEL, type PivotMetric, type PivotRow, type Row } from './salesStatsModel';
+import { Input } from '@/components/ui/input';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Checkbox } from '@/components/ui/checkbox';
+import { crossPivot, CHANNELS, CH_LABEL, NO_CATEGORY, type CrossLine, type PivotMetric, type PivotRow } from './salesStatsModel';
 
 export type CustomDim = 'category' | 'customer' | 'product';
 const DIM_LABEL: Record<CustomDim, string> = { category: 'Catégorie produit', customer: 'Client', product: 'Produit' };
@@ -16,33 +19,36 @@ const fmt = (v: number | null, m: PivotMetric) => v == null ? '—' : m === 'pct
 export type CustomPivot = { title: string; headers: string[]; rows: PivotRow[]; unit: string };
 
 /** Pivot by category / customer / product with channels as columns in the user's order — one server read per channel, same RPC as the page. */
-export function CustomStats({ from, to, shipping, catIdx, onChange }: { from: string; to: string; shipping: boolean; catIdx: Record<string, string>; onChange: (p: CustomPivot | null) => void }) {
+export function CustomStats({ from, to, catIdx, onChange }: { from: string; to: string; shipping?: boolean; catIdx: Record<string, string>; onChange: (p: CustomPivot | null) => void }) {
   const [dim, setDim] = useState<CustomDim>(() => (localStorage.getItem('sales-custom-dim') as CustomDim) || 'category');
   const [metric, setMetric] = useState<PivotMetric>('ca');
   const [order, setOrder] = useState<string[]>(() => { try { const o = JSON.parse(localStorage.getItem('sales-custom-order') ?? ''); return Array.isArray(o) && o.length ? o : [...CHANNELS]; } catch { return [...CHANNELS]; } });
   const [sort, setSort] = useState('total');
-  const [data, setData] = useState<Record<string, { by_product: Row[]; by_customer: Row[] }>>({});
+  const [lines, setLines] = useState<CrossLine[]>([]);
+  const [sub, setSub] = useState<CustomDim | 'none'>('none');
+  const [custF, setCustF] = useState<string[]>([]);
+  const [catF, setCatF] = useState<string[]>([]);
+  const [q, setQ] = useState('');
   const [loading, setLoading] = useState(false);
   useEffect(() => { localStorage.setItem('sales-custom-dim', dim); localStorage.setItem('sales-custom-order', JSON.stringify(order)); }, [dim, order]);
 
   useEffect(() => {
     let live = true; setLoading(true);
-    Promise.all(CHANNELS.map((c) => supabase.rpc('sales_stats' as any, { _from: from, _to: to, _include_shipping: shipping, _channels: [c], _ship_cost_per_doc: null })))
-      .then((res) => {
-        if (!live) return;
-        const err = res.find((r) => r.error); if (err) toast.error(`Statistiques personnalisées : ${err.error!.message}`);
-        setData(Object.fromEntries(CHANNELS.map((c, i) => [c, { by_product: (res[i].data as any)?.by_product ?? [], by_customer: (res[i].data as any)?.by_customer ?? [] }])));
-        setLoading(false);
-      });
+    supabase.rpc('sales_customer_product' as any, { _from: from, _to: to }).then(({ data, error }) => {
+      if (!live) return;
+      if (error) toast.error(`Statistiques personnalisées : ${error.message}`);
+      setLines(((data as any[]) ?? []).map((l) => ({ ...l, ca_ht: Number(l.ca_ht) || 0, qty: Number(l.qty) || 0 })));
+      setLoading(false);
+    });
     return () => { live = false; };
-  }, [from, to, shipping]);
+  }, [from, to]);
 
-  const perChannel = useMemo(() => Object.fromEntries(order.map((c) => {
-    const d = data[c]; if (!d) return [c, []];
-    return [c, dim === 'customer' ? d.by_customer : dim === 'product' ? d.by_product : byCategory(d.by_product, catIdx)];
-  })), [data, order, dim, catIdx]);
-  const rows = useMemo(() => buildPivot(perChannel, order, metric, order.includes(sort) || sort === 'name' ? sort : 'total'), [perChannel, order, metric, sort]);
-  const headers = [DIM_LABEL[dim], ...order.map((c) => CH_LABEL[c] ?? c), order.length > 1 ? 'Total' : 'Total'];
+  const allCustomers = useMemo(() => { const m = new Map<string, { label: string; ca: number }>(); for (const l of lines) { const o = m.get(l.customer) ?? { label: (l.customer_label || l.customer).trim(), ca: 0 }; o.ca += l.ca_ht; m.set(l.customer, o); } return [...m].sort((a, b) => b[1].ca - a[1].ca); }, [lines]);
+  const allCats = useMemo(() => [...new Set(lines.map((l) => catIdx[l.key] ?? NO_CATEGORY))].sort((a, b) => a.localeCompare(b, 'fr')), [lines, catIdx]);
+  const shownCustomers = useMemo(() => { const k = q.trim().toLowerCase(); return allCustomers.filter(([, v]) => !k || v.label.toLowerCase().includes(k)).slice(0, 60); }, [allCustomers, q]);
+  const subDim = sub === 'none' || sub === dim ? null : sub;
+  const rows = useMemo(() => crossPivot(lines, dim, subDim, catIdx, order, metric, order.includes(sort) || sort === 'name' ? sort : 'total', { customers: custF, categories: catF }), [lines, dim, subDim, catIdx, order, metric, sort, custF, catF]);
+  const headers = [subDim ? `${DIM_LABEL[dim]} › ${DIM_LABEL[subDim]}` : DIM_LABEL[dim], ...order.map((c) => CH_LABEL[c] ?? c), 'Total'];
   const colTotals = metric === 'pct' ? null : [...order.map((_, i) => rows.reduce((s, r) => s + (r.cells[i] ?? 0), 0)), rows.reduce((s, r) => s + (r.total ?? 0), 0)];
   const unit = metric === 'qty' ? 'u' : metric === 'pct' ? '%' : '€';
   const sig = JSON.stringify([headers, rows]);
@@ -61,6 +67,27 @@ export function CustomStats({ from, to, shipping, catIdx, onChange }: { from: st
       <div className="grid gap-3 md:grid-cols-[auto_1fr]">
         <span className="text-xs font-medium text-muted-foreground pt-2">Lignes</span>
         <div className="flex flex-wrap gap-1">{(Object.keys(DIM_LABEL) as CustomDim[]).map((d) => <Button key={d} size="sm" variant={dim === d ? 'default' : 'outline'} onClick={() => setDim(d)}>{DIM_LABEL[d]}</Button>)}</div>
+        <span className="text-xs font-medium text-muted-foreground pt-2">Détailler par</span>
+        <div className="flex flex-wrap gap-1">{(['none', ...(Object.keys(DIM_LABEL) as CustomDim[]).filter((d) => d !== dim)] as const).map((d) => <Button key={d} size="sm" variant={(subDim ?? 'none') === d ? 'default' : 'outline'} onClick={() => setSub(d)}>{d === 'none' ? 'Aucun' : DIM_LABEL[d]}</Button>)}</div>
+        <span className="text-xs font-medium text-muted-foreground pt-2">Filtrer</span>
+        <div className="flex flex-wrap items-center gap-2">
+          <Popover><PopoverTrigger asChild><Button size="sm" variant={custF.length ? 'default' : 'outline'}>Clients : {custF.length ? `${custF.length} choisi(s)` : 'tous'}</Button></PopoverTrigger>
+            <PopoverContent className="w-80 p-2" align="start">
+              <Input autoFocus placeholder="Rechercher un client…" value={q} onChange={(e) => setQ(e.target.value)} className="h-8 mb-2" />
+              <div className="max-h-72 overflow-auto space-y-0.5">{shownCustomers.map(([id, v]) => (
+                <label key={id} className="flex items-center gap-2 rounded px-1 py-1 text-sm hover:bg-muted/50 cursor-pointer">
+                  <Checkbox checked={custF.includes(id)} onCheckedChange={() => setCustF((f) => f.includes(id) ? f.filter((x) => x !== id) : [...f, id])} />
+                  <span className="truncate">{v.label}</span></label>))}
+                {!shownCustomers.length && <p className="text-xs text-muted-foreground p-1">Aucun client</p>}</div>
+              {custF.length > 0 && <Button size="sm" variant="ghost" className="mt-1 w-full" onClick={() => setCustF([])}>Tous les clients</Button>}
+            </PopoverContent></Popover>
+          <Popover><PopoverTrigger asChild><Button size="sm" variant={catF.length ? 'default' : 'outline'}>Catégories : {catF.length ? `${catF.length} choisie(s)` : 'toutes'}</Button></PopoverTrigger>
+            <PopoverContent className="w-72 p-2" align="start"><div className="max-h-72 overflow-auto space-y-0.5">{allCats.map((c) => (
+              <label key={c} className="flex items-center gap-2 rounded px-1 py-1 text-sm hover:bg-muted/50 cursor-pointer">
+                <Checkbox checked={catF.includes(c)} onCheckedChange={() => setCatF((f) => f.includes(c) ? f.filter((x) => x !== c) : [...f, c])} /><span className="truncate">{c}</span></label>))}</div>
+              {catF.length > 0 && <Button size="sm" variant="ghost" className="mt-1 w-full" onClick={() => setCatF([])}>Toutes les catégories</Button>}
+            </PopoverContent></Popover>
+        </div>
         <span className="text-xs font-medium text-muted-foreground pt-2">Colonnes (ordre)</span>
         <div className="flex flex-wrap items-center gap-2">
           {order.map((c, i) => (

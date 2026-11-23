@@ -47,7 +47,7 @@ describe('copier vers Excel', () => {
   });
 });
 
-import { buildPivot, byCategory, categoryIndex, NO_CATEGORY } from './salesStatsModel';
+import { buildPivot, byCategory, categoryIndex, crossPivot, NO_CATEGORY } from './salesStatsModel';
 describe('custom stats', () => {
   it('maps grouped plan products to their category once', () => {
     const idx = categoryIndex([{ id: 'g', productCategoryId: 'c1', erplainMembers: ['v1', 'v2'] }, { id: 'erplain-v3', productCategoryId: 'c2' }], [{ id: 'c1', name: 'Vélos' }, { id: 'c2', name: 'Pièces' }]);
@@ -57,5 +57,19 @@ describe('custom stats', () => {
   it('keeps the chosen channel order and totals', () => {
     const p = buildPivot({ B2C: [{ key: 'a', ca_ht: 10, qty: 1 }], B2B: [{ key: 'a', ca_ht: 30, qty: 1 }, { key: 'b', ca_ht: 5, qty: 1 }] }, ['B2B', 'B2C'], 'ca', 'total');
     expect(p).toEqual([{ key: 'a', label: 'a', cells: [30, 10], total: 40 }, { key: 'b', label: 'b', cells: [5, null], total: 5 }]);
+  });
+});
+
+describe('cross stats', () => {
+  it('uses the plan group name as category', () => {
+    expect(categoryIndex([{ id: 'g', name: 'Freins', erplainMembers: ['v1'] } as any], [])).toEqual({ v1: 'Freins' });
+  });
+  it('splits a category by customer, filtered to one customer', () => {
+    const lines: any[] = [
+      { channel: 'B2B', customer: 'c1', customer_label: 'Alpha', key: 'v1', ca_ht: 100, qty: 1 },
+      { channel: 'B2B', customer: 'c2', customer_label: 'Beta', key: 'v1', ca_ht: 40, qty: 1 },
+      { channel: 'OEM', customer: 'c1', customer_label: 'Alpha', key: 'v2', ca_ht: 10, qty: 1 }];
+    const r = crossPivot(lines, 'category', 'customer', { v1: 'Freins' }, ['B2B', 'OEM'], 'ca', 'total', { customers: ['c1'] });
+    expect(r.map((x) => [x.label, x.cells, x.total])).toEqual([['Freins › Alpha', [100, null], 100], [`${NO_CATEGORY} › Alpha`, [null, 10], 10]]);
   });
 });
