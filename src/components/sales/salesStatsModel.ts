@@ -77,7 +77,7 @@ export function detailTSV(
 
 /** Plan-product category for each Erplain sales product key (variant id), from the product plan's own grouping. */
 export function categoryIndex(
-  products: { id: string; productCategoryId?: string; erplainMembers?: string[] }[],
+  products: { id: string; name?: string; productCategoryId?: string; erplainMembers?: string[] }[],
   categories: { id: string; name: string }[],
 ): Record<string, string> {
   const names = Object.fromEntries(categories.map((c) => [c.id, c.name]));
