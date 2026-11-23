@@ -152,6 +152,14 @@ export function SalesStatsPage() {
   const [range0, range1] = periodRange(period, from, to);
   const { state: fin } = useFinancial();
   const catIdx = useMemo(() => categoryIndex(fin.products ?? [], fin.productCategories ?? []), [fin.products, fin.productCategories]);
+  const [cross, setCross] = useState<Row[]>([]);
+  useEffect(() => {
+    if (!range0 || !range1) return; let live = true;
+    supabase.rpc('sales_customer_product' as any, { _from: range0, _to: range1 }).then(({ data }) => { if (live) setCross(((data as any[]) ?? []).map((l) => ({ ...l, ca_ht: Number(l.ca_ht) || 0, qty: Number(l.qty) || 0 }))); });
+    return () => { live = false; };
+  }, [range0, range1, run?.updated_at]);
+  /** Every product line (no top-N cut), restricted to the selected channels, so category totals are complete. */
+  const catRows = useMemo(() => byCategory(cross.filter((l) => channels.includes(l.channel ?? '')), catIdx), [cross, channels, catIdx]);
   const [pivot, setPivot] = useState<CustomPivot | null>(null);
   const [span, setSpan] = useState<{ first: string | null; last: string | null }>({ first: null, last: null });
   useEffect(() => {
@@ -227,7 +235,7 @@ export function SalesStatsPage() {
     if (!stats) return null;
     if (t === 'months') return { kind: 'country', rows: monthRows };
     if (t === 'customers') return { kind: 'customer', rows: stats.by_customer ?? [] };
-    if (t === 'categories') return { kind: 'country', rows: byCategory(stats.by_product ?? [], catIdx) };
+    if (t === 'categories') return { kind: 'country', rows: catRows };
     if (t === 'products') return { kind: 'product', rows: stats.by_product ?? [] };
     if (t === 'cc') return { kind: 'cc', rows: stats.by_commercial_country ?? [] };
     if (t === 'dc') return { kind: 'country', rows: stats.by_delivery_country ?? [] };
@@ -259,7 +267,7 @@ export function SalesStatsPage() {
     ], [
       { name: 'Mois', first: 'Mois', rows: [...monthRows].reverse() },
       { name: 'Canaux', first: 'Canal', rows: (stats.by_channel ?? []).map((r) => ({ ...r, label: CH_LABEL[r.key] ?? r.key })) },
-      { name: 'Catégories produit', first: 'Catégorie', rows: byCategory(stats.by_product ?? [], catIdx) },
+      { name: 'Catégories produit', first: 'Catégorie', rows: catRows },
       { name: 'Produits', first: 'Produit', rows: stats.by_product ?? [], extra: [{ header: 'Catégorie', value: (r) => catIdx[r.key] ?? '' }, { header: 'Coût unit.', value: (r) => r.unit_cost ?? null }] },
       { name: 'Clients', first: 'Client', rows: stats.by_customer ?? [], extra: [{ header: 'Canal', value: (r) => CH_LABEL[customers[r.key]?.channel ?? r.channel ?? 'A_CLASSER'] }] },
       { name: 'Pays commercial', first: 'Pays', rows: stats.by_commercial_country ?? [] },
@@ -437,7 +445,7 @@ export function SalesStatsPage() {
         <Card className="mt-2"><CardContent className="pt-4">
           <TabsContent value="months">{table(monthRows, 'country')}</TabsContent>
           <TabsContent value="customers">{table(stats?.by_customer ?? [], 'customer')}</TabsContent>
-          <TabsContent value="categories">{table(byCategory(stats?.by_product ?? [], catIdx), 'country')}</TabsContent>
+          <TabsContent value="categories">{table(catRows, 'country')}</TabsContent>
           <TabsContent value="products">{table(stats?.by_product ?? [], 'product')}</TabsContent>
           <TabsContent value="cc">{table(stats?.by_commercial_country ?? [], 'cc')}</TabsContent>
           <TabsContent value="dc">{table(stats?.by_delivery_country ?? [], 'country')}</TabsContent>
