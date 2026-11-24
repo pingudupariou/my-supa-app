@@ -3417,6 +3417,39 @@ export type Database = {
         }
         Relationships: []
       }
+      sales_order_backlog: {
+        Row: {
+          created_at: string
+          month: number
+          orders: number
+          read_at: string
+          segment: string
+          unbilled_ht: number
+          updated_at: string
+          year: number
+        }
+        Insert: {
+          created_at?: string
+          month: number
+          orders?: number
+          read_at?: string
+          segment: string
+          unbilled_ht?: number
+          updated_at?: string
+          year: number
+        }
+        Update: {
+          created_at?: string
+          month?: number
+          orders?: number
+          read_at?: string
+          segment?: string
+          unbilled_ht?: number
+          updated_at?: string
+          year?: number
+        }
+        Relationships: []
+      }
       sav_tickets: {
         Row: {
           bl_reference: string | null

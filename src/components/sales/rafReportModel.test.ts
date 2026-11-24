@@ -12,3 +12,17 @@ describe('rapport RAF', () => {
     expect(yearShare(g, 2025).find((s) => s.segment === 'B2C')!.pct).toBe(75);
   });
 });
+import { aggregateBacklog } from './rafReportModel';
+describe('commandes actives', () => {
+  it("ajoute seulement le reste à facturer des commandes actives, B2B séparé France/export", () => {
+    const r = aggregateBacklog([
+      { status: 'active', dated_at: '2026-11-03', customer_id: 1, channel: 'b2b', unbilled: 500 },
+      { status: 'active', dated_at: '2026-11-04', customer_id: 2, channel: 'b2b', unbilled: 300 },
+      { status: 'closed', dated_at: '2026-11-04', customer_id: 2, channel: 'b2b', unbilled: 999 },
+      { status: 'active', dated_at: '2026-11-05', customer_id: 3, channel: 'b2c', unbilled: 0 },
+    ], { '1': 'FR', '2': 'DE' }, { '1': 'B2B', '2': 'B2B' });
+    expect(r.find((x) => x.segment === 'B2B_FR')!.unbilled_ht).toBe(500);
+    expect(r.find((x) => x.segment === 'B2B_EXPORT')!.unbilled_ht).toBe(300);
+    expect(r.length).toBe(2);
+  });
+});

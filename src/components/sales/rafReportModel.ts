@@ -28,3 +28,30 @@ export function yearShare(g: ReturnType<typeof buildGrid>, y: number) {
   for (let m = 1; m <= 12; m++) for (const s of SEGMENTS) { const v = g[y]?.[m]?.[s] ?? 0; tot[s] = (tot[s] ?? 0) + v; all += v; }
   return SEGMENTS.map((s) => ({ segment: s, value: tot[s] ?? 0, pct: all ? ((tot[s] ?? 0) / all) * 100 : 0 }));
 }
+
+export type BacklogOrder = { status: string | null; dated_at: string | null; customer_id: string | number | null; channel: string | null; unbilled: number | null };
+const isFR = (c: string | null | undefined) => ['FR', 'FRA', 'FRANCE'].includes(String(c ?? '').trim().toUpperCase());
+
+/** Commandes actives : seul le reste à facturer est ajouté (la partie déjà facturée est dans les factures) — pas de double comptage. */
+export function aggregateBacklog(orders: BacklogOrder[], countries: Record<string, string | null>, channels: Record<string, string>) {
+  const acc = new Map<string, { year: number; month: number; segment: string; unbilled_ht: number; orders: number }>();
+  for (const o of orders) {
+    if (!['active', 'pending_validation'].includes(String(o.status))) continue;
+    const v = Number(o.unbilled); if (!o.dated_at || !Number.isFinite(v) || v <= 0) continue;
+    const id = String(o.customer_id ?? '');
+    const raw = (channels[id] ?? o.channel ?? 'B2C').toUpperCase();
+    const ch = raw === 'B2B' || raw === 'OEM' ? raw : 'B2C';
+    const segment = ch === 'B2B' ? (isFR(countries[id]) ? 'B2B_FR' : 'B2B_EXPORT') : ch;
+    const year = Number(o.dated_at.slice(0, 4)), month = Number(o.dated_at.slice(5, 7));
+    const k = `${year}-${month}-${segment}`;
+    const cur = acc.get(k) ?? { year, month, segment, unbilled_ht: 0, orders: 0 };
+    cur.unbilled_ht += v; cur.orders += 1; acc.set(k, cur);
+  }
+  return [...acc.values()].map((r) => ({ ...r, unbilled_ht: Math.round(r.unbilled_ht * 100) / 100 }));
+}
+
+export type Unit = 'eur' | 'keur';
+export function fmtAmount(v: number | null | undefined, unit: Unit, suffix = true) {
+  if (v == null) return '';
+  return unit === 'keur' ? `${(v / 1000).toLocaleString('fr-FR', { maximumFractionDigits: 1 })}${suffix ? ' k€' : ''}` : `${Math.round(v).toLocaleString('fr-FR')}${suffix ? ' €' : ''}`;
+}
