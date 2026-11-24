@@ -3390,6 +3390,33 @@ export type Database = {
         }
         Relationships: []
       }
+      sales_budgets: {
+        Row: {
+          amount: number
+          created_at: string
+          month: number
+          updated_at: string
+          updated_by: string | null
+          year: number
+        }
+        Insert: {
+          amount?: number
+          created_at?: string
+          month: number
+          updated_at?: string
+          updated_by?: string | null
+          year: number
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          month?: number
+          updated_at?: string
+          updated_by?: string | null
+          year?: number
+        }
+        Relationships: []
+      }
       sav_tickets: {
         Row: {
           bl_reference: string | null
@@ -4159,6 +4186,10 @@ export type Database = {
       }
       sales_customer_product: {
         Args: { _from: string; _to: string }
+        Returns: Json
+      }
+      sales_raf_report: {
+        Args: { _include_shipping?: boolean; _years: number[] }
         Returns: Json
       }
       sales_stats: {

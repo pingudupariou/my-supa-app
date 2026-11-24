@@ -15,6 +15,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { AlertTriangle, CheckCircle2, Copy, Loader2, RefreshCw } from 'lucide-react';
 import { Bar, BarChart, CartesianGrid, ComposedChart, Legend, Line, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { toast } from 'sonner';
+import { RafReport } from '@/components/sales/RafReport';
 import { SalesBreakdown } from '@/components/sales/SalesBreakdown';
 import { copyTable } from '@/lib/clipboard';
 import { useFinancial } from '@/context/FinancialContext';
@@ -399,6 +400,8 @@ export function SalesStatsPage() {
           <Card key={l}><CardContent className="pt-6"><p className="text-xs text-muted-foreground">{l}</p><p className="text-xl font-semibold tabular-nums">{v}</p></CardContent></Card>
         ))}
       </div>
+
+      <RafReport refreshKey={run?.finished_at ? Date.parse(run.finished_at) : 0} syncedAt={run?.finished_at ?? run?.started_at ?? null} />
 
       <Card>
         <Tabs defaultValue="explorer">
