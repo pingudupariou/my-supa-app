@@ -18,7 +18,11 @@ const key = (v: any, l: any) => `${v}|${l ?? "none"}`;
 const n = (x: any): number | null => (x === null || x === undefined ? null : Number(x));
 const sum = (a: (number | null)[]) => (a.some((x) => x === null) ? null : a.reduce((s: number, x) => s + (x as number), 0));
 
-export function computePlan(data: { lines: any[]; stocks: any[]; mos: any[]; boms: any[]; routings: any[] }, opts: { includePending?: boolean; selectedLineIds?: number[] | null } = {}) {
+export function computePlan(data: { lines: any[]; stocks: any[]; mos: any[]; boms: any[]; routings: any[] }, opts: { includePending?: boolean; selectedLineIds?: number[] | null; openLinesOnly?: boolean; stockLocationIds?: number[] | null } = {}) {
+  // stockLocationIds: Erplain locations whose stock is counted (summed per variant). null = the order line's own location.
+  const stockLocs = opts.stockLocationIds && opts.stockLocationIds.length ? new Set(opts.stockLocationIds.map(Number)) : null;
+  const pooled = new Map<number, any>();
+  const otherStocks = new Map<number, any[]>();
   const statuses = opts.includePending ? [...OPEN_ORDER, "pending_validation"] : OPEN_ORDER;
   const selection = opts.selectedLineIds ? new Set(opts.selectedLineIds.map(Number)) : null;
   const stockBy = new Map<string, any>();
@@ -27,6 +31,15 @@ export function computePlan(data: { lines: any[]; stocks: any[]; mos: any[]; bom
     stockBy.set(key(s.variant_id, s.location_id), s);
     if (s.on_hand != null && s.reserved != null && s.available != null && Math.abs(s.on_hand - s.reserved - s.available) > 0.001)
       warnings.push(`Stock ${s.sku ?? s.variant_id} @ ${s.location_label ?? s.location_id} : disponible (${s.available}) ≠ réel (${s.on_hand}) − réservé (${s.reserved}).`);
+    if (stockLocs) {
+      const v = Number(s.variant_id);
+      if (stockLocs.has(Number(s.location_id))) {
+        const p = pooled.get(v);
+        const add = (a: any, b: any) => (a == null || b == null ? null : Number(a) + Number(b));
+        pooled.set(v, p ? { ...p, on_hand: add(p.on_hand, s.on_hand), reserved: add(p.reserved ?? 0, s.reserved ?? 0), available: add(p.available, s.available), locations: [...p.locations, s.location_label ?? s.location_id] }
+          : { ...s, reserved: s.reserved ?? 0, locations: [s.location_label ?? s.location_id] });
+      } else otherStocks.set(v, [...(otherStocks.get(v) ?? []), s]);
+    }
   }
   const openMos = data.mos.filter((m) => !CLOSED_MO.includes(m.status));
   const linkedLine = new Map<number, any>();
@@ -78,8 +91,10 @@ export function computePlan(data: { lines: any[]; stocks: any[]; mos: any[]; bom
     const need = sum(lines.map((l: any) => l.remaining));
     if (need === null) issues.push("Quantité commandée ou expédiée manquante sur une ligne.");
     const reservedInScope = sum(lines.map((l: any) => l.own_reserved ?? 0));
-    const st = stockBy.get(g.key);
-    if (!st) issues.push("Aucun niveau de stock Erplain pour cette variante à cet emplacement.");
+    const st = stockLocs ? pooled.get(Number(g.variant_id)) : stockBy.get(g.key);
+    const elsewhere = (stockLocs ? otherStocks.get(Number(g.variant_id)) ?? [] : data.stocks.filter((s) => Number(s.variant_id) === Number(g.variant_id) && Number(s.location_id) !== Number(g.location_id)))
+      .filter((s) => Number(s.on_hand ?? 0) !== 0).map((s) => ({ location_id: s.location_id, location_label: s.location_label, on_hand: s.on_hand, available: s.available }));
+    if (!st) issues.push(stockLocs ? "Aucun niveau de stock Erplain pour cette variante dans les emplacements cochés." : "Aucun niveau de stock Erplain pour cette variante à cet emplacement.");
     else if (st.available == null || st.on_hand == null) issues.push("Stock disponible ou réel non renseigné par Erplain.");
     // Usable assembled stock = free stock + reservations held by selected lines (part of on_hand, not extra), capped by physical stock.
     let usable: number | null = null;
@@ -124,7 +139,7 @@ export function computePlan(data: { lines: any[]; stocks: any[]; mos: any[]; bom
     return {
       key: g.key, variant_id: g.variant_id, sku: g.sku, variant_label: g.variant_label, location_id: g.location_id, location_label: g.location_label,
       first_shipping_at: firstDate, lines, other_open_lines: others,
-      need, stock: st ? { on_hand: st.on_hand, available: st.available, reserved: st.reserved } : null, reserved_in_scope: reservedInScope, usable,
+      need, stock: st ? { on_hand: st.on_hand, available: st.available, reserved: st.reserved, locations: st.locations ?? [st.location_label ?? st.location_id], synced_at: st.synced_at ?? null } : null, stock_elsewhere: elsewhere, reserved_in_scope: reservedInScope, usable,
       mos: mos.map((m) => ({ id: m.id, label: m.label, status: m.status, quantity: m.quantity, remaining_to_produce: m.remaining_to_produce, linked: (m.order_line_item_ids ?? []).length > 0, shortage_forced: m.shortage_forced ?? null })),
       mo_linked: linkedMo, mo_free: freeMo, reserved_used: reservedUsed, mo_remaining: moRemaining, to_build: allCovered ? 0 : toBuild, all_covered: allCovered, coverage,
       bom: bom ? { id: bom.id, label: bom.label } : null, routing: routing ? { id: routing.id, label: routing.label, steps: (routing.steps ?? []).length } : null,

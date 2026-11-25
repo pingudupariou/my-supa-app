@@ -49,9 +49,9 @@ async function handleData(action: string, body: any, admin: any, token: string, 
     const { data: run } = await admin.from("erplain_sync_runs").select("*").order("started_at", { ascending: false }).limit(1).maybeSingle();
     const { data: subs } = await admin.from("erplain_mo_submissions").select("*").order("created_at", { ascending: false });
     const { data: settings } = await admin.from("erplain_mo_settings").select("reference_prefix").eq("id", 1).maybeSingle();
-    const plan = computePlan(data, { includePending: !!body.includePending, selectedLineIds: Array.isArray(body.selectedLineIds) ? body.selectedLineIds : null, openLinesOnly: body.compute === false });
+    const plan = computePlan(data, { includePending: !!body.includePending, selectedLineIds: Array.isArray(body.selectedLineIds) ? body.selectedLineIds : null, stockLocationIds: Array.isArray(body.stockLocationIds) ? body.stockLocationIds.map(Number).filter(Number.isFinite) : null, openLinesOnly: body.compute === false });
     return json({ status: "success", lastRun: run, ...plan, submissions: subs ?? [], referencePrefix: settings?.reference_prefix ?? "NOV-OF-",
-      stocks: data.stocks.map((s: any) => ({ variant_id: s.variant_id, location_id: s.location_id, on_hand: s.on_hand, available: s.available, reserved: s.reserved, incoming: s.incoming, synced_at: s.synced_at })),
+      stocks: data.stocks.map((s: any) => ({ variant_id: s.variant_id, location_id: s.location_id, location_label: s.location_label, on_hand: s.on_hand, available: s.available, reserved: s.reserved, incoming: s.incoming, synced_at: s.synced_at })),
       writeEnabled: Deno.env.get("ERPLAIN_ALLOW_WRITE") === "true",
       counts: { lines: data.lines.length, stocks: data.stocks.length, mos: data.mos.length, boms: data.boms.length, routings: data.routings.length } });
   }
@@ -163,7 +163,7 @@ async function handleData(action: string, body: any, admin: any, token: string, 
   const data = await loadPlanData(admin);
   const appLinks = new Map(data.mos.filter((m: any) => m.line_alloc).map((m: any) => [Number(m.id), m]));
   data.mos = freshMos.map((m: any) => { const a: any = appLinks.get(Number(m.id)); return a && !(m.order_line_item_ids ?? []).length ? { ...m, order_line_item_ids: a.order_line_item_ids, line_alloc: a.line_alloc } : m; });
-  const plan = computePlan(data, { includePending: !!body.includePending, selectedLineIds: Array.isArray(body.selectedLineIds) ? body.selectedLineIds : null });
+  const plan = computePlan(data, { includePending: !!body.includePending, selectedLineIds: Array.isArray(body.selectedLineIds) ? body.selectedLineIds : null, stockLocationIds: Array.isArray(body.stockLocationIds) ? body.stockLocationIds.map(Number).filter(Number.isFinite) : null });
   const p = plan.proposals.find((x: any) => x.idempotency_key === wanted || x.key === body.groupKey);
   if (!p) return json({ status: "blocked", message: "Proposition introuvable après relecture : le besoin a changé ou est couvert." });
   if (p.idempotency_key !== wanted) return json({ status: "blocked", message: "Les lignes de commande concernées ont changé depuis l'affichage. Rechargez le plan." });

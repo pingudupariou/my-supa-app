@@ -60,6 +60,24 @@ export function PlanAtelierBoard({ isAdmin, canRead = isAdmin }: { isAdmin: bool
     try { const saved = JSON.parse(localStorage.getItem(COLUMN_STORAGE) ?? '[]'); return Array.isArray(saved) ? saved.filter((key) => ORDER_COLUMNS.some((c) => c.key === key)) : []; } catch { return []; }
   });
   useEffect(() => { try { localStorage.setItem(COLUMN_STORAGE, JSON.stringify(hiddenColumns)); } catch { /* Storage unavailable */ } }, [hiddenColumns]);
+  // Emplacements dont le stock est compté (mémorisé sur l'appareil). Par défaut : Nova ride, jamais Shopify.
+  const [stockLocs, setStockLocs] = useState<number[] | null>(() => {
+    try { const v = JSON.parse(localStorage.getItem('planatelier.stockLocations') ?? 'null'); return Array.isArray(v) && v.length ? v.map(Number) : null; } catch { return null; }
+  });
+  useEffect(() => { try { if (stockLocs) localStorage.setItem('planatelier.stockLocations', JSON.stringify(stockLocs)); } catch { /* ignore */ } }, [stockLocs]);
+  const locations = useMemo(() => {
+    const m = new Map<number, { id: number; label: string; updated: string | null }>();
+    stockLevels.forEach((s) => { if (s.location_id == null) return; const id = Number(s.location_id); const cur = m.get(id);
+      const upd = [cur?.updated, s.synced_at].filter(Boolean).sort().pop() ?? null;
+      m.set(id, { id, label: s.location_label ?? cur?.label ?? String(id), updated: upd }); });
+    return [...m.values()].sort((a, b) => a.label.localeCompare(b.label));
+  }, [stockLevels]);
+  useEffect(() => {
+    if (stockLocs || !locations.length) return;
+    const nova = locations.filter((l) => /nova/i.test(l.label) && !/shopify/i.test(l.label));
+    setStockLocs((nova.length ? nova : locations.filter((l) => !/shopify/i.test(l.label))).map((l) => l.id));
+  }, [locations, stockLocs]);
+  const toggleLoc = (id: number) => setStockLocs((cur) => { const c = cur ?? []; const n = c.includes(id) ? c.filter((x) => x !== id) : [...c, id]; return n.length ? n : c; });
   const visibleColumns = ORDER_COLUMNS.filter((c) => !hiddenColumns.includes(c.key));
 
 
@@ -76,9 +94,9 @@ export function PlanAtelierBoard({ isAdmin, canRead = isAdmin }: { isAdmin: bool
     if (!canRead) return;
     setLoading(true); setError(null);
     // compute=false : la grille des besoins reste vide tant que l'utilisateur n'a pas cliqué sur « Calculer les OF pour la sélection ».
-    try { const d = await call({ action: 'plan', includePending, selectedLineIds: applied, compute: computed }); setPlan(d); if (d.stocks) setStockLevels(d.stocks); setOpenLines(d.openLines ?? []); } catch (e) { setError((e as Error).message); }
+    try { const d = await call({ action: 'plan', includePending, selectedLineIds: applied, compute: computed, stockLocationIds: stockLocs }); setPlan(d); if (d.stocks) setStockLevels(d.stocks); setOpenLines(d.openLines ?? []); } catch (e) { setError((e as Error).message); }
     setLoading(false);
-  }, [canRead, includePending, applied, computed]);
+  }, [canRead, includePending, applied, computed, stockLocs]);
 
   useEffect(() => { loadPlan(); }, [loadPlan]);
 
@@ -101,7 +119,7 @@ export function PlanAtelierBoard({ isAdmin, canRead = isAdmin }: { isAdmin: bool
   const createFor = async (p: any, confirm: boolean, allowShortage = false) => {
     setMo((m) => ({ ...m, [p.key]: { loading: true } }));
     try {
-      const d = await call({ action: 'create_mo', selectedLineIds: applied, key: p.idempotency_key, groupKey: p.key, quantity: p.to_build, includePending, confirm, allowShortage });
+      const d = await call({ action: 'create_mo', selectedLineIds: applied, key: p.idempotency_key, groupKey: p.key, quantity: p.to_build, includePending, confirm, allowShortage, stockLocationIds: stockLocs });
       setMo((m) => ({ ...m, [p.key]: d }));
     } catch (e) { setMo((m) => ({ ...m, [p.key]: { status: 'api_error', message: (e as Error).message } })); }
   };
@@ -351,6 +369,15 @@ export function PlanAtelierBoard({ isAdmin, canRead = isAdmin }: { isAdmin: bool
               <Checkbox checked={includePending} onCheckedChange={(v) => setIncludePending(!!v)} />Inclure les commandes en attente de validation
             </label>
             {loading && <Loader2 className="h-4 w-4 animate-spin" />}
+          </div>
+          <div className="rounded-md border p-2 flex flex-wrap gap-x-4 gap-y-1 items-center text-sm" data-readonly-allow="true">
+            <span className="font-medium">Stock compté :</span>
+            {locations.length ? locations.map((l) => (
+              <label key={l.id} className="flex items-center gap-2" data-readonly-allow="true">
+                <Checkbox checked={!!stockLocs?.includes(l.id)} onCheckedChange={() => toggleLoc(l.id)} />{l.label}
+                <span className="text-xs text-muted-foreground">{l.updated ? `(lu le ${new Date(l.updated).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' })})` : ''}</span>
+              </label>)) : <span className="text-xs text-muted-foreground">aucun stock synchronisé</span>}
+            <span className="text-xs text-muted-foreground w-full">Les stocks des emplacements cochés sont additionnés par produit. Après une mise en stock dans Erplain, lancez « Stocks seulement » pour relire les chiffres.</span>
 
           </div>
           {plan?.excluded && <p className="text-xs text-muted-foreground">Lignes exclues : {plan.excluded.closedOrders} commandes non ouvertes, {plan.excluded.fullyShipped} déjà expédiées, {plan.excluded.noVariant} sans variante.</p>}
@@ -401,7 +428,8 @@ export function PlanAtelierBoard({ isAdmin, canRead = isAdmin }: { isAdmin: bool
                             <div>
                               <p className="font-medium mb-1">Détail du calcul</p>
                               <p>Besoin restant à expédier : {fmt(p.need)}</p>
-                              <p>Stock Erplain : réel {fmt(p.stock?.on_hand)}, disponible {fmt(p.stock?.available)}, réservé {fmt(p.stock?.reserved)}</p>
+                              <p>Stock Erplain{p.stock?.locations?.length ? ` (${p.stock.locations.join(' + ')})` : ''} : réel {fmt(p.stock?.on_hand)}, disponible {fmt(p.stock?.available)}, réservé {fmt(p.stock?.reserved)}{p.stock?.synced_at ? ` · lu le ${new Date(p.stock.synced_at).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' })}` : ''}</p>
+                              {p.stock_elsewhere?.length ? <p className="text-amber-700">Non compté : {p.stock_elsewhere.map((s: any) => `${s.location_label ?? s.location_id} réel ${fmt(s.on_hand)}`).join(' · ')} — cochez l'emplacement au-dessus pour l'utiliser.</p> : null}
                               <p>Stock monté utilisable = réel {fmt(p.stock?.on_hand)} − réservé pour les autres commandes {fmt(p.reserved_others)} = {fmt(p.usable)} (réservé total Erplain {fmt(p.stock?.reserved)}, dont {fmt(p.reserved_used)} pour les lignes cochées). Le stock réservé aux autres commandes leur reste affecté.</p>
                               <p>OF affectés aux lignes sélectionnées (reste à produire) : {fmt(p.mo_linked)} · non déduits : OF libres {fmt(p.mo_free)}{p.other_open_lines ? ` · ${p.other_open_lines} autre(s) ligne(s) non sélectionnée(s) gardent leurs affectations` : ''}</p>
                               <p>OF en cours : {p.mos.length ? p.mos.map((m: any) => `${m.label ?? m.id} [${m.status}] reste ${fmt(m.remaining_to_produce)}`).join(' ; ') : 'aucun'}</p>
