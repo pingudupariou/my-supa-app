@@ -12,7 +12,24 @@ export interface ScenarioProductOverride {
   volumes?: Record<number, Partial<Record<ProductCategory, number>>>;
   /** Volume absolu par client B2B (id client du plan) et année. */
   clientVolumes?: Record<string, Record<number, number>>;
+  /** % vs plan propre au produit, par année et canal (remplace le % global). */
+  volumePct?: Record<number, Partial<Record<ProductCategory, number>>>;
 }
+
+/** % vs plan effectif : % du produit, sinon % global du scénario. */
+export function scenarioPct(sc: ProductScenario | null, productId: string, year: number, ch: ProductCategory): number {
+  if (!sc) return 0;
+  return sc.products[productId]?.volumePct?.[year]?.[ch] ?? sc.volumePct[year]?.[ch] ?? 0;
+}
+/** Change le % produit (undefined = reprendre le % global). */
+export function setProductPct(sc: ProductScenario, productId: string, ch: ProductCategory, years: number[], value: number | undefined): ProductScenario {
+  const cur = sc.products[productId] ?? {};
+  const volumePct = { ...(cur.volumePct ?? {}) };
+  years.forEach(y => { const row = { ...(volumePct[y] ?? {}) }; if (value === undefined) delete row[ch]; else row[ch] = value; volumePct[y] = row; });
+  return { ...sc, products: { ...sc.products, [productId]: { ...cur, volumePct } } };
+}
+/** Évolution en % entre deux volumes (null si base nulle). */
+export const yoyPct = (cur: number, prev: number | undefined): number | null => prev ? ((cur - prev) / prev) * 100 : null;
 
 /** Scénario du plan produit : prix/coûts par produit et année, volumes en % du plan, transport. */
 export interface ProductScenario {
@@ -45,16 +62,15 @@ export function scenarioClientVolume(p: Product, clientId: string, sc: ProductSc
   const plan = c ? clientVolume(c, year) : 0;
   const own = sc?.products[p.id]?.clientVolumes?.[clientId]?.[year];
   if (own !== undefined) return own;
-  return Math.round(plan * (1 + (sc?.volumePct[year]?.B2B || 0) / 100));
+  return Math.round(plan * (1 + scenarioPct(sc, p.id, year, 'B2B') / 100));
 }
 const clientsActive = (p: Product) => !!(p.b2bClients?.enabled && p.b2bClients.clients.length);
 
 /** Volumes effectifs : saisie produit/canal > somme clients B2B (si détaillé et modifié) > plan × % global. */
 export function scenarioVolumes(p: Product, sc: ProductScenario | null, year: number) {
   const v = channelVolumes(p, year);
-  const pct = sc?.volumePct[year] ?? {};
   const own = sc?.products[p.id]?.volumes?.[year] ?? {};
-  const scaled = (ch: ProductCategory) => Math.round(v[ch] * (1 + (pct[ch] || 0) / 100));
+  const scaled = (ch: ProductCategory) => Math.round(v[ch] * (1 + scenarioPct(sc, p.id, year, ch) / 100));
   const cv = sc?.products[p.id]?.clientVolumes;
   const hasClient = clientsActive(p) && cv && Object.values(cv).some(r => r[year] !== undefined);
   const b2b = own.B2B ?? (hasClient ? p.b2bClients!.clients.reduce((s, c) => s + scenarioClientVolume(p, c.id, sc, year), 0) : scaled('B2B'));
@@ -80,7 +96,7 @@ export function setClientVolume(sc: ProductScenario, productId: string, clientId
 export function overrideCount(o: ScenarioProductOverride | undefined): number {
   if (!o) return 0;
   const n = (r?: Record<number, object>) => Object.values(r ?? {}).reduce((s, x) => s + Object.keys(x).length, 0);
-  return n(o.prices) + Object.keys(o.unitCost ?? {}).length + n(o.volumes) + Object.values(o.clientVolumes ?? {}).reduce((s, r) => s + Object.keys(r).length, 0);
+  return n(o.prices) + Object.keys(o.unitCost ?? {}).length + n(o.volumes) + n(o.volumePct) + Object.values(o.clientVolumes ?? {}).reduce((s, r) => s + Object.keys(r).length, 0);
 }
 
 export interface ProductYearLine { productId: string; name: string; year: number; units: number; revenue: number; cogs: number; prices: Record<ProductCategory, number>; cost: number }
@@ -143,7 +159,7 @@ export function applyScenario(products: Product[], sc: ProductScenario, years: n
       const pr = o?.prices?.[y]; if (pr && Object.keys(pr).length) pricesByYear[y] = { ...(pricesByYear[y] ?? {}), ...pr };
       const c = o?.unitCost?.[y]; if (c !== undefined) unitCostByYear[y] = c;
     });
-    const pct = (ch: ProductCategory) => (y: number) => sc.volumePct[y]?.[ch] || 0;
+    const pct = (ch: ProductCategory) => (y: number) => scenarioPct(sc, p.id, y, ch);
     const ch = p.volumesByChannel;
     const ownV = (c: ProductCategory) => (rec: Record<number, number>) => { const out = { ...rec }; years.forEach(y => { const v = o?.volumes?.[y]?.[c]; if (v !== undefined) out[y] = v; }); return out; };
     const volumesByChannel = ch ? { B2C: ownV('B2C')(scale(ch.B2C, years, pct('B2C'))), B2B: ownV('B2B')(scale(ch.B2B, years, pct('B2B'))), OEM: ownV('OEM')(scale(ch.OEM, years, pct('OEM'))) } : undefined;

@@ -49,3 +49,16 @@ describe('scénarios : volumes par canal et par client', () => {
     expect(ap.b2bClients!.clients[0].volumes[2027]).toBe(10);
   });
 });
+
+import { scenarioPct as _pct, setProductPct as _setPct } from './productScenarios';
+describe('per-product volume %', () => {
+  it('product % overrides global %, clearing falls back', () => {
+    let sc: import('./productScenarios').ProductScenario = { ...newScenario('S', 0), volumePct: { 2026: { B2C: 10 } } };
+    expect(_pct(sc, 'p1', 2026, 'B2C')).toBe(10);
+    sc = _setPct(sc, 'p1', 'B2C', [2026], 25);
+    expect(_pct(sc, 'p1', 2026, 'B2C')).toBe(25);
+    expect(_pct(sc, 'p2', 2026, 'B2C')).toBe(10);
+    sc = _setPct(sc, 'p1', 'B2C', [2026], undefined);
+    expect(_pct(sc, 'p1', 2026, 'B2C')).toBe(10);
+  });
+});

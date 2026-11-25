@@ -14,7 +14,7 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { SectionCard } from '@/components/ui/KPICard';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { CHS, applyScenario, newScenario, overrideCount, productLines, scenarioClientVolume, scenarioCost, scenarioPrices, scenarioResults, scenarioVolumes, setClientVolume, setOverride, setVolumeOverride, type ProductScenario, type YearResult } from '@/engine/productScenarios';
+import { CHS, applyScenario, newScenario, overrideCount, productLines, scenarioClientVolume, scenarioCost, scenarioPrices, scenarioResults, scenarioVolumes, scenarioPct, setClientVolume, setOverride, setProductPct, setVolumeOverride, yoyPct, type ProductScenario, type YearResult } from '@/engine/productScenarios';
 import type { Product, ProductCategory } from '@/engine/types';
 import { syncProductVolumes } from '@/engine/calculations';
 
@@ -147,6 +147,9 @@ export function ProductScenarios({ years }: { years: number[] }) {
       toast.success('Fichier Excel téléchargé : formules actives, une feuille par version.');
     } catch (e) { toast.error(`Export Excel impossible : ${(e as Error).message}`); }
   };
+  const chTotals = useMemo(() => { const synced = syncProductVolumes(products); const m: Record<string, number> = {};
+    years.forEach(y => CHS.forEach(ch => { m[`${ch}-${y}`] = synced.reduce((t, p) => t + scenarioVolumes(p, sel ?? null, y)[ch], 0); })); return m; }, [products, sel, years]);
+  const chTotal = (ch: ProductCategory, y: number) => chTotals[`${ch}-${y}`] ?? 0;
   const filtered = products.filter(p => !search || p.name.toLowerCase().includes(search.toLowerCase()));
 
   return (
@@ -263,13 +266,14 @@ export function ProductScenarios({ years }: { years: number[] }) {
           <div className="grid gap-4 lg:grid-cols-[1fr_auto]">
             <div className="rounded-lg border p-3">
               <p className="mb-2 text-sm font-medium">Volumes en % du plan (tous produits)</p>
-              <p className="mb-2 text-xs text-muted-foreground">Un volume saisi dans un produit ci-dessous remplace ce %.</p>
+              <p className="mb-2 text-xs text-muted-foreground">Un % ou un volume saisi dans un produit ci-dessous remplace ce %. Sous chaque case : évolution du volume total vs année précédente.</p>
               <table className="text-sm">
                 <thead><tr className="text-xs text-muted-foreground"><th className="pr-3 text-left">Canal</th>{years.map(y => <th key={y} className="px-1">{y}</th>)}</tr></thead>
                 <tbody>{CHS.map(ch => (
-                  <tr key={ch}><td className="pr-3">{chName(ch)}</td>{years.map(y => (
-                    <td key={y} className="px-1 py-0.5"><Input className="h-7 w-16 text-right text-xs" placeholder="0" value={sel.volumePct[y]?.[ch] ?? ''}
-                      onChange={e => { const v = parse(e.target.value); const row = { ...(sel.volumePct[y] ?? {}) }; if (v === undefined) delete row[ch]; else row[ch] = v; patch({ ...sel, volumePct: { ...sel.volumePct, [y]: row } }); }} /></td>
+                  <tr key={ch}><td className="pr-3">{chName(ch)}</td>{years.map((y, i) => (
+                    <td key={y} className="px-1 py-0.5 align-top"><Input className="h-7 w-16 text-right text-xs" placeholder="0" value={sel.volumePct[y]?.[ch] ?? ''}
+                      onChange={e => { const v = parse(e.target.value); const row = { ...(sel.volumePct[y] ?? {}) }; if (v === undefined) delete row[ch]; else row[ch] = v; patch({ ...sel, volumePct: { ...sel.volumePct, [y]: row } }); }} />
+                      {i > 0 && <Growth v={yoyPct(chTotal(ch, y), chTotal(ch, years[i - 1]))} />}</td>
                   ))}</tr>
                 ))}</tbody>
               </table>
@@ -342,7 +346,22 @@ function ProductRow({ p, sc, years, open, onToggle, onChange, chName }: { p: Pro
                   ))}
                 </tr>
               ))}
-              <tr><td colSpan={years.length + 1} className="pt-3 text-xs font-medium">Volumes (unités) — plan en gris</td></tr>
+              <tr><td colSpan={years.length + 1} className="pt-3 text-xs font-medium">Volumes en % du plan (ce produit) — vide = % global</td></tr>
+              {CHS.map(ch => (
+                <tr key={`p-${ch}`}>
+                  <td className="whitespace-nowrap pr-3 text-xs">% {chName(ch)}</td>
+                  {years.map((y, i) => { const own = o?.volumePct?.[y]?.[ch]; const g = sc.volumePct[y]?.[ch];
+                    return (
+                    <td key={y} className="px-1 py-0.5">
+                      <div className="flex items-center">
+                        <Input className={`h-7 w-20 text-right text-xs ${own !== undefined ? 'border-primary' : ''}`} placeholder={g != null ? `${g} (global)` : '0'} value={own ?? ''}
+                          onChange={e => onChange(setProductPct(sc, p.id, ch, [y], parse(e.target.value)))} aria-label={`% ${chName(ch)} ${y}`} />
+                        {i < years.length - 1 && own !== undefined && <button title="Recopier sur les années suivantes" className="ml-0.5 text-muted-foreground hover:text-primary" onClick={() => onChange(setProductPct(sc, p.id, ch, years.slice(i + 1), own))}><ArrowRight className="h-3 w-3" /></button>}
+                      </div>
+                    </td>); })}
+                </tr>
+              ))}
+              <tr><td colSpan={years.length + 1} className="pt-3 text-xs font-medium">Volumes (unités) — plan en gris, évolution vs année précédente en couleur</td></tr>
               {CHS.map(ch => (
                 <tr key={`v-${ch}`}>
                   <td className="whitespace-nowrap pr-3 text-xs">Volume {chName(ch)}{ch === 'B2B' && clients.length ? ' (total)' : ''}</td>
@@ -354,7 +373,7 @@ function ProductRow({ p, sc, years, open, onToggle, onChange, chName }: { p: Pro
                           onChange={e => onChange(setVolumeOverride(sc, p.id, ch, [y], parse(e.target.value)))} aria-label={`Volume ${chName(ch)} ${y}`} />
                         {i < years.length - 1 && own !== undefined && <button title="Recopier sur les années suivantes" className="ml-0.5 text-muted-foreground hover:text-primary" onClick={() => onChange(setVolumeOverride(sc, p.id, ch, years.slice(i + 1), own))}><ArrowRight className="h-3 w-3" /></button>}
                       </div>
-                      {effV !== planV && <div className="text-right text-[10px] text-muted-foreground">plan {planV}</div>}
+                      <div className="flex justify-end gap-1">{effV !== planV && <span className="text-[10px] text-muted-foreground">plan {planV}</span>}{i > 0 && <Growth v={yoyPct(effV, scenarioVolumes(p, sc, years[i - 1])[ch])} />}</div>
                     </td>); })}
                 </tr>
               ))}
@@ -369,7 +388,7 @@ function ProductRow({ p, sc, years, open, onToggle, onChange, chName }: { p: Pro
                           onChange={e => onChange(setClientVolume(sc, p.id, c.id, [y], parse(e.target.value)))} aria-label={`Volume ${c.name} ${y}`} />
                         {i < years.length - 1 && own !== undefined && <button title="Recopier sur les années suivantes" className="ml-0.5 text-muted-foreground hover:text-primary" onClick={() => onChange(setClientVolume(sc, p.id, c.id, years.slice(i + 1), own))}><ArrowRight className="h-3 w-3" /></button>}
                       </div>
-                      {effV !== planV && <div className="text-right text-[10px] text-muted-foreground">plan {planV}</div>}
+                      <div className="flex justify-end gap-1">{effV !== planV && <span className="text-[10px] text-muted-foreground">plan {planV}</span>}{i > 0 && <Growth v={yoyPct(effV, scenarioClientVolume(p, c.id, sc, years[i - 1]))} />}</div>
                     </td>); })}
                 </tr>
               ))}
@@ -392,6 +411,12 @@ function ProductRow({ p, sc, years, open, onToggle, onChange, chName }: { p: Pro
       )}
     </div>
   );
+}
+
+/** Évolution vs année précédente. */
+function Growth({ v }: { v: number | null }) {
+  if (v == null) return null;
+  return <span className={`block text-right text-[10px] ${v > 0.05 ? 'text-emerald-600' : v < -0.05 ? 'text-red-600' : 'text-muted-foreground'}`}>{v > 0 ? '+' : ''}{v.toFixed(1).replace('.', ',')} %</span>;
 }
 
 /** Écart scénario vs plan, en valeur et en %. */
