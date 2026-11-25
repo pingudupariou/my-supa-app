@@ -44,14 +44,15 @@ const renderAgenda = () => render(
 beforeEach(() => localStorage.clear());
 afterEach(cleanup);
 
-describe('agenda des actions repliable', () => {
-  it('est ouvert par défaut avec le calendrier et les actions du jour', () => {
+describe('agenda et relances', () => {
+  it('affiche le calendrier des RDV et les relances à faire jusqu\'à aujourd\'hui', () => {
     renderAgenda();
     expect(screen.getByText('Lun')).toBeInTheDocument();
+    expect(screen.getByText('Relancer le devis')).toBeInTheDocument();
     expect(screen.getByText('Envoyer la fiche technique')).toBeInTheDocument();
   });
 
-  it('se replie sur les prochaines actions et mémorise le choix', () => {
+  it('se replie sur les prochaines relances et mémorise le choix', () => {
     renderAgenda();
     fireEvent.click(screen.getByLabelText("Replier l'agenda"));
     expect(screen.queryByText('Lun')).not.toBeInTheDocument();
@@ -60,14 +61,12 @@ describe('agenda des actions repliable', () => {
     expect(localStorage.getItem('crm-agenda-open')).toBe('0');
   });
 
-  it('rouvre le calendrier sur le jour cliqué depuis la bande repliée', () => {
+  it('rouvre depuis la bande repliée', () => {
     localStorage.setItem('crm-agenda-open', '0');
     renderAgenda();
-    expect(screen.queryByText('Lun')).not.toBeInTheDocument();
     fireEvent.click(screen.getByText(/Relancer le devis/));
     expect(screen.getByText('Lun')).toBeInTheDocument();
-    expect(screen.getByText('Relancer le devis')).toBeInTheDocument();
-    expect(screen.getByRole('checkbox')).toBeInTheDocument();
+    expect(screen.getAllByRole('checkbox').length).toBe(2);
     expect(localStorage.getItem('crm-agenda-open')).toBe('1');
   });
 });

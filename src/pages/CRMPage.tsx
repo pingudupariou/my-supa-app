@@ -169,6 +169,11 @@ export function CRMPage() {
         customers={customersForSelect}
         onComplete={crm.completeReminder}
         onUncomplete={crm.uncompleteReminder}
+        onCreateMeeting={createMeetingWithEntity}
+        onUpdateMeeting={crm.updateMeeting}
+        onDeleteMeeting={crm.deleteMeeting}
+        onCreateReminder={createReminderWithEntity}
+        onDeleteReminder={crm.deleteReminder}
         onSelectClient={id => { setSelectedClientId(id); setActiveTab('gestion'); }}
       />
 
