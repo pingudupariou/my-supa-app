@@ -13,6 +13,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { formatDistanceToNow } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
+import { CustomerContacts } from './CustomerContacts';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -266,6 +267,7 @@ interface CustomerDetailProps {
   users?: TeamMember[];
   isAdmin?: boolean;
   selectedEntityName?: string;
+  onClientChanged?: () => void;
 }
 
 const PRIORITY_CONFIG: Record<string, { label: string; color: string }> = {
@@ -286,7 +288,7 @@ export function CustomerDetail({
   onRestoreMeeting, onPermanentDeleteMeeting, getTrashedMeetings,
   onCreateReminder, onCompleteReminder, onUncompleteReminder, onDeleteReminder,
   onCreateTask, onUpdateTask, users = [],
-  isAdmin, selectedEntityName,
+  isAdmin, selectedEntityName, onClientChanged,
 }: CustomerDetailProps) {
   const [showAddTask, setShowAddTask] = useState(false);
   const [newTask, setNewTask] = useState({ title: '', description: '', priority: 'moyenne', assigned_to: '' });
@@ -353,6 +355,8 @@ export function CustomerDetail({
           {client.client_type && <span>Type: {client.client_type}</span>}
           {client.payment_terms && <span>Paiement: {client.payment_terms}</span>}
         </div>
+
+        <CustomerContacts client={client} onSaved={onClientChanged} />
 
         {/* Notes */}
         {client.notes && (

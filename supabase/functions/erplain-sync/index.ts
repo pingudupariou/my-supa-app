@@ -418,6 +418,23 @@ Deno.serve(async (req) => {
     if (peekAction === "access") {
       return json({ role: role?.role ?? null, approved: !!role?.approved, permission: role?.approved || role?.role === "admin" ? permission : "hidden" });
     }
+    if (peekAction === "customer_contact") {
+      // Read-only: e-mail + phone of one Erplain customer by explicit ID, for CRM records (approved users).
+      if (role?.role !== "admin" && !role?.approved) return json({ error: "Forbidden" }, 403);
+      const b = await req.json().catch(() => ({}));
+      const cid = String(b.customerId ?? "");
+      if (!/^[0-9]{1,20}$/.test(cid)) return json({ status: "api_error", message: "Identifiant client Erplain invalide." }, 400);
+      const tk = Deno.env.get("ERPLAIN_API_TOKEN");
+      if (!tk) return json({ status: "config_error", message: "Secret ERPLAIN_API_TOKEN absent côté serveur." });
+      const { data: rr } = await admin.from("erplain_schema_cache").select("data").eq("type_name", "__root").maybeSingle();
+      const g = makeGql(tk, rr?.data?.endpoint ?? DEFAULT_ENDPOINT, Date.now() + 30000, () => {});
+      try {
+        const r = await g("Contact client", `{ Customer(id: ${cid}) { id email phone } }`);
+        if (r.errors.length) return json({ status: "api_error", message: r.errors.join(" | ").slice(0, 300) });
+        const c = r.data?.Customer;
+        return json({ status: "success", email: c?.email ?? null, phone: c?.phone ?? null });
+      } catch (e) { return json({ status: "api_error", message: String((e as Error).message).slice(0, 300) }); }
+    }
     if (peekAction === "sales_sync") {
       // Statistiques commerciales: read-only import of invoices/credit notes; needs write on the sales-stats tab.
       let sp = role?.role === "admin" ? "write" : "hidden";

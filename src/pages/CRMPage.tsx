@@ -284,6 +284,7 @@ export function CRMPage() {
                   users={members}
                   isAdmin={isAdmin}
                   selectedEntityName={bizEntities.selectedEntity?.name}
+                  onClientChanged={b2b.refreshData}
                 />
               ) : (
                 <Card className="h-full min-h-[400px] flex items-center justify-center">

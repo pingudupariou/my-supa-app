@@ -129,6 +129,7 @@ export type Database = {
           company_name: string
           contact_email: string | null
           contact_phone: string | null
+          contacts: Json
           contract_exclusivity: boolean | null
           contract_sign_date: string | null
           country: string | null
@@ -160,6 +161,7 @@ export type Database = {
           company_name: string
           contact_email?: string | null
           contact_phone?: string | null
+          contacts?: Json
           contract_exclusivity?: boolean | null
           contract_sign_date?: string | null
           country?: string | null
@@ -191,6 +193,7 @@ export type Database = {
           company_name?: string
           contact_email?: string | null
           contact_phone?: string | null
+          contacts?: Json
           contract_exclusivity?: boolean | null
           contract_sign_date?: string | null
           country?: string | null

@@ -1,0 +1,1 @@
+ALTER TABLE public.b2b_clients ADD COLUMN IF NOT EXISTS contacts jsonb NOT NULL DEFAULT '[]'::jsonb;

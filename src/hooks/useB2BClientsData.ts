@@ -13,6 +13,7 @@ export interface B2BClient {
   geographic_zone: string | null;
   contact_email: string | null;
   contact_phone: string | null;
+  contacts?: { name: string; email: string; mobile: string }[] | null;
   eer_date: number | null;
   last_purchase_date: number | null;
   client_type: string | null;
