@@ -37,7 +37,14 @@ export function VolumesByChannelTable({ products, years, onChannelVolumeChange, 
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [growthOpen, setGrowthOpen] = useState(false);
   // Taux et année de départ mémorisés sur chaque produit : on les retrouve à la réouverture.
-  const savedRates = () => Object.fromEntries(products.filter(p => p.growthPlan).map(p => [p.id, { ...p.growthPlan!.rates }]));
+  // Sans taux mémorisé, on reprend le % réellement en cours dans les volumes (dernière année saisie vs précédente).
+  const liveRate = (p: Product, ch: typeof CHANNELS[number]) => {
+    const v = p.volumesByChannel?.[ch] || {};
+    const ys = years.filter(y => y >= p.launchYear && (v[y] || 0) > 0);
+    for (let i = ys.length - 1; i > 0; i--) if (ys[i] - 1 === ys[i - 1]) return Math.round(((v[ys[i]] - v[ys[i - 1]]) / v[ys[i - 1]]) * 1000) / 10;
+    return 0;
+  };
+  const savedRates = () => Object.fromEntries(products.map(p => [p.id, Object.fromEntries(CHANNELS.map(ch => [ch, p.growthPlan?.rates?.[ch] ?? liveRate(p, ch)]))]));
   const savedStarts = () => Object.fromEntries(products.filter(p => p.growthPlan?.startYear !== undefined).map(p => [p.id, p.growthPlan!.startYear!]));
   const [growthRates, setGrowthRates] = useState<Record<string, Partial<Record<typeof CHANNELS[number], number>>>>(savedRates);
   const [growthStartYear, setGrowthStartYear] = useState<Record<string, number>>(savedStarts);
@@ -188,7 +195,7 @@ export function VolumesByChannelTable({ products, years, onChannelVolumeChange, 
             <TableHeader><TableRow><TableHead className="min-w-[200px]">Produit / catégorie</TableHead>{CHANNELS.map(ch => <TableHead key={ch} className="text-center">{chName(ch)} / an (%)</TableHead>)}<TableHead className="min-w-[145px]">Année de départ</TableHead></TableRow></TableHeader>
             <TableBody>{products.map(p => <TableRow key={p.id} className={touched.has(p.id) ? 'bg-primary/5' : ''}>
               <TableCell className="font-medium max-w-[260px] break-words">{p.name}{touched.has(p.id) ? <span className="block text-[10px] font-normal text-primary">sera recalculé</span> : p.growthPlan && <span className="block text-[10px] font-normal text-muted-foreground">Taux en cours mémorisé{p.growthPlan.startYear ? ` · depuis ${p.growthPlan.startYear}` : ''}</span>}</TableCell>
-              {CHANNELS.map(ch => byClient(p, ch) ? <TableCell key={ch} className="px-2 text-center text-xs text-muted-foreground">Par client<span className="block text-[10px]">(bloc B2B par client)</span></TableCell> : <TableCell key={ch} className="px-2"><div className="relative"><Input aria-label={`${p.name} ${ch} / an`} type="number" value={growthRates[p.id]?.[ch] ?? 0} onChange={e => { setDirty(d => new Set(d).add(p.id)); setGrowthRates(prev => ({ ...prev, [p.id]: { ...prev[p.id], [ch]: Number(e.target.value) } })); }} step={1} className="min-w-[90px] pr-7 text-center tabular-nums" /><span className="absolute right-3 top-2 text-muted-foreground">%</span></div></TableCell>)}
+              {CHANNELS.map(ch => byClient(p, ch) ? <TableCell key={ch} className="px-2 text-center text-xs text-muted-foreground">Par client<span className="block text-[10px]">(bloc B2B par client)</span></TableCell> : <TableCell key={ch} className="px-2"><div className="relative"><Input aria-label={`${p.name} ${ch} / an`} type="number" value={growthRates[p.id]?.[ch] ?? 0} onChange={e => { setDirty(d => new Set(d).add(p.id)); setGrowthRates(prev => ({ ...prev, [p.id]: { ...prev[p.id], [ch]: Number(e.target.value) } })); }} step={1} className="min-w-[90px] pr-7 text-center tabular-nums" /><span className="absolute right-3 top-2 text-muted-foreground">%</span></div><span className="block text-center text-[10px] text-muted-foreground">{p.growthPlan?.rates?.[ch] !== undefined ? 'taux mémorisé' : 'en cours dans les volumes'}</span></TableCell>)}
               <TableCell><Select value={String(startOf(p))} onValueChange={value => { setDirty(d => new Set(d).add(p.id)); setGrowthStartYear(prev => ({ ...prev, [p.id]: Number(value) })); }}><SelectTrigger aria-label={`${p.name} année de départ`} disabled={!years.some(y => y >= p.launchYear)}><SelectValue /></SelectTrigger><SelectContent>{years.filter(y => y >= p.launchYear).map(y => <SelectItem key={y} value={String(y)}>{y}</SelectItem>)}</SelectContent></Select></TableCell>
             </TableRow>)}</TableBody>
           </Table>
