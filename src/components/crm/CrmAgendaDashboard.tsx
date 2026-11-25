@@ -114,7 +114,7 @@ export function CrmAgendaDashboard({ reminders, meetings, customers, onComplete,
   const saveReminder = async () => {
     if (!remForm || !remForm.customer_id || !remForm.title.trim() || !remForm.due_date) return;
     setSaving(true);
-    const ok = await onCreateReminder?.({ customer_id: remForm.customer_id, title: remForm.title.trim(), due_date: remForm.due_date, reminder_type: remForm.reminder_type, priority: remForm.priority as CrmReminder['priority'], description: remForm.description || null });
+    const ok = await onCreateReminder?.({ customer_id: remForm.customer_id, title: remForm.title.trim(), due_date: remForm.due_date, reminder_type: remForm.reminder_type as CrmReminder['reminder_type'], priority: remForm.priority as CrmReminder['priority'], description: remForm.description || null });
     setSaving(false);
     if (ok) setRemForm(null);
   };
