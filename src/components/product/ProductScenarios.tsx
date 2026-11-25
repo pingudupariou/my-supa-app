@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { Fragment, useEffect, useMemo, useState } from 'react';
 import { Area, Bar, BarChart, CartesianGrid, ComposedChart, Legend, Line, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { toast } from 'sonner';
 import { Pencil, Eye, EyeOff, ChevronDown, ChevronRight, Copy, CopyPlus, Plus, Trash2, Upload, ArrowRight } from 'lucide-react';
@@ -14,7 +14,7 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { SectionCard } from '@/components/ui/KPICard';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { CHS, applyScenario, newScenario, overrideCount, productLines, scenarioClientVolume, scenarioCost, scenarioPrices, scenarioResults, scenarioVolumes, scenarioPct, setClientVolume, setOverride, setProductPct, setVolumeOverride, yoyPct, type ProductScenario, type YearResult } from '@/engine/productScenarios';
+import { CHS, applyScenario, newScenario, overrideCount, productLines, scenarioClientVolume, scenarioCost, scenarioPrices, scenarioResults, scenarioVolumes, scenarioPct, setClientGrowth, setClientVolume, setOverride, setProductPct, setVolumeOverride, yoyPct, type ProductScenario, type YearResult } from '@/engine/productScenarios';
 import type { Product, ProductCategory } from '@/engine/types';
 import { syncProductVolumes } from '@/engine/calculations';
 
@@ -378,7 +378,8 @@ function ProductRow({ p, sc, years, open, onToggle, onChange, chName }: { p: Pro
                 </tr>
               ))}
               {clients.map(c => (
-                <tr key={`c-${c.id}`}>
+                <Fragment key={`c-${c.id}`}>
+                <tr className="border-t border-border">
                   <td className="whitespace-nowrap pl-3 pr-3 text-xs text-muted-foreground">↳ {c.name}</td>
                   {years.map((y, i) => { const own = o?.clientVolumes?.[c.id]?.[y]; const planV = scenarioClientVolume(p, c.id, null, y); const effV = scenarioClientVolume(p, c.id, sc, y);
                     return (
@@ -386,11 +387,30 @@ function ProductRow({ p, sc, years, open, onToggle, onChange, chName }: { p: Pro
                       <div className="flex items-center">
                         <Input disabled={o?.volumes?.[y]?.B2B !== undefined} className={`h-7 w-20 text-right text-xs ${own !== undefined ? 'border-primary' : ''}`} placeholder={String(effV)} value={own ?? ''}
                           onChange={e => onChange(setClientVolume(sc, p.id, c.id, [y], parse(e.target.value)))} aria-label={`Volume ${c.name} ${y}`} />
-                        {i < years.length - 1 && own !== undefined && <button title="Recopier sur les années suivantes" className="ml-0.5 text-muted-foreground hover:text-primary" onClick={() => onChange(setClientVolume(sc, p.id, c.id, years.slice(i + 1), own))}><ArrowRight className="h-3 w-3" /></button>}
+                        {i < years.length - 1 && own !== undefined && <Button size="icon" variant="ghost" disabled={o?.volumes?.[y]?.B2B !== undefined} title="Recopier sur les années suivantes" aria-label={`Recopier le volume de ${c.name} ${y}`} className="ml-0.5 h-5 w-5" onClick={() => onChange(setClientVolume(sc, p.id, c.id, years.slice(i + 1).filter(next => o?.volumes?.[next]?.B2B === undefined), own))}><ArrowRight className="h-3 w-3" /></Button>}
                       </div>
                       <div className="flex justify-end gap-1">{effV !== planV && <span className="text-[10px] text-muted-foreground">plan {planV}</span>}{i > 0 && <Growth v={yoyPct(effV, scenarioClientVolume(p, c.id, sc, years[i - 1]))} />}</div>
                     </td>); })}
                 </tr>
+                <tr>
+                  <td className="whitespace-nowrap pl-3 pr-3 text-xs">Croissance {c.name} / an (%)</td>
+                  {years.map((y, i) => {
+                    const rate = o?.clientGrowthPct?.[c.id]?.[y];
+                    const absolute = o?.clientVolumes?.[c.id]?.[y] !== undefined;
+                    const disabled = o?.volumes?.[y]?.B2B !== undefined;
+                    const growth = i > 0 ? yoyPct(scenarioClientVolume(p, c.id, sc, y), scenarioClientVolume(p, c.id, sc, years[i - 1])) : null;
+                    return <td key={y} className="px-1 pb-2 align-top">
+                      {i > 0 ? <>
+                        <div className="flex items-center">
+                          <Input disabled={disabled} className={`h-8 w-20 text-right text-xs ${rate !== undefined && !absolute ? 'border-primary' : ''}`} value={rate !== undefined && !absolute ? rate : ''} placeholder={growth == null ? '—' : growth.toFixed(1).replace('.', ',')} aria-label={`Croissance ${c.name} ${y}`} onChange={e => onChange(setClientGrowth(sc, p.id, c.id, [y], parse(e.target.value)))} />
+                          {i < years.length - 1 && rate !== undefined && !absolute && <Button size="icon" variant="ghost" disabled={disabled} className="ml-0.5 h-5 w-5" title="Recopier la croissance sur les années suivantes" aria-label={`Recopier la croissance de ${c.name} ${y}`} onClick={() => onChange(setClientGrowth(sc, p.id, c.id, years.slice(i + 1).filter(next => o?.volumes?.[next]?.B2B === undefined), rate))}><ArrowRight className="h-3 w-3" /></Button>}
+                        </div>
+                        <span className="block text-right text-[10px] text-muted-foreground">{disabled ? 'Total B2B prioritaire' : absolute ? 'Volume saisi' : rate !== undefined ? 'Taux mémorisé' : 'Évolution en cours'}</span>
+                      </> : <span className="block text-right text-xs text-muted-foreground">Année de base</span>}
+                    </td>;
+                  })}
+                </tr>
+                </Fragment>
               ))}
               <tr><td colSpan={years.length + 1} className="pt-3" /></tr>
               <tr className="text-xs">

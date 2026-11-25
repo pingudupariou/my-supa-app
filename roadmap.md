@@ -73,3 +73,8 @@
 ## CRM — agenda des actions
 - [x] Rendre l'agenda des actions visible en haut de page sur tous les onglets, avec repli mémorisé sur l'appareil (3 tests réussis).
 - [ ] Vérifier l'affichage sur le CRM connecté (session Supabase externe indisponible).
+
+## Scénarios — croissance des produits détaillés par client
+- [x] Ajouter des taux annuels par client mémorisés dans le scénario, avec volumes B2B calculés par somme des clients.
+- [x] Tester la saisie, la mémorisation, les calculs, l'application au plan et l'export Excel (30 tests réussis).
+- [ ] Vérifier sur le plan réel connecté : session Supabase externe indisponible.

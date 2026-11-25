@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { buildScenarioWorkbook } from './scenarioWorkbook';
-import { newScenario } from '@/engine/productScenarios';
+import { newScenario, setClientGrowth } from '@/engine/productScenarios';
 import type { Product } from '@/engine/types';
 
 const p = { id: 'g', name: 'Galets', launchYear: 2026, priceHT: 10, priceHT_B2B: 8, priceHT_OEM: 6, unitCost: 4, productStatus: 'validated',
@@ -8,6 +8,16 @@ const p = { id: 'g', name: 'Galets', launchYear: 2026, priceHT: 10, priceHT_B2B:
   b2bClients: { enabled: true, clients: [{ id: 'c1', name: 'Alpha', volumes: { 2026: 30 } }, { id: 'c2', name: 'Beta', volumes: { 2026: 20 } }] } } as unknown as Product;
 
 describe('scenario workbook', () => {
+  it('exporte les volumes calculés depuis la croissance annuelle des clients', () => {
+    const sc = setClientGrowth(newScenario('Croissance', 0), 'g', 'c1', [2027, 2028], 10);
+    const wb = buildScenarioWorkbook([p], [{ name: 'Croissance', scenario: sc }], [2026, 2027, 2028], {}, c => c);
+    const ws = wb.Sheets.Croissance;
+    const cell = Object.entries(ws).find(([key, value]) => /^B\d+$/.test(key) && value.v === '  ↳ B2B · Alpha');
+    if (!cell) throw new Error('Client Alpha absent du classeur');
+    const row = cell[0].slice(1);
+    expect(ws[`D${row}`].v).toBe(33);
+    expect(ws[`E${row}`].v).toBe(36);
+  });
   it('writes B2B as a formula summing client rows and CA as volumes × prices', () => {
     const sc = newScenario('Haut', 0);
     sc.products.g = { prices: { 2026: { B2C: 12 } } };
