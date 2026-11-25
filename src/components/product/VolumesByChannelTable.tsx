@@ -19,7 +19,7 @@ interface Props {
   products: Product[];
   years: number[];
   onChannelVolumeChange: (productId: string, year: number, channel: 'B2C' | 'B2B' | 'OEM', volume: number) => void;
-  onBulkChannelVolumes?: (changes: { productId: string; year: number; channel: 'B2C' | 'B2B' | 'OEM'; volume: number }[]) => void;
+  onBulkChannelVolumes?: (changes: { productId: string; year: number; channel: 'B2C' | 'B2B' | 'OEM'; volume: number }[], growthPlans?: Record<string, NonNullable<Product['growthPlan']>>) => void;
   onUpdateProduct?: (product: Product) => void;
   onAddProduct?: (product: Product) => void;
   standbyCount?: number;
@@ -36,8 +36,15 @@ export function VolumesByChannelTable({ products, years, onChannelVolumeChange, 
   const [search, setSearch] = useState('');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [growthOpen, setGrowthOpen] = useState(false);
-  const [growthRates, setGrowthRates] = useState<Record<string, Partial<Record<typeof CHANNELS[number], number>>>>({});
-  const [growthStartYear, setGrowthStartYear] = useState<Record<string, number>>({});
+  // Taux et année de départ mémorisés sur chaque produit : on les retrouve à la réouverture.
+  const savedRates = () => Object.fromEntries(products.filter(p => p.growthPlan).map(p => [p.id, { ...p.growthPlan!.rates }]));
+  const savedStarts = () => Object.fromEntries(products.filter(p => p.growthPlan?.startYear !== undefined).map(p => [p.id, p.growthPlan!.startYear!]));
+  const [growthRates, setGrowthRates] = useState<Record<string, Partial<Record<typeof CHANNELS[number], number>>>>(savedRates);
+  const [growthStartYear, setGrowthStartYear] = useState<Record<string, number>>(savedStarts);
+  const [dirty, setDirty] = useState<Set<string>>(new Set());
+  const openGrowth = () => { setGrowthRates(savedRates()); setGrowthStartYear(savedStarts()); setDirty(new Set()); setGrowthOpen(true); };
+  const plansFor = (ids: string[]) => Object.fromEntries(ids.map(id => [id, { rates: { ...growthRates[id] }, startYear: growthStartYear[id] }]));
+  const growthPct = (cur: number, prev: number | undefined) => !prev ? null : Math.round(((cur - prev) / prev) * 1000) / 10;
   const [growthMode, setGrowthMode] = useState<'recalc' | 'fill'>('recalc');
   const filtered = products.filter(p => p.name.toLocaleLowerCase('fr').includes(search.toLocaleLowerCase('fr')));
   const selected = selectedId === '__none__' ? undefined : filtered.find(p => p.id === selectedId) ?? filtered[0];
@@ -56,8 +63,8 @@ export function VolumesByChannelTable({ products, years, onChannelVolumeChange, 
     const def = Math.max(p.launchYear, new Date().getFullYear() + 1, years[1] ?? years[0] ?? p.launchYear);
     return Math.min(def, years[years.length - 1] ?? def);
   };
-  const commit = (changes: Parameters<NonNullable<Props['onBulkChannelVolumes']>>[0]) => {
-    if (onBulkChannelVolumes) onBulkChannelVolumes(changes);
+  const commit = (changes: Parameters<NonNullable<Props['onBulkChannelVolumes']>>[0], plans?: Record<string, NonNullable<Product['growthPlan']>>) => {
+    if (onBulkChannelVolumes) onBulkChannelVolumes(changes, plans);
     else changes.forEach(c => onChannelVolumeChange(c.productId, c.year, c.channel, c.volume));
   };
   const applyGrowth = (targets: Product[]) => {
@@ -73,7 +80,7 @@ export function VolumesByChannelTable({ products, years, onChannelVolumeChange, 
         values[year] = value;
       });
     }));
-    commit(changes);
+    commit(changes, plansFor(targets.map(p => p.id)));
     setGrowthOpen(false);
   };
   const emptyChanges = () => {
@@ -90,7 +97,7 @@ export function VolumesByChannelTable({ products, years, onChannelVolumeChange, 
   };
   const missing = emptyChanges().length;
   // Produits dont on a saisi un % ou une année de départ : seuls eux sont recalculés.
-  const touched = new Set([...Object.keys(growthRates), ...Object.keys(growthStartYear)].filter(id => products.some(p => p.id === id)));
+  const touched = new Set([...dirty].filter(id => products.some(p => p.id === id)));
   const isEmpty = (p: Product) => !years.some(y => CHANNELS.some(ch => (p.volumesByChannel?.[ch]?.[y] || 0) > 0));
   const toFill = products.filter(isEmpty).length;
   // Entrée = case suivante (année suivante, puis canal suivant) pour une saisie rapide au clavier.
@@ -110,7 +117,7 @@ export function VolumesByChannelTable({ products, years, onChannelVolumeChange, 
         </div>
         <div className="flex flex-wrap gap-2">
           {onAddProduct && <ManualPlanProductDialog years={years} onAdd={p => { onAddProduct(p); setSearch(''); setSelectedId(p.id); }} />}
-          <Button variant="outline" size="sm" onClick={() => setGrowthOpen(true)} disabled={!products.length}><TrendingUp className="h-4 w-4 mr-2" />Croissance & projection</Button>
+          <Button variant="outline" size="sm" onClick={openGrowth} disabled={!products.length}><TrendingUp className="h-4 w-4 mr-2" />Croissance & projection</Button>
         </div>
       </div>
       <ol className="grid gap-2 sm:grid-cols-3 text-xs text-muted-foreground" aria-label="Comment saisir">
@@ -153,9 +160,11 @@ export function VolumesByChannelTable({ products, years, onChannelVolumeChange, 
                           {year < p.launchYear ? <span className="text-[10px] text-muted-foreground">—</span> : byClient(p, ch)
                             ? <div className="h-7 w-20 flex flex-col justify-center text-right text-xs font-medium tabular-nums" aria-label={`${p.name} ${ch} ${year}`}>{number(p.volumesByChannel?.B2B?.[year] || 0)}<span className="text-[9px] text-muted-foreground">par client</span></div>
                             : <Input aria-label={`${p.name} ${ch} ${year}`} type="number" min={0} step={1} inputMode="numeric" value={p.volumesByChannel?.[ch]?.[year] || 0} data-volume-cell onKeyDown={nextOnEnter} onFocus={e => e.target.select()} onChange={e => onChannelVolumeChange(p.id, year, ch, Number(e.target.value))} className="h-7 w-20 text-right text-xs tabular-nums" />}
+                          {(() => { const pct = year > p.launchYear ? growthPct(p.volumesByChannel?.[ch]?.[year] || 0, p.volumesByChannel?.[ch]?.[year - 1]) : null;
+                            return pct === null ? null : <div className={`text-[10px] tabular-nums ${pct > 0 ? 'text-success' : pct < 0 ? 'text-destructive' : 'text-muted-foreground'}`} aria-label={`${p.name} ${ch} ${year} évolution`}>{pct > 0 ? '+' : ''}{pct.toLocaleString('fr-FR')} %</div>; })()}
                         </td>)}
                       </tr>)}
-                      <tr className="text-xs"><td className="pr-3 pt-2 font-medium">Total unités</td>{years.map(y => <td key={y} className="px-1 pt-2 text-right font-mono tabular-nums">{number(CHANNELS.reduce((n, ch) => n + volume(p, y, ch), 0))}</td>)}</tr>
+                      <tr className="text-xs"><td className="pr-3 pt-2 font-medium">Total unités</td>{years.map(y => <td key={y} className="px-1 pt-2 text-right font-mono tabular-nums">{number(CHANNELS.reduce((n, ch) => n + volume(p, y, ch), 0))}{(() => { const pct = y > p.launchYear ? growthPct(CHANNELS.reduce((n, ch) => n + volume(p, y, ch), 0), CHANNELS.reduce((n, ch) => n + volume(p, y - 1, ch), 0)) : null; return pct === null ? null : <span className={`block text-[10px] ${pct > 0 ? 'text-success' : pct < 0 ? 'text-destructive' : 'text-muted-foreground'}`}>{pct > 0 ? '+' : ''}{pct.toLocaleString('fr-FR')} %</span>; })()}</td>)}</tr>
                       <tr className="text-xs"><td className="pr-3 font-medium">CA HT</td>{years.map(y => <td key={y} className="px-1 text-right font-mono tabular-nums">{formatCurrency(revenue(p, y), true)}</td>)}</tr>
                     </tbody>
                   </table>
@@ -178,9 +187,9 @@ export function VolumesByChannelTable({ products, years, onChannelVolumeChange, 
           <Table className="min-w-[700px]">
             <TableHeader><TableRow><TableHead className="min-w-[200px]">Produit / catégorie</TableHead>{CHANNELS.map(ch => <TableHead key={ch} className="text-center">{chName(ch)} / an (%)</TableHead>)}<TableHead className="min-w-[145px]">Année de départ</TableHead></TableRow></TableHeader>
             <TableBody>{products.map(p => <TableRow key={p.id} className={touched.has(p.id) ? 'bg-primary/5' : ''}>
-              <TableCell className="font-medium max-w-[260px] break-words">{p.name}{touched.has(p.id) && <span className="block text-[10px] font-normal text-primary">sera recalculé</span>}</TableCell>
-              {CHANNELS.map(ch => byClient(p, ch) ? <TableCell key={ch} className="px-2 text-center text-xs text-muted-foreground">Par client<span className="block text-[10px]">(bloc B2B par client)</span></TableCell> : <TableCell key={ch} className="px-2"><div className="relative"><Input aria-label={`${p.name} ${ch} / an`} type="number" value={growthRates[p.id]?.[ch] ?? 0} onChange={e => setGrowthRates(prev => ({ ...prev, [p.id]: { ...prev[p.id], [ch]: Number(e.target.value) } }))} step={1} className="min-w-[90px] pr-7 text-center tabular-nums" /><span className="absolute right-3 top-2 text-muted-foreground">%</span></div></TableCell>)}
-              <TableCell><Select value={String(startOf(p))} onValueChange={value => setGrowthStartYear(prev => ({ ...prev, [p.id]: Number(value) }))}><SelectTrigger aria-label={`${p.name} année de départ`} disabled={!years.some(y => y >= p.launchYear)}><SelectValue /></SelectTrigger><SelectContent>{years.filter(y => y >= p.launchYear).map(y => <SelectItem key={y} value={String(y)}>{y}</SelectItem>)}</SelectContent></Select></TableCell>
+              <TableCell className="font-medium max-w-[260px] break-words">{p.name}{touched.has(p.id) ? <span className="block text-[10px] font-normal text-primary">sera recalculé</span> : p.growthPlan && <span className="block text-[10px] font-normal text-muted-foreground">Taux en cours mémorisé{p.growthPlan.startYear ? ` · depuis ${p.growthPlan.startYear}` : ''}</span>}</TableCell>
+              {CHANNELS.map(ch => byClient(p, ch) ? <TableCell key={ch} className="px-2 text-center text-xs text-muted-foreground">Par client<span className="block text-[10px]">(bloc B2B par client)</span></TableCell> : <TableCell key={ch} className="px-2"><div className="relative"><Input aria-label={`${p.name} ${ch} / an`} type="number" value={growthRates[p.id]?.[ch] ?? 0} onChange={e => { setDirty(d => new Set(d).add(p.id)); setGrowthRates(prev => ({ ...prev, [p.id]: { ...prev[p.id], [ch]: Number(e.target.value) } })); }} step={1} className="min-w-[90px] pr-7 text-center tabular-nums" /><span className="absolute right-3 top-2 text-muted-foreground">%</span></div></TableCell>)}
+              <TableCell><Select value={String(startOf(p))} onValueChange={value => { setDirty(d => new Set(d).add(p.id)); setGrowthStartYear(prev => ({ ...prev, [p.id]: Number(value) })); }}><SelectTrigger aria-label={`${p.name} année de départ`} disabled={!years.some(y => y >= p.launchYear)}><SelectValue /></SelectTrigger><SelectContent>{years.filter(y => y >= p.launchYear).map(y => <SelectItem key={y} value={String(y)}>{y}</SelectItem>)}</SelectContent></Select></TableCell>
             </TableRow>)}</TableBody>
           </Table>
         </div>
@@ -189,7 +198,7 @@ export function VolumesByChannelTable({ products, years, onChannelVolumeChange, 
             <label className="flex items-start gap-2 text-sm cursor-pointer"><RadioGroupItem value="recalc" className="mt-0.5" /><span><b>Recalculer les années</b> à partir de l’année de départ<span className="block text-xs text-muted-foreground">Seulement les produits modifiés ci-dessus ({touched.size}). Les années avant le départ ne changent pas.</span></span></label>
             <label className="flex items-start gap-2 text-sm cursor-pointer"><RadioGroupItem value="fill" className="mt-0.5" /><span><b>Remplir seulement les cases vides</b><span className="block text-xs text-muted-foreground">Tous les produits : prolonge le dernier volume saisi, sans rien écraser ({missing} cases).</span></span></label>
           </RadioGroup>
-          <Button disabled={growthMode === 'recalc' ? !touched.size : !missing} onClick={() => growthMode === 'recalc' ? applyGrowth(products.filter(p => touched.has(p.id))) : (commit(emptyChanges()), setGrowthOpen(false))}>
+          <Button disabled={growthMode === 'recalc' ? !touched.size : !missing} onClick={() => growthMode === 'recalc' ? applyGrowth(products.filter(p => touched.has(p.id))) : (commit(emptyChanges(), plansFor([...dirty])), setGrowthOpen(false))}>
             <Check className="h-4 w-4 mr-2" />{growthMode === 'recalc' ? `Appliquer à ${touched.size} produit${touched.size > 1 ? 's' : ''}` : `Remplir ${missing} case${missing > 1 ? 's' : ''} vide${missing > 1 ? 's' : ''}`}
           </Button>
         </div>

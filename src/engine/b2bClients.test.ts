@@ -134,3 +134,16 @@ describe('toggle détail par client', () => {
     expect(_en(off, [2026]).clients[0].volumes[2026]).toBe(250);
   });
 });
+
+describe('bascule détail client sans perte', () => {
+  it('garde le B2B non détaillé quand le détail est créé par une sauvegarde client puis désactivé', async () => {
+    const { keepSavedB2B, disableSplit, syncB2BClients } = await import('./b2bClients');
+    const base = { id: 'x', volumesByChannel: { B2C: {}, B2B: { 2026: 100 }, OEM: {} }, volumesByYear: {} } as any;
+    const on = syncB2BClients({ ...base, b2bClients: { enabled: true, historyYears: [], savedB2B: keepSavedB2B(base), clients: [{ id: 'c', name: 'C', volumes: { 2026: 40 }, growthRate: 0, adjustment: 0 }] } });
+    expect(on.volumesByChannel.B2B[2026]).toBe(40);
+    const off = disableSplit(on);
+    expect(off.volumesByChannel.B2B[2026]).toBe(100);
+    expect(off.b2bClients.clients[0].volumes[2026]).toBe(40);
+    expect(keepSavedB2B(on)).toEqual({ 2026: 100 });
+  });
+});

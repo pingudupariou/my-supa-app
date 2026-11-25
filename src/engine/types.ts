@@ -53,6 +53,7 @@ export interface Product {
   erplainMemberProducts?: Product[]; // Copies des membres pour leurs noms et calculs après sauvegarde
   pricesByYear?: Record<number, Partial<Record<ProductCategory, number>>>; // Prix HT par canal et année (scénario appliqué) ; sinon prix de base
   unitCostByYear?: Record<number, number>; // Coût de revient par année (scénario appliqué) ; sinon unitCost
+  growthPlan?: { rates: Partial<Record<'B2C' | 'B2B' | 'OEM', number>>; startYear?: number }; // Dernier % de croissance appliqué par canal (mémorisé)
   b2bClients?: B2BClientSplit; // Répartition facultative du B2B par client (lignes liées à Erplain)
 }
 

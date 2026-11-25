@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import type { CurrentYearMethod, PlanB2BClient, Product } from '@/engine/types';
-import { applyClientGrowth, b2bTotal, clientVolume, CURRENT_YEAR_METHODS, currentYearValue, differsFromOrigin, disableSplit, enableSplit, existingClientOptions, importErplainClients, erplainKeysOf, hasErplainHistory, lockedYears, restoreOrigin, setCurrentYearMethod, yearProgress, type ErplainClientSale, type ExistingClientOption } from '@/engine/b2bClients';
+import { keepSavedB2B, applyClientGrowth, b2bTotal, clientVolume, CURRENT_YEAR_METHODS, currentYearValue, differsFromOrigin, disableSplit, enableSplit, existingClientOptions, importErplainClients, erplainKeysOf, hasErplainHistory, lockedYears, restoreOrigin, setCurrentYearMethod, yearProgress, type ErplainClientSale, type ExistingClientOption } from '@/engine/b2bClients';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
@@ -53,7 +53,7 @@ export function B2BClientPanel({ product, years, onChange }: Props) {
   const options = useMemo(() => existing ? existingClientOptions(existing.erplain, existing.crm, split?.clients ?? []) : [], [existing, split?.clients]);
 
   const save = (clients: PlanB2BClient[], extra: Partial<NonNullable<Product['b2bClients']>> = {}) =>
-    onChange({ ...product, b2bClients: { ...(split ?? { historyYears: [] }), enabled: true, clients, ...extra } });
+    onChange({ ...product, b2bClients: { ...(split ?? { historyYears: [] }), enabled: true, savedB2B: keepSavedB2B(product), clients, ...extra } });
   const updateClient = (id: string, patch: Partial<PlanB2BClient>) =>
     save((split?.clients ?? []).map(c => c.id === id ? { ...c, ...patch } : c));
 

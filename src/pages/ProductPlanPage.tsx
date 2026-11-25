@@ -109,8 +109,9 @@ export function ProductPlanPage() {
     updateProducts(updatedProducts);
   };
 
-  const handleBulkChannelVolumes = (changes: { productId: string; year: number; channel: 'B2C' | 'B2B' | 'OEM'; volume: number }[]) => {
-    const updatedProducts = state.products.map(p => {
+  const handleBulkChannelVolumes = (changes: { productId: string; year: number; channel: 'B2C' | 'B2B' | 'OEM'; volume: number }[], growthPlans?: Record<string, NonNullable<Product['growthPlan']>>) => {
+    const updatedProducts = state.products.map(p0 => {
+      const p = growthPlans?.[p0.id] ? { ...p0, growthPlan: growthPlans[p0.id] } : p0;
       const mine = changes.filter(c => c.productId === p.id);
       if (!mine.length) return p;
       const ch = structuredClone(p.volumesByChannel || { B2C: {}, B2B: {}, OEM: {} });

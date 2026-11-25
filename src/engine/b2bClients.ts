@@ -103,6 +103,11 @@ export function enableSplit(p: Product, years: number[]): B2BClientSplit {
   return { enabled: true, historyYears: [], savedB2B, clients: [remainderOf(Object.fromEntries(years.map(y => [y, existing[y] || 0])))] };
 }
 
+/** Volume B2B « non détaillé » à conserver : celui d'avant activation, ou le B2B actuel si on passe en détail. */
+export function keepSavedB2B(p: Product): Record<number, number> {
+  return p.b2bClients?.enabled && p.b2bClients.savedB2B ? { ...p.b2bClients.savedB2B } : { ...(p.volumesByChannel?.B2B ?? {}) };
+}
+
 /** Désactivation : détail client conservé, volume B2B d'avant activation restauré. */
 export function disableSplit(p: Product): Product {
   const split = p.b2bClients;
@@ -213,6 +218,7 @@ export function importErplainClients(p: Product, sales: ErplainClientSale[], yea
     enabled: true,
     clients,
     historyYears: histYears,
+    savedB2B: keepSavedB2B(p),
     importedAt: new Date().toISOString(),
   };
   return { split: next, notes };
