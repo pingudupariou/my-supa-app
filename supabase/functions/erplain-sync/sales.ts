@@ -80,7 +80,7 @@ const custName = (c: any) => c ? (c.company_name || c.display_name || c.name || 
 const SHIP_RX = /shipping|delivery|livraison|transport|\bport\b|frais de port/i;
 const EXCL_RX = /draft|brouillon|cancel|annul|void/i;
 
-function toRows(d: any, docType: string, runId: string) {
+export function toRows(d: any, docType: string, runId: string) {
   const sign = docType === "credit_note" ? -1 : 1;
   const id = `${docType}:${d.id}`;
   const ttc = num(d.total), tax = num(d.total_taxes);

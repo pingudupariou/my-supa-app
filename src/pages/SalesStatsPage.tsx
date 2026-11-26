@@ -31,7 +31,7 @@ type Stats = {
   missing_cost: { key: string; label: string; ht: number; reason: string }[];
   by_month: { month: string; channel: string; ca_ht: number; qty: number; prod_ht: number; cogs: number; cov_ht: number; est_ht: number }[];
   by_channel: Row[]; by_customer: Row[]; by_product: Row[]; by_commercial_country: Row[]; by_delivery_country: Row[];
-  reconciliation: { docs_ht: number; lines_ht: number; invoices: number; credit_notes: number; missing_total: number; no_customer: number; credit_no_qty_ht: number };
+  reconciliation: { docs_ht: number; display_ht: number; lines_ht: number; invoices_ht: number; credit_notes_ht: number; unpaid_ht: number; unpaid_invoices: number; order_invoices: number; invoices: number; credit_notes: number; missing_total: number; no_customer: number; credit_no_qty_ht: number };
   excluded: { reason: string; doc_type: string; n: number; ht: number }[];
 };
 const CH_COLOR: Record<string, string> = { B2C: 'hsl(var(--primary))', B2B: 'hsl(var(--chart-2, 160 60% 40%))', OEM: 'hsl(var(--chart-4, 35 90% 50%))', A_CLASSER: 'hsl(var(--muted-foreground))' };
@@ -119,8 +119,8 @@ function Explorer({ stats }: { stats: Stats }) {
               {METRICS.filter(([k]) => mets.includes(k)).map(([k, l, c]) => {
                 const axis = k === 'pct' ? 'pct' : 'eur'; const ax = vertical ? { xAxisId: axis } : { yAxisId: axis };
                 return k === 'pct' || (dim === 'month' && k === 'qty')
-                  ? <Line key={k} {...ax} dataKey={k} name={l} stroke={c} strokeWidth={2} dot={{ r: 3 }} connectNulls={false} type="monotone" />
-                  : <Bar key={k} {...ax} dataKey={k} name={l} fill={c} radius={vertical ? [0, 3, 3, 0] : [3, 3, 0, 0]} />;
+                  ? <Line key={k} {...ax} dataKey={k} name={l} stroke={c} strokeWidth={2} dot={{ r: 3 }} connectNulls={false} type="monotone" isAnimationActive={false} />
+                  : <Bar key={k} {...ax} dataKey={k} name={l} fill={c} radius={vertical ? [0, 3, 3, 0] : [3, 3, 0, 0]} isAnimationActive={false} />;
               })}
             </ComposedChart>
           </ResponsiveContainer>
@@ -137,7 +137,7 @@ export function SalesStatsPage() {
   const canClassify = getTabPermission('customer-classification') === 'write';
   const [period, setPeriod] = useState('12');
   const [from, setFrom] = useState(''); const [to, setTo] = useState('');
-  const [shipping, setShipping] = useState(false);
+  const [shipping, setShipping] = useState(true);
   const [channels, setChannels] = useState<string[]>([...CHANNELS]);
   const [stats, setStats] = useState<Stats | null>(null);
   const [loading, setLoading] = useState(false);
@@ -348,7 +348,7 @@ export function SalesStatsPage() {
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold">Statistiques commerciales</h1>
-          <p className="text-sm text-muted-foreground">Source unique : factures moins avoirs Erplain (lecture seule). Canal commun par client.</p>
+          <p className="text-sm text-muted-foreground">CA HT facturé : toutes les factures Erplain moins les avoirs, sans commandes non facturées. Canal commun par client.</p>
         </div>
         {canWrite && (
           <div className="flex gap-2">
@@ -396,10 +396,26 @@ export function SalesStatsPage() {
       </CardContent></Card>
 
       <div className="grid gap-4 grid-cols-2 lg:grid-cols-6">
-        {[['CA HT net', eur(stats?.totals.ca_ht)], ['Marge produits', stats ? `${eur(margin(stats.totals).m)} · ${pctf(margin(stats.totals).pct)}` : '—'], ['Couverture coûts', stats ? pctf(margin(stats.totals).coverage) : '—'], ['Quantités', nb(stats?.totals.qty ?? 0)], ['Livraison facturée HT', shipping ? eur(stats?.totals.shipping_ht) : 'exclue'], ['Documents', nb(stats?.totals.docs ?? 0)]].map(([l, v]) => (
+        {[['CA HT facturé (net d’avoirs)', eur(stats?.totals.ca_ht)], ['Marge produits', stats ? `${eur(margin(stats.totals).m)} · ${pctf(margin(stats.totals).pct)}` : '—'], ['Couverture coûts', stats ? pctf(margin(stats.totals).coverage) : '—'], ['Quantités', nb(stats?.totals.qty ?? 0)], ['Livraison facturée HT', shipping ? eur(stats?.totals.shipping_ht) : 'exclue'], ['Documents', nb(stats?.totals.docs ?? 0)]].map(([l, v]) => (
           <Card key={l}><CardContent className="pt-6"><p className="text-xs text-muted-foreground">{l}</p><p className="text-xl font-semibold tabular-nums">{v}</p></CardContent></Card>
         ))}
       </div>
+
+      {run?.status === 'running' && (
+        <Card className="border-destructive/40 bg-destructive/5"><CardContent className="py-3 flex items-start gap-3 text-sm">
+          <Loader2 className="h-5 w-5 shrink-0 animate-spin text-destructive" />
+          <div><p className="font-medium text-destructive">Lecture Erplain incomplète : le CA peut temporairement différer.</p>
+            <p>{Object.entries<any>(run.totals ?? {}).map(([k, t]) => `${k === 'invoice' ? 'Factures' : 'Avoirs'} ${t.read ?? 0}/${t.expected ?? '?'}`).join(' · ')}. Laissez la lecture se terminer, puis vérifiez le rapprochement ci-dessous.</p></div>
+        </CardContent></Card>
+      )}
+
+      {rec && (
+        <Card className="border-primary/20"><CardContent className="py-3 text-sm">
+          <p className="font-medium">Rapprochement du CA HT facturé sur la période</p>
+          <p className="mt-1">Factures {eur(rec.invoices_ht)} ({rec.invoices}, dont {rec.unpaid_invoices} impayée{rec.unpaid_invoices > 1 ? 's' : ''}) − avoirs {eur(Math.abs(rec.credit_notes_ht))} ({rec.credit_notes}) = <strong>{eur(rec.docs_ht)}</strong>{!shipping && <> ; livraison retirée = <strong>{eur(rec.display_ht)}</strong></>}.</p>
+          <p className="mt-1 text-xs text-muted-foreground">Toutes les factures non brouillon et non annulées sont incluses, qu’elles soient payées ou non. Les commandes non facturées ne sont jamais ajoutées.</p>
+        </CardContent></Card>
+      )}
 
       <RafReport refreshKey={run?.finished_at ? Date.parse(run.finished_at) : 0} syncedAt={run?.finished_at ?? run?.started_at ?? null} />
 
@@ -415,7 +431,7 @@ export function SalesStatsPage() {
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={monthly}><CartesianGrid strokeDasharray="3 3" className="stroke-muted" /><XAxis dataKey="month" fontSize={11} /><YAxis fontSize={11} tickFormatter={(v) => `${Math.round(v / 1000)} k`} />
                   <Tooltip formatter={(v: number) => eur(v)} /><Legend />
-                  {CHANNELS.filter((c) => channels.includes(c)).map((c) => <Bar key={c} dataKey={c} name={CH_LABEL[c]} stackId="a" fill={CH_COLOR[c]} />)}
+                  {CHANNELS.filter((c) => channels.includes(c)).map((c) => <Bar key={c} dataKey={c} name={CH_LABEL[c]} stackId="a" fill={CH_COLOR[c]} isAnimationActive={false} />)}
                 </BarChart>
               </ResponsiveContainer>
             </TabsContent>

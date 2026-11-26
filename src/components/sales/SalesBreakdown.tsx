@@ -144,8 +144,8 @@ export function SalesBreakdown({ from, to, search }: { from: string; to: string;
             <XAxis dataKey="n" interval={0} angle={-30} textAnchor="end" tick={{ fontSize: 10 }} />
             <YAxis tickFormatter={(v) => `${Math.round(v / 1000)} k€`} tick={{ fontSize: 11 }} />
             <Tooltip formatter={(v: number, n: string) => [eur(v), n === 'ca' ? 'CA HT' : 'Marge']} />
-            <Bar dataKey="ca" fill="hsl(var(--primary))" radius={[3, 3, 0, 0]} />
-            <Bar dataKey="m" fill="hsl(var(--chart-2, 160 60% 40%))" radius={[3, 3, 0, 0]} />
+            <Bar dataKey="ca" fill="hsl(var(--primary))" radius={[3, 3, 0, 0]} isAnimationActive={false} />
+            <Bar dataKey="m" fill="hsl(var(--chart-2, 160 60% 40%))" radius={[3, 3, 0, 0]} isAnimationActive={false} />
           </BarChart></ResponsiveContainer></div>)}
       {ch === 'B2C' && cc === 'all' && (() => {
         const byK = new Map((ads?.by_product ?? []).map((p: any) => [p.k, p]));

@@ -124,7 +124,7 @@ export function RafReport({ refreshKey, syncedAt }: { refreshKey: number; synced
   const tick = (v: number) => fmtAmount(v, 'keur');
   const seriesData = (seg: string) => MONTHS.map((m, i) => ({ mois: m.slice(0, 4), ...Object.fromEntries(years.map((y) => [nm(String(y)), g[y]?.[i + 1]?.[seg]])), [nm('Budget')]: seg === 'ALL' ? budget[i + 1] ?? null : undefined }));
 
-  const YearTable = ({ seg, withBudget }: { seg: string; withBudget?: boolean }) => {
+  const renderYearTable = ({ seg, withBudget }: { seg: string; withBudget?: boolean }) => {
     const showB = withBudget && view.budget, showG = withBudget && view.gap, showE = view.evol && !!prevY;
     return (
       <div className={`grid gap-4 ${view.table && view.chart ? 'lg:grid-cols-2' : ''}`}>
@@ -143,24 +143,24 @@ export function RafReport({ refreshKey, syncedAt }: { refreshKey: number; synced
         {view.chart && <div className="h-80"><ResponsiveContainer width="100%" height="100%">
           {withBudget ? (
             <BarChart data={seriesData(seg)}><CartesianGrid strokeDasharray="3 3" className="stroke-muted" /><XAxis dataKey="mois" fontSize={11} /><YAxis fontSize={11} tickFormatter={tick} /><Tooltip formatter={(v: number) => fmt(v)} />{legend}
-              {years.map((y) => <Bar key={y} dataKey={nm(String(y))} fill={COLORS[allYears.indexOf(y)]} />)}{showB && <Bar dataKey={nm('Budget')} fill={COLORS[3]} />}</BarChart>
+              {years.map((y) => <Bar key={y} dataKey={nm(String(y))} fill={COLORS[allYears.indexOf(y)]} isAnimationActive={false} />)}{showB && <Bar dataKey={nm('Budget')} fill={COLORS[3]} isAnimationActive={false} />}</BarChart>
           ) : (
             <LineChart data={seriesData(seg)}><CartesianGrid strokeDasharray="3 3" className="stroke-muted" /><XAxis dataKey="mois" fontSize={11} /><YAxis fontSize={11} tickFormatter={tick} /><Tooltip formatter={(v: number) => fmt(v)} />{legend}
-              {years.map((y) => <Line key={y} dataKey={nm(String(y))} stroke={COLORS[allYears.indexOf(y)]} strokeWidth={2} connectNulls={false} />)}</LineChart>
+              {years.map((y) => <Line key={y} dataKey={nm(String(y))} stroke={COLORS[allYears.indexOf(y)]} strokeWidth={2} connectNulls={false} isAnimationActive={false} />)}</LineChart>
           )}
         </ResponsiveContainer></div>}
       </div>
     );
   };
 
-  const MixYear = ({ y }: { y: number }) => {
+  const renderMixYear = (y: number) => {
     const data = MONTHS.map((m, i) => ({ mois: m.slice(0, 4), ...Object.fromEntries(SEGMENTS.map((s) => [SEG_LABEL[s], g[y]?.[i + 1]?.[s]])) }));
     const share = yearShare(g, y);
     return (
       <div className="grid gap-4 lg:grid-cols-3">
         <div className="lg:col-span-2 h-72"><ResponsiveContainer width="100%" height="100%"><LineChart data={data}><CartesianGrid strokeDasharray="3 3" className="stroke-muted" /><XAxis dataKey="mois" fontSize={11} /><YAxis fontSize={11} tickFormatter={tick} /><Tooltip formatter={(v: number) => fmt(v)} />{legend}
-          {SEGMENTS.map((s, i) => <Line key={s} dataKey={SEG_LABEL[s]} stroke={COLORS[i]} strokeWidth={2} />)}</LineChart></ResponsiveContainer></div>
-        <div className="h-72"><ResponsiveContainer width="100%" height="100%"><PieChart><Pie data={share.map((s) => ({ name: SEG_LABEL[s.segment], value: Math.max(0, s.value) }))} dataKey="value" nameKey="name" outerRadius={90} label={(e: any) => `${Math.round(e.percent * 100)} %`}>
+          {SEGMENTS.map((s, i) => <Line key={s} dataKey={SEG_LABEL[s]} stroke={COLORS[i]} strokeWidth={2} isAnimationActive={false} />)}</LineChart></ResponsiveContainer></div>
+        <div className="h-72"><ResponsiveContainer width="100%" height="100%"><PieChart><Pie data={share.map((s) => ({ name: SEG_LABEL[s.segment], value: Math.max(0, s.value) }))} dataKey="value" nameKey="name" outerRadius={90} label={(e: any) => `${Math.round(e.percent * 100)} %`} isAnimationActive={false}>
           {share.map((_, i) => <Cell key={i} fill={COLORS[i]} />)}</Pie><Tooltip formatter={(v: number) => fmt(v)} />{legend}</PieChart></ResponsiveContainer></div>
       </div>
     );
@@ -221,9 +221,9 @@ export function RafReport({ refreshKey, syncedAt }: { refreshKey: number; synced
             {SEGMENTS.map((s) => <TabsTrigger key={s} value={s}>{SEG_LABEL[s]}</TabsTrigger>)}
             <TabsTrigger value="mix">Par type de client</TabsTrigger>
           </TabsList>
-          <TabsContent value="ALL"><YearTable seg="ALL" withBudget /></TabsContent>
-          {SEGMENTS.map((s) => <TabsContent key={s} value={s}><YearTable seg={s} /></TabsContent>)}
-          <TabsContent value="mix" className="space-y-6">{years.map((y) => <div key={y}><h3 className="text-sm font-semibold mb-1">{y}</h3><MixYear y={y} /></div>)}</TabsContent>
+          <TabsContent value="ALL">{renderYearTable({ seg: 'ALL', withBudget: true })}</TabsContent>
+          {SEGMENTS.map((s) => <TabsContent key={s} value={s}>{renderYearTable({ seg: s })}</TabsContent>)}
+          <TabsContent value="mix" className="space-y-6">{years.map((y) => <div key={y}><h3 className="text-sm font-semibold mb-1">{y}</h3>{renderMixYear(y)}</div>)}</TabsContent>
         </Tabs>
       </CardContent>
     </Card>
