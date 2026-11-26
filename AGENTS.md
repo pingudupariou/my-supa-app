@@ -33,3 +33,4 @@
 - Scenario client growth is stored per client/year and calculated from the previous scenario year; detailed B2B always sums effective client volumes, and application uses the same resolver — keeps growth, totals and exports aligned.
 - Sales custom stats pivot client-side from RPC sales_customer_product (channel×customer×product, shared customer_channel); product categories come from Product-plan groups/categories by Erplain variant key — one source, no double counting.
 - CRM client e-mail comes from Erplain Customer(id) via erplain-sync action customer_contact (read-only, explicit erplain_customer_id); up to 3 manual contacts stored in b2b_clients.contacts jsonb — no guessed matches.
+- Plan atelier "recent" sync reads only orders/stocks updated since last completed sync (-2 h, max 7 days) and never deletes on that partial read except lines of orders it returned — speeds daily refresh without losing data.

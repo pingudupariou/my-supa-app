@@ -8,7 +8,7 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 export function makeGql(token: string, endpoint: string, deadline: number, log: (s: any) => void): Gql {
   let lastCall = 0;
-  let gap = 2000;
+  let gap = 700;
   return async (label, query, variables) => {
     for (let attempt = 0; attempt < 4; attempt++) {
       const wait = lastCall + gap - Date.now();
@@ -26,7 +26,7 @@ export function makeGql(token: string, endpoint: string, deadline: number, log: 
         if (r.status === 429) {
           const ra = Number(r.headers.get("Retry-After"));
           const delay = Number.isFinite(ra) && ra > 0 ? ra * 1000 : gap * 2;
-          gap = Math.min(Math.max(gap * 1.5, 2000), 15000);
+          gap = Math.min(Math.max(gap * 1.5, 1500), 15000);
           log({ step: `${label} (429, attente ${Math.round(delay / 1000)} s)`, httpStatus: 429, ms: Date.now() - s, ok: false });
           if (Date.now() + delay > deadline) return { data: null, errors: ["Délai d'exécution atteint"], httpStatus: 429, complexity: false, timeout: true };
           await sleep(delay);
@@ -61,7 +61,7 @@ export type Dataset = {
 
 export const DATASETS: Dataset[] = [
   {
-    key: "orders", table: "erplain_order_lines", root: "Orders", size: 10, idCol: "line_id",
+    key: "orders", table: "erplain_order_lines", root: "Orders", size: 25, idCol: "line_id",
     args: (f) => (f ? `where: ${f}` : ""),
     sel: `id label status shipping_status delivery_status stock_allocation_status shipping_at created_at dated_at
       line_items { id type parent_id kit_line_item_id variant_type shipping_at quantity shipped_quantity delivered_quantity reserved_quantity committed_quantity ${V} ${L} }`,
@@ -78,7 +78,7 @@ export const DATASETS: Dataset[] = [
     })),
   },
   {
-    key: "stocks", table: "erplain_stock_levels", root: "StockLevels", size: 25, idCol: "id",
+    key: "stocks", table: "erplain_stock_levels", root: "StockLevels", size: 100, idCol: "id",
     args: () => "",
     sel: `id on_hand available reserved incoming ${V} ${L}`,
     rows: (s, run) => [{
@@ -88,7 +88,7 @@ export const DATASETS: Dataset[] = [
     }],
   },
   {
-    key: "mos", table: "erplain_manufacturing_orders", root: "ManufacturingOrders", size: 10, idCol: "id",
+    key: "mos", table: "erplain_manufacturing_orders", root: "ManufacturingOrders", size: 25, idCol: "id",
     args: (f) => (f ? `where: ${f}` : ""),
     sel: `id label status operation_type quantity remaining_to_produce actually_produced due_at ${V} ${L}
       bill_of_material { id } manufacturing_routing { id } order_line_items { id }

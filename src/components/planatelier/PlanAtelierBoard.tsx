@@ -198,11 +198,12 @@ export function PlanAtelierBoard({ isAdmin, canRead = isAdmin }: { isAdmin: bool
         <CardContent className="space-y-3">
           <div className="flex flex-wrap gap-2 items-center">
             <select className="h-10 rounded-md border bg-background px-2 text-sm" value={syncMode} onChange={(e) => setSyncMode(e.target.value)} disabled={syncing} data-readonly-allow="true">
+              <option value="recent">Dernières modifications (commandes + stocks + OF) — rapide</option>
               <option value="all">Tout (commandes, stocks, OF, nomenclatures, gammes)</option>
               <option value="orders_mos">Commandes + OF liés</option>
               <option value="quick">Commandes + stocks + OF</option>
               <option value="mos">OF seulement</option>
-              <option value="stocks">Stocks seulement</option>
+              <option value="stocks">Stocks seulement (complet)</option>
               <option value="bom">Nomenclatures + gammes</option>
             </select>
             <Button onClick={() => sync(false, true, false, syncMode)} disabled={syncing || !isAdmin} data-readonly-allow="true">

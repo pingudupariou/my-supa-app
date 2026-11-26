@@ -59,7 +59,7 @@ async function handleData(action: string, body: any, admin: any, token: string, 
   if (action === "sync") {
     // Resume the last unfinished run, or start a new one.
     // mode: which datasets to read (saves time). quick = orders, stocks, MOs (before sending OFs).
-    const MODES: Record<string, string[]> = { quick: ["orders", "stocks", "mos"], orders_mos: ["orders", "mos"], mos: ["mos"], stocks: ["stocks"], bom: ["boms", "routings"] };
+    const MODES: Record<string, string[]> = { recent: ["orders", "stocks", "mos"], quick: ["orders", "stocks", "mos"], orders_mos: ["orders", "mos"], mos: ["mos"], stocks: ["stocks"], bom: ["boms", "routings"] };
     const mode: string | null = body.quick === true ? "quick" : MODES[body.mode] ? body.mode : null;
     const list = mode ? DATASETS.map((d, i) => (MODES[mode].includes(d.key) ? i : -1)).filter((i) => i >= 0) : DATASETS.map((_, i) => i);
     let q = admin.from("erplain_sync_runs").select("*").eq("status", "running");
@@ -67,7 +67,9 @@ async function handleData(action: string, body: any, admin: any, token: string, 
     let { data: run } = await q.order("started_at", { ascending: false }).limit(1).maybeSingle();
     if (body.restart && run) { await admin.from("erplain_sync_runs").update({ status: "abandoned", finished_at: new Date().toISOString() }).eq("id", run.id); run = null; }
     if (!run) {
-      const { data: created, error } = await admin.from("erplain_sync_runs").insert({ cursor: mode ? { ds: 0, page: 1, mode } : { ds: 0, page: 1 }, started_by: userId }).select().single();
+      const c0: any = mode ? { ds: 0, page: 1, mode } : { ds: 0, page: 1 };
+      if (mode === "recent") c0.since = await recentSince(admin, body.sinceDays);
+      const { data: created, error } = await admin.from("erplain_sync_runs").insert({ cursor: c0, started_by: userId }).select().single();
       if (error) return json({ status: "api_error", message: error.message });
       run = created;
     }
@@ -78,12 +80,23 @@ async function handleData(action: string, body: any, admin: any, token: string, 
     let timedOut = false;
 
     const limit = list.length;
+    const recent: string | null = cursor.since ?? null;
+    let ordersDs: any = null; // customer field definition read once per call
     while (cursor.ds < limit) {
       const baseDs = DATASETS[list[cursor.ds]];
-      const ds = baseDs.key === 'orders' ? await ordersWithCustomer(admin, gql, baseDs) : baseDs;
+      const ds = baseDs.key === 'orders' ? (ordersDs ??= await ordersWithCustomer(admin, gql, baseDs)) : baseDs;
       if (cursor.filter === undefined) {
         const ft = FILTER_TYPES[ds.key];
-        if (ft) {
+        const rt = recent ? RECENT_TYPES[ds.key] : undefined;
+        if (rt) {
+          // Recent read: only records updated since `recent`, every status (to drop closed orders).
+          const cols = await whereColumns(admin, gql, rt);
+          if (cols === "timeout") { timedOut = true; break; }
+          cursor.filter = Array.isArray(cols) && cols.includes("UPDATED_AT") ? `{ column: UPDATED_AT, operator: GTE, value: ${JSON.stringify(recent)} }` : null;
+          cursor.partial = !!cursor.filter;
+          if (!cursor.filter && ft) { const c2 = await whereColumns(admin, gql, ft.type); cursor.filter = Array.isArray(c2) ? ft.build(c2) : null; }
+          notes.push(cursor.partial ? `${ds.root} : seulement les modifications depuis le ${recent}.` : `${ds.root} : filtre date indisponible, lecture complète.`);
+        } else if (ft) {
           const cols = await whereColumns(admin, gql, ft.type);
           if (cols === "timeout") { timedOut = true; break; }
           cursor.filter = cols ? ft.build(cols) : null;
@@ -96,14 +109,23 @@ async function handleData(action: string, body: any, admin: any, token: string, 
       if (r.complexity && cursor.size > 1) { cursor.size = Math.max(1, Math.floor(cursor.size / 2)); continue; }
       if (r.errors.length && cursor.filter && cursor.page === 1 && !cursor.filterFailed) {
         notes.push(`${ds.root} : filtre statut refusé (${r.errors[0]}), lecture sans filtre.`);
-        cursor.filter = null; cursor.filterFailed = true; continue;
+        cursor.filter = null; cursor.filterFailed = true; cursor.partial = false; continue;
       }
       const page = r.data?.[ds.root];
       if (r.errors.length || !page) {
         failure = `${ds.root} page ${cursor.page} : HTTP ${r.httpStatus ?? "n/a"} — ${r.errors.join(" | ") || "réponse vide"}`;
         break;
       }
-      const rows = (page.data ?? []).flatMap((item: any) => ds.rows(item, run.id));
+      let rows = (page.data ?? []).flatMap((item: any) => ds.rows(item, run.id));
+      if (cursor.partial && ds.key === "orders") {
+        // Partial read: orders that are no longer open are removed, their lines too; lines removed from an open order too.
+        const ids = [...new Set((page.data ?? []).map((o: any) => o.id))];
+        if (ids.length) {
+          const del = await admin.from(ds.table).delete().in("order_id", ids).or(`run_id.is.null,run_id.neq.${run.id}`);
+          if (del.error) { failure = `Nettoyage ${ds.table} : ${del.error.message}`; break; }
+        }
+        rows = rows.filter((x: any) => OPEN_ORDER.includes(x.order_status));
+      }
       if (rows.length) {
         const { error } = await admin.from(ds.table).upsert(rows, { onConflict: ds.idCol });
         if (error) { failure = `Enregistrement ${ds.table} : ${error.message}`; break; }
@@ -112,12 +134,12 @@ async function handleData(action: string, body: any, admin: any, token: string, 
       if (ds.key === "orders") counts.order_lines = (counts.order_lines ?? 0) + rows.length;
       if (page.paginatorInfo?.hasMorePages) { cursor.page++; }
       else {
-        // Dataset complete: remove rows no longer returned by Erplain.
-        await admin.from(ds.table).delete().or(`run_id.is.null,run_id.neq.${run.id}`);
+        // Dataset complete: remove rows no longer returned by Erplain (full reads only — a partial read proves nothing).
+        if (!cursor.partial) await admin.from(ds.table).delete().or(`run_id.is.null,run_id.neq.${run.id}`);
         // Complete MO read: update the status of every MO sent by the app (deletion confirmed only by a direct read).
         if (ds.key === "mos") { const rec = await reconcileSubmissions(admin, gql, run.id); notes.push(rec); }
         if (ds.key === "stocks") { try { const n = await checkMissingComponentStock(admin, gql, run.id); if (n) notes.push(n); } catch (e) { notes.push(`Relecture du stock des composants impossible : ${(e as Error).message}`); } }
-        cursor.ds++; cursor.page = 1; cursor.size = undefined; cursor.filter = undefined; cursor.filterFailed = undefined;
+        cursor.ds++; cursor.page = 1; cursor.size = undefined; cursor.filter = undefined; cursor.filterFailed = undefined; cursor.partial = undefined;
       }
       await admin.from("erplain_sync_runs").update({ cursor, counts, notes }).eq("id", run.id);
     }
@@ -897,6 +919,20 @@ Deno.serve(async (req) => {
 // 2) No row: Variant.on_hand/available/reserved(location_ids:[loc]) → explicit numbers returned by Erplain
 //    for that location are stored as a confirmed level (0 = confirmed zero → shortage, not "unknown").
 // 3) Null / error / stock not tracked → stays unknown, with the exact reason.
+const RECENT_TYPES: Record<string, string> = { orders: "QueryOrdersWhereColumn", stocks: "QueryStockLevelsWhereColumn" };
+const OPEN_ORDER = ["active", "pending_validation"];
+
+// Start of a "recent" read: last completed sync minus 2 h margin, or N days (default 7, max 90).
+async function recentSince(admin: any, days: unknown): Promise<string> {
+  const fmt = (d: Date) => d.toISOString().slice(0, 19).replace("T", " ");
+  const n = Number(days);
+  if (Number.isFinite(n) && n > 0) return fmt(new Date(Date.now() - Math.min(n, 90) * 86400000));
+  const { data } = await admin.from("erplain_sync_runs").select("finished_at").eq("status", "completed").not("finished_at", "is", null)
+    .order("finished_at", { ascending: false }).limit(1).maybeSingle();
+  const last = data?.finished_at ? new Date(data.finished_at).getTime() - 2 * 3600000 : 0;
+  return fmt(new Date(Math.max(last, Date.now() - 7 * 86400000)));
+}
+
 async function checkMissingComponentStock(admin: any, gql: any, runId: string): Promise<string | null> {
   const { data: boms } = await admin.from("erplain_boms").select("components").eq("active", true).limit(5000);
   const ids = new Set<number>();
